@@ -1,13 +1,5 @@
 import { create } from 'zustand';
-
-interface User {
-  id: string;
-  code: string;
-  name: string;
-  email: string;
-  role: string;
-  phone?: string;
-}
+import type { User } from '@/types/user';
 
 interface AuthStore {
   user: User | null;
@@ -42,6 +34,5 @@ export const useAuthStore = create<AuthStore>((set) => ({
     localStorage.removeItem('access_token');
     localStorage.removeItem('user');
     set({ user: null, token: null });
-    window.location.href = '/login';
   },
 }));

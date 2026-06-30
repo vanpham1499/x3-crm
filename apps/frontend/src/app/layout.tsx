@@ -1,10 +1,12 @@
 import type { Metadata } from 'next';
-import './globals.css';
+import '@fontsource-variable/public-sans';
+import '@/styles/globals.css';
 import { Providers } from './providers';
+import { siteConfig } from '@/config/site';
 
 export const metadata: Metadata = {
-  title: 'X3 CRM',
-  description: 'Hệ thống quản lý khách hàng X3',
+  title: siteConfig.name,
+  description: siteConfig.description,
 };
 
 export default function RootLayout({ children }: { children: React.ReactNode }) {

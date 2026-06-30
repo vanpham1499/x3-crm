@@ -1,17 +1,23 @@
-'use client';
+﻿'use client';
+
 import { useEffect } from 'react';
-import { useRouter, useParams } from 'next/navigation';
-import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
+import { useParams, useRouter } from 'next/navigation';
+import ArrowBackRoundedIcon from '@mui/icons-material/ArrowBackRounded';
+import { Alert, Box, Button, CircularProgress, MenuItem, Paper, Stack, TextField, Typography } from '@mui/material';
+import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import { useForm } from 'react-hook-form';
-import { api } from '@/lib/api';
-import { Header } from '@/components/layout/header';
-import { Button } from '@/components/ui/button';
-import { Input } from '@/components/ui/input';
-import { Label } from '@/components/ui/label';
+import { Header } from '@/components/shell/header';
 import { ROLE_LABELS, formatDate } from '@/lib/utils';
-import { ArrowLeft } from 'lucide-react';
+import { api } from '@/services/api/client';
 
 const ROLES = ['ADMIN', 'LEADER', 'EMPLOYEE', 'ACCOUNTANT', 'SALES'];
+
+type UserDetailFormData = {
+  name: string;
+  phone?: string;
+  role: string;
+  isActive: string;
+};
 
 export default function UserDetailPage() {
   const router = useRouter();
@@ -24,7 +30,12 @@ export default function UserDetailPage() {
     queryFn: () => api.get(`/users/${id}`).then((r) => r.data),
   });
 
-  const { register, handleSubmit, reset, formState: { errors, isDirty } } = useForm();
+  const {
+    register,
+    handleSubmit,
+    reset,
+    formState: { errors, isDirty },
+  } = useForm<UserDetailFormData>();
 
   useEffect(() => {
     if (user) {
@@ -38,10 +49,11 @@ export default function UserDetailPage() {
   }, [user, reset]);
 
   const mutation = useMutation({
-    mutationFn: (data: any) => api.put(`/users/${id}`, {
-      ...data,
-      isActive: data.isActive === 'true',
-    }),
+    mutationFn: (data: UserDetailFormData) =>
+      api.put(`/users/${id}`, {
+        ...data,
+        isActive: data.isActive === 'true',
+      }),
     onSuccess: (res) => {
       qc.setQueryData(['user', id], res.data);
       qc.invalidateQueries({ queryKey: ['users'] });
@@ -56,112 +68,113 @@ export default function UserDetailPage() {
 
   if (isLoading) {
     return (
-      <div>
+      <Box>
         <Header title="Chi tiết nhân viên" />
-        <div className="p-6 text-center text-gray-400">Đang tải...</div>
-      </div>
+        <Stack sx={{ p: 6, color: 'text.secondary', alignItems: 'center' }}>
+          <CircularProgress size={28} />
+          <Typography sx={{ mt: 2 }}>Đang tải...</Typography>
+        </Stack>
+      </Box>
     );
   }
 
   if (!user) {
     return (
-      <div>
+      <Box>
         <Header title="Chi tiết nhân viên" />
-        <div className="p-6 text-center text-red-500">Không tìm thấy nhân viên</div>
-      </div>
+        <Box sx={{ p: 3 }}>
+          <Alert severity="error">Không tìm thấy nhân viên</Alert>
+        </Box>
+      </Box>
     );
   }
 
   return (
-    <div>
+    <Box>
       <Header title="Chi tiết nhân viên" />
-      <div className="p-6">
-        <Button variant="ghost" className="mb-6 -ml-2 text-gray-600" onClick={() => router.push('/users')}>
-          <ArrowLeft className="h-4 w-4 mr-2" />Quay lại danh sách
+      <Stack spacing={3} sx={{ p: 3 }}>
+        <Button startIcon={<ArrowBackRoundedIcon />} sx={{ alignSelf: 'flex-start' }} onClick={() => router.push('/users')}>
+          Quay lại danh sách
         </Button>
 
-        {/* Thông tin cố định */}
-        <div className="bg-white rounded-lg border p-6 mb-4">
-          <h2 className="text-sm font-semibold text-gray-500 uppercase tracking-wide mb-4">Thông tin tài khoản</h2>
-          <div className="grid grid-cols-2 gap-4 text-sm">
-            <div>
-              <p className="text-gray-500 mb-1">Mã nhân viên</p>
-              <p className="font-medium">{user.code}</p>
-            </div>
-            <div>
-              <p className="text-gray-500 mb-1">Email</p>
-              <p className="font-medium">{user.email}</p>
-            </div>
-            <div>
-              <p className="text-gray-500 mb-1">Ngày tạo</p>
-              <p className="font-medium">{formatDate(user.createdAt)}</p>
-            </div>
-            <div>
-              <p className="text-gray-500 mb-1">Cập nhật lần cuối</p>
-              <p className="font-medium">{formatDate(user.updatedAt)}</p>
-            </div>
-          </div>
-        </div>
+        <Paper variant="outlined" sx={{ p: 3, borderRadius: 1 }}>
+          <Typography color="text.secondary" sx={{ mb: 2, textTransform: 'uppercase', fontSize: 13, fontWeight: 800 }}>
+            Thông tin tài khoản
+          </Typography>
+          <Box sx={{ display: 'grid', gridTemplateColumns: { xs: '1fr', md: 'repeat(2, 1fr)' }, gap: 2 }}>
+            <InfoItem label="Mã nhân viên" value={user.code} />
+            <InfoItem label="Email" value={user.email} />
+            <InfoItem label="Ngày tạo" value={formatDate(user.createdAt)} />
+            <InfoItem label="Cập nhật lần cuối" value={formatDate(user.updatedAt)} />
+          </Box>
+        </Paper>
 
-        {/* Form chỉnh sửa */}
-        <div className="bg-white rounded-lg border p-6">
-          <h2 className="text-sm font-semibold text-gray-500 uppercase tracking-wide mb-4">Chỉnh sửa thông tin</h2>
-          <form onSubmit={handleSubmit((d) => mutation.mutate(d))} className="space-y-5">
-            <div className="space-y-1.5">
-              <Label>Họ tên *</Label>
-              <Input {...register('name', { required: 'Bắt buộc' })} />
-              {errors.name && <p className="text-xs text-red-500">{errors.name.message as string}</p>}
-            </div>
+        <Paper variant="outlined" sx={{ p: 3, borderRadius: 1 }}>
+          <Typography color="text.secondary" sx={{ mb: 2, textTransform: 'uppercase', fontSize: 13, fontWeight: 800 }}>
+            Chỉnh sửa thông tin
+          </Typography>
 
-            <div className="space-y-1.5">
-              <Label>Số điện thoại</Label>
-              <Input placeholder="0901234567" {...register('phone')} />
-            </div>
+          <Stack component="form" spacing={2.5} onSubmit={handleSubmit((data) => mutation.mutate(data))}>
+            <TextField
+              label="Họ tên *"
+              error={Boolean(errors.name)}
+              helperText={errors.name?.message as string}
+              {...register('name', { required: 'Bắt buộc' })}
+            />
 
-            <div className="grid grid-cols-2 gap-4">
-              <div className="space-y-1.5">
-                <Label>Vai trò *</Label>
-                <select
-                  className="flex h-10 w-full rounded-md border border-input bg-background px-3 py-2 text-sm focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"
-                  {...register('role', { required: true })}
-                >
-                  {ROLES.map((r) => <option key={r} value={r}>{ROLE_LABELS[r]}</option>)}
-                </select>
-              </div>
+            <TextField label="Số điện thoại" placeholder="0901234567" {...register('phone')} />
 
-              <div className="space-y-1.5">
-                <Label>Trạng thái</Label>
-                <select
-                  className="flex h-10 w-full rounded-md border border-input bg-background px-3 py-2 text-sm focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"
-                  {...register('isActive')}
-                >
-                  <option value="true">Hoạt động</option>
-                  <option value="false">Vô hiệu</option>
-                </select>
-              </div>
-            </div>
+            <Stack direction={{ xs: 'column', md: 'row' }} spacing={2}>
+              <TextField fullWidth select label="Vai trò *" defaultValue={user.role} {...register('role', { required: true })}>
+                {ROLES.map((role) => (
+                  <MenuItem key={role} value={role}>
+                    {ROLE_LABELS[role]}
+                  </MenuItem>
+                ))}
+              </TextField>
+
+              <TextField fullWidth select label="Trạng thái" defaultValue={String(user.isActive)} {...register('isActive')}>
+                <MenuItem value="true">Hoạt động</MenuItem>
+                <MenuItem value="false">Vô hiệu</MenuItem>
+              </TextField>
+            </Stack>
 
             {mutation.isError && (
-              <div className="rounded-md bg-red-50 px-4 py-3 text-sm text-red-600">
+              <Alert severity="error">
                 {(mutation.error as any)?.response?.data?.message || 'Có lỗi xảy ra, vui lòng thử lại'}
-              </div>
+              </Alert>
             )}
 
-            {mutation.isSuccess && (
-              <div className="rounded-md bg-green-50 px-4 py-3 text-sm text-green-600">
-                Cập nhật thành công
-              </div>
-            )}
+            {mutation.isSuccess && <Alert severity="success">Cập nhật thành công</Alert>}
 
-            <div className="flex justify-end gap-3 pt-2 border-t">
-              <Button type="button" variant="outline" onClick={() => router.push('/users')}>Hủy</Button>
-              <Button type="submit" disabled={mutation.isPending || !isDirty}>
+            <Stack
+              direction="row"
+              spacing={1.5}
+              sx={{ pt: 2, borderTop: 1, borderColor: 'divider', justifyContent: 'flex-end' }}
+            >
+              <Button variant="outlined" onClick={() => router.push('/users')}>
+                Hủy
+              </Button>
+              <Button type="submit" variant="contained" disabled={mutation.isPending || !isDirty}>
                 {mutation.isPending ? 'Đang lưu...' : 'Lưu thay đổi'}
               </Button>
-            </div>
-          </form>
-        </div>
-      </div>
-    </div>
+            </Stack>
+          </Stack>
+        </Paper>
+      </Stack>
+    </Box>
+  );
+}
+
+function InfoItem({ label, value }: { label: string; value: string }) {
+  return (
+    <Box>
+      <Typography color="text.secondary" sx={{ mb: 0.5, fontSize: 13 }}>
+        {label}
+      </Typography>
+      <Typography sx={{ fontSize: 14, fontWeight: 700 }}>
+        {value}
+      </Typography>
+    </Box>
   );
 }
