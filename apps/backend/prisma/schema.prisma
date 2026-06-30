@@ -1,0 +1,251 @@
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider = "postgresql"
+  url      = env("DATABASE_URL")
+}
+
+enum UserRole {
+  ADMIN
+  LEADER
+  EMPLOYEE
+  ACCOUNTANT
+  SALES
+}
+
+enum CustomerStatus {
+  ACTIVE
+  PAUSED
+  PENDING
+  STOPPED
+}
+
+enum ContractStatus {
+  DRAFT
+  ACTIVE
+  EXPIRED
+  CANCELLED
+}
+
+enum QuotationStatus {
+  DRAFT
+  SENT
+  APPROVED
+  REJECTED
+}
+
+enum PaymentStatus {
+  PENDING
+  CONFIRMED
+  REJECTED
+}
+
+enum ReportStatus {
+  DRAFT
+  SUBMITTED
+  APPROVED
+}
+
+model User {
+  id        String   @id @default(cuid())
+  code      String   @unique
+  name      String
+  email     String   @unique
+  password  String
+  phone     String?
+  role      UserRole @default(EMPLOYEE)
+  isActive  Boolean  @default(true)
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  customers      Customer[]
+  kpiRecords     KpiRecord[]
+  approvedKpis   KpiRecord[]    @relation("KpiApprover")
+  weeklyReports  WeeklyReport[]
+  approvedReports WeeklyReport[] @relation("ReportApprover")
+  confirmedPayments Payment[]   @relation("PaymentConfirmer")
+  createdQuotations Quotation[]
+  createdContracts  Contract[]
+}
+
+model Service {
+  id             String  @id @default(cuid())
+  code           String  @unique
+  name           String
+  category       String
+  subcategory    String?
+  invoiceContent String?
+  invoiceTiming  String?
+  taxRate        Float   @default(0.08)
+  isActive       Boolean @default(true)
+
+  quotationItems QuotationItem[]
+  contractItems  ContractItem[]
+}
+
+model Customer {
+  id              String         @id @default(cuid())
+  code            String
+  fullCode        String
+  status          CustomerStatus @default(ACTIVE)
+  serviceCode     String
+  employeeId      String
+  employee        User           @relation(fields: [employeeId], references: [id])
+
+  companyName     String?
+  contactName     String?
+  taxCode         String?
+  address         String?
+  phone           String?
+  website         String?
+  fanpage         String?
+  email           String?
+  industry        String?
+  birthday        DateTime?
+
+  invoiceType     String?
+  invoiceEmail    String?
+
+  depositAmount   Float?
+  revenue         Float?
+
+  contractStatus  String?
+  contractMonth   Int?
+
+  planLink        String?
+  cccdFront       String?
+  cccdBack        String?
+  salesPerson     String?
+  leadSource      String?
+  referralCode    String?
+  notes           String?
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  contracts  Contract[]
+  quotations Quotation[]
+  payments   Payment[]
+}
+
+model Contract {
+  id          String         @id @default(cuid())
+  code        String         @unique
+  customerId  String
+  customer    Customer       @relation(fields: [customerId], references: [id])
+  createdById String
+  createdBy   User           @relation(fields: [createdById], references: [id])
+  signDate    DateTime?
+  expiryDate  DateTime?
+  status      ContractStatus @default(DRAFT)
+  totalValue  Float?
+  notes       String?
+  createdAt   DateTime       @default(now())
+  updatedAt   DateTime       @updatedAt
+
+  items    ContractItem[]
+  payments Payment[]
+}
+
+model ContractItem {
+  id         String   @id @default(cuid())
+  contractId String
+  contract   Contract @relation(fields: [contractId], references: [id], onDelete: Cascade)
+  serviceId  String
+  service    Service  @relation(fields: [serviceId], references: [id])
+  quantity   Int      @default(1)
+  unitPrice  Float
+  discount   Float    @default(0)
+  total      Float
+}
+
+model Quotation {
+  id          String          @id @default(cuid())
+  code        String          @unique
+  customerId  String
+  customer    Customer        @relation(fields: [customerId], references: [id])
+  createdById String
+  createdBy   User            @relation(fields: [createdById], references: [id])
+  status      QuotationStatus @default(DRAFT)
+  totalAmount Float?
+  notes       String?
+  validUntil  DateTime?
+  createdAt   DateTime        @default(now())
+  updatedAt   DateTime        @updatedAt
+
+  items QuotationItem[]
+}
+
+model QuotationItem {
+  id          String    @id @default(cuid())
+  quotationId String
+  quotation   Quotation @relation(fields: [quotationId], references: [id], onDelete: Cascade)
+  serviceId   String
+  service     Service   @relation(fields: [serviceId], references: [id])
+  quantity    Int       @default(1)
+  unitPrice   Float
+  discount    Float     @default(0)
+  total       Float
+}
+
+model Payment {
+  id             String        @id @default(cuid())
+  customerId     String
+  customer       Customer      @relation(fields: [customerId], references: [id])
+  contractId     String?
+  contract       Contract?     @relation(fields: [contractId], references: [id])
+  amount         Float
+  bankAccount    String?
+  paymentDate    DateTime?
+  confirmedById  String?
+  confirmedBy    User?         @relation("PaymentConfirmer", fields: [confirmedById], references: [id])
+  confirmedAt    DateTime?
+  status         PaymentStatus @default(PENDING)
+  notes          String?
+  receiptImage   String?
+  createdAt      DateTime      @default(now())
+  updatedAt      DateTime      @updatedAt
+}
+
+model KpiRecord {
+  id              String    @id @default(cuid())
+  employeeId      String
+  employee        User      @relation(fields: [employeeId], references: [id])
+  customerCodes   String?
+  date            DateTime
+  category        String
+  score           Float
+  notes           String?
+  leaderApproved  Boolean   @default(false)
+  approvedById    String?
+  approvedBy      User?     @relation("KpiApprover", fields: [approvedById], references: [id])
+  approvedAt      DateTime?
+  createdAt       DateTime  @default(now())
+  updatedAt       DateTime  @updatedAt
+
+  @@index([employeeId, date])
+}
+
+model WeeklyReport {
+  id           String       @id @default(cuid())
+  employeeId   String
+  employee     User         @relation(fields: [employeeId], references: [id])
+  weekStart    DateTime
+  weekEnd      DateTime
+  content      String?
+  achievements String?
+  issues       String?
+  nextPlan     String?
+  customerData Json?
+  status       ReportStatus @default(DRAFT)
+  submittedAt  DateTime?
+  approvedById String?
+  approvedBy   User?        @relation("ReportApprover", fields: [approvedById], references: [id])
+  approvedAt   DateTime?
+  createdAt    DateTime     @default(now())
+  updatedAt    DateTime     @updatedAt
+
+  @@unique([employeeId, weekStart])
+}
