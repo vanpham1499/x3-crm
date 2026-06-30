@@ -1,15 +1,18 @@
 ﻿'use client';
 
-import { Box } from '@mui/material';
+import { Header } from '@/components/shell/header';
 import { Sidebar } from '@/components/shell/sidebar';
 
 export default function AppLayout({ children }: { children: React.ReactNode }) {
   return (
-    <Box sx={{ display: 'flex', height: '100vh', overflow: 'hidden', bgcolor: '#f8fafc' }}>
+    <div className="flex min-h-screen bg-background">
       <Sidebar />
-      <Box component="main" sx={{ flex: 1, minWidth: 0, overflowY: 'auto' }}>
-        {children}
-      </Box>
-    </Box>
+      <div className="min-w-0 flex-1">
+        <Header />
+        <main className="min-h-[calc(100vh-72px)]">
+          {children}
+        </main>
+      </div>
+    </div>
   );
 }

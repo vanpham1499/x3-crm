@@ -1,9 +1,9 @@
-﻿'use client';
+'use client';
 
 import { useState } from 'react';
 import NextLink from 'next/link';
 import ArrowBackRoundedIcon from '@mui/icons-material/ArrowBackRounded';
-import { Alert, Button, FormControl, FormHelperText, Link, Stack, TextField, Typography } from '@mui/material';
+import { Alert, Button, FormControl, FormHelperText, TextField } from '@mui/material';
 import { useForm } from 'react-hook-form';
 import { zodResolver } from '@hookform/resolvers/zod';
 import { z } from 'zod';
@@ -30,15 +30,15 @@ export default function ForgotPasswordPage() {
 
   return (
     <>
-      <Stack spacing={1.75} sx={{ mb: 5 }}>
-        <Typography variant="h5">Quên mật khẩu?</Typography>
-        <Typography variant="body2" sx={{ color: 'text.secondary' }}>
+      <div className="mb-10 space-y-3.5">
+        <h2 className="text-xl font-bold leading-[1.5] text-slate-950">Quên mật khẩu?</h2>
+        <p className="text-sm text-slate-500">
           Nhập email tài khoản của bạn. Hệ thống sẽ gửi hướng dẫn đặt lại mật khẩu nếu email tồn tại.
-        </Typography>
-      </Stack>
+        </p>
+      </div>
 
-      <Stack component="form" spacing={3} onSubmit={handleSubmit(onSubmit)}>
-        <FormControl error={Boolean(errors.email)}>
+      <form className="space-y-6" onSubmit={handleSubmit(onSubmit)}>
+        <FormControl error={Boolean(errors.email)} fullWidth>
           <TextField
             label="Địa chỉ email"
             type="email"
@@ -55,14 +55,22 @@ export default function ForgotPasswordPage() {
           </Alert>
         )}
 
-        <Button type="submit" variant="contained" size="large" sx={{ height: 48, bgcolor: '#111827', '&:hover': { bgcolor: '#1f2937' } }}>
+        <Button
+          type="submit"
+          variant="contained"
+          size="large"
+          className="!h-12 !bg-slate-900 hover:!bg-slate-800"
+          fullWidth
+        >
           Gửi hướng dẫn
         </Button>
 
-        <Button component={NextLink} href="/login" startIcon={<ArrowBackRoundedIcon />} sx={{ alignSelf: 'center' }}>
-          Quay lại đăng nhập
-        </Button>
-      </Stack>
+        <div className="flex justify-center">
+          <Button component={NextLink} href="/login" startIcon={<ArrowBackRoundedIcon />}>
+            Quay lại đăng nhập
+          </Button>
+        </div>
+      </form>
     </>
   );
 }

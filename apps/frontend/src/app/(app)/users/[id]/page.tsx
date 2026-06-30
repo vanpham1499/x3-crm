@@ -1,12 +1,11 @@
-﻿'use client';
+'use client';
 
 import { useEffect } from 'react';
 import { useParams, useRouter } from 'next/navigation';
 import ArrowBackRoundedIcon from '@mui/icons-material/ArrowBackRounded';
-import { Alert, Box, Button, CircularProgress, MenuItem, Paper, Stack, TextField, Typography } from '@mui/material';
+import { Alert, Button, CircularProgress, MenuItem, Paper, TextField } from '@mui/material';
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import { useForm } from 'react-hook-form';
-import { Header } from '@/components/shell/header';
 import { ROLE_LABELS, formatDate } from '@/lib/utils';
 import { api } from '@/services/api/client';
 
@@ -68,113 +67,93 @@ export default function UserDetailPage() {
 
   if (isLoading) {
     return (
-      <Box>
-        <Header title="Chi tiết nhân viên" />
-        <Stack sx={{ p: 6, color: 'text.secondary', alignItems: 'center' }}>
-          <CircularProgress size={28} />
-          <Typography sx={{ mt: 2 }}>Đang tải...</Typography>
-        </Stack>
-      </Box>
+      <div className="flex flex-col items-center p-12 text-slate-500">
+        <CircularProgress size={28} />
+        <p className="mt-4">Đang tải...</p>
+      </div>
     );
   }
 
   if (!user) {
     return (
-      <Box>
-        <Header title="Chi tiết nhân viên" />
-        <Box sx={{ p: 3 }}>
-          <Alert severity="error">Không tìm thấy nhân viên</Alert>
-        </Box>
-      </Box>
+      <div className="p-6">
+        <Alert severity="error">Không tìm thấy nhân viên</Alert>
+      </div>
     );
   }
 
   return (
-    <Box>
-      <Header title="Chi tiết nhân viên" />
-      <Stack spacing={3} sx={{ p: 3 }}>
-        <Button startIcon={<ArrowBackRoundedIcon />} sx={{ alignSelf: 'flex-start' }} onClick={() => router.push('/users')}>
-          Quay lại danh sách
-        </Button>
+    <div className="space-y-6 p-6">
+      <Button startIcon={<ArrowBackRoundedIcon />} onClick={() => router.push('/users')}>
+        Quay lại danh sách
+      </Button>
 
-        <Paper variant="outlined" sx={{ p: 3, borderRadius: 1 }}>
-          <Typography color="text.secondary" sx={{ mb: 2, textTransform: 'uppercase', fontSize: 13, fontWeight: 800 }}>
-            Thông tin tài khoản
-          </Typography>
-          <Box sx={{ display: 'grid', gridTemplateColumns: { xs: '1fr', md: 'repeat(2, 1fr)' }, gap: 2 }}>
-            <InfoItem label="Mã nhân viên" value={user.code} />
-            <InfoItem label="Email" value={user.email} />
-            <InfoItem label="Ngày tạo" value={formatDate(user.createdAt)} />
-            <InfoItem label="Cập nhật lần cuối" value={formatDate(user.updatedAt)} />
-          </Box>
-        </Paper>
+      <Paper variant="outlined" className="rounded-lg p-6">
+        <p className="mb-4 text-[13px] font-extrabold uppercase text-slate-500">Thông tin tài khoản</p>
+        <div className="grid gap-4 md:grid-cols-2">
+          <InfoItem label="Mã nhân viên" value={user.code} />
+          <InfoItem label="Email" value={user.email} />
+          <InfoItem label="Ngày tạo" value={formatDate(user.createdAt)} />
+          <InfoItem label="Cập nhật lần cuối" value={formatDate(user.updatedAt)} />
+        </div>
+      </Paper>
 
-        <Paper variant="outlined" sx={{ p: 3, borderRadius: 1 }}>
-          <Typography color="text.secondary" sx={{ mb: 2, textTransform: 'uppercase', fontSize: 13, fontWeight: 800 }}>
-            Chỉnh sửa thông tin
-          </Typography>
+      <Paper variant="outlined" className="rounded-lg p-6">
+        <p className="mb-4 text-[13px] font-extrabold uppercase text-slate-500">Chỉnh sửa thông tin</p>
 
-          <Stack component="form" spacing={2.5} onSubmit={handleSubmit((data) => mutation.mutate(data))}>
-            <TextField
-              label="Họ tên *"
-              error={Boolean(errors.name)}
-              helperText={errors.name?.message as string}
-              {...register('name', { required: 'Bắt buộc' })}
-            />
+        <form className="space-y-5" onSubmit={handleSubmit((data) => mutation.mutate(data))}>
+          <TextField
+            fullWidth
+            label="Họ tên *"
+            error={Boolean(errors.name)}
+            helperText={errors.name?.message as string}
+            {...register('name', { required: 'Bắt buộc' })}
+          />
 
-            <TextField label="Số điện thoại" placeholder="0901234567" {...register('phone')} />
+          <TextField fullWidth label="Số điện thoại" placeholder="0901234567" {...register('phone')} />
 
-            <Stack direction={{ xs: 'column', md: 'row' }} spacing={2}>
-              <TextField fullWidth select label="Vai trò *" defaultValue={user.role} {...register('role', { required: true })}>
-                {ROLES.map((role) => (
-                  <MenuItem key={role} value={role}>
-                    {ROLE_LABELS[role]}
-                  </MenuItem>
-                ))}
-              </TextField>
+          <div className="grid gap-4 md:grid-cols-2">
+            <TextField fullWidth select label="Vai trò *" defaultValue={user.role} {...register('role', { required: true })}>
+              {ROLES.map((role) => (
+                <MenuItem key={role} value={role}>
+                  {ROLE_LABELS[role]}
+                </MenuItem>
+              ))}
+            </TextField>
 
-              <TextField fullWidth select label="Trạng thái" defaultValue={String(user.isActive)} {...register('isActive')}>
-                <MenuItem value="true">Hoạt động</MenuItem>
-                <MenuItem value="false">Vô hiệu</MenuItem>
-              </TextField>
-            </Stack>
+            <TextField fullWidth select label="Trạng thái" defaultValue={String(user.isActive)} {...register('isActive')}>
+              <MenuItem value="true">Hoạt động</MenuItem>
+              <MenuItem value="false">Vô hiệu</MenuItem>
+            </TextField>
+          </div>
 
-            {mutation.isError && (
-              <Alert severity="error">
-                {(mutation.error as any)?.response?.data?.message || 'Có lỗi xảy ra, vui lòng thử lại'}
-              </Alert>
-            )}
+          {mutation.isError && (
+            <Alert severity="error">
+              {(mutation.error as any)?.response?.data?.message || 'Có lỗi xảy ra, vui lòng thử lại'}
+            </Alert>
+          )}
 
-            {mutation.isSuccess && <Alert severity="success">Cập nhật thành công</Alert>}
+          {mutation.isSuccess && <Alert severity="success">Cập nhật thành công</Alert>}
 
-            <Stack
-              direction="row"
-              spacing={1.5}
-              sx={{ pt: 2, borderTop: 1, borderColor: 'divider', justifyContent: 'flex-end' }}
-            >
-              <Button variant="outlined" onClick={() => router.push('/users')}>
-                Hủy
-              </Button>
-              <Button type="submit" variant="contained" disabled={mutation.isPending || !isDirty}>
-                {mutation.isPending ? 'Đang lưu...' : 'Lưu thay đổi'}
-              </Button>
-            </Stack>
-          </Stack>
-        </Paper>
-      </Stack>
-    </Box>
+          <div className="flex justify-end gap-3 border-t border-slate-200 pt-4">
+            <Button variant="outlined" onClick={() => router.push('/users')}>
+              Hủy
+            </Button>
+            <Button type="submit" variant="contained" disabled={mutation.isPending || !isDirty}>
+              {mutation.isPending ? 'Đang lưu...' : 'Lưu thay đổi'}
+            </Button>
+          </div>
+        </form>
+      </Paper>
+    </div>
   );
 }
 
 function InfoItem({ label, value }: { label: string; value: string }) {
   return (
-    <Box>
-      <Typography color="text.secondary" sx={{ mb: 0.5, fontSize: 13 }}>
-        {label}
-      </Typography>
-      <Typography sx={{ fontSize: 14, fontWeight: 700 }}>
-        {value}
-      </Typography>
-    </Box>
+    <div>
+      <p className="mb-1 text-[13px] text-slate-500">{label}</p>
+      <p className="text-sm font-bold">{value}</p>
+    </div>
   );
 }

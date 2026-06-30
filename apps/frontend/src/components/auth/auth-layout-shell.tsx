@@ -1,8 +1,7 @@
-﻿'use client';
+'use client';
 
 import Image from 'next/image';
 import SettingsRoundedIcon from '@mui/icons-material/SettingsRounded';
-import { Box, IconButton, Link, Stack, Typography } from '@mui/material';
 import { ReactNode } from 'react';
 import { siteConfig } from '@/config/site';
 import backgroundBlur from '@assets/images/background-3-blur.webp';
@@ -24,129 +23,88 @@ const platformIcons = [
 
 export function AuthLayoutShell({ children }: { children: ReactNode }) {
   return (
-    <Box sx={{ minHeight: '100vh', bgcolor: 'background.paper', color: 'text.primary' }}>
-      <Box
-        component="header"
-        sx={{
-          position: 'absolute',
-          left: 0,
-          right: 0,
-          top: 0,
-          zIndex: 10,
-          height: 72,
-          px: 3,
-          display: 'flex',
-          alignItems: 'center',
-          justifyContent: 'space-between',
-        }}
-      >
+    <div className="min-h-screen bg-white text-slate-950">
+      <header className="absolute inset-x-0 top-0 z-10 flex h-[72px] items-center justify-between px-6">
         <Image
           src={x3salesLogo}
           alt={`${siteConfig.companyName} logo`}
           width={128}
           height={46}
           priority
-          style={{ width: 112, height: 'auto' }}
+          className="h-auto w-28"
         />
 
-        <Stack direction="row" spacing={2} sx={{ alignItems: 'center' }}>
-          <Link
-            component="button"
-            underline="none"
-            sx={{
-              display: { xs: 'none', sm: 'inline-flex' },
-              fontWeight: 700,
-              color: 'text.primary',
-            }}
-          >
+        <div className="flex items-center gap-4">
+          <button type="button" className="hidden text-sm font-bold text-slate-950 sm:inline-flex">
             Cần hỗ trợ?
-          </Link>
-          <IconButton size="small" sx={{ color: 'text.disabled' }}>
-            <SettingsRoundedIcon />
-          </IconButton>
-        </Stack>
-      </Box>
+          </button>
+          <button
+            type="button"
+            title="Cài đặt"
+            className="inline-flex h-8 w-8 items-center justify-center rounded-full text-slate-400 transition hover:bg-slate-100 hover:text-slate-600"
+          >
+            <SettingsRoundedIcon fontSize="small" />
+          </button>
+        </div>
+      </header>
 
-      <Box
-        component="main"
-        sx={{
-          minHeight: '100vh',
-          display: 'grid',
-          gridTemplateColumns: { xs: '1fr', lg: '480px minmax(0, 1fr)' },
-        }}
-      >
-        <Stack
-          component="section"
-          sx={{
-            display: { xs: 'none', lg: 'flex' },
-            alignItems: 'center',
-            px: 0,
-            pt: 0,
-            borderRight: 1,
-            borderColor: 'divider',
-            backgroundImage: `linear-gradient(0deg, rgba(255,255,255,.92), rgba(255,255,255,.92)), url(${backgroundBlur.src})`,
-            backgroundSize: 'cover',
-            backgroundPosition: 'center',
-          }}
+      <main className="grid min-h-screen grid-cols-1 lg:grid-cols-[480px_minmax(0,1fr)]">
+        <section className="relative hidden overflow-hidden border-r border-slate-100 pt-[98px] lg:flex lg:flex-col lg:items-center">
+          <Image src={backgroundBlur} alt="" fill priority className="-z-10 object-cover" />
+          <div className="absolute inset-0 -z-10 bg-white/90" />
 
-          className="flex items-center justify-center flex-col"
-        >
-          <Box sx={{ width: 316, textAlign: 'center' }}>
-            <Typography variant="h3">Chào mừng trở lại</Typography>
-            <Typography sx={{ mt: 1.5, color: 'text.secondary' }}>
+          <div className="w-[316px] text-center">
+            <h1 className="text-[32px] font-bold leading-[1.5]">Chào mừng trở lại</h1>
+            <p className="mt-3 text-base text-slate-500">
               Quản lý khách hàng và đội ngũ hiệu quả hơn trong một nền tảng.
-            </Typography>
-          </Box>
+            </p>
+          </div>
 
-          <Box sx={{ mt: 8, display: 'flex', justifyContent: 'center' }}>
+          <div className="mt-16 flex justify-center">
             <Image
               src={dashboardIllustration}
               alt="Minh họa dashboard"
               width={432}
               height={324}
               priority
-              style={{ width: 432, maxWidth: '100%', height: 'auto' }}
+              className="h-auto w-[432px] max-w-full"
             />
-          </Box>
+          </div>
 
-          <Stack direction="row" spacing={2} sx={{ mt: 8, justifyContent: 'center' }}>
+          <div className="mt-16 flex justify-center gap-4">
             {platformIcons.map((icon) => (
-              <Box
+              <Image
                 key={icon.alt}
-                sx={{
-                  width: 32,
-                  height: 32,
-                }}
-              >
-                <Image src={icon.src} alt={icon.alt} width={32} height={32} />
-              </Box>
+                src={icon.src}
+                alt={icon.alt}
+                width={32}
+                height={32}
+                className="h-8 w-8 opacity-50 grayscale transition hover:opacity-100 hover:grayscale-0"
+              />
             ))}
-          </Stack>
-        </Stack>
+          </div>
+        </section>
 
-        <Stack
-          component="section"
-          sx={{ px: 3, py: 12, alignItems: 'center', justifyContent: 'center' }}
-        >
-          <Box sx={{ width: 1, maxWidth: 420 }}>
-            <Box sx={{ display: { lg: 'none' }, mb: 5 }}>
+        <section className="flex items-center justify-center px-6 py-24">
+          <div className="w-full max-w-[420px]">
+            <div className="mb-10 lg:hidden">
               <Image
                 src={x3salesLogo}
                 alt={`${siteConfig.companyName} logo`}
                 width={132}
                 height={48}
-                style={{ width: 132, height: 'auto', marginBottom: 32 }}
+                className="mb-8 h-auto w-[132px]"
               />
-              <Typography variant="h3">Chào mừng trở lại</Typography>
-              <Typography sx={{ mt: 1.5, color: 'text.secondary' }}>
+              <h1 className="text-[32px] font-bold leading-[1.5]">Chào mừng trở lại</h1>
+              <p className="mt-3 text-slate-500">
                 Quản lý khách hàng và đội ngũ hiệu quả hơn trong một nền tảng.
-              </Typography>
-            </Box>
+              </p>
+            </div>
 
             {children}
-          </Box>
-        </Stack>
-      </Box>
-    </Box>
+          </div>
+        </section>
+      </main>
+    </div>
   );
 }

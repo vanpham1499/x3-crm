@@ -1,4 +1,4 @@
-﻿'use client';
+'use client';
 
 import { useState } from 'react';
 import { useRouter } from 'next/navigation';
@@ -6,13 +6,11 @@ import AddRoundedIcon from '@mui/icons-material/AddRounded';
 import EditRoundedIcon from '@mui/icons-material/EditRounded';
 import SearchRoundedIcon from '@mui/icons-material/SearchRounded';
 import {
-  Box,
   Button,
   Chip,
   IconButton,
   InputAdornment,
   Paper,
-  Stack,
   Table,
   TableBody,
   TableCell,
@@ -20,10 +18,8 @@ import {
   TableHead,
   TableRow,
   TextField,
-  Typography,
 } from '@mui/material';
 import { useQuery } from '@tanstack/react-query';
-import { Header } from '@/components/shell/header';
 import { ROLE_LABELS, formatDate } from '@/lib/utils';
 import { api } from '@/services/api/client';
 
@@ -44,104 +40,95 @@ export default function UsersPage() {
   });
 
   return (
-    <Box>
-      <Header title="Quản lý nhân viên" />
-      <Stack spacing={2.5} sx={{ p: 3 }}>
-        <Stack
-          direction={{ xs: 'column', sm: 'row' }}
-          spacing={2}
-          sx={{ alignItems: { xs: 'stretch', sm: 'center' } }}
+    <div className="space-y-6 p-6">
+      <div className="flex flex-col gap-4 sm:flex-row sm:items-center">
+        <TextField
+          size="small"
+          placeholder="Tìm theo mã, tên, email..."
+          value={search}
+          onChange={(event) => setSearch(event.target.value)}
+          className="w-full sm:w-[360px]"
+          slotProps={{
+            input: {
+              startAdornment: (
+                <InputAdornment position="start">
+                  <SearchRoundedIcon fontSize="small" />
+                </InputAdornment>
+              ),
+            },
+          }}
+        />
+        <Button
+          variant="contained"
+          startIcon={<AddRoundedIcon />}
+          onClick={() => router.push('/users/new')}
+          className="sm:ml-auto"
         >
-          <TextField
-            size="small"
-            placeholder="Tìm theo mã, tên, email..."
-            value={search}
-            onChange={(event) => setSearch(event.target.value)}
-            sx={{ width: { xs: 1, sm: 360 } }}
-            slotProps={{
-              input: {
-                startAdornment: (
-                  <InputAdornment position="start">
-                    <SearchRoundedIcon fontSize="small" />
-                  </InputAdornment>
-                ),
-              },
-            }}
-          />
-          <Button
-            variant="contained"
-            startIcon={<AddRoundedIcon />}
-            onClick={() => router.push('/users/new')}
-            sx={{ ml: { sm: 'auto' } }}
-          >
-            Thêm nhân viên
-          </Button>
-        </Stack>
+          Thêm nhân viên
+        </Button>
+      </div>
 
-        <TableContainer component={Paper} variant="outlined" sx={{ borderRadius: 1 }}>
-          <Table size="small">
-            <TableHead sx={{ bgcolor: '#f8fafc' }}>
+      <TableContainer component={Paper} variant="outlined" className="rounded-lg">
+        <Table size="small">
+          <TableHead className="bg-slate-50">
+            <TableRow>
+              <TableCell>Mã NV</TableCell>
+              <TableCell>Tên</TableCell>
+              <TableCell>Email</TableCell>
+              <TableCell>Vai trò</TableCell>
+              <TableCell>Ngày tạo</TableCell>
+              <TableCell>Trạng thái</TableCell>
+              <TableCell align="center">TT</TableCell>
+            </TableRow>
+          </TableHead>
+          <TableBody>
+            {isLoading ? (
               <TableRow>
-                <TableCell>Mã NV</TableCell>
-                <TableCell>Tên</TableCell>
-                <TableCell>Email</TableCell>
-                <TableCell>Vai trò</TableCell>
-                <TableCell>Ngày tạo</TableCell>
-                <TableCell>Trạng thái</TableCell>
-                <TableCell align="center">TT</TableCell>
+                <TableCell colSpan={7} align="center" className="py-10 text-slate-500">
+                  Đang tải...
+                </TableCell>
               </TableRow>
-            </TableHead>
-            <TableBody>
-              {isLoading ? (
-                <TableRow>
-                  <TableCell colSpan={7} align="center" sx={{ py: 5, color: 'text.secondary' }}>
-                    Đang tải...
+            ) : users.length === 0 ? (
+              <TableRow>
+                <TableCell colSpan={7} align="center" className="py-10 text-slate-500">
+                  Không có dữ liệu
+                </TableCell>
+              </TableRow>
+            ) : (
+              users.map((user: any) => (
+                <TableRow key={user.id} hover>
+                  <TableCell>
+                    <span className="text-sm font-bold">{user.code}</span>
+                  </TableCell>
+                  <TableCell>{user.name}</TableCell>
+                  <TableCell className="text-slate-500">{user.email}</TableCell>
+                  <TableCell>
+                    <Chip
+                      size="small"
+                      color={getRoleChipColor(user.role) as any}
+                      label={ROLE_LABELS[user.role] || user.role}
+                      variant="outlined"
+                    />
+                  </TableCell>
+                  <TableCell className="text-slate-500">{formatDate(user.createdAt)}</TableCell>
+                  <TableCell>
+                    <Chip
+                      size="small"
+                      color={user.isActive ? 'success' : 'default'}
+                      label={user.isActive ? 'Hoạt động' : 'Vô hiệu'}
+                    />
+                  </TableCell>
+                  <TableCell align="center">
+                    <IconButton size="small" onClick={() => router.push(`/users/${user.id}`)}>
+                      <EditRoundedIcon fontSize="small" />
+                    </IconButton>
                   </TableCell>
                 </TableRow>
-              ) : users.length === 0 ? (
-                <TableRow>
-                  <TableCell colSpan={7} align="center" sx={{ py: 5, color: 'text.secondary' }}>
-                    Không có dữ liệu
-                  </TableCell>
-                </TableRow>
-              ) : (
-                users.map((user: any) => (
-                  <TableRow key={user.id} hover>
-                    <TableCell>
-                      <Typography sx={{ fontSize: 14, fontWeight: 700 }}>
-                        {user.code}
-                      </Typography>
-                    </TableCell>
-                    <TableCell>{user.name}</TableCell>
-                    <TableCell sx={{ color: 'text.secondary' }}>{user.email}</TableCell>
-                    <TableCell>
-                      <Chip
-                        size="small"
-                        color={getRoleChipColor(user.role) as any}
-                        label={ROLE_LABELS[user.role] || user.role}
-                        variant="outlined"
-                      />
-                    </TableCell>
-                    <TableCell sx={{ color: 'text.secondary' }}>{formatDate(user.createdAt)}</TableCell>
-                    <TableCell>
-                      <Chip
-                        size="small"
-                        color={user.isActive ? 'success' : 'default'}
-                        label={user.isActive ? 'Hoạt động' : 'Vô hiệu'}
-                      />
-                    </TableCell>
-                    <TableCell align="center">
-                      <IconButton size="small" onClick={() => router.push(`/users/${user.id}`)}>
-                        <EditRoundedIcon fontSize="small" />
-                      </IconButton>
-                    </TableCell>
-                  </TableRow>
-                ))
-              )}
-            </TableBody>
-          </Table>
-        </TableContainer>
-      </Stack>
-    </Box>
+              ))
+            )}
+          </TableBody>
+        </Table>
+      </TableContainer>
+    </div>
   );
 }

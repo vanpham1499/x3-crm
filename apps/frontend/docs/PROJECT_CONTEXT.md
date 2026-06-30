@@ -10,7 +10,8 @@ This file is the first place Codex should read before changing the project.
   services, practical growth, and agency credibility.
 - Current frontend stack: Next.js 14 App Router, React 18, TypeScript, MUI, Emotion,
   `@mui/material-nextjs`, Tailwind CSS, TanStack Query, Zustand, Axios, React Hook Form, Zod.
-  MUI is the primary UI system.
+  Tailwind CSS is the primary styling system. MUI is kept for form/table primitives, theme tokens,
+  input behavior, and icons.
 - Tailwind CSS remains enabled through `src/styles/globals.css`, `postcss.config.js`, and
   `tailwind.config.ts`. VS Code Tailwind IntelliSense is recommended/installed for className
   autocomplete; workspace settings include TS/TSX support and common class regexes.
@@ -44,6 +45,7 @@ This file is the first place Codex should read before changing the project.
 - `/`: redirects to `/login`.
 - `/login`: login screen.
 - `/forgot-password`: forgot password screen.
+- `/dashboard`: placeholder dashboard screen with only the "Dashboard" heading.
 - `/users`: employee/user listing.
 - `/users/new`: create employee/user.
 - `/users/[id]`: employee/user detail and edit form.
@@ -71,7 +73,12 @@ This file is the first place Codex should read before changing the project.
   and dark navy submit button. Left platform icons stay grayscale and reveal color on hover. The demo
   credential alert is intentionally removed.
 - Auth layout is shared by login and forgot-password screens.
-- Current app shell and users screens are migrated to MUI components.
+- Current app shell, auth shell, login/forgot-password pages, dashboard placeholder, and users screens
+  use Tailwind `className` for layout and visual styling. Avoid adding `sx`/inline `style` in
+  `src/app` and `src/components` unless a MUI component API makes it genuinely unavoidable.
+- Logged-in app shell follows the Minimal dashboard reference: 300px expanded sidebar, 88px
+  collapsed icon-only sidebar, 72px sticky translucent header, grouped menu items, and active item
+  tint.
 - Global app font is `Public Sans Variable` loaded from `@fontsource-variable/public-sans` with the
   same fallback stack used by Minimal UI.
 

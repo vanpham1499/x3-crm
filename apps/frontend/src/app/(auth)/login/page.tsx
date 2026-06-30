@@ -1,22 +1,11 @@
-﻿'use client';
+'use client';
 
 import { useState } from 'react';
 import NextLink from 'next/link';
 import { useRouter } from 'next/navigation';
 import VisibilityOffRoundedIcon from '@mui/icons-material/VisibilityOffRounded';
 import VisibilityRoundedIcon from '@mui/icons-material/VisibilityRounded';
-import {
-  Box,
-  Button,
-  FormControl,
-  FormHelperText,
-  IconButton,
-  InputAdornment,
-  Link,
-  Stack,
-  TextField,
-  Typography,
-} from '@mui/material';
+import { Button, FormControl, FormHelperText, IconButton, InputAdornment, TextField } from '@mui/material';
 import { useForm } from 'react-hook-form';
 import { zodResolver } from '@hookform/resolvers/zod';
 import { z } from 'zod';
@@ -61,26 +50,18 @@ export default function LoginPage() {
 
   return (
     <>
-      <Stack spacing={1.75} sx={{ mb: 5 }}>
-        <Typography variant="h5">Đăng nhập vào tài khoản</Typography>
-        <Typography
-          variant="body2"
-          sx={{ color: 'text.secondary' }}
-          className="flex items-center gap-2"
-        >
-          Chưa có tài khoản?{' '}
-          <Link
-            component="button"
-            underline="none"
-            sx={{ fontWeight: 700, color: 'secondary.main' }}
-          >
+      <div className="mb-10 space-y-3.5">
+        <h2 className="text-xl font-bold leading-[1.5] text-slate-950">Đăng nhập vào tài khoản</h2>
+        <p className="flex items-center gap-2 text-sm text-slate-500">
+          Chưa có tài khoản?
+          <button type="button" className="font-bold text-secondary">
             Liên hệ quản trị viên
-          </Link>
-        </Typography>
-      </Stack>
+          </button>
+        </p>
+      </div>
 
-      <Stack component="form" spacing={3} onSubmit={handleSubmit(onSubmit)}>
-        <FormControl error={Boolean(errors.email)}>
+      <form className="space-y-6" onSubmit={handleSubmit(onSubmit)}>
+        <FormControl error={Boolean(errors.email)} fullWidth>
           <TextField
             label="Địa chỉ email"
             type="email"
@@ -91,19 +72,14 @@ export default function LoginPage() {
           {errors.email && <FormHelperText>{errors.email.message}</FormHelperText>}
         </FormControl>
 
-        <Stack spacing={1.25}>
-          <Box sx={{ display: 'flex', justifyContent: 'flex-end' }}>
-            <Link
-              component={NextLink}
-              href="/forgot-password"
-              underline="none"
-              sx={{ color: 'text.primary', fontWeight: 600, fontSize: 14 }}
-            >
+        <div className="space-y-3">
+          <div className="flex justify-end">
+            <NextLink href="/forgot-password" className="text-sm font-semibold text-slate-950 hover:underline">
               Quên mật khẩu?
-            </Link>
-          </Box>
+            </NextLink>
+          </div>
 
-          <FormControl error={Boolean(errors.password)}>
+          <FormControl error={Boolean(errors.password)} fullWidth>
             <TextField
               label="Mật khẩu"
               type={showPassword ? 'text' : 'password'}
@@ -128,33 +104,21 @@ export default function LoginPage() {
             />
             {errors.password && <FormHelperText>{errors.password.message}</FormHelperText>}
           </FormControl>
-        </Stack>
+        </div>
 
-        {error && (
-          <Box
-            sx={{
-              borderRadius: 1,
-              bgcolor: '#fef2f2',
-              px: 2,
-              py: 1.5,
-              color: '#dc2626',
-              fontSize: 14,
-            }}
-          >
-            {error}
-          </Box>
-        )}
+        {error && <div className="rounded-lg bg-red-50 px-4 py-3 text-sm text-red-600">{error}</div>}
 
         <Button
           type="submit"
           variant="contained"
           size="large"
           disabled={loading}
-          sx={{ height: 48, bgcolor: '#111827', '&:hover': { bgcolor: '#1f2937' } }}
+          className="!h-12 !bg-slate-900 hover:!bg-slate-800"
+          fullWidth
         >
           {loading ? 'Đang đăng nhập...' : 'Đăng nhập'}
         </Button>
-      </Stack>
+      </form>
     </>
   );
 }
