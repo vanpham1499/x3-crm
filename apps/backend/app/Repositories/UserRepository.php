@@ -15,18 +15,24 @@ class UserRepository extends BaseRepository
         return User::class;
     }
 
-    public function findAll(?string $search = null): Collection
+    public function findAll(array $filters = []): Collection
     {
-        $search = trim((string) $search);
+        $keyword = trim((string) ($filters['keyword'] ?? $filters['search'] ?? ''));
+        $roleId = $filters['role_id'] ?? null;
+        $isActive = $filters['is_active'] ?? null;
 
         return $this->query()
-            ->when($search !== '', function ($query) use ($search): void {
-                $query->where(function ($query) use ($search): void {
+            ->when($keyword !== '', function ($query) use ($keyword): void {
+                $query->where(function ($query) use ($keyword): void {
                     $query
-                        ->where('name', 'ilike', "%{$search}%")
-                        ->orWhere('code', 'ilike', "%{$search}%")
-                        ->orWhere('email', 'ilike', "%{$search}%");
+                        ->where('name', 'ilike', "%{$keyword}%")
+                        ->orWhere('code', 'ilike', "%{$keyword}%")
+                        ->orWhere('email', 'ilike', "%{$keyword}%");
                 });
+            })
+            ->when($roleId, fn ($query) => $query->where('role_id', $roleId))
+            ->when($isActive !== null && $isActive !== '', function ($query) use ($isActive): void {
+                $query->where('is_active', filter_var($isActive, FILTER_VALIDATE_BOOLEAN));
             })
             ->orderBy('code')
             ->get();

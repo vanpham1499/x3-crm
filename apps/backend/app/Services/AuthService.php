@@ -41,7 +41,24 @@ class AuthService extends BaseService
 
     public function getProfile(User $user): array
     {
-        return $this->apiResource($user, UserResource::class);
+        $user->load('roleRef.permissions');
+
+        return [
+            'user' => $this->apiResource($user, UserResource::class),
+            'role' => $user->roleRef ? [
+                'id' => $user->roleRef->id,
+                'name' => $user->roleRef->name,
+                'description' => $user->roleRef->description,
+            ] : null,
+            'permissions' => $user->roleRef
+                ? $user->roleRef->permissions->pluck('code')->values()
+                : [],
+        ];
+    }
+
+    public function logout(): array
+    {
+        return ['message' => 'Đăng xuất thành công'];
     }
 
     public function changePassword(User $user, string $currentPassword, string $newPassword): array

@@ -16,9 +16,9 @@ class UsersService extends BaseService
     {
     }
 
-    public function findAll(?string $search = null)
+    public function findAll(array $filters = [])
     {
-        return $this->apiCollection($this->users->findAll($search), UserResource::class);
+        return $this->apiCollection($this->users->findAll($filters), UserResource::class);
     }
 
     public function findOne(string $id): array
