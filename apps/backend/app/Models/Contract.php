@@ -1,0 +1,42 @@
+<?php
+
+namespace App\Models;
+
+use Illuminate\Database\Eloquent\Relations\BelongsTo;
+
+class Contract extends BaseModel
+{
+    protected $fillable = [
+        'project_id',
+        'contract_no',
+        'contract_status_id',
+        'deposit_amount',
+        'signed_date',
+        'expired_date',
+        'contract_month',
+        'file_url',
+        'note',
+        'created_by',
+        'updated_by',
+        'deleted_by',
+    ];
+
+    protected $casts = [
+        'deposit_amount' => 'decimal:2',
+        'signed_date' => 'date',
+        'expired_date' => 'date',
+        'created_at' => 'datetime',
+        'updated_at' => 'datetime',
+        'deleted_at' => 'datetime',
+    ];
+
+    public function project(): BelongsTo
+    {
+        return $this->belongsTo(Project::class);
+    }
+
+    public function contractStatus(): BelongsTo
+    {
+        return $this->belongsTo(Status::class, 'contract_status_id');
+    }
+}

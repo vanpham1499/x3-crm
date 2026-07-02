@@ -6,8 +6,8 @@
     "dev": "php -S 0.0.0.0:${PORT:-4000} -t public public/index.php",
     "start": "php -S 0.0.0.0:${PORT:-4000} -t public public/index.php",
     "build": "composer install --no-dev --optimize-autoloader",
-    "db:migrate": "php artisan migrate",
-    "db:seed": "php artisan db:seed",
-    "db:fresh": "php artisan migrate:fresh --seed"
+    "db:migrate": "composer install && php artisan migrate",
+    "db:seed": "composer install && php artisan db:seed",
+    "db:fresh": "composer install && php artisan migrate:fresh --seed"
   }
 }
