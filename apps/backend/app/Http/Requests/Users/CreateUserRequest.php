@@ -16,6 +16,7 @@ class CreateUserRequest extends BaseRequest
             'email' => ['required', 'email', 'max:255'],
             'password' => ['required', 'string', 'min:6'],
             'phone' => ['nullable', 'string', 'max:50'],
+            'avatar' => ['nullable', 'string', 'max:2048'],
             'role' => ['required', Rule::in(User::ROLES)],
         ];
     }

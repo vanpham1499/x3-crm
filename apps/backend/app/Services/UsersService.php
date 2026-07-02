@@ -74,10 +74,9 @@ class UsersService extends BaseService
     public function remove(string $id): array
     {
         return $this->transaction(function () use ($id): array {
-            /** @var User $user */
-            $user = $this->users->deactivate($id);
+            $this->users->delete($id);
 
-            return $this->apiResource($user, UserResource::class);
+            return ['message' => 'Xóa nhân viên thành công'];
         });
     }
 

@@ -10,8 +10,12 @@ class Attachment extends BaseModel
         'entity_type',
         'entity_id',
         'file_name',
+        'original_name',
         'file_url',
         'file_type',
+        'mime_type',
+        'file_size',
+        'disk',
         'uploaded_by',
         'created_by',
         'updated_by',
@@ -19,6 +23,7 @@ class Attachment extends BaseModel
     ];
 
     protected $casts = [
+        'file_size' => 'integer',
         'created_at' => 'datetime',
         'updated_at' => 'datetime',
         'deleted_at' => 'datetime',
