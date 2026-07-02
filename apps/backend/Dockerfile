@@ -1,17 +1,16 @@
-FROM node:20-alpine AS builder
+FROM composer:2 AS vendor
 WORKDIR /app
-COPY package*.json ./
-RUN npm install
-COPY . .
-RUN npx prisma generate
-RUN npm run build
+COPY composer.json composer.lock* ./
+RUN composer install --no-dev --no-interaction --prefer-dist --optimize-autoloader --no-scripts
 
-FROM node:20-alpine
+FROM php:8.2-cli-alpine
 WORKDIR /app
-COPY --from=builder /app/dist ./dist
-COPY --from=builder /app/node_modules ./node_modules
-COPY --from=builder /app/prisma ./prisma
-COPY package*.json ./
+
+RUN apk add --no-cache postgresql-dev \
+  && docker-php-ext-install pdo pdo_pgsql
+
+COPY . .
+COPY --from=vendor /app/vendor ./vendor
 
 EXPOSE 4000
-CMD ["sh", "-c", "npx prisma migrate deploy && node dist/main"]
+CMD ["sh", "-c", "php artisan migrate --force && php artisan db:seed --force && php -S 0.0.0.0:${PORT:-4000} -t public public/index.php"]
