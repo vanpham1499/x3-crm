@@ -1,6 +1,7 @@
 <?php
 
 use App\Http\Controllers\AuthController;
+use App\Http\Controllers\MediaController;
 use App\Http\Controllers\PermissionsController;
 use App\Http\Controllers\RolesController;
 use App\Http\Controllers\UsersController;
@@ -19,6 +20,9 @@ Route::middleware('jwt')->group(function (): void {
     Route::get('/auth/me', [AuthController::class, 'profile']);
     Route::post('/auth/logout', [AuthController::class, 'logout']);
     Route::put('/auth/change-password', [AuthController::class, 'changePassword']);
+
+    Route::get('/media', [MediaController::class, 'index']);
+    Route::post('/media/upload', [MediaController::class, 'upload']);
 
     Route::get('/users', [UsersController::class, 'index']);
     Route::get('/users/stats', [UsersController::class, 'stats'])->middleware('role:ADMIN,LEADER');

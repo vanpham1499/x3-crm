@@ -5,9 +5,11 @@
   "scripts": {
     "dev": "php -S 0.0.0.0:${PORT:-4000} -t public public/index.php",
     "start": "php -S 0.0.0.0:${PORT:-4000} -t public public/index.php",
+    "dev:backend": ".\\scripts\\dev-backend.cmd",
     "build": "composer install --no-dev --optimize-autoloader",
     "db:migrate": "composer install && php artisan migrate",
     "db:seed": "composer install && php artisan db:seed",
-    "db:fresh": "composer install && php artisan migrate:fresh --seed"
+    "db:fresh": "composer install && php artisan migrate:fresh --seed",
+    "db:migrate-seed": ".\\scripts\\db-migrate-seed.cmd"
   }
 }
