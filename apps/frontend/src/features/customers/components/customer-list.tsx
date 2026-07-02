@@ -11,8 +11,7 @@ import MoreVertRoundedIcon from '@mui/icons-material/MoreVertRounded';
 import OpenInNewRoundedIcon from '@mui/icons-material/OpenInNewRounded';
 import PhoneRoundedIcon from '@mui/icons-material/PhoneRounded';
 import SearchRoundedIcon from '@mui/icons-material/SearchRounded';
-import TuneRoundedIcon from '@mui/icons-material/TuneRounded';
-import { Checkbox, IconButton, Menu, MenuItem } from '@mui/material';
+import { Checkbox, IconButton, InputAdornment, Menu, MenuItem, TextField } from '@mui/material';
 import {
   CUSTOMER_ALL_STATUS,
   CUSTOMER_STATUS_TABS,
@@ -29,6 +28,15 @@ import type { Customer } from '@/types/customer';
 
 type CustomerListProps = {
   customers: Customer[];
+  title?: string;
+  breadcrumbLabel?: string;
+  createLabel?: string;
+  createHref?: string;
+  editBasePath?: string;
+  searchPlaceholder?: string;
+  totalLabel?: string;
+  primaryColumnLabel?: string;
+  editTitle?: string;
 };
 
 function getCustomerRowId(customer: Customer) {
@@ -46,7 +54,18 @@ function InfoPill({ value, tone }: { value: string; tone: CustomerPillTone }) {
   );
 }
 
-export function CustomerList({ customers }: CustomerListProps) {
+export function CustomerList({
+  customers,
+  title = 'Khách hàng',
+  breadcrumbLabel = 'Khách hàng',
+  createLabel = 'Thêm khách hàng',
+  createHref = '/customers/new',
+  editBasePath = '/customers',
+  searchPlaceholder = 'Tìm khách hàng, số điện thoại, website, nguồn, dịch vụ...',
+  totalLabel = 'khách hàng',
+  primaryColumnLabel = 'Khách hàng',
+  editTitle = 'Chỉnh sửa khách hàng',
+}: CustomerListProps) {
   const router = useRouter();
   const [search, setSearch] = useState('');
   const [status, setStatus] = useState(CUSTOMER_ALL_STATUS);
@@ -122,7 +141,7 @@ export function CustomerList({ customers }: CustomerListProps) {
 
   const goToEditCustomer = () => {
     if (!activeCustomer) return;
-    router.push(`/customers/${activeCustomer.leadCode}`);
+    router.push(`${editBasePath}/${activeCustomer.leadCode}`);
     closeActionMenu();
   };
 
@@ -140,86 +159,70 @@ export function CustomerList({ customers }: CustomerListProps) {
     <div className="min-h-[calc(100vh-72px)] w-full bg-slate-50/60 p-6">
       <div className="mb-6 flex flex-col gap-4 sm:flex-row sm:items-center sm:justify-between">
         <div>
-          <h1 className="text-2xl font-bold text-slate-950">Khách hàng</h1>
+          <h1 className="text-2xl font-bold text-slate-950">{title}</h1>
           <div className="mt-2 flex items-center gap-2 text-sm text-slate-500">
             <span>Dashboard</span>
             <span className="h-1 w-1 rounded-full bg-slate-300" />
-            <span>Khách hàng</span>
+            <span>{breadcrumbLabel}</span>
             <span className="h-1 w-1 rounded-full bg-slate-300" />
             <span className="text-slate-950">Danh sách</span>
           </div>
         </div>
 
         <Link
-          href="/customers/new"
+          href={createHref}
           className="inline-flex h-9 items-center justify-center gap-2 rounded-lg bg-slate-900 px-4 text-sm font-bold text-white transition hover:bg-slate-800"
         >
           <AddRoundedIcon className="text-lg" />
-          Thêm khách hàng
+          {createLabel}
         </Link>
       </div>
 
       <section className="w-full overflow-hidden rounded-2xl border border-slate-200 bg-white shadow-sm">
-        <div className="flex flex-wrap gap-2 border-b border-slate-200 px-5 pt-4">
-          {CUSTOMER_STATUS_TABS.map((item) => {
-            const active = item === status;
-
-            return (
-              <button
-                key={item}
-                type="button"
-                onClick={() => setStatus(item)}
-                className={`relative flex h-12 items-center gap-2 px-1 text-sm font-semibold transition ${
-                  active ? 'text-slate-950' : 'text-slate-500 hover:text-slate-800'
-                }`}
-              >
-                <span>{item}</span>
-                <span
-                  className={`rounded-md px-1.5 py-0.5 text-xs font-bold ${
-                    active ? 'bg-slate-700 text-white' : 'bg-slate-100 text-slate-600'
-                  }`}
-                >
-                  {counts[item]}
-                </span>
-                {active && (
-                  <span className="absolute inset-x-0 bottom-0 h-0.5 rounded-full bg-slate-950" />
-                )}
-              </button>
-            );
-          })}
-        </div>
-
         <div className="flex flex-col gap-3 border-b border-slate-200 p-5 lg:flex-row lg:items-center">
-          <div className="relative min-w-0 flex-1">
-            <SearchRoundedIcon className="pointer-events-none absolute left-3 top-1/2 -translate-y-1/2 text-xl text-slate-400" />
-            <input
-              value={search}
-              onChange={(event) => setSearch(event.target.value)}
-              placeholder="Tìm khách hàng, số điện thoại, website, nguồn, dịch vụ..."
-              className="h-12 w-full rounded-lg border border-slate-200 bg-white pl-10 pr-4 text-sm outline-none transition placeholder:text-slate-400 focus:border-slate-900"
-            />
-          </div>
+          <TextField
+            fullWidth
+            label="Từ khóa"
+            placeholder={searchPlaceholder}
+            value={search}
+            onChange={(event) => setSearch(event.target.value)}
+            slotProps={{
+              input: {
+                startAdornment: (
+                  <InputAdornment position="start">
+                    <SearchRoundedIcon fontSize="small" />
+                  </InputAdornment>
+                ),
+              },
+            }}
+          />
 
-          <div className="flex items-center gap-3">
-            <select
+          <div className="grid gap-3 sm:grid-cols-2 lg:w-[520px]">
+            <TextField
+              select
+              label="Trạng thái"
+              value={status}
+              onChange={(event) => setStatus(event.target.value)}
+            >
+              {CUSTOMER_STATUS_TABS.map((item) => (
+                <MenuItem key={item} value={item}>
+                  {item} ({counts[item] || 0})
+                </MenuItem>
+              ))}
+            </TextField>
+
+            <TextField
+              select
+              label="Nhân sự"
               value={owner}
               onChange={(event) => setOwner(event.target.value)}
-              className="h-12 min-w-48 rounded-lg border border-slate-200 bg-white px-3 text-sm font-semibold text-slate-700 outline-none transition focus:border-slate-900"
             >
               {owners.map((item) => (
-                <option key={item} value={item}>
+                <MenuItem key={item} value={item}>
                   {item}
-                </option>
+                </MenuItem>
               ))}
-            </select>
-
-            <button
-              type="button"
-              className="inline-flex h-12 w-12 items-center justify-center rounded-lg text-slate-500 transition hover:bg-slate-100 hover:text-slate-800"
-              title="Bộ lọc"
-            >
-              <TuneRoundedIcon />
-            </button>
+            </TextField>
           </div>
         </div>
 
@@ -258,7 +261,7 @@ export function CustomerList({ customers }: CustomerListProps) {
                     onChange={(event) => toggleAllVisibleRows(event.target.checked)}
                   />
                 </th>
-                <th className="sticky left-12 z-20 w-[340px] bg-slate-50 px-3 py-4">Khách hàng</th>
+                <th className="sticky left-12 z-20 w-[340px] bg-slate-50 px-3 py-4">{primaryColumnLabel}</th>
                 <th className="w-28 px-3 py-4">Trạng thái</th>
                 <th className="w-36 px-3 py-4">Nhân sự</th>
                 <th className="w-36 px-3 py-4">Nguồn</th>
@@ -367,10 +370,10 @@ export function CustomerList({ customers }: CustomerListProps) {
                       <div className="flex items-center justify-end gap-1 pr-3">
                         <IconButton
                           component={Link}
-                          href={`/customers/${customer.leadCode}`}
+                          href={`${editBasePath}/${customer.leadCode}`}
                           size="small"
                           className="text-slate-500 hover:bg-slate-100 hover:text-slate-800"
-                          title="Chỉnh sửa khách hàng"
+                          title={editTitle}
                         >
                           <EditRoundedIcon fontSize="small" />
                         </IconButton>
@@ -405,7 +408,7 @@ export function CustomerList({ customers }: CustomerListProps) {
         <div className="flex flex-col gap-3 border-t border-slate-200 px-5 py-4 text-sm text-slate-500 sm:flex-row sm:items-center sm:justify-between">
           <span>
             Hiển thị <strong className="text-slate-950">{filteredCustomers.length}</strong> /{' '}
-            {customers.length} khách hàng
+            {customers.length} {totalLabel}
           </span>
           <div className="flex items-center gap-2">
             <button type="button" className="rounded-lg px-3 py-2 font-semibold text-slate-400">

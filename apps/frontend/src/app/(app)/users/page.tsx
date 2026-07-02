@@ -1,134 +1,109 @@
 'use client';
 
 import { useState } from 'react';
-import { useRouter } from 'next/navigation';
-import AddRoundedIcon from '@mui/icons-material/AddRounded';
-import EditRoundedIcon from '@mui/icons-material/EditRounded';
-import SearchRoundedIcon from '@mui/icons-material/SearchRounded';
-import {
-  Button,
-  Chip,
-  IconButton,
-  InputAdornment,
-  Paper,
-  Table,
-  TableBody,
-  TableCell,
-  TableContainer,
-  TableHead,
-  TableRow,
-  TextField,
-} from '@mui/material';
-import { useQuery } from '@tanstack/react-query';
-import { ROLE_LABELS, formatDate } from '@/lib/utils';
+import { keepPreviousData, useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
+import { ConfirmDialog } from '@/components/feedback/confirm-dialog';
+import { useAppNotification } from '@/components/feedback/notification-provider';
+import { ContentLoading } from '@/components/shell/content-loading';
+import { UserList } from '@/features/users/components/user-list';
+import { getApiErrorMessage } from '@/lib/api-error';
 import { api } from '@/services/api/client';
+import type { RoleOption, User, UserFilters } from '@/types/user';
 
-function getRoleChipColor(role: string) {
-  if (role === 'ADMIN') return 'error';
-  if (role === 'LEADER') return 'secondary';
-  if (role === 'ACCOUNTANT') return 'success';
-  return 'primary';
+function getUsersParams(filters: UserFilters) {
+  return {
+    keyword: filters.keyword.trim() || undefined,
+    role_id: filters.role_id || undefined,
+    is_active: filters.is_active || undefined,
+  };
 }
 
 export default function UsersPage() {
-  const [search, setSearch] = useState('');
-  const router = useRouter();
-
-  const { data: users = [], isLoading } = useQuery({
-    queryKey: ['users', search],
-    queryFn: () => api.get('/users', { params: { search: search || undefined } }).then((r) => r.data),
+  const queryClient = useQueryClient();
+  const notify = useAppNotification();
+  const [deleteTarget, setDeleteTarget] = useState<User | null>(null);
+  const [bulkDeleteIds, setBulkDeleteIds] = useState<string[]>([]);
+  const [filters, setFilters] = useState<UserFilters>({
+    keyword: '',
+    role_id: '',
+    is_active: '',
   });
 
-  return (
-    <div className="space-y-6 p-6">
-      <div className="flex flex-col gap-4 sm:flex-row sm:items-center">
-        <TextField
-          size="small"
-          placeholder="Tìm theo mã, tên, email..."
-          value={search}
-          onChange={(event) => setSearch(event.target.value)}
-          className="w-full sm:w-[360px]"
-          slotProps={{
-            input: {
-              startAdornment: (
-                <InputAdornment position="start">
-                  <SearchRoundedIcon fontSize="small" />
-                </InputAdornment>
-              ),
-            },
-          }}
-        />
-        <Button
-          variant="contained"
-          startIcon={<AddRoundedIcon />}
-          onClick={() => router.push('/users/new')}
-          className="sm:ml-auto"
-        >
-          Thêm nhân viên
-        </Button>
-      </div>
+  const { data: roles = [] } = useQuery<RoleOption[]>({
+    queryKey: ['roles'],
+    queryFn: () => api.get('/roles').then((response) => response.data),
+  });
 
-      <TableContainer component={Paper} variant="outlined" className="rounded-lg">
-        <Table size="small">
-          <TableHead className="bg-slate-50">
-            <TableRow>
-              <TableCell>Mã NV</TableCell>
-              <TableCell>Tên</TableCell>
-              <TableCell>Email</TableCell>
-              <TableCell>Vai trò</TableCell>
-              <TableCell>Ngày tạo</TableCell>
-              <TableCell>Trạng thái</TableCell>
-              <TableCell align="center">TT</TableCell>
-            </TableRow>
-          </TableHead>
-          <TableBody>
-            {isLoading ? (
-              <TableRow>
-                <TableCell colSpan={7} align="center" className="py-10 text-slate-500">
-                  Đang tải...
-                </TableCell>
-              </TableRow>
-            ) : users.length === 0 ? (
-              <TableRow>
-                <TableCell colSpan={7} align="center" className="py-10 text-slate-500">
-                  Không có dữ liệu
-                </TableCell>
-              </TableRow>
-            ) : (
-              users.map((user: any) => (
-                <TableRow key={user.id} hover>
-                  <TableCell>
-                    <span className="text-sm font-bold">{user.code}</span>
-                  </TableCell>
-                  <TableCell>{user.name}</TableCell>
-                  <TableCell className="text-slate-500">{user.email}</TableCell>
-                  <TableCell>
-                    <Chip
-                      size="small"
-                      color={getRoleChipColor(user.role) as any}
-                      label={ROLE_LABELS[user.role] || user.role}
-                      variant="outlined"
-                    />
-                  </TableCell>
-                  <TableCell className="text-slate-500">{formatDate(user.createdAt)}</TableCell>
-                  <TableCell>
-                    <Chip
-                      size="small"
-                      color={user.isActive ? 'success' : 'default'}
-                      label={user.isActive ? 'Hoạt động' : 'Vô hiệu'}
-                    />
-                  </TableCell>
-                  <TableCell align="center">
-                    <IconButton size="small" onClick={() => router.push(`/users/${user.id}`)}>
-                      <EditRoundedIcon fontSize="small" />
-                    </IconButton>
-                  </TableCell>
-                </TableRow>
-              ))
-            )}
-          </TableBody>
-        </Table>
-      </TableContainer>
-    </div>
+  const { data: users = [], isFetching, isLoading } = useQuery<User[]>({
+    queryKey: ['users', filters],
+    queryFn: () => api.get('/users', { params: getUsersParams(filters) }).then((response) => response.data),
+    placeholderData: keepPreviousData,
+  });
+
+  const deleteMutation = useMutation({
+    mutationFn: (userId: string) => api.delete(`/users/${userId}`),
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ['users'] });
+      notify.success('Xóa nhân viên thành công');
+      setDeleteTarget(null);
+    },
+    onError: (error) => {
+      notify.error(getApiErrorMessage(error, 'Xóa nhân viên thất bại'));
+    },
+  });
+
+  const bulkDeleteMutation = useMutation({
+    mutationFn: (userIds: string[]) => Promise.all(userIds.map((userId) => api.delete(`/users/${userId}`))),
+    onSuccess: (_, userIds) => {
+      queryClient.invalidateQueries({ queryKey: ['users'] });
+      notify.success(`Đã xóa ${userIds.length} nhân viên`);
+      setBulkDeleteIds([]);
+    },
+    onError: (error) => {
+      notify.error(getApiErrorMessage(error, 'Xóa nhân viên thất bại'));
+    },
+  });
+
+  if (isLoading) {
+    return <ContentLoading />;
+  }
+
+  const isDeleting = deleteMutation.isPending || bulkDeleteMutation.isPending;
+
+  return (
+    <>
+      <UserList
+        users={users}
+        roles={roles}
+        filters={filters}
+        isFetching={isFetching}
+        onFiltersChange={setFilters}
+        isDeleting={isDeleting}
+        onDelete={setDeleteTarget}
+        onBulkDelete={setBulkDeleteIds}
+      />
+
+      <ConfirmDialog
+        open={Boolean(deleteTarget)}
+        title="Xóa nhân viên?"
+        description={`Bạn có chắc muốn xóa nhân viên "${deleteTarget?.name || deleteTarget?.email || deleteTarget?.code || ''}"? Thao tác này sẽ đưa nhân viên ra khỏi danh sách.`}
+        confirmText="Xóa nhân viên"
+        loading={deleteMutation.isPending}
+        onClose={() => setDeleteTarget(null)}
+        onConfirm={() => {
+          if (deleteTarget) deleteMutation.mutate(deleteTarget.id);
+        }}
+      />
+
+      <ConfirmDialog
+        open={bulkDeleteIds.length > 0}
+        title="Xóa nhân viên đã chọn?"
+        description={`Bạn có chắc muốn xóa ${bulkDeleteIds.length} nhân viên đã chọn? Thao tác này sẽ đưa các nhân viên này ra khỏi danh sách.`}
+        confirmText="Xóa đã chọn"
+        loading={bulkDeleteMutation.isPending}
+        onClose={() => setBulkDeleteIds([])}
+        onConfirm={() => bulkDeleteMutation.mutate(bulkDeleteIds)}
+      />
+    </>
   );
 }

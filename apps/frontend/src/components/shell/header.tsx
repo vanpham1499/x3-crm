@@ -1,12 +1,17 @@
 'use client';
 
+import { useEffect, useState } from 'react';
+import type { MouseEvent } from 'react';
 import Image from 'next/image';
-import GroupsRoundedIcon from '@mui/icons-material/GroupsRounded';
-import LanguageRoundedIcon from '@mui/icons-material/LanguageRounded';
+import { useRouter } from 'next/navigation';
+import DarkModeRoundedIcon from '@mui/icons-material/DarkModeRounded';
 import MenuRoundedIcon from '@mui/icons-material/MenuRounded';
-import NotificationsNoneRoundedIcon from '@mui/icons-material/NotificationsNoneRounded';
+import LogoutRoundedIcon from '@mui/icons-material/LogoutRounded';
+import PersonRoundedIcon from '@mui/icons-material/PersonRounded';
 import SearchRoundedIcon from '@mui/icons-material/SearchRounded';
-import SettingsRoundedIcon from '@mui/icons-material/SettingsRounded';
+import WbSunnyRoundedIcon from '@mui/icons-material/WbSunnyRounded';
+import { Avatar, Menu, MenuItem } from '@mui/material';
+import { getMediaPreviewUrl } from '@/lib/media-url';
 import { ROLE_LABELS } from '@/lib/utils';
 import { useAuthStore } from '@/stores/auth-store';
 import x3salesLogo from '@assets/logos/x3sales-logo.svg';
@@ -24,7 +29,7 @@ function HeaderIconButton({
     <button
       type="button"
       title={title}
-      className={`relative inline-flex h-10 w-10 items-center justify-center rounded-full text-slate-500 transition hover:bg-slate-100 hover:text-primary ${className}`}
+      className={`relative inline-flex h-10 w-10 items-center justify-center rounded-full text-slate-500 transition hover:bg-slate-100 hover:text-primary dark:text-slate-300 dark:hover:bg-slate-800 ${className}`}
     >
       {children}
     </button>
@@ -32,12 +37,52 @@ function HeaderIconButton({
 }
 
 export function Header() {
-  const { user } = useAuthStore();
-  const displayName = user?.name || 'X3Sales';
+  const router = useRouter();
+  const { user, logout } = useAuthStore();
+  const [accountAnchorEl, setAccountAnchorEl] = useState<HTMLElement | null>(null);
+  const [themeMode, setThemeMode] = useState<'light' | 'dark'>('light');
+  const displayName = user?.name || user?.email || user?.code || 'X3Sales';
   const displayRole = user?.role ? ROLE_LABELS[user.role] : 'Giao diện';
+  const displayInitial = displayName.trim().charAt(0).toUpperCase() || 'X';
+  const accountMenuOpen = Boolean(accountAnchorEl);
+
+  useEffect(() => {
+    const savedTheme = localStorage.getItem('x3_theme');
+    const nextTheme = savedTheme === 'dark' ? 'dark' : 'light';
+
+    setThemeMode(nextTheme);
+    document.documentElement.classList.toggle('dark', nextTheme === 'dark');
+  }, []);
+
+  const openAccountMenu = (event: MouseEvent<HTMLButtonElement>) => {
+    setAccountAnchorEl(event.currentTarget);
+  };
+
+  const closeAccountMenu = () => {
+    setAccountAnchorEl(null);
+  };
+
+  const goToProfile = () => {
+    closeAccountMenu();
+    router.push('/profile');
+  };
+
+  const handleLogout = () => {
+    closeAccountMenu();
+    logout();
+    router.replace('/login');
+  };
+
+  const toggleTheme = () => {
+    const nextTheme = themeMode === 'dark' ? 'light' : 'dark';
+
+    setThemeMode(nextTheme);
+    localStorage.setItem('x3_theme', nextTheme);
+    document.documentElement.classList.toggle('dark', nextTheme === 'dark');
+  };
 
   return (
-    <header className="sticky top-0 z-20 flex h-[72px] items-center justify-between bg-white/80 px-4 backdrop-blur-md md:px-6">
+    <header className="sticky top-0 z-20 flex h-[72px] items-center justify-between bg-white/80 px-4 backdrop-blur-md dark:bg-slate-950/80 md:px-6">
       <div className="flex min-w-0 items-center gap-3">
         <HeaderIconButton title="Mở menu" className="lg:hidden">
           <MenuRoundedIcon />
@@ -53,7 +98,7 @@ export function Header() {
 
         <button
           type="button"
-          className="hidden h-8 items-center gap-2 rounded-lg px-2 text-slate-950 transition hover:bg-slate-100 md:inline-flex"
+          className="hidden h-8 items-center gap-2 rounded-lg px-2 text-slate-950 transition hover:bg-slate-100 dark:text-slate-100 dark:hover:bg-slate-800 md:inline-flex"
         >
           <span className="inline-flex h-6 w-6 items-center justify-center rounded-full bg-primary text-xs font-bold text-white">
             X3
@@ -64,34 +109,51 @@ export function Header() {
       </div>
 
       <div className="flex items-center gap-1">
-        <HeaderIconButton title="Ngôn ngữ">
-          <LanguageRoundedIcon />
-        </HeaderIconButton>
-
-        <HeaderIconButton title="Thông báo">
-          <NotificationsNoneRoundedIcon />
-          <span className="absolute right-1.5 top-1.5 flex h-5 min-w-5 items-center justify-center rounded-full bg-red-500 px-1 text-[11px] font-bold leading-none text-white">
-            4
-          </span>
-        </HeaderIconButton>
-
-        <HeaderIconButton title="Liên hệ" className="hidden sm:inline-flex">
-          <GroupsRoundedIcon />
-        </HeaderIconButton>
-
-        <HeaderIconButton title="Cài đặt" className="hidden sm:inline-flex">
-          <SettingsRoundedIcon />
-        </HeaderIconButton>
+        <button
+          type="button"
+          title={themeMode === 'dark' ? 'Chuyển sang giao diện sáng' : 'Chuyển sang giao diện tối'}
+          onClick={toggleTheme}
+          className="relative inline-flex h-10 w-10 items-center justify-center rounded-full text-slate-500 transition hover:bg-slate-100 hover:text-primary dark:text-slate-300 dark:hover:bg-slate-800"
+        >
+          {themeMode === 'dark' ? <WbSunnyRoundedIcon /> : <DarkModeRoundedIcon />}
+        </button>
 
         <button
           type="button"
           title={`${displayName} - ${displayRole}`}
-          className="inline-flex h-10 w-10 items-center justify-center rounded-full p-1 transition hover:bg-slate-100"
+          onClick={openAccountMenu}
+          className="inline-flex h-10 w-10 items-center justify-center rounded-full p-1 transition hover:bg-slate-100 dark:hover:bg-slate-800"
         >
-          <span className="inline-flex h-8 w-8 items-center justify-center rounded-full bg-primary text-sm font-bold text-white">
-            {displayName.charAt(0)}
-          </span>
+          <Avatar
+            src={getMediaPreviewUrl(user?.avatar) || undefined}
+            alt={displayName}
+            className="!h-8 !w-8 !bg-primary !text-sm !font-bold !text-white"
+          >
+            {displayInitial}
+          </Avatar>
         </button>
+
+        <Menu
+          anchorEl={accountAnchorEl}
+          open={accountMenuOpen}
+          onClose={closeAccountMenu}
+          anchorOrigin={{ vertical: 'bottom', horizontal: 'right' }}
+          transformOrigin={{ vertical: 'top', horizontal: 'right' }}
+          slotProps={{ paper: { className: 'mt-2 min-w-56 rounded-xl shadow-lg' } }}
+        >
+          <div className="border-b border-slate-100 px-4 py-3">
+            <p className="truncate text-sm font-bold text-slate-950">{displayName}</p>
+            <p className="mt-0.5 truncate text-xs font-semibold text-slate-500">{displayRole}</p>
+          </div>
+          <MenuItem onClick={goToProfile}>
+            <PersonRoundedIcon fontSize="small" className="mr-2 text-slate-500" />
+            Profile
+          </MenuItem>
+          <MenuItem onClick={handleLogout} className="text-rose-600">
+            <LogoutRoundedIcon fontSize="small" className="mr-2" />
+            Đăng xuất
+          </MenuItem>
+        </Menu>
       </div>
     </header>
   );
