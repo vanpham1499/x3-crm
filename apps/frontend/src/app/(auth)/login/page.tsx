@@ -5,7 +5,14 @@ import NextLink from 'next/link';
 import { useRouter } from 'next/navigation';
 import VisibilityOffRoundedIcon from '@mui/icons-material/VisibilityOffRounded';
 import VisibilityRoundedIcon from '@mui/icons-material/VisibilityRounded';
-import { Button, FormControl, FormHelperText, IconButton, InputAdornment, TextField } from '@mui/material';
+import {
+  Button,
+  FormControl,
+  FormHelperText,
+  IconButton,
+  InputAdornment,
+  TextField,
+} from '@mui/material';
 import { useForm } from 'react-hook-form';
 import { zodResolver } from '@hookform/resolvers/zod';
 import { z } from 'zod';
@@ -67,6 +74,11 @@ export default function LoginPage() {
             type="email"
             autoComplete="email"
             error={Boolean(errors.email)}
+            slotProps={{
+              inputLabel: {
+                shrink: true,
+              },
+            }}
             {...register('email')}
           />
           {errors.email && <FormHelperText>{errors.email.message}</FormHelperText>}
@@ -74,7 +86,10 @@ export default function LoginPage() {
 
         <div className="space-y-3">
           <div className="flex justify-end">
-            <NextLink href="/forgot-password" className="text-sm font-semibold text-slate-950 hover:underline">
+            <NextLink
+              href="/forgot-password"
+              className="text-sm font-semibold text-slate-950 hover:underline"
+            >
               Quên mật khẩu?
             </NextLink>
           </div>
@@ -86,6 +101,9 @@ export default function LoginPage() {
               autoComplete="current-password"
               error={Boolean(errors.password)}
               slotProps={{
+                inputLabel: {
+                  shrink: true,
+                },
                 input: {
                   endAdornment: (
                     <InputAdornment position="end">
@@ -106,14 +124,16 @@ export default function LoginPage() {
           </FormControl>
         </div>
 
-        {error && <div className="rounded-lg bg-red-50 px-4 py-3 text-sm text-red-600">{error}</div>}
+        {error && (
+          <div className="rounded-lg bg-red-50 px-4 py-3 text-sm text-red-600">{error}</div>
+        )}
 
         <Button
           type="submit"
           variant="contained"
           size="large"
           disabled={loading}
-          className="!h-12 !bg-slate-900 hover:!bg-slate-800"
+          className="!h-12 !bg-slate-900 hover:!bg-slate-800 !text-white"
           fullWidth
         >
           {loading ? 'Đang đăng nhập...' : 'Đăng nhập'}

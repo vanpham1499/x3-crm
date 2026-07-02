@@ -1,5 +1,5 @@
 export const siteConfig = {
-  name: 'X3 CRM',
+  name: 'X3Sales CRM',
   companyName: 'X3Sales',
   description: 'He thong quan ly khach hang noi bo cua X3Sales.',
   websiteUrl: 'https://x3sales.vn/',

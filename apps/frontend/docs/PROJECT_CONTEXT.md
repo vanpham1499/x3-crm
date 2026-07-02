@@ -31,8 +31,10 @@ This file is the first place Codex should read before changing the project.
   `src/services/api/client.ts`.
 - `src/stores`: client state stores. Auth store lives in `src/stores/auth-store.ts`.
 - `src/lib`: shared generic helpers only, such as formatters and `cn`.
+- `src/lib/customer-utils.ts`: customer list constants, filtering/search helpers, link helpers, and
+  Tailwind class helpers for customer pills/statuses.
 - `src/config`: static app configuration such as brand/site constants.
-- `src/types`: shared TypeScript types.
+- `src/types`: shared TypeScript types. Customer type lives in `src/types/customer.ts`.
 - `src/hooks`: shared React hooks.
 - `src/assets`: source-imported images, icons, and logos. Use `@assets/...` for IDE autocomplete.
 - `src/styles`: global/shared CSS. Root layout imports `@/styles/globals.css`; use `@styles/...` for shared CSS imports.
@@ -46,6 +48,19 @@ This file is the first place Codex should read before changing the project.
 - `/login`: login screen.
 - `/forgot-password`: forgot password screen.
 - `/dashboard`: placeholder dashboard screen with only the "Dashboard" heading.
+- `/customers`: customer/lead list screen populated from `src/data/customers.json`, extracted from
+  `CRM Khách hàng mới - Team Sales (1).xlsx`.
+- `/customers/new`: create customer form. Submit currently builds/logs a payload and is ready to
+  swap TODO comments for API calls.
+- `/customers/[id]`: edit customer form using `leadCode` from the extracted Excel data as the route
+  id. Submit currently builds/logs a payload and is ready to swap TODO comments for API calls.
+- Customer list UI lives in `src/features/customers/components/customer-list.tsx`. It uses MUI
+  checkboxes for row selection. Selecting rows shows a green selected action bar; each row has a
+  separate edit icon and a three-dot MUI menu with edit/delete placeholders.
+- Customer create/edit form uses a full-width 8/4 layout: left column contains customer information
+  including status and dates, right column contains classification and assignment. Inputs, selects,
+  multi-select checkboxes, and date fields use MUI components. Date fields use `@mui/x-date-pickers`
+  with Day.js; the month field is intentionally not part of the form UI.
 - `/users`: employee/user listing.
 - `/users/new`: create employee/user.
 - `/users/[id]`: employee/user detail and edit form.
@@ -73,6 +88,8 @@ This file is the first place Codex should read before changing the project.
   and dark navy submit button. Left platform icons stay grayscale and reveal color on hover. The demo
   credential alert is intentionally removed.
 - Auth layout is shared by login and forgot-password screens.
+- Auth MUI text fields force `inputLabel.shrink` because Chrome autofill can otherwise leave labels
+  overlapping typed values on the login form.
 - Current app shell, auth shell, login/forgot-password pages, dashboard placeholder, and users screens
   use Tailwind `className` for layout and visual styling. Avoid adding `sx`/inline `style` in
   `src/app` and `src/components` unless a MUI component API makes it genuinely unavoidable.

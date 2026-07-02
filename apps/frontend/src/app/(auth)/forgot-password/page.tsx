@@ -44,6 +44,11 @@ export default function ForgotPasswordPage() {
             type="email"
             autoComplete="email"
             error={Boolean(errors.email)}
+            slotProps={{
+              inputLabel: {
+                shrink: true,
+              },
+            }}
             {...register('email')}
           />
           {errors.email && <FormHelperText>{errors.email.message}</FormHelperText>}

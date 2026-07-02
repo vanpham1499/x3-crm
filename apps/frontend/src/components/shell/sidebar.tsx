@@ -24,7 +24,7 @@ const navGroups = [
   {
     label: 'Quản lý',
     items: [
-      { href: '/dashboard#customers', label: 'Khách hàng', icon: PersonSearchRoundedIcon },
+      { href: '/customers', label: 'Khách hàng', icon: PersonSearchRoundedIcon },
       { href: '/dashboard#campaigns', label: 'Chiến dịch', icon: CampaignRoundedIcon },
       { href: '/dashboard#reports', label: 'Báo cáo', icon: AssessmentRoundedIcon },
     ],
