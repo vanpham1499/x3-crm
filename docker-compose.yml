@@ -9,7 +9,7 @@ services:
       POSTGRES_PASSWORD: x3crm123
       POSTGRES_DB: x3crm
     ports:
-      - '5432:5432'
+      - '5433:5432'
     volumes:
       - postgres_data:/var/lib/postgresql/data
     healthcheck:
@@ -24,7 +24,12 @@ services:
       dockerfile: Dockerfile
     container_name: x3crm-backend
     environment:
-      DATABASE_URL: postgresql://x3crm:x3crm123@postgres:5432/x3crm
+      DB_CONNECTION: pgsql
+      DB_HOST: postgres
+      DB_PORT: 5432
+      DB_DATABASE: x3crm
+      DB_USERNAME: x3crm
+      DB_PASSWORD: x3crm123
       JWT_SECRET: your-super-secret-jwt-key-change-in-production
       FRONTEND_URL: http://localhost:3000
       PORT: 4000
