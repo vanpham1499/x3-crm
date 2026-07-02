@@ -4,12 +4,40 @@ namespace Database\Seeders;
 
 use App\Models\User;
 use Illuminate\Database\Seeder;
+use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Hash;
+use Illuminate\Support\Str;
 
 class DatabaseSeeder extends Seeder
 {
     public function run(): void
     {
+        $roles = [
+            User::ROLE_ADMIN => 'Quản trị hệ thống',
+            User::ROLE_LEADER => 'Trưởng nhóm',
+            User::ROLE_EMPLOYEE => 'Nhân sự',
+            User::ROLE_ACCOUNTANT => 'Kế toán',
+            User::ROLE_SALES => 'Sales',
+        ];
+
+        $roleIds = [];
+
+        foreach ($roles as $name => $description) {
+            $id = DB::table('roles')->where('name', $name)->value('id') ?: (string) Str::uuid();
+
+            DB::table('roles')->updateOrInsert(
+                ['name' => $name],
+                [
+                    'id' => $id,
+                    'description' => $description,
+                    'updated_at' => now(),
+                    'created_at' => now(),
+                ],
+            );
+
+            $roleIds[$name] = DB::table('roles')->where('name', $name)->value('id');
+        }
+
         $users = [
             [
                 'code' => 'NV000',
@@ -56,6 +84,7 @@ class DatabaseSeeder extends Seeder
                     'name' => $user['name'],
                     'password' => Hash::make($user['password']),
                     'role' => $user['role'],
+                    'role_id' => $roleIds[$user['role']],
                     'is_active' => true,
                 ],
             );

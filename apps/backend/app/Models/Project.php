@@ -1,0 +1,96 @@
+<?php
+
+namespace App\Models;
+
+use Illuminate\Database\Eloquent\Relations\BelongsTo;
+use Illuminate\Database\Eloquent\Relations\HasMany;
+use Illuminate\Database\Eloquent\Relations\HasOne;
+
+class Project extends BaseModel
+{
+    protected $fillable = [
+        'project_code',
+        'customer_id',
+        'service_id',
+        'project_name',
+        'status_id',
+        'manager_user_id',
+        'sales_user_id',
+        'zalo_group',
+        'plan_link',
+        'start_date',
+        'end_date',
+        'note',
+        'created_by',
+        'updated_by',
+        'deleted_by',
+    ];
+
+    protected $casts = [
+        'start_date' => 'date',
+        'end_date' => 'date',
+        'created_at' => 'datetime',
+        'updated_at' => 'datetime',
+        'deleted_at' => 'datetime',
+    ];
+
+    public function customer(): BelongsTo
+    {
+        return $this->belongsTo(Customer::class);
+    }
+
+    public function service(): BelongsTo
+    {
+        return $this->belongsTo(Service::class);
+    }
+
+    public function status(): BelongsTo
+    {
+        return $this->belongsTo(Status::class);
+    }
+
+    public function managerUser(): BelongsTo
+    {
+        return $this->belongsTo(User::class, 'manager_user_id');
+    }
+
+    public function salesUser(): BelongsTo
+    {
+        return $this->belongsTo(User::class, 'sales_user_id');
+    }
+
+    public function contracts(): HasMany
+    {
+        return $this->hasMany(Contract::class);
+    }
+
+    public function revenues(): HasMany
+    {
+        return $this->hasMany(Revenue::class);
+    }
+
+    public function payments(): HasMany
+    {
+        return $this->hasMany(Payment::class);
+    }
+
+    public function googleAdAccount(): HasOne
+    {
+        return $this->hasOne(GoogleAdAccount::class);
+    }
+
+    public function weeklySetting(): HasOne
+    {
+        return $this->hasOne(ProjectWeeklySetting::class);
+    }
+
+    public function weeklyReports(): HasMany
+    {
+        return $this->hasMany(WeeklyReport::class);
+    }
+
+    public function timelines(): HasMany
+    {
+        return $this->hasMany(CustomerTimeline::class);
+    }
+}

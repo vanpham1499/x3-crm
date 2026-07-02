@@ -5,8 +5,10 @@ namespace App\Services;
 use App\Http\Resources\UserResource;
 use App\Models\User;
 use App\Repositories\UserRepository;
+use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Hash;
 use Symfony\Component\HttpKernel\Exception\ConflictHttpException;
+use Symfony\Component\HttpKernel\Exception\UnprocessableEntityHttpException;
 
 class UsersService extends BaseService
 {
@@ -39,6 +41,7 @@ class UsersService extends BaseService
                 throw new ConflictHttpException('Email hoặc mã nhân viên đã tồn tại');
             }
 
+            $data['role_id'] = $this->resolveRoleId($data['role']);
             $data['password'] = Hash::make($data['password']);
             $data['is_active'] = true;
 
@@ -55,6 +58,10 @@ class UsersService extends BaseService
             if (array_key_exists('isActive', $data)) {
                 $data['is_active'] = $data['isActive'];
                 unset($data['isActive']);
+            }
+
+            if (array_key_exists('role', $data)) {
+                $data['role_id'] = $this->resolveRoleId($data['role']);
             }
 
             /** @var User $user */
@@ -90,5 +97,16 @@ class UsersService extends BaseService
             'total' => $this->users->countActive(),
             'byRole' => $byRole,
         ];
+    }
+
+    private function resolveRoleId(string $role): string
+    {
+        $roleId = DB::table('roles')->where('name', $role)->value('id');
+
+        if (! $roleId) {
+            throw new UnprocessableEntityHttpException('Vai trò không tồn tại trong danh mục roles');
+        }
+
+        return $roleId;
     }
 }
