@@ -4,7 +4,8 @@ import type { User } from '@/types/user';
 interface AuthStore {
   user: User | null;
   token: string | null;
-  setAuth: (user: User, token: string) => void;
+  initialized: boolean;
+  setAuth: (user: User | null, token: string) => void;
   logout: () => void;
   init: () => void;
 }
@@ -12,27 +13,50 @@ interface AuthStore {
 export const useAuthStore = create<AuthStore>((set) => ({
   user: null,
   token: null,
+  initialized: false,
 
   init: () => {
-    if (typeof window === 'undefined') return;
+    if (typeof window === 'undefined') {
+      set({ initialized: true });
+      return;
+    }
+
     const token = localStorage.getItem('access_token');
     const userStr = localStorage.getItem('user');
-    if (token && userStr) {
+
+    if (!token) {
+      set({ user: null, token: null, initialized: true });
+      return;
+    }
+
+    if (!userStr) {
+      set({ user: null, token, initialized: true });
+      return;
+    }
+
+    try {
+      set({ token, user: JSON.parse(userStr), initialized: true });
+    } catch {
       try {
-        set({ token, user: JSON.parse(userStr) });
+        localStorage.removeItem('user');
       } catch {}
+      set({ user: null, token, initialized: true });
     }
   },
 
   setAuth: (user, token) => {
     localStorage.setItem('access_token', token);
-    localStorage.setItem('user', JSON.stringify(user));
-    set({ user, token });
+    if (user) {
+      localStorage.setItem('user', JSON.stringify(user));
+    } else {
+      localStorage.removeItem('user');
+    }
+    set({ user, token, initialized: true });
   },
 
   logout: () => {
     localStorage.removeItem('access_token');
     localStorage.removeItem('user');
-    set({ user: null, token: null });
+    set({ user: null, token: null, initialized: true });
   },
 }));

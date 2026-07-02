@@ -4,7 +4,6 @@ import { useMemo, useState } from 'react';
 import Link from 'next/link';
 import CheckBoxIcon from '@mui/icons-material/CheckBox';
 import CheckBoxOutlineBlankIcon from '@mui/icons-material/CheckBoxOutlineBlank';
-import KeyboardArrowDownRoundedIcon from '@mui/icons-material/KeyboardArrowDownRounded';
 import SaveRoundedIcon from '@mui/icons-material/SaveRounded';
 import { Autocomplete, Button, Checkbox, MenuItem, TextField } from '@mui/material';
 import { DatePicker } from '@mui/x-date-pickers/DatePicker';
@@ -42,17 +41,11 @@ function FormSection({
 }) {
   return (
     <section className="overflow-hidden rounded-2xl border border-slate-200 bg-white shadow-sm">
-      <div className="flex items-start justify-between gap-4 border-b border-slate-200 px-6 py-5">
+      <div className="border-b border-slate-200 px-6 py-5">
         <div>
           <h2 className="text-lg font-bold text-slate-950">{title}</h2>
           <p className="mt-1 text-sm text-slate-500">{description}</p>
         </div>
-        <button
-          type="button"
-          className="inline-flex h-9 w-9 items-center justify-center rounded-full text-slate-500 hover:bg-slate-100"
-        >
-          <KeyboardArrowDownRoundedIcon />
-        </button>
       </div>
       <div className="space-y-6 p-6">{children}</div>
     </section>

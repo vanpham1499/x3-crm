@@ -1,6 +1,6 @@
 'use client';
 
-import { useState } from 'react';
+import { useEffect, useState } from 'react';
 import NextLink from 'next/link';
 import { useRouter } from 'next/navigation';
 import VisibilityOffRoundedIcon from '@mui/icons-material/VisibilityOffRounded';
@@ -16,8 +16,10 @@ import {
 import { useForm } from 'react-hook-form';
 import { zodResolver } from '@hookform/resolvers/zod';
 import { z } from 'zod';
+import { AppSplashScreen } from '@/components/shell/app-splash-screen';
 import { useAuthStore } from '@/stores/auth-store';
 import { api } from '@/services/api/client';
+import type { User } from '@/types/user';
 
 const schema = z.object({
   email: z.string().email('Email không hợp lệ'),
@@ -26,9 +28,28 @@ const schema = z.object({
 
 type FormData = z.infer<typeof schema>;
 
+type LoginResponseBody = {
+  access_token?: string;
+  token?: string;
+  user?: User;
+  data?: {
+    access_token?: string;
+    token?: string;
+    user?: User;
+  };
+  message?: string;
+};
+
+function normalizeLoginResponse(body: LoginResponseBody) {
+  const token = body.access_token || body.token || body.data?.access_token || body.data?.token;
+  const user = body.user || body.data?.user || null;
+
+  return { token, user };
+}
+
 export default function LoginPage() {
   const router = useRouter();
-  const { setAuth } = useAuthStore();
+  const { initialized, setAuth, token } = useAuthStore();
   const [error, setError] = useState('');
   const [loading, setLoading] = useState(false);
   const [showPassword, setShowPassword] = useState(false);
@@ -41,19 +62,35 @@ export default function LoginPage() {
     resolver: zodResolver(schema),
   });
 
+  useEffect(() => {
+    if (initialized && token) {
+      router.replace('/users');
+    }
+  }, [initialized, router, token]);
+
   const onSubmit = async (data: FormData) => {
     try {
       setLoading(true);
       setError('');
-      const res = await api.post('/auth/login', data);
-      setAuth(res.data.user, res.data.access_token);
-      router.push('/users');
+      const res = await api.post<LoginResponseBody>('/auth/login', data);
+      const auth = normalizeLoginResponse(res.data);
+
+      if (!auth.token) {
+        throw new Error('LOGIN_TOKEN_MISSING');
+      }
+
+      setAuth(auth.user, auth.token);
+      router.replace('/users');
     } catch (err: any) {
       setError(err.response?.data?.message || 'Đăng nhập thất bại');
     } finally {
       setLoading(false);
     }
   };
+
+  if (!initialized || token) {
+    return <AppSplashScreen label="Dang kiem tra dang nhap" />;
+  }
 
   return (
     <>
