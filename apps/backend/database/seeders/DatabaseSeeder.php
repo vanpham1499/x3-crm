@@ -38,6 +38,51 @@ class DatabaseSeeder extends Seeder
             $roleIds[$name] = DB::table('roles')->where('name', $name)->value('id');
         }
 
+        $permissions = [
+            ['module' => 'user', 'code' => 'user.view', 'name' => 'Xem nhân sự'],
+            ['module' => 'user', 'code' => 'user.create', 'name' => 'Tạo nhân sự'],
+            ['module' => 'user', 'code' => 'user.update', 'name' => 'Cập nhật nhân sự'],
+            ['module' => 'user', 'code' => 'user.delete', 'name' => 'Xóa nhân sự'],
+            ['module' => 'role', 'code' => 'role.view', 'name' => 'Xem vai trò'],
+            ['module' => 'role', 'code' => 'role.create', 'name' => 'Tạo vai trò'],
+            ['module' => 'role', 'code' => 'role.update', 'name' => 'Cập nhật vai trò'],
+            ['module' => 'role', 'code' => 'role.delete', 'name' => 'Xóa vai trò'],
+            ['module' => 'role', 'code' => 'role.permission.update', 'name' => 'Cập nhật quyền vai trò'],
+            ['module' => 'permission', 'code' => 'permission.view', 'name' => 'Xem danh sách quyền'],
+        ];
+
+        $permissionIds = [];
+
+        foreach ($permissions as $permission) {
+            $id = DB::table('permissions')->where('code', $permission['code'])->value('id') ?: (string) Str::uuid();
+
+            DB::table('permissions')->updateOrInsert(
+                ['code' => $permission['code']],
+                [
+                    'id' => $id,
+                    'name' => $permission['name'],
+                    'module' => $permission['module'],
+                    'description' => 'Quyền '.$permission['name'],
+                    'updated_at' => now(),
+                    'created_at' => now(),
+                ],
+            );
+
+            $permissionIds[$permission['code']] = DB::table('permissions')->where('code', $permission['code'])->value('id');
+        }
+
+        foreach ($permissionIds as $permissionId) {
+            if (! DB::table('role_permissions')->where('role_id', $roleIds[User::ROLE_ADMIN])->where('permission_id', $permissionId)->exists()) {
+                DB::table('role_permissions')->insert([
+                    'id' => (string) Str::uuid(),
+                    'role_id' => $roleIds[User::ROLE_ADMIN],
+                    'permission_id' => $permissionId,
+                    'created_at' => now(),
+                    'updated_at' => now(),
+                ]);
+            }
+        }
+
         $users = [
             [
                 'code' => 'NV000',

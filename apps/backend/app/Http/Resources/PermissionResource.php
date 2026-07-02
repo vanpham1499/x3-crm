@@ -5,7 +5,7 @@ namespace App\Http\Resources;
 use Illuminate\Http\Request;
 use Illuminate\Http\Resources\Json\JsonResource;
 
-class UserResource extends JsonResource
+class PermissionResource extends JsonResource
 {
     public function toArray(Request $request): array
     {
@@ -13,12 +13,8 @@ class UserResource extends JsonResource
             'id' => $this->id,
             'code' => $this->code,
             'name' => $this->name,
-            'email' => $this->email,
-            'roleId' => $this->role_id,
-            'departmentId' => $this->department_id,
-            'role' => $this->role,
-            'phone' => $this->phone,
-            'isActive' => (bool) $this->is_active,
+            'module' => $this->module,
+            'description' => $this->description,
             'createdAt' => $this->created_at?->toISOString(),
             'updatedAt' => $this->updated_at?->toISOString(),
         ];

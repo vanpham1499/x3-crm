@@ -16,7 +16,12 @@ class UsersController extends Controller
 
     public function index(Request $request): JsonResponse
     {
-        return $this->success($this->users->findAll($request->query('search')));
+        return $this->success($this->users->findAll([
+            'keyword' => $request->query('keyword'),
+            'search' => $request->query('search'),
+            'role_id' => $request->query('role_id'),
+            'is_active' => $request->query('is_active'),
+        ]));
     }
 
     public function stats(): JsonResponse
