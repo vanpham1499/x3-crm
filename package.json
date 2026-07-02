@@ -12,9 +12,9 @@
     "dev": "concurrently \"npm run dev:backend\" \"npm run dev:frontend\"",
     "build:backend": "npm run build --workspace=apps/backend",
     "build:frontend": "npm run build --workspace=apps/frontend",
-    "db:generate": "npm run prisma:generate --workspace=apps/backend",
-    "db:migrate": "npm run prisma:migrate --workspace=apps/backend",
-    "db:seed": "npm run prisma:seed --workspace=apps/backend"
+    "db:migrate": "npm run db:migrate --workspace=apps/backend",
+    "db:seed": "npm run db:seed --workspace=apps/backend",
+    "db:fresh": "npm run db:fresh --workspace=apps/backend"
   },
   "devDependencies": {
     "concurrently": "^8.2.2"
