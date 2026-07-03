@@ -1,9 +1,12 @@
 <?php
 
 use App\Http\Controllers\AuthController;
+use App\Http\Controllers\CustomerSourcesController;
+use App\Http\Controllers\LeadsController;
 use App\Http\Controllers\MediaController;
 use App\Http\Controllers\PermissionsController;
 use App\Http\Controllers\RolesController;
+use App\Http\Controllers\ServicesController;
 use App\Http\Controllers\UsersController;
 use Illuminate\Support\Facades\Route;
 
@@ -24,6 +27,23 @@ Route::middleware('jwt')->group(function (): void {
     Route::get('/media', [MediaController::class, 'index']);
     Route::post('/media/upload', [MediaController::class, 'upload']);
 
+    Route::get('/customer-sources', [CustomerSourcesController::class, 'index']);
+    Route::post('/customer-sources', [CustomerSourcesController::class, 'store']);
+    Route::get('/customer-sources/{id}', [CustomerSourcesController::class, 'show']);
+    Route::put('/customer-sources/{id}', [CustomerSourcesController::class, 'update']);
+    Route::patch('/customer-sources/{id}', [CustomerSourcesController::class, 'update']);
+    Route::delete('/customer-sources/{id}', [CustomerSourcesController::class, 'destroy']);
+
+    Route::get('/services', [ServicesController::class, 'index']);
+    Route::get('/services/{id}', [ServicesController::class, 'show']);
+
+    Route::middleware('role:ADMIN')->group(function (): void {
+        Route::post('/services', [ServicesController::class, 'store']);
+        Route::put('/services/{id}', [ServicesController::class, 'update']);
+        Route::patch('/services/{id}', [ServicesController::class, 'update']);
+        Route::delete('/services/{id}', [ServicesController::class, 'destroy']);
+    });
+
     Route::get('/users', [UsersController::class, 'index']);
     Route::get('/users/stats', [UsersController::class, 'stats'])->middleware('role:ADMIN,LEADER');
     Route::get('/users/{id}', [UsersController::class, 'show']);
@@ -31,6 +51,13 @@ Route::middleware('jwt')->group(function (): void {
     Route::put('/users/{id}', [UsersController::class, 'update'])->middleware('role:ADMIN');
     Route::patch('/users/{id}', [UsersController::class, 'update'])->middleware('role:ADMIN');
     Route::delete('/users/{id}', [UsersController::class, 'destroy'])->middleware('role:ADMIN');
+
+    Route::get('/leads', [LeadsController::class, 'index']);
+    Route::post('/leads', [LeadsController::class, 'store']);
+    Route::get('/leads/{id}', [LeadsController::class, 'show']);
+    Route::put('/leads/{id}', [LeadsController::class, 'update']);
+    Route::patch('/leads/{id}', [LeadsController::class, 'update']);
+    Route::delete('/leads/{id}', [LeadsController::class, 'destroy']);
 
     Route::middleware('role:ADMIN')->group(function (): void {
         Route::get('/roles', [RolesController::class, 'index']);

@@ -15,6 +15,7 @@ class Lead extends BaseModel
         'occurred_date',
         'assigned_user_id',
         'source_id',
+        'interested_service_id',
         'interested_service_text',
         'phone',
         'website',
@@ -50,6 +51,11 @@ class Lead extends BaseModel
     public function source(): BelongsTo
     {
         return $this->belongsTo(CustomerSource::class, 'source_id');
+    }
+
+    public function interestedService(): BelongsTo
+    {
+        return $this->belongsTo(Service::class, 'interested_service_id');
     }
 
     public function convertedCustomer(): BelongsTo

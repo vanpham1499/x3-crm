@@ -1,0 +1,41 @@
+Mã Nhân viên,Tên Nhân Viên,,Mã Đối tác,Tên Đối Tác,STK,Ngân hàng,Dịch vụ,,List,Danh mục dịch vụ,Mã dịch vụ,Nội dung,Nội dung hóa đơn,Thời điểm xuất hóa đơn,,Nạp ngân sách,Ngân hàng
+NV001,Nguyễn Đức Hòa,,,,,,,,DV1: Dịch vụ Google,DV1.1: Gói vận hành quảng cáo,DV1.1.1,Quản lý & Tối ưu Google Ads,Phí dịch vụ quảng cáo Google Ads,"- Khách M: XHĐ lúc NHẬN TIỀN
+- Khách K: XHĐ ngày 25",,CK-HA,ACB Cá nhân
+NV002,Phạm Ngọc An,,,,,,,,,,DV1.1.2,Phí Khởi Tạo Tài Khoản,,XHĐ lúc NHẬN TIỀN,,0656-KN,BIDV Biz
+NV003,Ngô Quang Huỳnh,,,,,,,,,DV1.2: Gói dịch vụ thiết lập,DV1.2.1,Gói dịch vụ Setup PRO,Phí dịch vụ truyền thông trên nền tảng Google,,,9890-HNG,LPBank Cá nhân
+,,,DT002,Lương Văn Duy,,,,,,,DV1.2.2,Gói dịch vụ Setup Shopping/Youtube,,,,7408-CTY,BIDV Biz
+,,,,,,,,,,,DV1.2.3,Xác minh & Kháng nghị tài khoản,,,,MKM,
+,,,,,,,,,,,DV1.2.4,"Dịch vụ Khác (Setup Chuyển Đổi, GA4,..)",,,,6712-NH,BIDV Biz
+,,,,,,,,,,DV1.3: Gói dịch vụ về Google Map,DV1.3.1,Xác minh Google Map,,,,HKD-NH,
+,,,,,,,,,,,DV1.3.2,Quản lý & Tối ưu Map (Hàng tháng),,,,,
+,,,,,,,,,,,DV1.3.3,Tối ưu Map chuẩn SEO (Gói khởi đầu),,,,,
+,,,,,,,,,,,DV1.3.4,Khắc Phục Sự Cố Google Map,,,,,
+,,,,,,,,,,,DV1.3.5,Review Google Map,,,,,
+,,,,,,,,,,DV1.4: Gói dịch vụ KHÁC,DV1.4.1,"Gói dịch vụ Khác (Thuê TK,...)",,,,,
+,,,,,,,,,DV2: Dịch vụ Facebook,DV2.1: Gói vận hành quảng cáo,DV2.1.1,Quản lý & Tối ưu Facebook Ads,Phí dịch vụ quảng cáo Facebook Ads,,,,
+,,,,,,,,,,,DV2.1.2 ,Quản lý & Tối ưu Tiktok Ads,Phí dịch vụ quảng cáo Tiktok Ads,,,,
+,,,,,,,,,,DV2.2: Gói khởi tạo & Quản trị nền tảng,DV2.2.1 ,Thiết kế Nội dung Quảng cáo,Phí dịch vụ truyền thông trên nền tảng Facebook,,,,
+,,,,,,,,,,,DV2.2.2,Thiết lập & Chuẩn hóa Fanpage,,,,,
+,,,,,,,,,,,DV2.2.3 ,Quản lý & Tối ưu Fanpage,,,,,
+,,,,,,,,,,,DV2.2.4,Sản xuất Media quảng cáo,,,,,
+,,,DT020,Trần Minh Chương,,,,,,DV2.3: Dịch vụ phát sinh kỹ thuật,DV2.3.1 ,Kháng nghị & Khắc phục sự cố Tài Khoản/Fanpage,,,,,
+,,,DT021,Nguyễn Việt Trung,,,,,,,DV2.3.3 ,"Dịch vụ Khác (Mua Tài Khoản,...)",,,,,
+,,,DT022,Nguyễn Quỳnh Hương,,,,,DV3: Dịch vụ Account,DV3.1: Gói dịch vụ thiết kế Website,DV3.1.1 ,Dịch vụ thiết kế Website trọn gói,Dịch vụ thiết kế Website,XHĐ lúc NGHIỆM THU,,8%,
+,,,,,,,,,,,DV3.1.2 ,Dịch vụ thiết kế Landing Page chuyển đổi,,,,8%,
+,,,,,,,,,,"DV3.2: Dịch vụ về Tối ưu, Bảo Trì",DV3.2.1 ,Khắc phục lỗi & Xử lý kỹ thuật,Phí dịch vụ bảo trì và tối ưu hoá vận hành Website,,,8%,
+,,,,,,,,,,,DV3.2.2,Gói Phân tích & Định hướng Website,,,,8%,
+,,,,,,,,,,DV3.3: Dịch vụ Quản lý & Tối ưu Nội dung Website,DV3.3.1 ,Viết nội dung chuẩn SEO,Dịch vụ viết nội dung đa nền tảng,"- Ưu tiên: XHĐ lúc NGHIỆM THU
+- Hoặc: XHĐ lúc NHẬN TIỀN",,8%,
+,,,,,,,,,,,DV3.3.2 ,Dịch vụ Backlink,,,,8%,
+,,,,,,,,,,,DV3.3.2 ,Quản lý & Tối ưu nội dung Website,,,,8%,
+,,,,,,,,,,DV3.4: Dịch vụ Thiết kế đồ họa Website,DV3.4.1 ,Thiết kế bộ nhận diện Website (Banner/Slider),Dịch vụ thiết kế hình ảnh đa nền tảng,,,8%,
+,,,,,,,,,,,DV3.4.2,Thiết kế & Tối ưu hình ảnh bài viết/sản phẩm,,,,8%,
+,,,,,,,,,DV4: Dịch vụ KHÁC,DV4: Dịch vụ KHÁC,DV4,Dịch vụ chưa phân vào trên,Dịch vụ quảng cáo,,,,
+,,,,,,,,,DV0,Dịch vụ chờ. Đang treo chưa quyết toán,DTC,Dịch vụ chờ. Đang treo chưa quyết toán,,,,,
+,,,,,,,,,,Đặt cọc/ TƯTHHĐ,DV0,Đặt cọc/ TƯTHHĐ,,,,,
+,,,,,,,,,,Phải thu khách hàng,CN,Phải thu khách hàng,,,,,
+,,,,,,,,,,Khuyến mại Công ty,KM1,Khuyến mại theo chương trình của Công ty,Chi phí DN,,,,
+,,,,,,,,,,Khuyến mại Cross Sell,KM2,Khuyến mại Cross Sell,Chi phí DN,,,,
+,,,,,,,,,,Khuyến mại khách cũ,KM3,Khuyến mại dành cho khách hàng cũ,Trừ doanh thu NV quản lý,,,,
+,,,,,,,,,,Ngân sách quảng cáo,NS,Ngân sách quảng cáo,,,,,
+,,,,,,,,,,Lên tài khoản mồi,TEST,Lên tài khoản mồi,,,,,
