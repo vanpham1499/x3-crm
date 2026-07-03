@@ -26,7 +26,7 @@ class ServiceResource extends JsonResource
                 'code' => $this->parent->code,
                 'name' => $this->parent->name,
             ] : null),
-            'children' => ServiceResource::collection($this->whenLoaded('childrenRecursive'))->resolve(),
+            'children' => ServiceResource::collection($this->whenLoaded('childrenRecursive')),
             'createdAt' => $this->created_at?->toISOString(),
             'updatedAt' => $this->updated_at?->toISOString(),
         ];

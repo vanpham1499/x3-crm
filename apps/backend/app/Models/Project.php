@@ -14,6 +14,7 @@ class Project extends BaseModel
         'service_id',
         'project_name',
         'status_id',
+        'status_option_id',
         'manager_user_id',
         'sales_user_id',
         'zalo_group',
@@ -47,6 +48,11 @@ class Project extends BaseModel
     public function status(): BelongsTo
     {
         return $this->belongsTo(Status::class);
+    }
+
+    public function statusOption(): BelongsTo
+    {
+        return $this->belongsTo(Option::class, 'status_option_id');
     }
 
     public function managerUser(): BelongsTo

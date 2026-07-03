@@ -12,6 +12,7 @@ class Customer extends BaseModel
         'lead_id',
         'customer_name',
         'customer_type',
+        'customer_type_option_id',
         'company_name',
         'representative_name',
         'tax_code',
@@ -21,8 +22,10 @@ class Customer extends BaseModel
         'email',
         'website',
         'industry',
+        'industry_option_id',
         'birthday',
         'source_id',
+        'source_option_id',
         'sales_user_id',
         'note',
         'created_by',
@@ -47,6 +50,21 @@ class Customer extends BaseModel
         return $this->belongsTo(CustomerSource::class, 'source_id');
     }
 
+    public function customerTypeOption(): BelongsTo
+    {
+        return $this->belongsTo(Option::class, 'customer_type_option_id');
+    }
+
+    public function sourceOption(): BelongsTo
+    {
+        return $this->belongsTo(Option::class, 'source_option_id');
+    }
+
+    public function industryOption(): BelongsTo
+    {
+        return $this->belongsTo(Option::class, 'industry_option_id');
+    }
+
     public function salesUser(): BelongsTo
     {
         return $this->belongsTo(User::class, 'sales_user_id');
@@ -64,6 +82,6 @@ class Customer extends BaseModel
 
     public function timelines(): HasMany
     {
-        return $this->hasMany(CustomerTimeline::class);
+        return $this->hasMany(CustomerTimeline::class)->orderByDesc('created_at');
     }
 }

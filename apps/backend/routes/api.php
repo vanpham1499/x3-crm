@@ -1,10 +1,12 @@
 <?php
 
 use App\Http\Controllers\AuthController;
+use App\Http\Controllers\CustomersController;
 use App\Http\Controllers\LeadsController;
 use App\Http\Controllers\MediaController;
 use App\Http\Controllers\OptionsController;
 use App\Http\Controllers\PermissionsController;
+use App\Http\Controllers\ProjectsController;
 use App\Http\Controllers\RolesController;
 use App\Http\Controllers\ServicesController;
 use App\Http\Controllers\UsersController;
@@ -59,6 +61,20 @@ Route::middleware('jwt')->group(function (): void {
     Route::put('/leads/{id}', [LeadsController::class, 'update']);
     Route::patch('/leads/{id}', [LeadsController::class, 'update']);
     Route::delete('/leads/{id}', [LeadsController::class, 'destroy']);
+
+    Route::get('/customers', [CustomersController::class, 'index']);
+    Route::post('/customers', [CustomersController::class, 'store']);
+    Route::get('/customers/{id}', [CustomersController::class, 'show']);
+    Route::put('/customers/{id}', [CustomersController::class, 'update']);
+    Route::patch('/customers/{id}', [CustomersController::class, 'update']);
+    Route::delete('/customers/{id}', [CustomersController::class, 'destroy']);
+
+    Route::get('/projects', [ProjectsController::class, 'index']);
+    Route::post('/projects', [ProjectsController::class, 'store']);
+    Route::get('/projects/{id}', [ProjectsController::class, 'show']);
+    Route::put('/projects/{id}', [ProjectsController::class, 'update']);
+    Route::patch('/projects/{id}', [ProjectsController::class, 'update']);
+    Route::delete('/projects/{id}', [ProjectsController::class, 'destroy']);
 
     Route::middleware('role:ADMIN')->group(function (): void {
         Route::get('/roles', [RolesController::class, 'index']);

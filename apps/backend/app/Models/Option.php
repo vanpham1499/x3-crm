@@ -14,6 +14,10 @@ class Option extends BaseModel
 
     public const GROUP_LEAD_SERVICE = 'lead_service';
 
+    public const GROUP_CUSTOMER_TYPE = 'customer_type';
+
+    public const GROUP_PROJECT_STATUS = 'project_status';
+
     protected $fillable = [
         'group',
         'key',
@@ -49,5 +53,25 @@ class Option extends BaseModel
     public function industryLeads(): HasMany
     {
         return $this->hasMany(Lead::class, 'industry_option_id');
+    }
+
+    public function typeCustomers(): HasMany
+    {
+        return $this->hasMany(Customer::class, 'customer_type_option_id');
+    }
+
+    public function sourceCustomers(): HasMany
+    {
+        return $this->hasMany(Customer::class, 'source_option_id');
+    }
+
+    public function industryCustomers(): HasMany
+    {
+        return $this->hasMany(Customer::class, 'industry_option_id');
+    }
+
+    public function statusProjects(): HasMany
+    {
+        return $this->hasMany(Project::class, 'status_option_id');
     }
 }
