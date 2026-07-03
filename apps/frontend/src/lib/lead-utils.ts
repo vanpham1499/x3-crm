@@ -3,22 +3,30 @@ import type { Lead, LeadFilters, LeadFormValues, LeadStatus } from '@/types/lead
 export function getLeadParams(filters: LeadFilters) {
   return {
     keyword: filters.keyword.trim() || undefined,
-    status_id: filters.status_id || undefined,
+    status_option_id: filters.status_option_id || filters.status_id || undefined,
     assigned_user_id: filters.assigned_user_id || undefined,
-    source_id: filters.source_id || undefined,
-    interested_service_id: filters.interested_service_id || undefined,
+    source_option_id: filters.source_option_id || filters.source_id || undefined,
+    industry_option_id: filters.industry_option_id || undefined,
+    interested_service_option_id:
+      filters.interested_service_option_id || filters.interested_service_id || undefined,
   };
 }
 
 export function getLeadDefaults(lead?: Lead | null): LeadFormValues {
   return {
-    leadCode: lead?.leadCode || '',
     customerName: lead?.customerName || '',
     statusId: lead?.statusId || '',
+    statusOptionId: lead?.statusOptionId || '',
     occurredDate: lead?.occurredDate || new Date().toISOString().slice(0, 10),
     assignedUserId: lead?.assignedUserId || '',
     sourceId: lead?.sourceId || '',
-    sourceName: lead?.source?.name || '',
+    sourceOptionId: lead?.sourceOptionId || '',
+    sourceName: lead?.sourceOption?.label || lead?.source?.name || '',
+    interestedServiceOptionId: lead?.interestedServiceOptionId || '',
+    interestedServiceOptionIds:
+      lead?.interestedServiceOptionIds ||
+      lead?.interestedServiceOptions?.map((service) => service.id) ||
+      (lead?.interestedServiceOptionId ? [lead.interestedServiceOptionId] : []),
     interestedServiceId: lead?.interestedServiceId || '',
     interestedServiceText: lead?.interestedServiceText || '',
     phone: lead?.phone || '',
@@ -33,13 +41,17 @@ export function getLeadDefaults(lead?: Lead | null): LeadFormValues {
 
 export function toLeadPayload(values: LeadFormValues) {
   return {
-    leadCode: values.leadCode.trim() || null,
     customerName: values.customerName.trim(),
-    statusId: values.statusId || null,
+    statusOptionId: values.statusOptionId || values.statusId || null,
     occurredDate: values.occurredDate || null,
     assignedUserId: values.assignedUserId || null,
-    sourceId: values.sourceId || null,
-    interestedServiceId: values.interestedServiceId || null,
+    sourceOptionId: values.sourceOptionId || values.sourceId || null,
+    interestedServiceOptionIds: values.interestedServiceOptionIds,
+    interestedServiceOptionId:
+      values.interestedServiceOptionIds[0] ||
+      values.interestedServiceOptionId ||
+      values.interestedServiceId ||
+      null,
     interestedServiceText: values.interestedServiceText.trim() || null,
     phone: values.phone.trim() || null,
     website: values.website.trim() || null,
@@ -73,8 +85,16 @@ export function getUniqueLeadStatuses(leads: Lead[]) {
   const map = new Map<string, LeadStatus>();
 
   leads.forEach((lead) => {
-    if (lead.status?.id) {
-      map.set(lead.status.id, lead.status);
+    const status = lead.statusOption
+      ? {
+          id: lead.statusOption.id,
+          name: lead.statusOption.label,
+          sortOrder: lead.statusOption.sortOrder || 0,
+        }
+      : lead.status;
+
+    if (status?.id) {
+      map.set(status.id, status);
     }
   });
 

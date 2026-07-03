@@ -8,8 +8,8 @@ import { LeadForm } from '@/features/leads/components/lead-form';
 import { getApiErrorMessage } from '@/lib/api-error';
 import { getUniqueLeadStatuses, toLeadPayload } from '@/lib/lead-utils';
 import api from '@/services/api/client';
-import type { CustomerSourceOption, Lead, LeadFormValues } from '@/types/lead';
-import type { ServiceItem } from '@/types/service';
+import type { Lead, LeadFormValues } from '@/types/lead';
+import type { AppOption } from '@/types/option';
 import type { User } from '@/types/user';
 
 export default function EditLeadPage() {
@@ -29,43 +29,49 @@ export default function EditLeadPage() {
     queryFn: () => api.get('/users').then((response) => response.data),
   });
 
-  const { data: sources = [], isLoading: sourcesLoading } = useQuery<CustomerSourceOption[]>({
-    queryKey: ['customer-sources'],
-    queryFn: () => api.get('/customer-sources').then((response) => response.data),
+  const { data: leadOptions = [], isLoading: optionsLoading } = useQuery<AppOption[]>({
+    queryKey: ['options', 'lead-form'],
+    queryFn: () =>
+      api
+        .get('/options', { params: { groups: 'lead_status,lead_source,lead_service' } })
+        .then((response) => response.data),
   });
-
-  const { data: services = [], isLoading: servicesLoading } = useQuery<ServiceItem[]>({
-    queryKey: ['services', 'lead-options'],
-    queryFn: () => api.get('/services', { params: { tree: true } }).then((response) => response.data),
-  });
+  const statusOptions = leadOptions.filter((option) => option.group === 'lead_status');
+  const sources = leadOptions.filter((option) => option.group === 'lead_source');
+  const services = leadOptions.filter((option) => option.group === 'lead_service');
 
   const { data: leads = [] } = useQuery<Lead[]>({
     queryKey: ['leads', 'status-options'],
     queryFn: () => api.get('/leads').then((response) => response.data),
   });
 
-  const ensureSourceId = async (values: LeadFormValues) => {
-    if (values.sourceId) return values.sourceId;
+  const ensureSourceOptionId = async (values: LeadFormValues) => {
+    if (values.sourceOptionId) return values.sourceOptionId;
 
     const sourceName = values.sourceName.trim();
     if (!sourceName) return '';
 
     const existingSource = sources.find(
-      (source) => source.name.trim().toLowerCase() === sourceName.toLowerCase(),
+      (source) => source.label.trim().toLowerCase() === sourceName.toLowerCase(),
     );
     if (existingSource) return existingSource.id;
 
-    const response = await api.post<CustomerSourceOption>('/customer-sources', { name: sourceName });
-    queryClient.invalidateQueries({ queryKey: ['customer-sources'] });
+    const response = await api.post<AppOption>('/options', {
+      group: 'lead_source',
+      label: sourceName,
+      value: sourceName,
+      isActive: true,
+    });
+    queryClient.invalidateQueries({ queryKey: ['options'] });
 
     return response.data.id;
   };
 
   const updateMutation = useMutation({
     mutationFn: async (values: LeadFormValues) => {
-      const sourceId = await ensureSourceId(values);
+      const sourceOptionId = await ensureSourceOptionId(values);
 
-      return api.put(`/leads/${id}`, toLeadPayload({ ...values, sourceId }));
+      return api.put(`/leads/${id}`, toLeadPayload({ ...values, sourceOptionId }));
     },
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ['leads'] });
@@ -78,11 +84,9 @@ export default function EditLeadPage() {
     },
   });
 
-  if (leadLoading || usersLoading || sourcesLoading || servicesLoading || !lead) {
+  if (leadLoading || usersLoading || optionsLoading || !lead) {
     return <ContentLoading />;
   }
-
-  const statuses = getUniqueLeadStatuses([lead, ...leads]);
 
   return (
     <div className="min-h-[calc(100vh-72px)] bg-slate-50/60 p-6">
@@ -103,7 +107,14 @@ export default function EditLeadPage() {
         users={users}
         sources={sources}
         services={services}
-        statuses={statuses}
+        statuses={[
+          ...statusOptions.map((status) => ({
+            id: status.id,
+            name: status.label,
+            sortOrder: status.sortOrder || 0,
+          })),
+          ...getUniqueLeadStatuses([lead, ...leads]),
+        ]}
         isSubmitting={updateMutation.isPending}
         onSubmit={(values) => updateMutation.mutate(values)}
       />
