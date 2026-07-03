@@ -52,8 +52,17 @@ This file is the first place Codex should read before changing the project.
 - `/dashboard`: placeholder dashboard screen with only the "Dashboard" heading.
 - `/customers`: customer/lead list screen populated from `src/data/customers.json`, extracted from
   `CRM Khách hàng mới - Team Sales (1).xlsx`.
-- `/leads`: temporary lead list screen reusing the customer list/table UI and the same
-  `src/data/customers.json` data until a real lead API/data model is wired in.
+- `/leads`: lead management screen using backend `GET/POST/PUT/DELETE /leads`, plus option APIs
+  `GET /users`, `GET /customer-sources`, and `GET /services`. It keeps the customer-style table
+  layout but uses `src/features/leads/components/lead-manager.tsx` and typed lead data instead of
+  reusing static customer JSON. Filtering uses API params and `keepPreviousData` so only the table
+  content shows loading after the first page load.
+- `/leads/new` and `/leads/[id]`: full-page create/edit forms using
+  `src/features/leads/components/lead-form.tsx`, laid out like the customer form with an 8/4 split:
+  left for lead/contact/timing information, right for assignment/source/service classification.
+  The source field is an MUI free-solo autocomplete: users can select an existing
+  `customer_sources` record or type a new source name. On submit, the page creates the source via
+  `POST /customer-sources` first, then saves the lead with the returned `sourceId`.
 - `/customers/new`: create customer form. Submit currently builds/logs a payload and is ready to
   swap TODO comments for API calls.
 - `/customers/[id]`: edit customer form using `leadCode` from the extracted Excel data as the route
@@ -66,6 +75,11 @@ This file is the first place Codex should read before changing the project.
   multi-select checkboxes, and date fields use MUI components. Date fields use `@mui/x-date-pickers`
   with Day.js; the month field is intentionally not part of the form UI.
 - `/users`: employee/user listing.
+- `/projects`: placeholder project page titled "Dự án".
+- `/projects/services`: service management screen using backend `GET/POST/PUT/DELETE /services`.
+  It renders services as a tree table, supports keyword/status filters, and uses MUI dialogs for
+  create/edit plus shared confirmation dialog for delete. Keep service list logic in
+  `src/features/services/components/service-manager.tsx`.
 - `/users/new`: create employee/user.
 - `/users/[id]`: employee/user detail and edit form.
 - `/users/roles`: role list screen using backend `GET /roles` with `keyword` filter.

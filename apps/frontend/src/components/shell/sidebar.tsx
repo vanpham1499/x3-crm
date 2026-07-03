@@ -29,7 +29,14 @@ const navGroups = [
       { href: '/dashboard', label: 'Dashboard', icon: DashboardRoundedIcon },
       { href: '/leads', label: 'Lead', icon: PersonSearchRoundedIcon },
       { href: '/customers', label: 'Khách hàng', icon: PeopleAltRoundedIcon },
-      { href: '/projects', label: 'Project / Dịch vụ', icon: WorkRoundedIcon },
+      {
+        href: '/projects',
+        label: 'Dự án',
+        icon: WorkRoundedIcon,
+        children: [
+          { href: '/projects/services', label: 'Dịch vụ', icon: CategoryRoundedIcon },
+        ],
+      },
       { href: '/revenues', label: 'Doanh thu', icon: PaidRoundedIcon },
       { href: '/payments', label: 'Thanh toán', icon: PaymentsRoundedIcon },
       { href: '/invoices', label: 'Hóa đơn', icon: ReceiptLongRoundedIcon },
@@ -37,23 +44,35 @@ const navGroups = [
       { href: '/reports', label: 'Báo cáo', icon: AssessmentRoundedIcon },
       { href: '/categories', label: 'Danh mục', icon: CategoryRoundedIcon },
       {
-        href: '/settings',
-        label: 'Thiết lập hệ thống',
-        icon: SettingsRoundedIcon,
+        href: '/users',
+        label: 'Quản trị người dùng',
+        icon: BadgeRoundedIcon,
         children: [
           { href: '/users', label: 'Người dùng', icon: PeopleAltRoundedIcon },
           { href: '/users/roles', label: 'Vai trò', icon: BadgeRoundedIcon },
           { href: '/users/permissions', label: 'Permission', icon: SecurityRoundedIcon },
-          {
-            href: '/users/role-permissions',
-            label: 'Phân quyền vai trò',
-            icon: SecurityRoundedIcon,
-          },
         ],
       },
+      { href: '/settings', label: 'Thiết lập hệ thống', icon: SettingsRoundedIcon },
     ],
   },
 ];
+
+function isSettingsUserPath(pathname: string) {
+  if (pathname === '/users' || pathname === '/users/new') return true;
+  if (!pathname.startsWith('/users/')) return false;
+
+  return !['/users/roles', '/users/permissions', '/users/role-permissions'].some(
+    (path) => pathname === path || pathname.startsWith(`${path}/`),
+  );
+}
+
+function isActivePath(pathname: string, href: string) {
+  if (href === '/dashboard') return pathname === href;
+  if (href === '/users') return isSettingsUserPath(pathname);
+
+  return pathname === href || pathname.startsWith(`${href}/`);
+}
 
 export function Sidebar() {
   const pathname = usePathname();
@@ -118,13 +137,11 @@ export function Sidebar() {
                 const Icon = item.icon;
                 const hasChildren = Boolean(item.children?.length);
                 const childActive = Boolean(
-                  item.children?.some(
-                    (child) => pathname === child.href || pathname.startsWith(`${child.href}/`),
-                  ),
+                  item.children?.some((child) => isActivePath(pathname, child.href)),
                 );
                 const active =
                   pathname === item.href ||
-                  (item.href !== '/dashboard' && pathname.startsWith(item.href)) ||
+                  (item.href !== '/dashboard' && pathname.startsWith(`${item.href}/`)) ||
                   childActive;
                 const isOpen = openNavItems[item.href] ?? active;
 
@@ -180,8 +197,7 @@ export function Sidebar() {
                       <div className="mt-1 space-y-1 pl-2">
                         {item.children?.map((child) => {
                           const ChildIcon = child.icon;
-                          const childActive =
-                            pathname === child.href || pathname.startsWith(`${child.href}/`);
+                          const childActive = isActivePath(pathname, child.href);
 
                           return (
                             <Link
