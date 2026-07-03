@@ -89,23 +89,18 @@ export function Header() {
         </HeaderIconButton>
 
         <div className="mr-1 block lg:hidden">
-          <Image src={x3salesLogo} alt="X3Sales logo" width={112} height={40} className="h-auto w-28" />
+          <Image
+            src={x3salesLogo}
+            alt="X3Sales logo"
+            width={112}
+            height={40}
+            className="h-auto w-28"
+          />
         </div>
 
         <HeaderIconButton title="Tìm kiếm">
           <SearchRoundedIcon />
         </HeaderIconButton>
-
-        <button
-          type="button"
-          className="hidden h-8 items-center gap-2 rounded-lg px-2 text-slate-950 transition hover:bg-slate-100 dark:text-slate-100 dark:hover:bg-slate-800 md:inline-flex"
-        >
-          <span className="inline-flex h-6 w-6 items-center justify-center rounded-full bg-primary text-xs font-bold text-white">
-            X3
-          </span>
-          <span className="text-sm font-bold">X3Sales CRM</span>
-          <span className="text-xs font-bold text-slate-500">Free</span>
-        </button>
       </div>
 
       <div className="flex items-center gap-1">

@@ -18,7 +18,7 @@ import {
 import { CUSTOMER_STATUS_TABS } from '@/lib/customer-utils';
 import type { Customer, CustomerFormValues, CustomerPayload } from '@/types/customer';
 
-const customerRows = customers as Customer[];
+const customerRows = customers as unknown as Customer[];
 const emptyCheckboxIcon = <CheckBoxOutlineBlankIcon fontSize="small" />;
 const checkedCheckboxIcon = <CheckBoxIcon fontSize="small" />;
 
@@ -123,7 +123,7 @@ export function CustomerForm({ mode, defaultValues, leadCode }: CustomerFormProp
   );
 
   const onSubmit = async (values: CustomerFormValues) => {
-    const payload = buildCustomerPayload(values, leadCode);
+    const payload = buildCustomerPayload(values);
 
     // TODO: Replace this mock with API calls when backend endpoints are ready.
     // create: await api.post('/customers', payload)

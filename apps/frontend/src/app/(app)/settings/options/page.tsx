@@ -5,24 +5,23 @@ import { useAppNotification } from '@/components/feedback/notification-provider'
 import { ContentLoading } from '@/components/shell/content-loading';
 import { OptionsManager } from '@/features/options/components/options-manager';
 import { getApiErrorMessage } from '@/lib/api-error';
-import { LEAD_OPTION_GROUPS, toOptionPayload } from '@/lib/option-utils';
+import { SYSTEM_OPTION_GROUPS, toOptionPayload } from '@/lib/option-utils';
 import api from '@/services/api/client';
 import type { AppOption, OptionFormValues } from '@/types/option';
 
 export default function SystemOptionsPage() {
   const queryClient = useQueryClient();
   const notify = useAppNotification();
-  const groups = LEAD_OPTION_GROUPS.map((item) => item.group);
 
   const {
     data: options = [],
     isFetching,
     isLoading,
   } = useQuery<AppOption[]>({
-    queryKey: ['options', 'lead'],
+    queryKey: ['options', 'system'],
     queryFn: () =>
       api
-        .get<AppOption[]>('/options', { params: { groups: groups.join(',') } })
+        .get<AppOption[]>('/options', { params: { groups: SYSTEM_OPTION_GROUPS.join(',') } })
         .then((response) => response.data),
     placeholderData: keepPreviousData,
   });
@@ -40,7 +39,7 @@ export default function SystemOptionsPage() {
       return api.post<AppOption>('/options', payload).then((response) => response.data);
     },
     onSuccess: (savedOption, variables) => {
-      queryClient.setQueryData<AppOption[]>(['options', 'lead'], (current = []) => {
+      queryClient.setQueryData<AppOption[]>(['options', 'system'], (current = []) => {
         if (variables.option) {
           return current.map((option) => (option.id === savedOption.id ? savedOption : option));
         }
@@ -59,7 +58,7 @@ export default function SystemOptionsPage() {
   const deleteMutation = useMutation({
     mutationFn: (option: AppOption) => api.delete(`/options/${option.id}`),
     onSuccess: (_response, deletedOption) => {
-      queryClient.setQueryData<AppOption[]>(['options', 'lead'], (current = []) =>
+      queryClient.setQueryData<AppOption[]>(['options', 'system'], (current = []) =>
         current.filter((option) => option.id !== deletedOption.id),
       );
       notify.success('Xóa option thành công');
@@ -78,14 +77,14 @@ export default function SystemOptionsPage() {
         })
         .then((response) => response.data),
     onMutate: async ({ group, orderedOptions }) => {
-      await queryClient.cancelQueries({ queryKey: ['options', 'lead'] });
+      await queryClient.cancelQueries({ queryKey: ['options', 'system'] });
 
-      const previousOptions = queryClient.getQueryData<AppOption[]>(['options', 'lead']);
+      const previousOptions = queryClient.getQueryData<AppOption[]>(['options', 'system']);
       const orderMap = new Map(
         orderedOptions.map((option, index) => [option.id, (index + 1) * 10]),
       );
 
-      queryClient.setQueryData<AppOption[]>(['options', 'lead'], (current = []) =>
+      queryClient.setQueryData<AppOption[]>(['options', 'system'], (current = []) =>
         current.map((option) =>
           option.group === group && orderMap.has(option.id)
             ? { ...option, sortOrder: orderMap.get(option.id) }
@@ -96,7 +95,7 @@ export default function SystemOptionsPage() {
       return { previousOptions };
     },
     onSuccess: (updatedGroupOptions, variables) => {
-      queryClient.setQueryData<AppOption[]>(['options', 'lead'], (current = []) => {
+      queryClient.setQueryData<AppOption[]>(['options', 'system'], (current = []) => {
         const otherGroups = current.filter((option) => option.group !== variables.group);
         return [...otherGroups, ...updatedGroupOptions];
       });
@@ -104,7 +103,7 @@ export default function SystemOptionsPage() {
     },
     onError: (error, _variables, context) => {
       if (context?.previousOptions) {
-        queryClient.setQueryData(['options', 'lead'], context.previousOptions);
+        queryClient.setQueryData(['options', 'system'], context.previousOptions);
       }
       notify.error(getApiErrorMessage(error, 'Cập nhật thứ tự thất bại'));
     },

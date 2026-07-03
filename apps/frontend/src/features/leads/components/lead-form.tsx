@@ -136,10 +136,9 @@ export function LeadForm({
                 fullWidth
                 select
                 label="Trạng thái"
-                defaultValue={defaults.statusOptionId || defaults.statusId}
+                defaultValue={defaults.statusOptionId || defaults.statusId || statuses[0]?.id || ''}
                 {...register('statusOptionId')}
               >
-                <MenuItem value="">Mặc định</MenuItem>
                 {statuses.map((status) => (
                   <MenuItem key={status.id} value={status.id}>
                     {status.name}
@@ -196,7 +195,6 @@ export function LeadForm({
               defaultValue={defaults.assignedUserId}
               {...register('assignedUserId')}
             >
-              <MenuItem value="">Chưa chọn</MenuItem>
               {users.map((user) => (
                 <MenuItem key={user.id} value={user.id}>
                   {user.name || user.email || user.code}
