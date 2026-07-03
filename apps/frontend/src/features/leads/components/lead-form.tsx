@@ -1,23 +1,22 @@
-'use client';
+﻿'use client';
 
 import Link from 'next/link';
 import SaveRoundedIcon from '@mui/icons-material/SaveRounded';
-import { Autocomplete, Button, MenuItem, TextField } from '@mui/material';
+import { Autocomplete, Button, Checkbox, ListItemText, MenuItem, TextField } from '@mui/material';
 import { DatePicker } from '@mui/x-date-pickers/DatePicker';
 import dayjs from 'dayjs';
 import { Controller, useForm } from 'react-hook-form';
-import { flattenServices } from '@/lib/service-utils';
 import { getLeadDefaults } from '@/lib/lead-utils';
-import type { CustomerSourceOption, Lead, LeadFormValues, LeadStatus } from '@/types/lead';
-import type { ServiceItem } from '@/types/service';
+import type { Lead, LeadFormValues, LeadStatus } from '@/types/lead';
+import type { AppOption } from '@/types/option';
 import type { User } from '@/types/user';
 
 type LeadFormProps = {
   mode: 'create' | 'edit';
   lead?: Lead | null;
   users: User[];
-  sources: CustomerSourceOption[];
-  services: ServiceItem[];
+  sources: AppOption[];
+  services: AppOption[];
   statuses: LeadStatus[];
   isSubmitting: boolean;
   onSubmit: (values: LeadFormValues) => void;
@@ -73,7 +72,6 @@ export function LeadForm({
   onSubmit,
 }: LeadFormProps) {
   const defaults = getLeadDefaults(lead);
-  const serviceOptions = flattenServices(services);
   const {
     control,
     register,
@@ -82,7 +80,7 @@ export function LeadForm({
     watch,
     formState: { errors },
   } = useForm<LeadFormValues>({ defaultValues: defaults });
-  const selectedSourceId = watch('sourceId');
+  const selectedSourceId = watch('sourceOptionId') || watch('sourceId');
   const typedSourceName = watch('sourceName');
   const selectedSource = sources.find((source) => source.id === selectedSourceId) || null;
 
@@ -103,21 +101,44 @@ export function LeadForm({
                 helperText={errors.customerName?.message}
                 {...register('customerName', { required: 'Vui lòng nhập tên khách hàng' })}
               />
-              <TextField fullWidth label="Mã lead" placeholder="Tự sinh nếu để trống" {...register('leadCode')} />
+              <TextField
+                fullWidth
+                label="Số điện thoại"
+                placeholder="0901234567"
+                {...register('phone')}
+              />
             </div>
 
             <div className="grid gap-4 md:grid-cols-2">
-              <TextField fullWidth label="Số điện thoại" placeholder="0901234567" {...register('phone')} />
-              <TextField fullWidth label="Ngành" placeholder="VD: Spa, BĐS, Nhà hàng..." {...register('industry')} />
+              <TextField
+                fullWidth
+                label="Ngành nghề"
+                placeholder="VD: Spa, bất động sản..."
+                {...register('industry')}
+              />
+              <TextField
+                fullWidth
+                label="Website"
+                placeholder="https://example.com"
+                {...register('website')}
+              />
             </div>
 
-            <div className="grid gap-4 md:grid-cols-2">
-              <TextField fullWidth label="Website" placeholder="https://example.com" {...register('website')} />
-              <TextField fullWidth label="Link kế hoạch" placeholder="https://docs.google.com/..." {...register('planLink')} />
-            </div>
+            <TextField
+              fullWidth
+              label="Link kế hoạch"
+              placeholder="https://docs.google.com/..."
+              {...register('planLink')}
+            />
 
             <div className="grid gap-4 md:grid-cols-3">
-              <TextField fullWidth select label="Trạng thái" defaultValue={defaults.statusId} {...register('statusId')}>
+              <TextField
+                fullWidth
+                select
+                label="Trạng thái"
+                defaultValue={defaults.statusOptionId || defaults.statusId}
+                {...register('statusOptionId')}
+              >
                 <MenuItem value="">Mặc định</MenuItem>
                 {statuses.map((status) => (
                   <MenuItem key={status.id} value={status.id}>
@@ -129,7 +150,11 @@ export function LeadForm({
                 name="occurredDate"
                 control={control}
                 render={({ field }) => (
-                  <LeadDatePicker label="Ngày phát sinh" value={field.value} onChange={field.onChange} />
+                  <LeadDatePicker
+                    label="Ngày phát sinh"
+                    value={field.value}
+                    onChange={field.onChange}
+                  />
                 )}
               />
               <Controller
@@ -141,7 +166,12 @@ export function LeadForm({
               />
             </div>
 
-            <TextField fullWidth label="Nhóm Zalo" placeholder="Tên nhóm hoặc link nhóm" {...register('zaloGroup')} />
+            <TextField
+              fullWidth
+              label="Nhóm Zalo"
+              placeholder="Tên nhóm hoặc link nhóm"
+              {...register('zaloGroup')}
+            />
 
             <TextField
               fullWidth
@@ -159,7 +189,13 @@ export function LeadForm({
             title="Phân loại & phụ trách"
             description="Nhân sự, nguồn phát sinh và dịch vụ quan tâm."
           >
-            <TextField fullWidth select label="Nhân sự phụ trách" defaultValue={defaults.assignedUserId} {...register('assignedUserId')}>
+            <TextField
+              fullWidth
+              select
+              label="Nhân sự phụ trách"
+              defaultValue={defaults.assignedUserId}
+              {...register('assignedUserId')}
+            >
               <MenuItem value="">Chưa chọn</MenuItem>
               {users.map((user) => (
                 <MenuItem key={user.id} value={user.id}>
@@ -169,29 +205,33 @@ export function LeadForm({
             </TextField>
 
             <input type="hidden" {...register('sourceId')} />
+            <input type="hidden" {...register('sourceOptionId')} />
             <input type="hidden" {...register('sourceName')} />
             <Autocomplete
               freeSolo
               options={sources}
               value={selectedSource || typedSourceName || null}
-              inputValue={selectedSource?.name || typedSourceName || ''}
-              getOptionLabel={(option) => (typeof option === 'string' ? option : option.name)}
+              inputValue={selectedSource?.label || typedSourceName || ''}
+              getOptionLabel={(option) => (typeof option === 'string' ? option : option.label)}
               isOptionEqualToValue={(option, value) =>
                 typeof option !== 'string' && typeof value !== 'string' && option.id === value.id
               }
               onChange={(_, nextValue) => {
                 if (typeof nextValue === 'string') {
                   setValue('sourceId', '');
+                  setValue('sourceOptionId', '');
                   setValue('sourceName', nextValue);
                   return;
                 }
 
-                setValue('sourceId', nextValue?.id || '');
-                setValue('sourceName', nextValue?.name || '');
+                setValue('sourceId', '');
+                setValue('sourceOptionId', nextValue?.id || '');
+                setValue('sourceName', nextValue?.label || '');
               }}
               onInputChange={(_, nextValue, reason) => {
                 if (reason === 'input') {
                   setValue('sourceId', '');
+                  setValue('sourceOptionId', '');
                   setValue('sourceName', nextValue);
                 }
               }}
@@ -205,14 +245,43 @@ export function LeadForm({
               )}
             />
 
-            <TextField fullWidth select label="Dịch vụ quan tâm" defaultValue={defaults.interestedServiceId} {...register('interestedServiceId')}>
-              <MenuItem value="">Chưa chọn</MenuItem>
-              {serviceOptions.map((service) => (
-                <MenuItem key={service.id} value={service.id}>
-                  {'— '.repeat(service.depth)}{service.name}
-                </MenuItem>
-              ))}
-            </TextField>
+            <Controller
+              name="interestedServiceOptionIds"
+              control={control}
+              render={({ field }) => (
+                <TextField
+                  fullWidth
+                  select
+                  label="Dịch vụ quan tâm"
+                  value={field.value || []}
+                  onChange={(event) => {
+                    const value = event.target.value;
+                    field.onChange(typeof value === 'string' ? value.split(',') : value);
+                  }}
+                  slotProps={{
+                    select: {
+                      multiple: true,
+                      renderValue: (selected) => {
+                        const selectedIds = selected as string[];
+                        if (!selectedIds.length) return 'Chưa chọn';
+
+                        return services
+                          .filter((service) => selectedIds.includes(service.id))
+                          .map((service) => service.label)
+                          .join(', ');
+                      },
+                    },
+                  }}
+                >
+                  {services.map((service) => (
+                    <MenuItem key={service.id} value={service.id}>
+                      <Checkbox checked={(field.value || []).includes(service.id)} />
+                      <ListItemText primary={service.label} />
+                    </MenuItem>
+                  ))}
+                </TextField>
+              )}
+            />
 
             <TextField
               fullWidth
@@ -231,7 +300,12 @@ export function LeadForm({
         >
           Hủy
         </Link>
-        <Button type="submit" variant="contained" disabled={isSubmitting} startIcon={<SaveRoundedIcon />}>
+        <Button
+          type="submit"
+          variant="contained"
+          disabled={isSubmitting}
+          startIcon={<SaveRoundedIcon />}
+        >
           {isSubmitting ? 'Đang lưu...' : mode === 'create' ? 'Tạo lead' : 'Lưu thay đổi'}
         </Button>
       </div>

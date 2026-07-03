@@ -60,9 +60,10 @@ This file is the first place Codex should read before changing the project.
 - `/leads/new` and `/leads/[id]`: full-page create/edit forms using
   `src/features/leads/components/lead-form.tsx`, laid out like the customer form with an 8/4 split:
   left for lead/contact/timing information, right for assignment/source/service classification.
-  The source field is an MUI free-solo autocomplete: users can select an existing
-  `customer_sources` record or type a new source name. On submit, the page creates the source via
-  `POST /customer-sources` first, then saves the lead with the returned `sourceId`.
+  Lead status/source/industry now use the backend `/options` API groups `lead_status`,
+  `lead_source`, and `industry`. The source field is an MUI free-solo autocomplete: users can select
+  an existing `lead_source` option or type a new source name. On submit, the page creates the source
+  via `POST /options` first, then saves the lead with the returned `sourceOptionId`.
 - `/customers/new`: create customer form. Submit currently builds/logs a payload and is ready to
   swap TODO comments for API calls.
 - `/customers/[id]`: edit customer form using `leadCode` from the extracted Excel data as the route
@@ -80,6 +81,9 @@ This file is the first place Codex should read before changing the project.
   It renders services as a tree table, supports keyword/status filters, and uses MUI dialogs for
   create/edit plus shared confirmation dialog for delete. Keep service list logic in
   `src/features/services/components/service-manager.tsx`.
+- `/settings/options`: system option management screen using backend `GET/POST/PUT/DELETE /options`.
+  It currently shows the Lead page list with grouped option cards for `lead_status`, `lead_source`,
+  and `industry`. UI lives in `src/features/options/components/options-manager.tsx`.
 - `/users/new`: create employee/user.
 - `/users/[id]`: employee/user detail and edit form.
 - `/users/roles`: role list screen using backend `GET /roles` with `keyword` filter.

@@ -53,7 +53,14 @@ const navGroups = [
           { href: '/users/permissions', label: 'Permission', icon: SecurityRoundedIcon },
         ],
       },
-      { href: '/settings', label: 'Thiết lập hệ thống', icon: SettingsRoundedIcon },
+      {
+        href: '/settings',
+        label: 'Thiết lập hệ thống',
+        icon: SettingsRoundedIcon,
+        children: [
+          { href: '/settings/options', label: 'Danh mục hệ thống', icon: CategoryRoundedIcon },
+        ],
+      },
     ],
   },
 ];
