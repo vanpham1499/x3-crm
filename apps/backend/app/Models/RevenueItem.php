@@ -8,6 +8,7 @@ class RevenueItem extends BaseModel
 {
     protected $fillable = [
         'revenue_id',
+        'service_id',
         'service_package_id',
         'item_name',
         'quantity',
@@ -32,6 +33,11 @@ class RevenueItem extends BaseModel
     public function revenue(): BelongsTo
     {
         return $this->belongsTo(Revenue::class);
+    }
+
+    public function service(): BelongsTo
+    {
+        return $this->belongsTo(Service::class);
     }
 
     public function servicePackage(): BelongsTo
