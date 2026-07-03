@@ -14,7 +14,7 @@ export function getCustomerStatusClass(status: string) {
 }
 
 export function getCustomerLink(customer: Customer) {
-  return customer.website || customer.planLink;
+  return customer.website || '';
 }
 
 export function getExternalUrl(value: string) {
@@ -36,14 +36,20 @@ export function getLinkLabel(value: string) {
 export function getCustomerSearchText(customer: Customer) {
   return [
     customer.customerCode,
-    customer.leadCode,
-    customer.owner,
-    customer.source,
-    customer.service,
+    customer.customerName,
+    customer.companyName,
+    customer.representativeName,
+    customer.lead?.leadCode,
+    customer.lead?.customerName,
+    customer.salesUser?.name,
+    customer.sourceOption?.label,
+    customer.customerTypeOption?.label,
     customer.phone,
+    customer.email,
     customer.website,
-    customer.planLink,
+    customer.taxCode,
     customer.industry,
+    customer.industryOption?.label,
     customer.note,
   ]
     .join(' ')

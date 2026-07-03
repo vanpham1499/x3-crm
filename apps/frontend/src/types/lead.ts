@@ -14,6 +14,71 @@ export type LeadRelationOption = {
   email?: string;
 };
 
+export type LeadTimelineChange = {
+  field?: string | null;
+  label?: string | null;
+  oldValue?: string | number | boolean | null;
+  newValue?: string | number | boolean | null;
+  old?: string | number | boolean | null;
+  new?: string | number | boolean | null;
+  from?: string | number | boolean | null;
+  to?: string | number | boolean | null;
+};
+
+export type LeadTimelineContentData = {
+  action?: string | null;
+  title?: string | null;
+  note?: string | null;
+  status?: {
+    id?: string | null;
+    key?: string | null;
+    label?: string | null;
+    color?: string | null;
+    meta?: Record<string, unknown>;
+  } | null;
+  actor?: LeadRelationOption | null;
+  changes?: LeadTimelineChange[];
+};
+
+export type LeadTimelineEntry = {
+  id?: string;
+  leadId?: string | null;
+  customerId?: string | null;
+  projectId?: string | null;
+  type?: string | null;
+  action?: string | null;
+  title?: string | null;
+  description?: string | null;
+  note?: string | null;
+  content?: string | null;
+  contentData?: LeadTimelineContentData | null;
+  nextActionDate?: string | null;
+  createdAt?: string;
+  updatedAt?: string;
+  occurredAt?: string;
+  time?: string;
+  user?: LeadRelationOption | null;
+  createdBy?: LeadRelationOption | null;
+  updatedBy?: LeadRelationOption | null;
+  actor?: LeadRelationOption | null;
+  statusOption?: AppOption | null;
+  status?: LeadStatus | null;
+  changes?: LeadTimelineChange[];
+};
+
+export type LeadAttachment = {
+  id?: string;
+  name?: string | null;
+  fileName?: string | null;
+  title?: string | null;
+  url?: string | null;
+  fileUrl?: string | null;
+  file_url?: string | null;
+  mimeType?: string | null;
+  size?: number | null;
+  createdAt?: string;
+};
+
 export type Lead = {
   id: string;
   leadCode?: string | null;
@@ -46,6 +111,16 @@ export type Lead = {
   interestedServiceOption?: AppOption | null;
   interestedServiceOptions?: AppOption[];
   interestedService?: LeadRelationOption | null;
+  timelines?: LeadTimelineEntry[];
+  timeline?: LeadTimelineEntry[];
+  histories?: LeadTimelineEntry[];
+  history?: LeadTimelineEntry[];
+  activities?: LeadTimelineEntry[];
+  activityLogs?: LeadTimelineEntry[];
+  logs?: LeadTimelineEntry[];
+  audits?: LeadTimelineEntry[];
+  attachments?: LeadAttachment[];
+  files?: LeadAttachment[];
   createdAt?: string;
   updatedAt?: string;
 };

@@ -15,6 +15,39 @@ export const LEAD_OPTION_GROUPS: OptionGroupConfig[] = [
   },
 ];
 
+export const CUSTOMER_OPTION_GROUPS: OptionGroupConfig[] = [
+  {
+    group: 'customer_type',
+    title: 'Loại khách hàng',
+  },
+];
+
+export const PROJECT_OPTION_GROUPS: OptionGroupConfig[] = [
+  {
+    group: 'project_status',
+    title: 'Trạng thái dự án',
+  },
+];
+
+export const OPTION_SECTIONS = [
+  {
+    title: 'Lead',
+    groups: LEAD_OPTION_GROUPS,
+  },
+  {
+    title: 'Khách hàng',
+    groups: CUSTOMER_OPTION_GROUPS,
+  },
+  {
+    title: 'Dự án',
+    groups: PROJECT_OPTION_GROUPS,
+  },
+];
+
+export const SYSTEM_OPTION_GROUPS = OPTION_SECTIONS.flatMap((section) =>
+  section.groups.map((group) => group.group),
+);
+
 export function getOptionColor(option?: AppOption | null) {
   const color = option?.meta?.color;
 
