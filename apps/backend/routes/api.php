@@ -1,9 +1,9 @@
 <?php
 
 use App\Http\Controllers\AuthController;
-use App\Http\Controllers\CustomerSourcesController;
 use App\Http\Controllers\LeadsController;
 use App\Http\Controllers\MediaController;
+use App\Http\Controllers\OptionsController;
 use App\Http\Controllers\PermissionsController;
 use App\Http\Controllers\RolesController;
 use App\Http\Controllers\ServicesController;
@@ -27,12 +27,13 @@ Route::middleware('jwt')->group(function (): void {
     Route::get('/media', [MediaController::class, 'index']);
     Route::post('/media/upload', [MediaController::class, 'upload']);
 
-    Route::get('/customer-sources', [CustomerSourcesController::class, 'index']);
-    Route::post('/customer-sources', [CustomerSourcesController::class, 'store']);
-    Route::get('/customer-sources/{id}', [CustomerSourcesController::class, 'show']);
-    Route::put('/customer-sources/{id}', [CustomerSourcesController::class, 'update']);
-    Route::patch('/customer-sources/{id}', [CustomerSourcesController::class, 'update']);
-    Route::delete('/customer-sources/{id}', [CustomerSourcesController::class, 'destroy']);
+    Route::get('/options', [OptionsController::class, 'index']);
+    Route::post('/options', [OptionsController::class, 'store']);
+    Route::patch('/options/reorder', [OptionsController::class, 'reorder']);
+    Route::get('/options/{id}', [OptionsController::class, 'show']);
+    Route::put('/options/{id}', [OptionsController::class, 'update']);
+    Route::patch('/options/{id}', [OptionsController::class, 'update']);
+    Route::delete('/options/{id}', [OptionsController::class, 'destroy']);
 
     Route::get('/services', [ServicesController::class, 'index']);
     Route::get('/services/{id}', [ServicesController::class, 'show']);

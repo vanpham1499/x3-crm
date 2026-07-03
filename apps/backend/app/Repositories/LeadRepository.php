@@ -3,6 +3,7 @@
 namespace App\Repositories;
 
 use App\Models\Lead;
+use App\Models\Option;
 use Illuminate\Database\Eloquent\Collection;
 use Symfony\Component\HttpKernel\Exception\NotFoundHttpException;
 
@@ -18,9 +19,14 @@ class LeadRepository extends BaseRepository
     public function findAll(array $filters = []): Collection
     {
         $keyword = trim((string) ($filters['keyword'] ?? $filters['search'] ?? ''));
-        $statusId = $filters['status_id'] ?? null;
+        $statusOptionId = $filters['status_option_id'] ?? null;
+        $status = $filters['status'] ?? null;
         $assignedUserId = $filters['assigned_user_id'] ?? null;
-        $sourceId = $filters['source_id'] ?? null;
+        $sourceOptionId = $filters['source_option_id'] ?? null;
+        $source = $filters['source'] ?? null;
+        $industryOptionId = $filters['industry_option_id'] ?? null;
+        $industry = $filters['industry_option'] ?? null;
+        $interestedServiceOptionId = $filters['interested_service_option_id'] ?? null;
         $interestedServiceId = $filters['interested_service_id'] ?? null;
         $occurredFrom = $filters['occurred_from'] ?? null;
         $occurredTo = $filters['occurred_to'] ?? null;
@@ -28,7 +34,7 @@ class LeadRepository extends BaseRepository
         $closedTo = $filters['closed_to'] ?? null;
 
         return $this->query()
-            ->with(['status', 'assignedUser', 'source', 'interestedService'])
+            ->with(['statusOption', 'assignedUser', 'sourceOption', 'industryOption', 'interestedServiceOption', 'interestedServiceOptions', 'interestedService'])
             ->when($keyword !== '', function ($query) use ($keyword): void {
                 $query->where(function ($query) use ($keyword): void {
                     $query
@@ -40,10 +46,19 @@ class LeadRepository extends BaseRepository
                         ->orWhere('interested_service_text', 'ilike', "%{$keyword}%");
                 });
             })
-            ->when($statusId, fn ($query) => $query->where('status_id', $statusId))
+            ->when($statusOptionId, fn ($query) => $query->where('status_option_id', $statusOptionId))
+            ->when($status, fn ($query) => $query->whereHas('statusOption', fn ($subQuery) => $subQuery->where('group', Option::GROUP_LEAD_STATUS)->where('key', $status)))
             ->when($assignedUserId, fn ($query) => $query->where('assigned_user_id', $assignedUserId))
-            ->when($sourceId, fn ($query) => $query->where('source_id', $sourceId))
-            ->when($interestedServiceId, fn ($query) => $query->where('interested_service_id', $interestedServiceId))
+            ->when($sourceOptionId, fn ($query) => $query->where('source_option_id', $sourceOptionId))
+            ->when($source, fn ($query) => $query->whereHas('sourceOption', fn ($subQuery) => $subQuery->where('group', Option::GROUP_LEAD_SOURCE)->where('key', $source)))
+            ->when($industryOptionId, fn ($query) => $query->where('industry_option_id', $industryOptionId))
+            ->when($industry, fn ($query) => $query->whereHas('industryOption', fn ($subQuery) => $subQuery->where('group', Option::GROUP_INDUSTRY)->where('key', $industry)))
+            ->when($interestedServiceOptionId, fn ($query) => $query->where(function ($query) use ($interestedServiceOptionId): void {
+                $query
+                    ->where('interested_service_option_id', $interestedServiceOptionId)
+                    ->orWhereHas('interestedServiceOptions', fn ($subQuery) => $subQuery->whereKey($interestedServiceOptionId));
+            }))
+            ->when(! $interestedServiceOptionId && $interestedServiceId, fn ($query) => $query->where('interested_service_id', $interestedServiceId))
             ->when($occurredFrom, fn ($query) => $query->whereDate('occurred_date', '>=', $occurredFrom))
             ->when($occurredTo, fn ($query) => $query->whereDate('occurred_date', '<=', $occurredTo))
             ->when($closedFrom, fn ($query) => $query->whereDate('closed_date', '>=', $closedFrom))
@@ -57,7 +72,7 @@ class LeadRepository extends BaseRepository
     {
         /** @var Lead|null $lead */
         $lead = $this->query()
-            ->with(['status', 'assignedUser', 'source', 'interestedService', 'convertedCustomer', 'timelines'])
+            ->with(['statusOption', 'assignedUser', 'sourceOption', 'industryOption', 'interestedServiceOption', 'interestedServiceOptions', 'interestedService', 'convertedCustomer', 'timelines.createdBy'])
             ->whereKey($id)
             ->first();
 
