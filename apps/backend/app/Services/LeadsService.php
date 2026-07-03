@@ -81,7 +81,7 @@ class LeadsService extends BaseService
             if ($serviceOptionIds !== null && $beforeServiceOptionIds !== $afterServiceOptionIds) {
                 $changes[] = [
                     'field' => 'interested_service_option_ids',
-                    'label' => 'Dich vu quan tam',
+                    'label' => 'Dịch vụ quan tâm',
                     'old' => $this->formatOptionCollection($before->interestedServiceOptions),
                     'new' => $this->formatOptionCollection($lead->interestedServiceOptions),
                 ];
@@ -100,7 +100,7 @@ class LeadsService extends BaseService
         return $this->transaction(function () use ($id): array {
             $this->leads->delete($id);
 
-            return ['message' => 'Xoa lead thanh cong'];
+            return ['message' => 'Xóa lead thành công'];
         });
     }
 
@@ -193,12 +193,12 @@ class LeadsService extends BaseService
 
     private function buildCreatedTimelineContent(Lead $lead): array
     {
-        return $this->leadTimelinePayload('create', 'Tao lead', $lead);
+        return $this->leadTimelinePayload('create', 'Tạo lead', $lead);
     }
 
     private function buildUpdatedTimelineContent(Lead $lead, array $changes): array
     {
-        return $this->leadTimelinePayload('update', 'Cap nhat lead', $lead, [
+        return $this->leadTimelinePayload('update', 'Cập nhật lead', $lead, [
             'changes' => $changes,
         ]);
     }
@@ -232,24 +232,24 @@ class LeadsService extends BaseService
     private function describeLeadChanges(Lead $before, Lead $after, array $submittedData): array
     {
         $fieldLabels = [
-            'lead_code' => 'Ma lead',
-            'customer_name' => 'Ten khach hang',
-            'status_option_id' => 'Trang thai',
-            'occurred_date' => 'Ngay phat sinh',
-            'assigned_user_id' => 'Nguoi phu trach',
-            'source_option_id' => 'Nguon phat sinh',
-            'industry_option_id' => 'Nganh nghe',
-            'interested_service_option_id' => 'Dich vu quan tam chinh',
-            'interested_service_id' => 'Dich vu he thong',
-            'interested_service_text' => 'Ghi chu dich vu quan tam',
-            'phone' => 'So dien thoai',
+            'lead_code' => 'Mã lead',
+            'customer_name' => 'Tên khách hàng',
+            'status_option_id' => 'Trạng thái',
+            'occurred_date' => 'Ngày phát sinh',
+            'assigned_user_id' => 'Người phụ trách',
+            'source_option_id' => 'Nguồn phát sinh',
+            'industry_option_id' => 'Ngành nghề',
+            'interested_service_option_id' => 'Dịch vụ quan tâm chính',
+            'interested_service_id' => 'Dịch vụ hệ thống',
+            'interested_service_text' => 'Ghi chú dịch vụ quan tâm',
+            'phone' => 'Số điện thoại',
             'website' => 'Website',
-            'industry' => 'Nganh nghe text',
+            'industry' => 'Ngành nghề text',
             'plan_link' => 'Link plan',
-            'zalo_group' => 'Nhom Zalo',
+            'zalo_group' => 'Nhóm Zalo',
             'note' => 'Note',
-            'closed_date' => 'Ngay dong',
-            'converted_customer_id' => 'Khach hang chuyen doi',
+            'closed_date' => 'Ngày đóng',
+            'converted_customer_id' => 'Khách hàng chuyển đổi',
         ];
 
         $changes = [];
@@ -319,7 +319,7 @@ class LeadsService extends BaseService
 
     private function emptyValue(): string
     {
-        return 'trong';
+        return 'Trống';
     }
 
     private function currentUser(): ?User
@@ -366,7 +366,7 @@ class LeadsService extends BaseService
             'group' => Option::GROUP_LEAD_STATUS,
             'key' => 'new',
             'value' => 'new',
-            'label' => 'Moi',
+            'label' => 'Mới',
             'meta' => json_encode(['color' => '#3b82f6']),
             'sort_order' => 1,
             'is_active' => true,

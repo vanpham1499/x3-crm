@@ -8,7 +8,7 @@ use Symfony\Component\HttpKernel\Exception\NotFoundHttpException;
 
 class ServiceRepository extends BaseRepository
 {
-    protected string $notFoundMessage = 'Dich vu khong ton tai';
+    protected string $notFoundMessage = 'Dịch vụ không tồn tại';
 
     protected function model(): string
     {

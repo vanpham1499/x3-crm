@@ -76,13 +76,21 @@ class OptionsService extends BaseService
             /** @var Option $option */
             $option = $this->options->findOrFail($id);
 
-            if ($option->statusLeads()->exists() || $option->sourceLeads()->exists() || $option->industryLeads()->exists()) {
-                throw new ConflictHttpException('Khong the xoa option dang duoc su dung');
+            if (
+                $option->statusLeads()->exists()
+                || $option->sourceLeads()->exists()
+                || $option->industryLeads()->exists()
+                || $option->typeCustomers()->exists()
+                || $option->sourceCustomers()->exists()
+                || $option->industryCustomers()->exists()
+                || $option->statusProjects()->exists()
+            ) {
+                throw new ConflictHttpException('Không thể xóa option đang được sử dụng');
             }
 
             $option->delete();
 
-            return ['message' => 'Xoa option thanh cong'];
+            return ['message' => 'Xóa option thành công'];
         });
     }
 
@@ -118,4 +126,3 @@ class OptionsService extends BaseService
         return $data;
     }
 }
-

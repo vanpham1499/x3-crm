@@ -9,7 +9,7 @@ use Symfony\Component\HttpKernel\Exception\NotFoundHttpException;
 
 class LeadRepository extends BaseRepository
 {
-    protected string $notFoundMessage = 'Lead khong ton tai';
+    protected string $notFoundMessage = 'Lead không tồn tại';
 
     protected function model(): string
     {

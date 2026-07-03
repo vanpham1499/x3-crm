@@ -64,20 +64,20 @@ class ServicesService extends BaseService
             $service = $this->services->findOrFail($id);
 
             if ($service->children()->exists()) {
-                throw new ConflictHttpException('Khong the xoa dich vu dang co dich vu con');
+                throw new ConflictHttpException('Không thể xóa dịch vụ đang có dịch vụ con');
             }
 
             if ($service->projects()->exists()) {
-                throw new ConflictHttpException('Khong the xoa dich vu dang duoc gan voi du an');
+                throw new ConflictHttpException('Không thể xóa dịch vụ đang được gán với dự án');
             }
 
             if ($service->revenueItems()->exists()) {
-                throw new ConflictHttpException('Khong the xoa dich vu dang duoc gan voi doanh thu');
+                throw new ConflictHttpException('Không thể xóa dịch vụ đang được gán với doanh thu');
             }
 
             $service->delete();
 
-            return ['message' => 'Xoa dich vu thanh cong'];
+            return ['message' => 'Xóa dịch vụ thành công'];
         });
     }
 
@@ -138,11 +138,11 @@ class ServicesService extends BaseService
         }
 
         if ($service->id === $parentId) {
-            throw new UnprocessableEntityHttpException('Dich vu cha khong duoc trung voi dich vu hien tai');
+            throw new UnprocessableEntityHttpException('Dịch vụ cha không được trùng với dịch vụ hiện tại');
         }
 
         if (in_array($parentId, $this->services->descendantIds($service->id), true)) {
-            throw new UnprocessableEntityHttpException('Dich vu cha khong duoc la dich vu con cua chinh no');
+            throw new UnprocessableEntityHttpException('Dịch vụ cha không được là dịch vụ con của chính nó');
         }
     }
 
