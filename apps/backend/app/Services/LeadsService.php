@@ -3,9 +3,12 @@
 namespace App\Services;
 
 use App\Http\Resources\LeadResource;
+use App\Models\CustomerTimeline;
 use App\Models\Lead;
-use App\Models\Status;
+use App\Models\Option;
+use App\Models\User;
 use App\Repositories\LeadRepository;
+use Illuminate\Support\Collection;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Str;
 
@@ -28,26 +31,67 @@ class LeadsService extends BaseService
     public function create(array $data): array
     {
         return $this->transaction(function () use ($data): array {
+            $serviceOptionIds = $this->extractServiceOptionIds($data);
             $data = $this->normalizePayload($data);
-            $data['lead_code'] = $data['lead_code'] ?? $this->generateLeadCode();
-            $data['status_id'] = $data['status_id'] ?? $this->defaultStatusId();
+            $data['lead_code'] = $this->generateLeadCode();
+            $data['status_option_id'] = $data['status_option_id'] ?? $this->defaultStatusOptionId();
+
+            if ($serviceOptionIds !== null) {
+                $data['interested_service_option_id'] = $serviceOptionIds[0] ?? null;
+            }
 
             /** @var Lead $lead */
             $lead = $this->leads->create($data);
 
-            return $this->apiResource($lead->load(['status', 'assignedUser', 'source', 'interestedService']), LeadResource::class);
+            if ($serviceOptionIds !== null) {
+                $lead->interestedServiceOptions()->sync($serviceOptionIds);
+            }
+
+            $lead = $this->loadLeadRelations($lead);
+            $this->recordTimeline($lead, 'create', $this->buildCreatedTimelineContent($lead));
+
+            return $this->apiResource($this->loadLeadRelations($lead), LeadResource::class);
         });
     }
 
     public function update(string $id, array $data): array
     {
         return $this->transaction(function () use ($id, $data): array {
+            $serviceOptionIds = $this->extractServiceOptionIds($data);
             $data = $this->normalizePayload($data);
+
+            $before = $this->loadLeadRelations($this->leads->findWithRelationsOrFail($id));
+            $beforeServiceOptionIds = $before->interestedServiceOptions->pluck('id')->sort()->values()->all();
+
+            if ($serviceOptionIds !== null) {
+                $data['interested_service_option_id'] = $serviceOptionIds[0] ?? null;
+            }
 
             /** @var Lead $lead */
             $lead = $this->leads->update($id, $data);
 
-            return $this->apiResource($lead->load(['status', 'assignedUser', 'source', 'interestedService']), LeadResource::class);
+            if ($serviceOptionIds !== null) {
+                $lead->interestedServiceOptions()->sync($serviceOptionIds);
+            }
+
+            $lead = $this->loadLeadRelations($lead);
+            $afterServiceOptionIds = $lead->interestedServiceOptions->pluck('id')->sort()->values()->all();
+            $changes = $this->describeLeadChanges($before, $lead, $data);
+
+            if ($serviceOptionIds !== null && $beforeServiceOptionIds !== $afterServiceOptionIds) {
+                $changes[] = [
+                    'field' => 'interested_service_option_ids',
+                    'label' => 'Dich vu quan tam',
+                    'old' => $this->formatOptionCollection($before->interestedServiceOptions),
+                    'new' => $this->formatOptionCollection($lead->interestedServiceOptions),
+                ];
+            }
+
+            if ($changes !== []) {
+                $this->recordTimeline($lead, 'update', $this->buildUpdatedTimelineContent($lead, $changes));
+            }
+
+            return $this->apiResource($this->loadLeadRelations($lead), LeadResource::class);
         });
     }
 
@@ -69,8 +113,8 @@ class LeadsService extends BaseService
     {
         $data = $this->normalizeKeys($data);
 
-        foreach (['lead_code', 'status_id', 'assigned_user_id', 'source_id', 'interested_service_id'] as $key) {
-            if (array_key_exists($key, $data) && ($data[$key] === '' || $data[$key] === null)) {
+        foreach (['lead_code', 'status_option_id', 'assigned_user_id', 'source_option_id', 'industry_option_id', 'interested_service_option_id', 'interested_service_id'] as $key) {
+            if (array_key_exists($key, $data) && $data[$key] === '') {
                 unset($data[$key]);
             }
         }
@@ -83,10 +127,13 @@ class LeadsService extends BaseService
         $map = [
             'leadCode' => 'lead_code',
             'customerName' => 'customer_name',
-            'statusId' => 'status_id',
+            'statusOptionId' => 'status_option_id',
             'occurredDate' => 'occurred_date',
             'assignedUserId' => 'assigned_user_id',
-            'sourceId' => 'source_id',
+            'sourceOptionId' => 'source_option_id',
+            'industryOptionId' => 'industry_option_id',
+            'interestedServiceOptionId' => 'interested_service_option_id',
+            'interestedServiceOptionIds' => 'interested_service_option_ids',
             'interestedServiceId' => 'interested_service_id',
             'interestedServiceText' => 'interested_service_text',
             'planLink' => 'plan_link',
@@ -109,34 +156,220 @@ class LeadsService extends BaseService
         return $data;
     }
 
+    private function extractServiceOptionIds(array &$data): ?array
+    {
+        $hasArray = array_key_exists('interestedServiceOptionIds', $data) || array_key_exists('interested_service_option_ids', $data);
+        $rawIds = $data['interestedServiceOptionIds'] ?? $data['interested_service_option_ids'] ?? [];
+
+        unset($data['interestedServiceOptionIds'], $data['interested_service_option_ids']);
+
+        if (! $hasArray) {
+            return null;
+        }
+
+        if (! is_array($rawIds)) {
+            return [];
+        }
+
+        return array_values(array_unique(array_filter($rawIds, fn ($id) => is_string($id) && $id !== '')));
+    }
+
+    private function loadLeadRelations(Lead $lead): Lead
+    {
+        return $lead->load(['statusOption', 'assignedUser', 'sourceOption', 'industryOption', 'interestedServiceOption', 'interestedServiceOptions', 'interestedService', 'convertedCustomer', 'timelines.createdBy']);
+    }
+
+    private function recordTimeline(Lead $lead, string $type, array $content): void
+    {
+        $authUser = $this->currentUser();
+
+        CustomerTimeline::query()->create([
+            'lead_id' => $lead->id,
+            'type' => $type,
+            'content' => json_encode($content, JSON_UNESCAPED_UNICODE | JSON_UNESCAPED_SLASHES),
+            'created_by' => $authUser?->id,
+        ]);
+    }
+
+    private function buildCreatedTimelineContent(Lead $lead): array
+    {
+        return $this->leadTimelinePayload('create', 'Tao lead', $lead);
+    }
+
+    private function buildUpdatedTimelineContent(Lead $lead, array $changes): array
+    {
+        return $this->leadTimelinePayload('update', 'Cap nhat lead', $lead, [
+            'changes' => $changes,
+        ]);
+    }
+
+    private function leadTimelinePayload(string $action, string $title, Lead $lead, array $extra = []): array
+    {
+        $authUser = $this->currentUser();
+
+        return array_merge([
+            'action' => $action,
+            'title' => $title,
+            'lead' => [
+                'id' => $lead->id,
+                'code' => $lead->lead_code,
+                'customerName' => $lead->customer_name,
+            ],
+            'note' => $lead->note,
+            'status' => $lead->statusOption ? [
+                'id' => $lead->statusOption->id,
+                'key' => $lead->statusOption->key,
+                'label' => $lead->statusOption->label,
+            ] : null,
+            'actor' => $authUser ? [
+                'id' => $authUser->id,
+                'code' => $authUser->code,
+                'name' => $authUser->name,
+            ] : null,
+        ], $extra);
+    }
+
+    private function describeLeadChanges(Lead $before, Lead $after, array $submittedData): array
+    {
+        $fieldLabels = [
+            'lead_code' => 'Ma lead',
+            'customer_name' => 'Ten khach hang',
+            'status_option_id' => 'Trang thai',
+            'occurred_date' => 'Ngay phat sinh',
+            'assigned_user_id' => 'Nguoi phu trach',
+            'source_option_id' => 'Nguon phat sinh',
+            'industry_option_id' => 'Nganh nghe',
+            'interested_service_option_id' => 'Dich vu quan tam chinh',
+            'interested_service_id' => 'Dich vu he thong',
+            'interested_service_text' => 'Ghi chu dich vu quan tam',
+            'phone' => 'So dien thoai',
+            'website' => 'Website',
+            'industry' => 'Nganh nghe text',
+            'plan_link' => 'Link plan',
+            'zalo_group' => 'Nhom Zalo',
+            'note' => 'Note',
+            'closed_date' => 'Ngay dong',
+            'converted_customer_id' => 'Khach hang chuyen doi',
+        ];
+
+        $changes = [];
+
+        foreach ($fieldLabels as $field => $label) {
+            if (! array_key_exists($field, $submittedData)) {
+                continue;
+            }
+
+            $oldValue = $this->displayFieldValue($before, $field);
+            $newValue = $this->displayFieldValue($after, $field);
+
+            if ($oldValue === $newValue) {
+                continue;
+            }
+
+            $changes[] = [
+                'field' => $field,
+                'label' => $label,
+                'old' => $oldValue,
+                'new' => $newValue,
+            ];
+        }
+
+        return $changes;
+    }
+
+    private function displayFieldValue(Lead $lead, string $field): string
+    {
+        return match ($field) {
+            'status_option_id' => $this->displayOption($lead->statusOption),
+            'source_option_id' => $this->displayOption($lead->sourceOption),
+            'industry_option_id' => $this->displayOption($lead->industryOption),
+            'interested_service_option_id' => $this->displayOption($lead->interestedServiceOption),
+            'assigned_user_id' => $lead->assignedUser?->name ?: $this->emptyValue(),
+            'interested_service_id' => $lead->interestedService?->name ?: $this->emptyValue(),
+            'converted_customer_id' => $lead->convertedCustomer?->customer_name ?: $this->emptyValue(),
+            'occurred_date', 'closed_date' => $lead->{$field}?->toDateString() ?: $this->emptyValue(),
+            default => $this->stringValue($lead->{$field}),
+        };
+    }
+
+    private function displayOption(?Option $option): string
+    {
+        return $option?->label ?: $this->emptyValue();
+    }
+
+    private function formatOptionCollection(Collection $options): string
+    {
+        $labels = $options
+            ->map(fn (Option $option): string => $option->label)
+            ->filter()
+            ->values()
+            ->all();
+
+        return $labels === [] ? $this->emptyValue() : implode(', ', $labels);
+    }
+
+    private function stringValue(mixed $value): string
+    {
+        if ($value === null || $value === '') {
+            return $this->emptyValue();
+        }
+
+        return (string) $value;
+    }
+
+    private function emptyValue(): string
+    {
+        return 'trong';
+    }
+
+    private function currentUser(): ?User
+    {
+        $user = request()->attributes->get('auth_user');
+
+        return $user instanceof User ? $user : null;
+    }
+
     private function generateLeadCode(): string
     {
+        $lastNumber = DB::table('leads')
+            ->whereNotNull('lead_code')
+            ->whereRaw("lead_code ~ '^[0-9]+$'")
+            ->selectRaw('MAX(CAST(lead_code AS INTEGER)) as max_code')
+            ->value('max_code');
+
+        $nextNumber = ((int) ($lastNumber ?: 0)) + 1;
+
         do {
-            $code = 'LD'.now()->format('ymdHis').Str::upper(Str::random(4));
-        } while ($this->leads->existsByCode($code));
+            $code = str_pad((string) $nextNumber, 3, '0', STR_PAD_LEFT);
+            $nextNumber++;
+        } while (DB::table('leads')->where('lead_code', $code)->exists());
 
         return $code;
     }
 
-    private function defaultStatusId(): string
+    private function defaultStatusOptionId(): string
     {
-        $statusId = DB::table('statuses')
-            ->where('type', Status::TYPE_LEAD)
-            ->where('name', 'Moi')
+        $statusOptionId = DB::table('options')
+            ->where('group', Option::GROUP_LEAD_STATUS)
+            ->where('key', 'new')
             ->whereNull('deleted_at')
             ->value('id');
 
-        if ($statusId) {
-            return $statusId;
+        if ($statusOptionId) {
+            return $statusOptionId;
         }
 
         $id = (string) Str::uuid();
 
-        DB::table('statuses')->insert([
+        DB::table('options')->insert([
             'id' => $id,
-            'type' => Status::TYPE_LEAD,
-            'name' => 'Moi',
+            'group' => Option::GROUP_LEAD_STATUS,
+            'key' => 'new',
+            'value' => 'new',
+            'label' => 'Moi',
+            'meta' => json_encode(['color' => '#3b82f6']),
             'sort_order' => 1,
+            'is_active' => true,
             'created_at' => now(),
             'updated_at' => now(),
         ]);
