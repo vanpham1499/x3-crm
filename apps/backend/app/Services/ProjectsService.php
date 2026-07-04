@@ -12,7 +12,10 @@ use Illuminate\Support\Facades\DB;
 
 class ProjectsService extends BaseService
 {
-    public function __construct(private readonly ProjectRepository $projects) {}
+    public function __construct(
+        private readonly ProjectRepository $projects,
+        private readonly ContractsService $contracts,
+    ) {}
 
     public function findAll(array $filters = [])
     {
@@ -27,6 +30,9 @@ class ProjectsService extends BaseService
     public function create(array $data): array
     {
         return $this->transaction(function () use ($data): array {
+            $contractData = $data['contract'] ?? null;
+            unset($data['contract']);
+
             $data = $this->normalizePayload($data);
             $data['project_code'] = $data['project_code'] ?? $this->generateProjectCode();
             $data['project_code'] = $this->ensureUniqueProjectCode($data['project_code']);
@@ -34,6 +40,7 @@ class ProjectsService extends BaseService
 
             /** @var Project $project */
             $project = $this->projects->create($data);
+            $this->contracts->syncForProject($project->id, $contractData);
             $project = $this->loadProjectRelations($project);
             $this->recordTimeline($project, 'create', $this->buildCreatedTimelineContent($project));
 
@@ -44,11 +51,18 @@ class ProjectsService extends BaseService
     public function update(string $id, array $data): array
     {
         return $this->transaction(function () use ($id, $data): array {
+            $hasContractData = array_key_exists('contract', $data);
+            $contractData = $data['contract'] ?? null;
+            unset($data['contract']);
+
             $data = $this->normalizePayload($data);
             $before = $this->loadProjectRelations($this->projects->findWithRelationsOrFail($id));
 
             /** @var Project $project */
             $project = $this->projects->update($id, $data);
+            if ($hasContractData) {
+                $this->contracts->syncForProject($project->id, $contractData);
+            }
             $project = $this->loadProjectRelations($project);
             $changes = $this->describeProjectChanges($before, $project, $data);
 
@@ -115,7 +129,7 @@ class ProjectsService extends BaseService
 
     private function loadProjectRelations(Project $project): Project
     {
-        return $project->load(['customer', 'service', 'statusOption', 'managerUser', 'salesUser', 'timelines.createdBy']);
+        return $project->load(['customer', 'service', 'statusOption', 'managerUser', 'salesUser', 'contracts.contractStatusOption', 'timelines.createdBy']);
     }
 
     private function recordTimeline(Project $project, string $type, array $content): void

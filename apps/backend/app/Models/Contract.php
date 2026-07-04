@@ -10,6 +10,7 @@ class Contract extends BaseModel
         'project_id',
         'contract_no',
         'contract_status_id',
+        'contract_status_option_id',
         'deposit_amount',
         'signed_date',
         'expired_date',
@@ -38,5 +39,10 @@ class Contract extends BaseModel
     public function contractStatus(): BelongsTo
     {
         return $this->belongsTo(Status::class, 'contract_status_id');
+    }
+
+    public function contractStatusOption(): BelongsTo
+    {
+        return $this->belongsTo(Option::class, 'contract_status_option_id');
     }
 }

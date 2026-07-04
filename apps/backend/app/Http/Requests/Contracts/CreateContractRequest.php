@@ -1,0 +1,33 @@
+<?php
+
+namespace App\Http\Requests\Contracts;
+
+use App\Http\Requests\BaseRequest;
+use App\Models\Option;
+use Illuminate\Validation\Rule;
+
+class CreateContractRequest extends BaseRequest
+{
+    public function rules(): array
+    {
+        return [
+            'project_id' => ['required_without:projectId', 'uuid', Rule::exists('projects', 'id')->whereNull('deleted_at')],
+            'projectId' => ['required_without:project_id', 'uuid', Rule::exists('projects', 'id')->whereNull('deleted_at')],
+            'contract_no' => ['nullable', 'string', 'max:100'],
+            'contractNo' => ['nullable', 'string', 'max:100'],
+            'contract_status_option_id' => ['nullable', 'uuid', Rule::exists('options', 'id')->where('group', Option::GROUP_CONTRACT_STATUS)->whereNull('deleted_at')],
+            'contractStatusOptionId' => ['nullable', 'uuid', Rule::exists('options', 'id')->where('group', Option::GROUP_CONTRACT_STATUS)->whereNull('deleted_at')],
+            'deposit_amount' => ['nullable', 'numeric', 'min:0'],
+            'depositAmount' => ['nullable', 'numeric', 'min:0'],
+            'signed_date' => ['nullable', 'date'],
+            'signedDate' => ['nullable', 'date'],
+            'expired_date' => ['nullable', 'date'],
+            'expiredDate' => ['nullable', 'date'],
+            'contract_month' => ['nullable', 'string', 'max:20'],
+            'contractMonth' => ['nullable', 'string', 'max:20'],
+            'file_url' => ['nullable', 'string'],
+            'fileUrl' => ['nullable', 'string'],
+            'note' => ['nullable', 'string'],
+        ];
+    }
+}

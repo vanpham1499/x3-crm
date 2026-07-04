@@ -18,6 +18,8 @@ class Option extends BaseModel
 
     public const GROUP_PROJECT_STATUS = 'project_status';
 
+    public const GROUP_CONTRACT_STATUS = 'contract_status';
+
     protected $fillable = [
         'group',
         'key',
@@ -73,5 +75,10 @@ class Option extends BaseModel
     public function statusProjects(): HasMany
     {
         return $this->hasMany(Project::class, 'status_option_id');
+    }
+
+    public function statusContracts(): HasMany
+    {
+        return $this->hasMany(Contract::class, 'contract_status_option_id');
     }
 }

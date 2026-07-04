@@ -1,6 +1,7 @@
 <?php
 
 use App\Http\Controllers\AuthController;
+use App\Http\Controllers\ContractsController;
 use App\Http\Controllers\CustomersController;
 use App\Http\Controllers\LeadsController;
 use App\Http\Controllers\MediaController;
@@ -75,6 +76,13 @@ Route::middleware('jwt')->group(function (): void {
     Route::put('/projects/{id}', [ProjectsController::class, 'update']);
     Route::patch('/projects/{id}', [ProjectsController::class, 'update']);
     Route::delete('/projects/{id}', [ProjectsController::class, 'destroy']);
+
+    Route::get('/contracts', [ContractsController::class, 'index']);
+    Route::post('/contracts', [ContractsController::class, 'store']);
+    Route::get('/contracts/{id}', [ContractsController::class, 'show']);
+    Route::put('/contracts/{id}', [ContractsController::class, 'update']);
+    Route::patch('/contracts/{id}', [ContractsController::class, 'update']);
+    Route::delete('/contracts/{id}', [ContractsController::class, 'destroy']);
 
     Route::middleware('role:ADMIN')->group(function (): void {
         Route::get('/roles', [RolesController::class, 'index']);

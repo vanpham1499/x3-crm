@@ -67,7 +67,7 @@ class Project extends BaseModel
 
     public function contracts(): HasMany
     {
-        return $this->hasMany(Contract::class);
+        return $this->hasMany(Contract::class)->orderByDesc('created_at');
     }
 
     public function revenues(): HasMany

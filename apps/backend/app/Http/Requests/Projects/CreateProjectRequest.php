@@ -34,6 +34,23 @@ class CreateProjectRequest extends BaseRequest
             'end_date' => ['nullable', 'date', 'after_or_equal:start_date'],
             'endDate' => ['nullable', 'date'],
             'note' => ['nullable', 'string'],
+            'contract' => ['nullable', 'array'],
+            'contract.id' => ['nullable', 'uuid', Rule::exists('contracts', 'id')->whereNull('deleted_at')],
+            'contract.contract_no' => ['nullable', 'string', 'max:100'],
+            'contract.contractNo' => ['nullable', 'string', 'max:100'],
+            'contract.contract_status_option_id' => ['nullable', 'uuid', Rule::exists('options', 'id')->where('group', Option::GROUP_CONTRACT_STATUS)->whereNull('deleted_at')],
+            'contract.contractStatusOptionId' => ['nullable', 'uuid', Rule::exists('options', 'id')->where('group', Option::GROUP_CONTRACT_STATUS)->whereNull('deleted_at')],
+            'contract.deposit_amount' => ['nullable', 'numeric', 'min:0'],
+            'contract.depositAmount' => ['nullable', 'numeric', 'min:0'],
+            'contract.signed_date' => ['nullable', 'date'],
+            'contract.signedDate' => ['nullable', 'date'],
+            'contract.expired_date' => ['nullable', 'date'],
+            'contract.expiredDate' => ['nullable', 'date'],
+            'contract.contract_month' => ['nullable', 'string', 'max:20'],
+            'contract.contractMonth' => ['nullable', 'string', 'max:20'],
+            'contract.file_url' => ['nullable', 'string'],
+            'contract.fileUrl' => ['nullable', 'string'],
+            'contract.note' => ['nullable', 'string'],
         ];
     }
 }

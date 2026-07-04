@@ -46,6 +46,7 @@ class ProjectResource extends JsonResource
                 'name' => $this->salesUser->name,
                 'email' => $this->salesUser->email,
             ] : null),
+            'contracts' => ContractResource::collection($this->whenLoaded('contracts')),
             'timelines' => CustomerTimelineResource::collection($this->whenLoaded('timelines')),
             'createdAt' => $this->created_at?->toISOString(),
             'updatedAt' => $this->updated_at?->toISOString(),
