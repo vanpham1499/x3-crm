@@ -4,61 +4,60 @@ import Image from 'next/image';
 import Link from 'next/link';
 import { usePathname } from 'next/navigation';
 import { useState } from 'react';
-import AssessmentRoundedIcon from '@mui/icons-material/AssessmentRounded';
-import BadgeRoundedIcon from '@mui/icons-material/BadgeRounded';
-import CategoryRoundedIcon from '@mui/icons-material/CategoryRounded';
-import DashboardRoundedIcon from '@mui/icons-material/DashboardRounded';
-import EventNoteRoundedIcon from '@mui/icons-material/EventNoteRounded';
+import AnalyticsTwoToneIcon from '@mui/icons-material/AnalyticsTwoTone';
+import BadgeTwoToneIcon from '@mui/icons-material/BadgeTwoTone';
+import CategoryTwoToneIcon from '@mui/icons-material/CategoryTwoTone';
+import DashboardTwoToneIcon from '@mui/icons-material/DashboardTwoTone';
+import EventNoteTwoToneIcon from '@mui/icons-material/EventNoteTwoTone';
 import KeyboardArrowDownRoundedIcon from '@mui/icons-material/KeyboardArrowDownRounded';
 import KeyboardArrowLeftRoundedIcon from '@mui/icons-material/KeyboardArrowLeftRounded';
 import KeyboardArrowRightRoundedIcon from '@mui/icons-material/KeyboardArrowRightRounded';
-import PaidRoundedIcon from '@mui/icons-material/PaidRounded';
-import PaymentsRoundedIcon from '@mui/icons-material/PaymentsRounded';
-import PeopleAltRoundedIcon from '@mui/icons-material/PeopleAltRounded';
-import PersonSearchRoundedIcon from '@mui/icons-material/PersonSearchRounded';
-import ReceiptLongRoundedIcon from '@mui/icons-material/ReceiptLongRounded';
-import SecurityRoundedIcon from '@mui/icons-material/SecurityRounded';
-import SettingsRoundedIcon from '@mui/icons-material/SettingsRounded';
-import WorkRoundedIcon from '@mui/icons-material/WorkRounded';
+import PaidTwoToneIcon from '@mui/icons-material/PaidTwoTone';
+import PaymentsTwoToneIcon from '@mui/icons-material/PaymentsTwoTone';
+import PeopleAltTwoToneIcon from '@mui/icons-material/PeopleAltTwoTone';
+import PersonSearchTwoToneIcon from '@mui/icons-material/PersonSearchTwoTone';
+import ReceiptLongTwoToneIcon from '@mui/icons-material/ReceiptLongTwoTone';
+import SettingsTwoToneIcon from '@mui/icons-material/SettingsTwoTone';
+import WorkTwoToneIcon from '@mui/icons-material/WorkTwoTone';
 import x3salesLogo from '@assets/logos/x3sales-logo.svg';
 
 const navGroups = [
   {
     label: 'CRM',
     items: [
-      { href: '/dashboard', label: 'Dashboard', icon: DashboardRoundedIcon },
-      { href: '/leads', label: 'Lead', icon: PersonSearchRoundedIcon },
-      { href: '/customers', label: 'Khách hàng', icon: PeopleAltRoundedIcon },
+      { href: '/dashboard', label: 'Dashboard', icon: DashboardTwoToneIcon },
+      { href: '/leads', label: 'Lead', icon: PersonSearchTwoToneIcon },
+      { href: '/customers', label: 'Khách hàng', icon: PeopleAltTwoToneIcon },
       {
         href: '/projects',
         label: 'Dự án',
-        icon: WorkRoundedIcon,
+        icon: WorkTwoToneIcon,
         children: [
-          { href: '/projects/services', label: 'Dịch vụ', icon: CategoryRoundedIcon },
+          { href: '/projects/services', label: 'Dịch vụ' },
         ],
       },
-      { href: '/revenues', label: 'Doanh thu', icon: PaidRoundedIcon },
-      { href: '/payments', label: 'Thanh toán', icon: PaymentsRoundedIcon },
-      { href: '/invoices', label: 'Hóa đơn', icon: ReceiptLongRoundedIcon },
-      { href: '/weekly-reports', label: 'Báo cáo tuần', icon: EventNoteRoundedIcon },
-      { href: '/reports', label: 'Báo cáo', icon: AssessmentRoundedIcon },
-      { href: '/categories', label: 'Danh mục', icon: CategoryRoundedIcon },
+      { href: '/revenues', label: 'Doanh thu', icon: PaidTwoToneIcon },
+      { href: '/payments', label: 'Thanh toán', icon: PaymentsTwoToneIcon },
+      { href: '/invoices', label: 'Hóa đơn', icon: ReceiptLongTwoToneIcon },
+      { href: '/weekly-reports', label: 'Báo cáo tuần', icon: EventNoteTwoToneIcon },
+      { href: '/reports', label: 'Báo cáo', icon: AnalyticsTwoToneIcon },
+      { href: '/categories', label: 'Danh mục', icon: CategoryTwoToneIcon },
       {
         href: '/users',
-        label: 'Quản trị người dùng',
-        icon: BadgeRoundedIcon,
+        label: 'Tài khoản',
+        icon: BadgeTwoToneIcon,
         children: [
-          { href: '/users', label: 'Người dùng', icon: PeopleAltRoundedIcon },
-          { href: '/users/roles', label: 'Vai trò', icon: BadgeRoundedIcon },
-          { href: '/users/permissions', label: 'Permission', icon: SecurityRoundedIcon },
+          { href: '/users', label: 'Người dùng' },
+          { href: '/users/roles', label: 'Vai trò' },
+          { href: '/users/permissions', label: 'Phân quyền' },
         ],
       },
       {
         href: '/settings',
-        label: 'Thiết lập hệ thống',
-        icon: SettingsRoundedIcon,
+        label: 'Cài đặt',
+        icon: SettingsTwoToneIcon,
         children: [
-          { href: '/settings/options', label: 'Danh mục hệ thống', icon: CategoryRoundedIcon },
+          { href: '/settings/options', label: 'Tùy chọn' },
         ],
       },
     ],
@@ -139,7 +138,7 @@ export function Sidebar() {
               </p>
             )}
 
-            <nav className="space-y-1">
+            <nav className="space-y-1.5">
               {group.items.map((item) => {
                 const Icon = item.icon;
                 const hasChildren = Boolean(item.children?.length);
@@ -155,21 +154,27 @@ export function Sidebar() {
                 return (
                   <div key={item.href}>
                     <div
-                      className={`flex min-h-11 items-center rounded-lg text-sm transition ${
+                      className={`flex min-h-11 items-center rounded-xl text-sm transition ${
                         active
-                          ? 'bg-primary/10 font-bold text-primary hover:bg-primary/15'
-                          : 'font-semibold text-slate-500 hover:bg-slate-100 hover:text-slate-700'
+                          ? 'bg-emerald-50 font-bold text-emerald-600 hover:bg-emerald-50'
+                          : 'font-semibold text-slate-600 hover:bg-slate-50 hover:text-slate-800'
                       }`}
                     >
                       <Link
                         href={item.href}
                         title={collapsed ? item.label : undefined}
-                        className={`flex min-h-11 min-w-0 flex-1 items-center rounded-lg ${
+                        className={`group flex min-h-11 min-w-0 flex-1 items-center rounded-xl ${
                           collapsed ? 'justify-center px-0' : 'justify-start px-3'
                         }`}
                       >
                         <span
-                          className={`inline-flex items-center justify-center ${collapsed ? 'w-auto' : 'w-9'}`}
+                          className={`inline-flex items-center justify-center rounded-lg transition ${
+                            collapsed ? 'h-10 w-10' : 'mr-2 h-7 w-7'
+                          } ${
+                            active
+                              ? 'bg-emerald-100 text-emerald-600'
+                              : 'text-slate-400 group-hover:bg-slate-100 group-hover:text-slate-500'
+                          }`}
                         >
                           <Icon className="text-[22px]" />
                         </span>
@@ -191,7 +196,7 @@ export function Sidebar() {
                           aria-label={isOpen ? `Thu gọn ${item.label}` : `Mở rộng ${item.label}`}
                           aria-expanded={isOpen}
                           onClick={() => toggleNavItem(item.href, active)}
-                          className="mr-2 inline-flex h-7 w-7 shrink-0 items-center justify-center rounded-full text-slate-400 transition hover:bg-white/70 hover:text-primary"
+                          className="mr-2 inline-flex h-7 w-7 shrink-0 items-center justify-center rounded-full text-slate-400 transition hover:bg-white/70 hover:text-emerald-600"
                         >
                           <KeyboardArrowDownRoundedIcon
                             className={`text-[20px] transition-transform ${isOpen ? 'rotate-180' : ''}`}
@@ -201,24 +206,20 @@ export function Sidebar() {
                     </div>
 
                     {!collapsed && hasChildren && isOpen && (
-                      <div className="mt-1 space-y-1 pl-2">
+                      <div className="mb-2 ml-6 mt-1 space-y-1 border-l border-slate-200/80 pl-3">
                         {item.children?.map((child) => {
-                          const ChildIcon = child.icon;
                           const childActive = isActivePath(pathname, child.href);
 
                           return (
                             <Link
                               key={child.href}
                               href={child.href}
-                              className={`flex min-h-9 items-center rounded-lg px-3 text-sm transition ${
+                              className={`relative flex min-h-10 items-center rounded-xl px-3 text-sm transition before:absolute before:-left-3 before:top-1/2 before:h-px before:w-3 before:bg-slate-200/80 ${
                                 childActive
-                                  ? 'bg-primary/10 font-bold text-primary hover:bg-primary/15'
-                                  : 'font-semibold text-slate-500 hover:bg-slate-100 hover:text-slate-700'
+                                  ? 'bg-slate-100 font-bold text-slate-950 shadow-sm shadow-slate-200/40 hover:bg-slate-100'
+                                  : 'font-semibold text-slate-500 hover:bg-slate-50 hover:text-slate-700'
                               }`}
                             >
-                              <span className="inline-flex w-8 items-center justify-center">
-                                <ChildIcon className="text-[19px]" />
-                              </span>
                               <span className="min-w-0 flex-1 truncate">{child.label}</span>
                             </Link>
                           );

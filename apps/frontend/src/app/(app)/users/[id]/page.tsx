@@ -10,6 +10,7 @@ import { ContentLoading } from '@/components/shell/content-loading';
 import { UserForm, UserFormValues, getUserFormDefaults } from '@/features/users/components/user-form';
 import { getApiErrorMessage } from '@/lib/api-error';
 import { api } from '@/services/api/client';
+import { useAuthStore } from '@/stores/auth-store';
 import type { RoleOption, User } from '@/types/user';
 
 export default function UserDetailPage() {
@@ -17,6 +18,7 @@ export default function UserDetailPage() {
   const notify = useAppNotification();
   const params = useParams();
   const queryClient = useQueryClient();
+  const { user: authUser, token, setAuth } = useAuthStore();
   const [deleteDialogOpen, setDeleteDialogOpen] = useState(false);
   const id = params.id as string;
 
@@ -40,8 +42,13 @@ export default function UserDetailPage() {
         isActive: values.isActive,
       }),
     onSuccess: (response) => {
-      queryClient.setQueryData(['user', id], response.data);
+      const updatedUser = response.data as User;
+
+      queryClient.setQueryData(['user', id], updatedUser);
       queryClient.invalidateQueries({ queryKey: ['users'] });
+      if (token && authUser?.id === updatedUser.id) {
+        setAuth(updatedUser, token);
+      }
       notify.success('Cập nhật nhân viên thành công');
     },
     onError: (error) => {

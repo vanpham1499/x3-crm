@@ -50,6 +50,10 @@ This file is the first place Codex should read before changing the project.
 - `/login`: login screen.
 - `/forgot-password`: forgot password screen.
 - `/dashboard`: placeholder dashboard screen with only the "Dashboard" heading.
+- `/profile`: current-user profile screen using `GET /auth/me`. It shows avatar, name, role,
+  contact/account details, and keeps tabs for Hồ sơ, Dự án, and Khách hàng so future user-owned
+  project/customer data can be added without redesigning the page. It should include the standard
+  page title and breadcrumb above the profile cover.
 - `/customers`: customer/lead list screen populated from `src/data/customers.json`, extracted from
   `CRM Khách hàng mới - Team Sales (1).xlsx`.
 - `/leads`: lead management screen using backend `GET/POST/PUT/DELETE /leads`, plus option APIs
@@ -174,9 +178,13 @@ This file is the first place Codex should read before changing the project.
 - Logged-in app shell follows the Minimal dashboard reference: 300px expanded sidebar, 88px
   collapsed icon-only sidebar, 72px sticky translucent header, grouped menu items, and active item
   tint.
-- Header account area shows a theme toggle and user avatar menu only. The temporary theme toggle
-  stores `light`/`dark` in `localStorage` under `x3_theme` and toggles the `dark` class on
-  `document.documentElement`; later this value can be moved to the user profile/database.
+- Header account area shows a theme toggle and user avatar menu only. If the user has an avatar, the
+  header must render the avatar image instead of initials. Header refreshes the current user through
+  `GET /auth/me` so updated avatar/profile data is not stuck on the login-time localStorage user.
+  Backend auth profile returns the user under `response.user`, not always as the root response body.
+  The temporary theme toggle stores `light`/`dark` in `localStorage` under `x3_theme` and toggles the
+  `dark` class on `document.documentElement`; later this value can be moved to the user
+  profile/database.
 - Global app font is `Public Sans Variable` loaded from `@fontsource-variable/public-sans` with the
   same fallback stack used by Minimal UI.
 
@@ -295,15 +303,21 @@ with this snapshot, prefer this snapshot because it reflects the latest user pre
   - Báo cáo tuần.
   - Báo cáo.
   - Danh mục.
-  - Quản trị người dùng.
-  - Thiết lập hệ thống.
+  - Tài khoản.
+  - Cài đặt.
 - User administration must be separate from system settings:
   - `/users`: Người dùng.
   - `/users/roles`: Vai trò.
   - `/users/permissions`: Phân quyền.
 - Settings submenu:
-  - `/settings/options`: Danh mục hệ thống.
+  - `/settings/options`: Tùy chọn.
 - Menu items with children should collapse/expand, not display every child all the time.
+- Sidebar child menu items should not render icons. Expanded children use a compact tree style with a
+  subtle vertical line, short branch line, rounded neutral gray active background, and relaxed
+  spacing. Active parent items use a soft emerald background with a small filled icon block.
+- Sidebar parent icons use the softer MUI `TwoTone` icon variants already available in
+  `@mui/icons-material`. If the project later needs icons closer to the Minimal UI/Solar reference,
+  consider adding Iconify/Solar, but do not add that dependency unless requested.
 - Active states must not overlap: Người dùng, Vai trò, and Phân quyền should not all be active together.
 
 ### Current Routes
@@ -312,6 +326,9 @@ with this snapshot, prefer this snapshot because it reflects the latest user pre
 - `/login`: login screen.
 - `/forgot-password`: forgot password.
 - `/dashboard`: placeholder dashboard; only needs Dashboard text/content for now.
+- `/profile`: current-user profile page. Keep the tabbed structure: Hồ sơ has personal/account
+  information now; Dự án and Khách hàng are placeholders for later user-related data. Keep the
+  standard CRM page label and breadcrumb above the profile card.
 - `/customers`: customer list.
 - `/customers/new`: create customer.
 - `/customers/[id]`: edit customer.
@@ -461,6 +478,9 @@ with this snapshot, prefer this snapshot because it reflects the latest user pre
 - User delete must call API and use confirm dialog/toast.
 - User create/edit:
   - Should visually match customer form card title/description pattern.
+  - Create/edit pages should use the standard CRM page header format: `h1` title first, breadcrumb
+    below. Do not use a back-link as the page title. Breadcrumb path is
+    `Dashboard / Tài khoản / Người dùng / <current>`.
   - Also follows Minimal user edit layout:
     - Left profile/status/action card.
     - Right two-column MUI form card.
@@ -468,10 +488,14 @@ with this snapshot, prefer this snapshot because it reflects the latest user pre
   - Edit payload includes `name`, `phone`, `avatar`, `role`, `isActive`.
   - Code/email are read-only on edit if backend update request does not accept them.
   - Avatar uses shared media picker/upload.
+  - When editing the currently logged-in user, update the auth store/localStorage with the mutation
+    response so the header avatar/name refreshes immediately after save.
 
 ### Roles And Permissions
 
 - Components live in `src/features/access-control/components`.
+- Role create/edit pages should use the standard CRM page header format. Breadcrumb path is
+  `Dashboard / Tài khoản / Vai trò / <current>`.
 - Role routes:
   - `/users/roles`.
   - `/users/roles/new`.
@@ -512,6 +536,15 @@ with this snapshot, prefer this snapshot because it reflects the latest user pre
 - In the project form, customer and service fields live in the right `xl:col-span-4` column with
   status/owner fields. Service must use a searchable autocomplete because the service tree can be
   long; search should match service code, name, and tree path.
+- Project create/edit also has a separate contract box inside the left `xl:col-span-8` column. Edit
+  mode reads the first backend contract from `contracts[0]`. Submit sends a nested `contract` object
+  only when an existing contract id is present or the user fills a contract field. Contract fields are
+  `contractNo`, `contractStatusOptionId`, `depositAmount`, `signedDate`, `expiredDate`,
+  `contractMonth`, `fileUrl`, and `note`.
+- In the project contract box, `contractNo` follows the generated project code but stays hidden in
+  the UI. The status label should be `Tình trạng hợp đồng`. The visible contract layout is a compact
+  three-column grid with six inputs: contract condition, deposit amount, contract duration, signed
+  date, expired date, and contract file URL. Contract note is hidden for now.
 - Project code is read-only in the form and auto-generated as
   `<customer_code>.<root_service_code>.<project_name>`, for example `001.DV1.M.X3SALES`. The root
   service code is the highest-level parent service code of the selected service, so selecting
@@ -544,7 +577,7 @@ with this snapshot, prefer this snapshot because it reflects the latest user pre
 - Option tabs:
   - Lead: `lead_status`, `lead_source`, `lead_service`.
   - Khách hàng: `customer_type`.
-  - Dự án: `project_status`.
+  - Dự án: `project_status`, `contract_status`.
 - Backend option resource may include:
   - `id`, `group`, `key`, `value`, `label`, `meta`, `sortOrder`, `isActive`, `createdAt`, `updatedAt`.
 - Latest UI decision for option create/edit:

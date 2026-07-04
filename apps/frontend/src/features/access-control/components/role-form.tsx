@@ -57,22 +57,18 @@ export function RoleForm({
   } = useForm<RoleFormValues>({ defaultValues });
 
   const displayName = watch('name') || defaultValues.name || 'Vai trò mới';
+  const pageTitle = mode === 'create' ? 'Thêm vai trò' : 'Chỉnh sửa vai trò';
   const selectedPermissionIds = watch('permissionIds');
   const permissionGroups = groupPermissionsByModule(permissions);
 
   return (
     <div className="min-h-[calc(100vh-72px)] w-full bg-slate-50/60 p-6">
-      <div className="mb-8">
-        <Link
-          href="/users/roles"
-          className="inline-flex items-center text-sm font-bold text-slate-950 transition hover:text-primary"
-        >
-          ‹ {mode === 'create' ? 'Thêm vai trò' : 'Chỉnh sửa vai trò'}
-        </Link>
-        <div className="mt-5 flex items-center gap-2 text-sm text-slate-500">
+      <div className="mb-8 w-full">
+        <h1 className="text-2xl font-bold text-slate-950">{pageTitle}</h1>
+        <div className="mt-2 flex items-center gap-2 text-sm text-slate-500">
           <span>Dashboard</span>
           <span className="h-1 w-1 rounded-full bg-slate-300" />
-          <span>Nhân viên</span>
+          <span>Tài khoản</span>
           <span className="h-1 w-1 rounded-full bg-slate-300" />
           <span>Vai trò</span>
           <span className="h-1 w-1 rounded-full bg-slate-300" />

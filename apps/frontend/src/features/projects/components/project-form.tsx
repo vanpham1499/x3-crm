@@ -22,6 +22,7 @@ type ProjectFormProps = {
   services: ServiceItem[];
   users: User[];
   statuses: AppOption[];
+  contractStatuses: AppOption[];
   defaultValues?: Partial<ProjectFormValues>;
   isSubmitting: boolean;
   onSubmit: (values: ProjectFormValues) => void;
@@ -87,6 +88,7 @@ export function ProjectForm({
   services,
   users,
   statuses,
+  contractStatuses,
   defaultValues,
   isSubmitting,
   onSubmit,
@@ -119,12 +121,13 @@ export function ProjectForm({
     });
 
     setValue('projectCode', nextProjectCode, { shouldDirty: true });
+    setValue('contractNo', nextProjectCode, { shouldDirty: true });
   }, [projectName, rootServiceCode, selectedCustomer?.customerCode, setValue]);
 
   return (
     <form className="w-full space-y-8" onSubmit={handleSubmit(onSubmit)}>
       <div className="grid w-full items-start gap-6 xl:grid-cols-12">
-        <div className="xl:col-span-8">
+        <div className="space-y-6 xl:col-span-8">
           <FormSection
             title="Thông tin dự án"
             description="Thông tin định danh, khách hàng, dịch vụ và thời gian triển khai."
@@ -196,6 +199,76 @@ export function ProjectForm({
               placeholder="Thông tin triển khai, lưu ý chăm sóc, tình trạng hiện tại..."
               {...register('note')}
             />
+          </FormSection>
+
+          <FormSection
+            title="Hợp đồng"
+            description="Thông tin tình trạng, thời hạn, đặt cọc và file hợp đồng của dự án."
+          >
+            <input type="hidden" {...register('contractId')} />
+            <input type="hidden" {...register('contractNo')} />
+            <input type="hidden" {...register('contractNote')} />
+
+            <div className="grid gap-4 md:grid-cols-2 xl:grid-cols-3">
+              <Controller
+                name="contractStatusOptionId"
+                control={control}
+                render={({ field }) => (
+                  <TextField fullWidth select label="Tình trạng hợp đồng" {...field}>
+                    <MenuItem value="">Chưa chọn</MenuItem>
+                    {contractStatuses.map((status) => (
+                      <MenuItem key={status.id} value={status.id}>
+                        {status.label}
+                      </MenuItem>
+                    ))}
+                  </TextField>
+                )}
+              />
+
+              <TextField
+                fullWidth
+                type="number"
+                label="Số tiền cọc"
+                slotProps={{ htmlInput: { min: 0, step: 1000 } }}
+                {...register('depositAmount')}
+              />
+              <TextField
+                fullWidth
+                label="Thời hạn hợp đồng"
+                placeholder="Ví dụ: 6 tháng"
+                {...register('contractMonth')}
+              />
+
+              <Controller
+                name="signedDate"
+                control={control}
+                render={({ field }) => (
+                  <ProjectDatePicker
+                    label="Ngày ký"
+                    value={field.value}
+                    onChange={field.onChange}
+                  />
+                )}
+              />
+              <Controller
+                name="expiredDate"
+                control={control}
+                render={({ field }) => (
+                  <ProjectDatePicker
+                    label="Ngày hết hạn"
+                    value={field.value}
+                    onChange={field.onChange}
+                  />
+                )}
+              />
+
+              <TextField
+                fullWidth
+                label="File hợp đồng"
+                placeholder="https://... hoặc /uploads/..."
+                {...register('fileUrl')}
+              />
+            </div>
           </FormSection>
         </div>
 

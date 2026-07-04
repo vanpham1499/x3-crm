@@ -13,7 +13,9 @@ import WbSunnyRoundedIcon from '@mui/icons-material/WbSunnyRounded';
 import { Avatar, Menu, MenuItem } from '@mui/material';
 import { getMediaPreviewUrl } from '@/lib/media-url';
 import { ROLE_LABELS } from '@/lib/utils';
+import { api } from '@/services/api/client';
 import { useAuthStore } from '@/stores/auth-store';
+import type { User } from '@/types/user';
 import x3salesLogo from '@assets/logos/x3sales-logo.svg';
 
 function HeaderIconButton({
@@ -36,14 +38,27 @@ function HeaderIconButton({
   );
 }
 
+type AuthProfileResponse =
+  | User
+  | {
+      data?: User;
+      user?: User;
+    };
+
+function normalizeProfileResponse(data: AuthProfileResponse) {
+  if ('id' in data) return data;
+  return data.user || data.data || null;
+}
+
 export function Header() {
   const router = useRouter();
-  const { user, logout } = useAuthStore();
+  const { user, token, setAuth, logout } = useAuthStore();
   const [accountAnchorEl, setAccountAnchorEl] = useState<HTMLElement | null>(null);
   const [themeMode, setThemeMode] = useState<'light' | 'dark'>('light');
   const displayName = user?.name || user?.email || user?.code || 'X3Sales';
   const displayRole = user?.role ? ROLE_LABELS[user.role] : 'Giao diện';
   const displayInitial = displayName.trim().charAt(0).toUpperCase() || 'X';
+  const avatarUrl = getMediaPreviewUrl(user?.avatar);
   const accountMenuOpen = Boolean(accountAnchorEl);
 
   useEffect(() => {
@@ -53,6 +68,29 @@ export function Header() {
     setThemeMode(nextTheme);
     document.documentElement.classList.toggle('dark', nextTheme === 'dark');
   }, []);
+
+  useEffect(() => {
+    if (!token) return;
+
+    let ignore = false;
+
+    api
+      .get<AuthProfileResponse>('/auth/me')
+      .then((response) => {
+        const nextUser = normalizeProfileResponse(response.data);
+
+        if (!ignore && nextUser?.id) {
+          setAuth(nextUser, token);
+        }
+      })
+      .catch(() => {
+        // API interceptor handles unauthorized sessions; keep the cached user for transient errors.
+      });
+
+    return () => {
+      ignore = true;
+    };
+  }, [setAuth, token]);
 
   const openAccountMenu = (event: MouseEvent<HTMLButtonElement>) => {
     setAccountAnchorEl(event.currentTarget);
@@ -120,7 +158,7 @@ export function Header() {
           className="inline-flex h-10 w-10 items-center justify-center rounded-full p-1 transition hover:bg-slate-100 dark:hover:bg-slate-800"
         >
           <Avatar
-            src={getMediaPreviewUrl(user?.avatar) || undefined}
+            src={avatarUrl || undefined}
             alt={displayName}
             className="!h-8 !w-8 !bg-primary !text-sm !font-bold !text-white"
           >

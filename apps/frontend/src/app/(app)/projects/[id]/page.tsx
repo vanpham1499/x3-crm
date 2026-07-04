@@ -36,11 +36,15 @@ export default function EditProjectPage() {
     queryFn: () => api.get('/users').then((response) => response.data),
   });
 
-  const { data: statuses = [] } = useQuery<AppOption[]>({
-    queryKey: ['options', 'project_status'],
+  const { data: projectOptions = [] } = useQuery<AppOption[]>({
+    queryKey: ['options', 'project-form'],
     queryFn: () =>
-      api.get('/options', { params: { groups: 'project_status' } }).then((response) => response.data),
+      api
+        .get('/options', { params: { groups: 'project_status,contract_status' } })
+        .then((response) => response.data),
   });
+  const statuses = projectOptions.filter((option) => option.group === 'project_status');
+  const contractStatuses = projectOptions.filter((option) => option.group === 'contract_status');
 
   const { data: project, isLoading } = useQuery<ProjectItem>({
     queryKey: ['projects', id],
@@ -92,6 +96,7 @@ export default function EditProjectPage() {
         services={services}
         users={users}
         statuses={statuses}
+        contractStatuses={contractStatuses}
         isSubmitting={updateMutation.isPending}
         onSubmit={(values) => updateMutation.mutate(values)}
       />

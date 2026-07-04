@@ -27,6 +27,10 @@ export const PROJECT_OPTION_GROUPS: OptionGroupConfig[] = [
     group: 'project_status',
     title: 'Trạng thái dự án',
   },
+  {
+    group: 'contract_status',
+    title: 'Trạng thái hợp đồng',
+  },
 ];
 
 export const OPTION_SECTIONS = [

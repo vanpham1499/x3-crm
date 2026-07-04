@@ -14,14 +14,24 @@ function getMediaOrigin() {
 }
 
 export function getMediaPreviewUrl(value?: string | null) {
-  if (!value) return '';
-  if (/^https?:\/\//i.test(value) || value.startsWith('data:') || value.startsWith('blob:')) {
-    return value;
+  const mediaPath = value?.trim();
+
+  if (!mediaPath) return '';
+  if (
+    /^https?:\/\//i.test(mediaPath) ||
+    mediaPath.startsWith('data:') ||
+    mediaPath.startsWith('blob:')
+  ) {
+    return mediaPath;
   }
 
-  if (value.startsWith('/uploads/')) {
-    return `${getMediaOrigin()}${value}`;
+  if (mediaPath.startsWith('/')) {
+    return `${getMediaOrigin()}${mediaPath}`;
   }
 
-  return value;
+  if (mediaPath.startsWith('uploads/') || mediaPath.startsWith('storage/')) {
+    return `${getMediaOrigin()}/${mediaPath}`;
+  }
+
+  return mediaPath;
 }
