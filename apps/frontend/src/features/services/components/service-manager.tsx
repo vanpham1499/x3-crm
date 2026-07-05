@@ -1,10 +1,11 @@
 'use client';
 
-import { useMemo, useState } from 'react';
+import { useEffect, useMemo, useState } from 'react';
 import AddRoundedIcon from '@mui/icons-material/AddRounded';
 import AccountTreeRoundedIcon from '@mui/icons-material/AccountTreeRounded';
 import DeleteRoundedIcon from '@mui/icons-material/DeleteRounded';
 import EditRoundedIcon from '@mui/icons-material/EditRounded';
+import PriceCheckRoundedIcon from '@mui/icons-material/PriceCheckRounded';
 import SearchRoundedIcon from '@mui/icons-material/SearchRounded';
 import SubdirectoryArrowRightRoundedIcon from '@mui/icons-material/SubdirectoryArrowRightRounded';
 import {
@@ -22,8 +23,17 @@ import {
 } from '@mui/material';
 import { Controller, useForm } from 'react-hook-form';
 import { ConfirmDialog } from '@/components/feedback/confirm-dialog';
+import { MoneyInput } from '@/components/form/money-input';
+import {
+  DEFAULT_MANAGEMENT_FEE_RATES,
+  DEFAULT_SETUP_PACKAGES,
+  getConfigForRoot,
+  getServiceQuoteConfigMeta,
+  type ServiceQuoteConfigMeta,
+} from '@/lib/service-quote-config';
 import { flattenServices, getServiceDefaults } from '@/lib/service-utils';
 import type { FlatServiceItem } from '@/lib/service-utils';
+import type { AppOption } from '@/types/option';
 import type { ServiceFilters, ServiceFormValues, ServiceItem } from '@/types/service';
 
 type ServiceManagerProps = {
@@ -32,14 +42,26 @@ type ServiceManagerProps = {
   isFetching: boolean;
   isSubmitting: boolean;
   isDeleting: boolean;
+  isSavingQuoteConfig: boolean;
+  quoteConfigs: AppOption[];
   onFiltersChange: (filters: ServiceFilters) => void;
   onSubmit: (values: ServiceFormValues, service?: ServiceItem | null) => void;
   onDelete: (service: ServiceItem) => void;
+  onSaveQuoteConfig: (
+    service: ServiceItem,
+    values: ServiceQuoteConfigMeta,
+    option?: AppOption | null,
+  ) => Promise<unknown>;
 };
 
 type DialogState =
   | { mode: 'create'; service?: null; parent?: ServiceItem | null }
   | { mode: 'edit'; service: ServiceItem; parent?: null };
+
+type QuoteConfigDialogState = {
+  service: ServiceItem;
+  option?: AppOption | null;
+};
 
 function serviceStatusClass(service: ServiceItem) {
   return service.isActive
@@ -260,17 +282,190 @@ function ServiceFormDialog({
   );
 }
 
+function QuoteConfigDialog({
+  state,
+  isSubmitting,
+  onClose,
+  onSubmit,
+}: {
+  state: QuoteConfigDialogState | null;
+  isSubmitting: boolean;
+  onClose: () => void;
+  onSubmit: (
+    service: ServiceItem,
+    values: ServiceQuoteConfigMeta,
+    option?: AppOption | null,
+  ) => Promise<unknown>;
+}) {
+  const [config, setConfig] = useState<ServiceQuoteConfigMeta>(() =>
+    getServiceQuoteConfigMeta(null),
+  );
+
+  useEffect(() => {
+    if (!state) return;
+    setConfig(getServiceQuoteConfigMeta(state.option, state.service));
+  }, [state]);
+
+  const updateRate = (
+    index: number,
+    field: 'single' | 'multi',
+    value: string,
+  ) => {
+    setConfig((current) => ({
+      ...current,
+      managementFeeRates: current.managementFeeRates.map((rate, rateIndex) =>
+        rateIndex === index ? { ...rate, [field]: Number(value) || 0 } : rate,
+      ),
+    }));
+  };
+
+  const updateSetupPackage = (index: number, value: string) => {
+    setConfig((current) => ({
+      ...current,
+      setupPackages: current.setupPackages.map((setupPackage, packageIndex) =>
+        packageIndex === index ? { ...setupPackage, price: Number(value) || 0 } : setupPackage,
+      ),
+    }));
+  };
+
+  const resetDefaults = () => {
+    if (!state) return;
+    setConfig({
+      serviceRootId: state.service.id,
+      serviceRootCode: state.service.code,
+      enabled: true,
+      managementFeeRates: DEFAULT_MANAGEMENT_FEE_RATES,
+      setupPackages: DEFAULT_SETUP_PACKAGES,
+    });
+  };
+
+  return (
+    <Dialog
+      open={Boolean(state)}
+      onClose={isSubmitting ? undefined : onClose}
+      maxWidth="lg"
+      fullWidth
+    >
+      <DialogTitle className="border-b border-slate-100 px-6 py-5">
+        <p className="text-lg font-bold text-slate-950">Cấu hình báo giá dịch vụ</p>
+        <p className="mt-1 text-sm text-slate-500">
+          {state?.service.code} - {state?.service.name}
+        </p>
+      </DialogTitle>
+
+      <DialogContent className="space-y-5 px-6 py-5">
+        <div className="flex items-center justify-between rounded-xl border border-slate-200 px-4 py-3">
+          <div>
+            <p className="font-bold text-slate-950">Áp dụng tự động trong báo giá</p>
+            <p className="mt-1 text-sm text-slate-500">
+              Các dịch vụ con thuộc nhóm này sẽ dùng cùng bảng phí.
+            </p>
+          </div>
+          <Switch
+            checked={config.enabled}
+            onChange={(event) =>
+              setConfig((current) => ({ ...current, enabled: event.target.checked }))
+            }
+          />
+        </div>
+
+        <div className="overflow-hidden rounded-xl border border-slate-200">
+          <div className="border-b border-slate-200 bg-slate-50 px-4 py-3">
+            <p className="font-bold text-slate-950">% phí quản lý theo ngân sách</p>
+          </div>
+          <div className="overflow-x-auto">
+            <table className="w-full min-w-[760px] text-left text-sm">
+              <thead className="bg-white text-xs font-bold uppercase text-slate-500">
+                <tr>
+                  <th className="px-4 py-3">Ngân sách</th>
+                  <th className="w-40 px-4 py-3">Đơn kênh (%)</th>
+                  <th className="w-40 px-4 py-3">Đa kênh (%)</th>
+                </tr>
+              </thead>
+              <tbody className="divide-y divide-slate-100">
+                {config.managementFeeRates.map((rate, index) => (
+                  <tr key={rate.label}>
+                    <td className="px-4 py-3 font-semibold text-slate-700">{rate.label}</td>
+                    <td className="px-4 py-3">
+                      <TextField
+                        fullWidth
+                        size="small"
+                        type="number"
+                        value={rate.single}
+                        onChange={(event) => updateRate(index, 'single', event.target.value)}
+                      />
+                    </td>
+                    <td className="px-4 py-3">
+                      <TextField
+                        fullWidth
+                        size="small"
+                        type="number"
+                        value={rate.multi}
+                        onChange={(event) => updateRate(index, 'multi', event.target.value)}
+                      />
+                    </td>
+                  </tr>
+                ))}
+              </tbody>
+            </table>
+          </div>
+        </div>
+
+        <div className="grid gap-4 md:grid-cols-2">
+          {config.setupPackages.map((setupPackage, index) => (
+            <MoneyInput
+              key={setupPackage.key}
+              fullWidth
+              label={`Phí setup - ${setupPackage.label}`}
+              value={setupPackage.price}
+              onValueChange={(value) => updateSetupPackage(index, value)}
+            />
+          ))}
+        </div>
+      </DialogContent>
+
+      <DialogActions className="border-t border-slate-100 px-6 py-4">
+        <Button variant="outlined" onClick={resetDefaults} disabled={isSubmitting}>
+          Mặc định
+        </Button>
+        <div className="flex-1" />
+        <Button variant="outlined" onClick={onClose} disabled={isSubmitting}>
+          Hủy
+        </Button>
+        <Button
+          type="button"
+          variant="contained"
+          disabled={isSubmitting || !state}
+          onClick={async () => {
+            if (!state) return;
+            await onSubmit(state.service, config, state.option);
+            onClose();
+          }}
+          className="!bg-slate-900 hover:!bg-slate-800"
+        >
+          {isSubmitting ? 'Đang lưu...' : 'Lưu cấu hình'}
+        </Button>
+      </DialogActions>
+    </Dialog>
+  );
+}
+
 export function ServiceManager({
   services,
   filters,
   isFetching,
   isSubmitting,
   isDeleting,
+  isSavingQuoteConfig,
+  quoteConfigs,
   onFiltersChange,
   onSubmit,
   onDelete,
+  onSaveQuoteConfig,
 }: ServiceManagerProps) {
   const [dialogState, setDialogState] = useState<DialogState | null>(null);
+  const [quoteConfigDialogState, setQuoteConfigDialogState] =
+    useState<QuoteConfigDialogState | null>(null);
   const [deleteTarget, setDeleteTarget] = useState<ServiceItem | null>(null);
   const flatServices = useMemo(() => flattenServices(services), [services]);
   const rootColorMap = useMemo(() => {
@@ -448,6 +643,20 @@ export function ServiceManager({
                       </td>
                       <td className="px-5 py-4">
                         <div className="flex items-center justify-end gap-1">
+                          {service.depth === 0 && (
+                            <IconButton
+                              size="small"
+                              title="Cấu hình báo giá"
+                              onClick={() =>
+                                setQuoteConfigDialogState({
+                                  service,
+                                  option: getConfigForRoot(quoteConfigs, service),
+                                })
+                              }
+                            >
+                              <PriceCheckRoundedIcon fontSize="small" />
+                            </IconButton>
+                          )}
                           <IconButton
                             size="small"
                             title="Thêm dịch vụ con"
@@ -487,6 +696,13 @@ export function ServiceManager({
         isSubmitting={isSubmitting}
         onClose={() => setDialogState(null)}
         onSubmit={(values, service) => onSubmit(values, service)}
+      />
+
+      <QuoteConfigDialog
+        state={quoteConfigDialogState}
+        isSubmitting={isSavingQuoteConfig}
+        onClose={() => setQuoteConfigDialogState(null)}
+        onSubmit={onSaveQuoteConfig}
       />
 
       <ConfirmDialog

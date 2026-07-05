@@ -7,6 +7,7 @@ import { Autocomplete, Button, MenuItem, TextField } from '@mui/material';
 import { DatePicker } from '@mui/x-date-pickers/DatePicker';
 import dayjs from 'dayjs';
 import { Controller, useForm } from 'react-hook-form';
+import { MoneyInput } from '@/components/form/money-input';
 import { generateProjectCode, getProjectDefaults, getRootServiceCode } from '@/lib/project-utils';
 import { flattenServices } from '@/lib/service-utils';
 import type { Customer } from '@/types/customer';
@@ -225,12 +226,17 @@ export function ProjectForm({
                 )}
               />
 
-              <TextField
-                fullWidth
-                type="number"
-                label="Số tiền cọc"
-                slotProps={{ htmlInput: { min: 0, step: 1000 } }}
-                {...register('depositAmount')}
+              <Controller
+                name="depositAmount"
+                control={control}
+                render={({ field }) => (
+                  <MoneyInput
+                    fullWidth
+                    label="Số tiền cọc"
+                    value={field.value}
+                    onValueChange={field.onChange}
+                  />
+                )}
               />
               <TextField
                 fullWidth

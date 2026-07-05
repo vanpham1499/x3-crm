@@ -4,6 +4,7 @@ import { useEffect, useState } from 'react';
 import type { MouseEvent } from 'react';
 import Image from 'next/image';
 import { useRouter } from 'next/navigation';
+import CalculateRoundedIcon from '@mui/icons-material/CalculateRounded';
 import DarkModeRoundedIcon from '@mui/icons-material/DarkModeRounded';
 import MenuRoundedIcon from '@mui/icons-material/MenuRounded';
 import LogoutRoundedIcon from '@mui/icons-material/LogoutRounded';
@@ -21,16 +22,19 @@ import x3salesLogo from '@assets/logos/x3sales-logo.svg';
 function HeaderIconButton({
   children,
   className = '',
+  onClick,
   title,
 }: {
   children: React.ReactNode;
   className?: string;
+  onClick?: () => void;
   title: string;
 }) {
   return (
     <button
       type="button"
       title={title}
+      onClick={onClick}
       className={`relative inline-flex h-10 w-10 items-center justify-center rounded-full text-slate-500 transition hover:bg-slate-100 hover:text-primary dark:text-slate-300 dark:hover:bg-slate-800 ${className}`}
     >
       {children}
@@ -50,7 +54,12 @@ function normalizeProfileResponse(data: AuthProfileResponse) {
   return data.user || data.data || null;
 }
 
-export function Header() {
+type HeaderProps = {
+  calculatorOpen?: boolean;
+  onToggleCalculator?: () => void;
+};
+
+export function Header({ calculatorOpen = false, onToggleCalculator }: HeaderProps) {
   const router = useRouter();
   const { user, token, setAuth, logout } = useAuthStore();
   const [accountAnchorEl, setAccountAnchorEl] = useState<HTMLElement | null>(null);
@@ -142,6 +151,18 @@ export function Header() {
       </div>
 
       <div className="flex items-center gap-1">
+        <HeaderIconButton
+          title={calculatorOpen ? 'Ẩn máy tính' : 'Mở máy tính'}
+          onClick={onToggleCalculator}
+          className={
+            calculatorOpen
+              ? 'bg-emerald-50 text-emerald-600 hover:bg-emerald-100 hover:text-emerald-700'
+              : ''
+          }
+        >
+          <CalculateRoundedIcon />
+        </HeaderIconButton>
+
         <button
           type="button"
           title={themeMode === 'dark' ? 'Chuyển sang giao diện sáng' : 'Chuyển sang giao diện tối'}

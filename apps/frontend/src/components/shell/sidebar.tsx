@@ -34,6 +34,8 @@ const navGroups = [
         icon: WorkTwoToneIcon,
         children: [
           { href: '/projects/services', label: 'Dịch vụ' },
+          { href: '/projects/partners', label: 'Đối tác' },
+          { href: '/projects/quotes', label: 'Báo giá' },
         ],
       },
       { href: '/revenues', label: 'Doanh thu', icon: PaidTwoToneIcon },
