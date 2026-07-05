@@ -14,6 +14,8 @@ export function getProjectDefaults(
   project?: ProjectItem | null,
   defaults?: Partial<ProjectFormValues>,
 ): ProjectFormValues {
+  const contract = project?.contracts?.[0];
+
   return {
     projectCode: project?.projectCode || defaults?.projectCode || '',
     customerId: project?.customerId || defaults?.customerId || '',
@@ -27,11 +29,24 @@ export function getProjectDefaults(
     startDate: project?.startDate || defaults?.startDate || '',
     endDate: project?.endDate || defaults?.endDate || '',
     note: project?.note || defaults?.note || '',
+    contractId: contract?.id || defaults?.contractId || '',
+    contractNo: project?.projectCode || contract?.contractNo || defaults?.contractNo || '',
+    contractStatusOptionId:
+      contract?.contractStatusOptionId || defaults?.contractStatusOptionId || '',
+    depositAmount:
+      contract?.depositAmount !== undefined && contract?.depositAmount !== null
+        ? String(contract.depositAmount)
+        : defaults?.depositAmount || '',
+    signedDate: contract?.signedDate || defaults?.signedDate || '',
+    expiredDate: contract?.expiredDate || defaults?.expiredDate || '',
+    contractMonth: contract?.contractMonth || defaults?.contractMonth || '',
+    fileUrl: contract?.fileUrl || defaults?.fileUrl || '',
+    contractNote: contract?.note || defaults?.contractNote || '',
   };
 }
 
 export function toProjectPayload(values: ProjectFormValues) {
-  return {
+  const payload: Record<string, unknown> = {
     projectCode: values.projectCode.trim() || null,
     customerId: values.customerId,
     serviceId: values.serviceId,
@@ -45,6 +60,35 @@ export function toProjectPayload(values: ProjectFormValues) {
     endDate: values.endDate || null,
     note: values.note.trim() || null,
   };
+
+  const hasContract =
+    Boolean(values.contractId) ||
+    [
+      values.contractNo,
+      values.contractStatusOptionId,
+      values.depositAmount,
+      values.signedDate,
+      values.expiredDate,
+      values.contractMonth,
+      values.fileUrl,
+      values.contractNote,
+    ].some((value) => value.trim());
+
+  if (hasContract) {
+    payload.contract = {
+      id: values.contractId || undefined,
+      contractNo: values.contractNo.trim() || null,
+      contractStatusOptionId: values.contractStatusOptionId || null,
+      depositAmount: values.depositAmount ? Number(values.depositAmount) : null,
+      signedDate: values.signedDate || null,
+      expiredDate: values.expiredDate || null,
+      contractMonth: values.contractMonth.trim() || null,
+      fileUrl: values.fileUrl.trim() || null,
+      note: values.contractNote.trim() || null,
+    };
+  }
+
+  return payload;
 }
 
 export function getRootServiceCode(services: ServiceItem[], serviceId: string): string {

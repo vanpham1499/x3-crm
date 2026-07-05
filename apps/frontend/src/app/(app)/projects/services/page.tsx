@@ -6,8 +6,14 @@ import { useAppNotification } from '@/components/feedback/notification-provider'
 import { ContentLoading } from '@/components/shell/content-loading';
 import { ServiceManager } from '@/features/services/components/service-manager';
 import { getApiErrorMessage } from '@/lib/api-error';
+import {
+  SERVICE_QUOTE_CONFIG_GROUP,
+  toServiceQuoteConfigPayload,
+  type ServiceQuoteConfigMeta,
+} from '@/lib/service-quote-config';
 import { toServicePayload } from '@/lib/service-utils';
 import api from '@/services/api/client';
+import type { AppOption } from '@/types/option';
 import type { ServiceFilters, ServiceFormValues, ServiceItem } from '@/types/service';
 
 export default function ServicesPage() {
@@ -26,6 +32,15 @@ export default function ServicesPage() {
             is_active: filters.is_active || undefined,
           },
         })
+        .then((response) => response.data),
+    placeholderData: keepPreviousData,
+  });
+
+  const { data: quoteConfigs = [], isFetching: quoteConfigsFetching } = useQuery<AppOption[]>({
+    queryKey: ['options', SERVICE_QUOTE_CONFIG_GROUP],
+    queryFn: () =>
+      api
+        .get<AppOption[]>('/options', { params: { groups: SERVICE_QUOTE_CONFIG_GROUP } })
         .then((response) => response.data),
     placeholderData: keepPreviousData,
   });
@@ -60,6 +75,46 @@ export default function ServicesPage() {
     },
   });
 
+  const quoteConfigMutation = useMutation({
+    mutationFn: ({
+      service,
+      values,
+      option,
+    }: {
+      service: ServiceItem;
+      values: ServiceQuoteConfigMeta;
+      option?: AppOption | null;
+    }) => {
+      const payload = toServiceQuoteConfigPayload(service, values);
+
+      if (option) {
+        return api
+          .put<AppOption>(`/options/${option.id}`, payload)
+          .then((response) => response.data);
+      }
+
+      return api.post<AppOption>('/options', payload).then((response) => response.data);
+    },
+    onSuccess: (savedOption, variables) => {
+      queryClient.setQueryData<AppOption[]>(
+        ['options', SERVICE_QUOTE_CONFIG_GROUP],
+        (current = []) => {
+          if (variables.option) {
+            return current.map((option) => (option.id === savedOption.id ? savedOption : option));
+          }
+
+          return current.some((option) => option.id === savedOption.id)
+            ? current.map((option) => (option.id === savedOption.id ? savedOption : option))
+            : [...current, savedOption];
+        },
+      );
+      notify.success('Cập nhật cấu hình báo giá thành công');
+    },
+    onError: (error) => {
+      notify.error(getApiErrorMessage(error, 'Lưu cấu hình báo giá thất bại'));
+    },
+  });
+
   if (isLoading) {
     return <ContentLoading />;
   }
@@ -68,12 +123,17 @@ export default function ServicesPage() {
     <ServiceManager
       services={services}
       filters={filters}
-      isFetching={isFetching}
+      isFetching={isFetching || quoteConfigsFetching}
       isSubmitting={saveMutation.isPending}
       isDeleting={deleteMutation.isPending}
+      isSavingQuoteConfig={quoteConfigMutation.isPending}
+      quoteConfigs={quoteConfigs}
       onFiltersChange={setFilters}
       onSubmit={(values, service) => saveMutation.mutate({ values, service })}
       onDelete={(service) => deleteMutation.mutate(service)}
+      onSaveQuoteConfig={(service, values, option) =>
+        quoteConfigMutation.mutateAsync({ service, values, option })
+      }
     />
   );
 }

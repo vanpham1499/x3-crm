@@ -1,0 +1,48 @@
+{
+  "stats": [
+    {
+      "label": "Tổng Lead",
+      "value": 120,
+      "change": 12,
+      "suffix": ""
+    },
+    {
+      "label": "Lead mới",
+      "value": 35,
+      "change": 8,
+      "suffix": ""
+    },
+    {
+      "label": "Lead chốt",
+      "value": 18,
+      "change": 15,
+      "suffix": ""
+    },
+    {
+      "label": "Doanh thu tháng",
+      "value": 1250000000,
+      "change": 13,
+      "suffix": "đ"
+    }
+  ],
+  "monthlyRevenue": [
+    { "month": "T1", "lastYear": 620, "currentYear": 520, "serviceA": 0 },
+    { "month": "T2", "lastYear": 720, "currentYear": 980, "serviceA": 0 },
+    { "month": "T3", "lastYear": 690, "currentYear": 910, "serviceA": 0 },
+    { "month": "T4", "lastYear": 920, "currentYear": 1050, "serviceA": 0 },
+    { "month": "T5", "lastYear": 1180, "currentYear": 1210, "serviceA": 0 },
+    { "month": "T6", "lastYear": 330, "currentYear": 620, "serviceA": 0 },
+    { "month": "T7", "lastYear": 1080, "currentYear": 1040, "serviceA": 0 },
+    { "month": "T8", "lastYear": 980, "currentYear": 1060, "serviceA": 520 },
+    { "month": "T9", "lastYear": 1020, "currentYear": 690, "serviceA": 0 },
+    { "month": "T10", "lastYear": 880, "currentYear": 1090, "serviceA": 470 },
+    { "month": "T11", "lastYear": 820, "currentYear": 920, "serviceA": 0 },
+    { "month": "T12", "lastYear": 860, "currentYear": 900, "serviceA": 0 }
+  ],
+  "serviceRevenue": [
+    { "name": "DV1", "label": "DV1 (50%)", "value": 625, "color": "#2878e8" },
+    { "name": "DV2", "label": "DV2 (20%)", "value": 250, "color": "#22c55e" },
+    { "name": "DV4", "label": "DV4 (15%)", "value": 187.5, "color": "#f6b044" },
+    { "name": "DV5", "label": "DV5 (15%)", "value": 187.5, "color": "#8b5cf6" }
+  ]
+}

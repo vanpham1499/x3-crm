@@ -49,7 +49,14 @@ This file is the first place Codex should read before changing the project.
 - `/`: redirects to `/login`.
 - `/login`: login screen.
 - `/forgot-password`: forgot password screen.
-- `/dashboard`: placeholder dashboard screen with only the "Dashboard" heading.
+- `/dashboard`: KPI and revenue dashboard using temporary JSON data from
+  `src/features/dashboard/data/dashboard.json`. UI lives in
+  `src/features/dashboard/components/dashboard-overview.tsx` and uses Recharts for the monthly
+  revenue bar chart and service revenue donut chart.
+- `/profile`: current-user profile screen using `GET /auth/me`. It shows avatar, name, role,
+  contact/account details, and keeps tabs for Hồ sơ, Dự án, and Khách hàng so future user-owned
+  project/customer data can be added without redesigning the page. It should include the standard
+  page title and breadcrumb above the profile cover.
 - `/customers`: customer/lead list screen populated from `src/data/customers.json`, extracted from
   `CRM Khách hàng mới - Team Sales (1).xlsx`.
 - `/leads`: lead management screen using backend `GET/POST/PUT/DELETE /leads`, plus option APIs
@@ -79,6 +86,13 @@ This file is the first place Codex should read before changing the project.
 - `/projects`: project list using backend `GET /projects`.
 - `/projects/new` and `/projects/[id]`: full-page create/edit forms using
   `src/features/projects/components/project-form.tsx`, laid out like customer and lead forms.
+- `/projects/quotes`: quotation builder screen based on the referenced Google Sheet quotation
+  structure. It currently works as a frontend tool, not persisted to backend yet, and renders VietQR
+  payment QR from the configured BIDV account and calculated total amount.
+- `/projects/partners`: project partner option screen using backend `/options` group
+  `project_partner`. Visible fields are Mã đối tác, Tên đối tác, STK, Ngân hàng, and Dịch vụ.
+  Mapping: `key` stores partner code, `label` stores partner name, `value` stores service, and
+  `meta.accountNo` / `meta.bankName` store bank details.
 - `/projects/services`: service management screen using backend `GET/POST/PUT/DELETE /services`.
   It renders services as a tree table, supports keyword/status filters, and uses MUI dialogs for
   create/edit plus shared confirmation dialog for delete. Keep service list logic in
@@ -86,6 +100,9 @@ This file is the first place Codex should read before changing the project.
 - `/settings/options`: system option management screen using backend `GET/POST/PUT/DELETE /options`.
   It shows domain tabs for Lead, Khách hàng, and Dự án using grouped option cards. UI lives in
   `src/features/options/components/options-manager.tsx`.
+- `/settings`: settings overview screen. It stores website/company profile information in backend
+  options group `site_profile` with keys `companyName`, `taxCode`, `phone`, `website`, `address`,
+  and `office`. Shared defaults and mapping live in `src/lib/site-profile-options.ts`.
 - `/users/new`: create employee/user.
 - `/users/[id]`: employee/user detail and edit form.
 - `/users/roles`: role list screen using backend `GET /roles` with `keyword` filter.
@@ -174,9 +191,13 @@ This file is the first place Codex should read before changing the project.
 - Logged-in app shell follows the Minimal dashboard reference: 300px expanded sidebar, 88px
   collapsed icon-only sidebar, 72px sticky translucent header, grouped menu items, and active item
   tint.
-- Header account area shows a theme toggle and user avatar menu only. The temporary theme toggle
-  stores `light`/`dark` in `localStorage` under `x3_theme` and toggles the `dark` class on
-  `document.documentElement`; later this value can be moved to the user profile/database.
+- Header account area shows a theme toggle and user avatar menu only. If the user has an avatar, the
+  header must render the avatar image instead of initials. Header refreshes the current user through
+  `GET /auth/me` so updated avatar/profile data is not stuck on the login-time localStorage user.
+  Backend auth profile returns the user under `response.user`, not always as the root response body.
+  The temporary theme toggle stores `light`/`dark` in `localStorage` under `x3_theme` and toggles the
+  `dark` class on `document.documentElement`; later this value can be moved to the user
+  profile/database.
 - Global app font is `Public Sans Variable` loaded from `@fontsource-variable/public-sans` with the
   same fallback stack used by Minimal UI.
 
@@ -201,6 +222,9 @@ with this snapshot, prefer this snapshot because it reflects the latest user pre
 - Use dev checks and TypeScript checks instead. Preferred TypeScript check: `npm exec tsc -- --noEmit`.
 - The user prefers Tailwind CSS for layout and visual styling, with MUI for form/table primitives,
   inputs, selects, checkboxes, dialogs, date pickers, menus, icons, and interaction behavior.
+- Money/price inputs should use `src/components/form/money-input.tsx`. It displays Vietnamese
+  thousands separators such as `1.000.000` while keeping the controlled value as raw digits for
+  calculations and API payloads.
 - Avoid `sx`/inline style in route/component layout code unless MUI or dynamic color behavior makes it
   genuinely useful.
 - Do not use native `alert` or `confirm`. Use shared toast notifications and MUI/custom confirm dialogs.
@@ -289,21 +313,33 @@ with this snapshot, prefer this snapshot because it reflects the latest user pre
   - Khách hàng.
   - Dự án.
   - Dự án > Dịch vụ.
+  - Dự án > Báo giá.
   - Doanh thu.
   - Thanh toán.
   - Hóa đơn.
   - Báo cáo tuần.
   - Báo cáo.
   - Danh mục.
-  - Quản trị người dùng.
-  - Thiết lập hệ thống.
+  - Tài khoản.
+  - Cài đặt.
 - User administration must be separate from system settings:
   - `/users`: Người dùng.
   - `/users/roles`: Vai trò.
   - `/users/permissions`: Phân quyền.
 - Settings submenu:
-  - `/settings/options`: Danh mục hệ thống.
+  - `/settings/options`: Tùy chọn.
 - Menu items with children should collapse/expand, not display every child all the time.
+- Sidebar child menu items should not render icons. Expanded children use a compact tree style with a
+  subtle vertical line, short branch line, rounded neutral gray active background, and relaxed
+  spacing. Active parent items use a soft emerald background with a small filled icon block.
+- Sidebar parent icons use the softer MUI `TwoTone` icon variants already available in
+  `@mui/icons-material`. If the project later needs icons closer to the Minimal UI/Solar reference,
+  consider adding Iconify/Solar, but do not add that dependency unless requested.
+- Header includes a shared calculator tool button next to the light/dark toggle. Clicking it toggles
+  `src/components/shell/calculator-panel.tsx`, rendered as a persistent left column between the main
+  sidebar and page content. It is not a popup or click-away overlay, so users can keep interacting
+  with the current page while the calculator stays open. Calculator display numbers should be
+  formatted with Vietnamese thousands separators such as `20.000.000` for money readability.
 - Active states must not overlap: Người dùng, Vai trò, and Phân quyền should not all be active together.
 
 ### Current Routes
@@ -311,7 +347,11 @@ with this snapshot, prefer this snapshot because it reflects the latest user pre
 - `/`: redirects to `/login`.
 - `/login`: login screen.
 - `/forgot-password`: forgot password.
-- `/dashboard`: placeholder dashboard; only needs Dashboard text/content for now.
+- `/dashboard`: dashboard overview with 4 KPI cards, monthly revenue bar chart, and service revenue
+  donut chart. Data is temporary JSON until the backend dashboard API is requested.
+- `/profile`: current-user profile page. Keep the tabbed structure: Hồ sơ has personal/account
+  information now; Dự án and Khách hàng are placeholders for later user-related data. Keep the
+  standard CRM page label and breadcrumb above the profile card.
 - `/customers`: customer list.
 - `/customers/new`: create customer.
 - `/customers/[id]`: edit customer.
@@ -328,8 +368,10 @@ with this snapshot, prefer this snapshot because it reflects the latest user pre
 - `/projects`: project list.
 - `/projects/new`: create project.
 - `/projects/[id]`: edit project.
+- `/projects/quotes`: quote builder.
+- `/projects/partners`: partner options.
 - `/projects/services`: service management.
-- `/settings`: settings placeholder.
+- `/settings`: settings overview and website/company profile form.
 - `/settings/options`: system option management.
 
 ### Login And Auth Pages
@@ -461,6 +503,9 @@ with this snapshot, prefer this snapshot because it reflects the latest user pre
 - User delete must call API and use confirm dialog/toast.
 - User create/edit:
   - Should visually match customer form card title/description pattern.
+  - Create/edit pages should use the standard CRM page header format: `h1` title first, breadcrumb
+    below. Do not use a back-link as the page title. Breadcrumb path is
+    `Dashboard / Tài khoản / Người dùng / <current>`.
   - Also follows Minimal user edit layout:
     - Left profile/status/action card.
     - Right two-column MUI form card.
@@ -468,10 +513,14 @@ with this snapshot, prefer this snapshot because it reflects the latest user pre
   - Edit payload includes `name`, `phone`, `avatar`, `role`, `isActive`.
   - Code/email are read-only on edit if backend update request does not accept them.
   - Avatar uses shared media picker/upload.
+  - When editing the currently logged-in user, update the auth store/localStorage with the mutation
+    response so the header avatar/name refreshes immediately after save.
 
 ### Roles And Permissions
 
 - Components live in `src/features/access-control/components`.
+- Role create/edit pages should use the standard CRM page header format. Breadcrumb path is
+  `Dashboard / Tài khoản / Vai trò / <current>`.
 - Role routes:
   - `/users/roles`.
   - `/users/roles/new`.
@@ -512,6 +561,15 @@ with this snapshot, prefer this snapshot because it reflects the latest user pre
 - In the project form, customer and service fields live in the right `xl:col-span-4` column with
   status/owner fields. Service must use a searchable autocomplete because the service tree can be
   long; search should match service code, name, and tree path.
+- Project create/edit also has a separate contract box inside the left `xl:col-span-8` column. Edit
+  mode reads the first backend contract from `contracts[0]`. Submit sends a nested `contract` object
+  only when an existing contract id is present or the user fills a contract field. Contract fields are
+  `contractNo`, `contractStatusOptionId`, `depositAmount`, `signedDate`, `expiredDate`,
+  `contractMonth`, `fileUrl`, and `note`.
+- In the project contract box, `contractNo` follows the generated project code but stays hidden in
+  the UI. The status label should be `Tình trạng hợp đồng`. The visible contract layout is a compact
+  three-column grid with six inputs: contract condition, deposit amount, contract duration, signed
+  date, expired date, and contract file URL. Contract note is hidden for now.
 - Project code is read-only in the form and auto-generated as
   `<customer_code>.<root_service_code>.<project_name>`, for example `001.DV1.M.X3SALES`. The root
   service code is the highest-level parent service code of the selected service, so selecting
@@ -520,6 +578,39 @@ with this snapshot, prefer this snapshot because it reflects the latest user pre
   option group, and the list pill uses `statusOption.meta.color` when available.
 - Project delete uses the shared confirm dialog and toast notification pattern.
 - `/projects/services` manages services via backend `/services`.
+- Service quote/pricing configuration is stored in backend `/options`, not in the services table.
+  Use option group `service_quote_config`. Only root/top-level services get a quote config; child
+  services inherit the config from their root service. Mapping: option `key` is the root service
+  code, `value` is the root service id, and `meta` stores `serviceRootId`, `serviceRootCode`,
+  `enabled`, `managementFeeRates`, and `setupPackages`. Shared defaults/calculation helpers live in
+  `src/lib/service-quote-config.ts`.
+- `/projects/services` should show quote configuration only for root services. The config dialog
+  edits the management fee rate table for `Đơn kênh` and `Đa kênh`, plus setup packages. Default
+  setup packages are `Gói cơ bản` = 1,000,000 and `Gói nâng cao` = 1,500,000.
+- `/projects/partners` manages partner records through backend `/options` group `project_partner`.
+  Keep this page under the Dự án submenu as `Đối tác`. Partner records are still options, but the
+  table/form should expose business fields: `Mã đối tác`, `Tên đối tác`, `STK`, `Ngân hàng`, and
+  `Dịch vụ`. Store them as `key`, `label`, `meta.accountNo`, `meta.bankName`, and `value`
+  respectively. Helper/default/payload logic lives in `src/lib/project-partner-options.ts`; UI lives
+  in `src/features/partners/components/partner-manager.tsx`.
+- `/projects/quotes` is a quotation builder inspired by the Google Sheet quote template. Keep the
+  page under the Dự án submenu as `Báo giá`. Quote rows must be dynamic: users can add/remove their
+  own rows with `Nội dung`, `Đơn vị tính`, `Số lần`, and `Đơn giá`; do not hard-code rows such as
+  ngân sách, phí quản lý, or phí setup. The page calculates each row as `Số lần * Đơn giá`, sums the
+  subtotal, applies optional VAT, and renders VietQR through
+  `https://img.vietqr.io/image/<bank>-<account>-compact2.png` with amount and transfer content query
+  params. The quote page layout uses a 5/7 split: input/configuration on the left and preview/QR on
+  the right. Quote row inputs should stay compact on one row on desktop. It is frontend-only for now;
+  add backend persistence only when requested.
+- Quote company/website information should come from backend options group `site_profile`. If the
+  backend has no saved values yet, use the default profile from `src/lib/site-profile-options.ts`.
+- Quote service pricing should read backend options group `service_quote_config`. When a selected
+  service belongs to a root service with enabled quote config, the quote automatically prepends 3
+  calculated rows: `Ngân sách` from user input, `Phí quản lý` from the configured budget rate table,
+  and `Phí Setup` from the selected setup package. Manual quote rows remain available below those
+  generated rows. The budget/channel/setup inputs should be hidden when the selected service/root
+  has no enabled quote config. The service selector should show a visible loading state while service
+  and quote-config data are loading.
 - Services are tree data.
 - Service manager component: `src/features/services/components/service-manager.tsx`.
 - Service UI decisions:
@@ -544,7 +635,7 @@ with this snapshot, prefer this snapshot because it reflects the latest user pre
 - Option tabs:
   - Lead: `lead_status`, `lead_source`, `lead_service`.
   - Khách hàng: `customer_type`.
-  - Dự án: `project_status`.
+  - Dự án: `project_status`, `contract_status`.
 - Backend option resource may include:
   - `id`, `group`, `key`, `value`, `label`, `meta`, `sortOrder`, `isActive`, `createdAt`, `updatedAt`.
 - Latest UI decision for option create/edit:

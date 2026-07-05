@@ -1,3 +1,5 @@
+import { DashboardOverview } from '@/features/dashboard/components/dashboard-overview';
+
 export default function DashboardPage() {
-  return <h1 className="text-2xl font-bold text-foreground">Dashboard</h1>;
+  return <DashboardOverview />;
 }

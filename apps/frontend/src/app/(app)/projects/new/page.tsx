@@ -36,11 +36,15 @@ export default function NewProjectPage() {
     queryFn: () => api.get('/users').then((response) => response.data),
   });
 
-  const { data: statuses = [], isLoading: isStatusesLoading } = useQuery<AppOption[]>({
-    queryKey: ['options', 'project_status'],
+  const { data: projectOptions = [], isLoading: isStatusesLoading } = useQuery<AppOption[]>({
+    queryKey: ['options', 'project-form'],
     queryFn: () =>
-      api.get('/options', { params: { groups: 'project_status' } }).then((response) => response.data),
+      api
+        .get('/options', { params: { groups: 'project_status,contract_status' } })
+        .then((response) => response.data),
   });
+  const statuses = projectOptions.filter((option) => option.group === 'project_status');
+  const contractStatuses = projectOptions.filter((option) => option.group === 'contract_status');
 
   const createMutation = useMutation({
     mutationFn: (values: ProjectFormValues) =>
@@ -78,6 +82,7 @@ export default function NewProjectPage() {
         services={services}
         users={users}
         statuses={statuses}
+        contractStatuses={contractStatuses}
         defaultValues={{ customerId }}
         isSubmitting={createMutation.isPending}
         onSubmit={(values) => createMutation.mutate(values)}

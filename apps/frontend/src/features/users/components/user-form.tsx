@@ -89,6 +89,7 @@ export function UserForm({
   } = useForm<UserFormValues>({ defaultValues });
 
   const displayName = defaultValues.name || defaultValues.code || 'Nhân viên mới';
+  const pageTitle = mode === 'create' ? 'Thêm nhân viên' : 'Chỉnh sửa nhân viên';
   const watchedIsActive = watch('isActive');
   const roleOptions = useMemo(() => {
     if (roles.length > 0) return roles;
@@ -100,17 +101,14 @@ export function UserForm({
 
   return (
     <div className="min-h-[calc(100vh-72px)] w-full bg-slate-50/60 p-6">
-      <div className="mb-8">
-        <Link
-          href="/users"
-          className="inline-flex items-center text-sm font-bold text-slate-950 transition hover:text-primary"
-        >
-          ‹ {mode === 'create' ? 'Thêm nhân viên' : 'Chỉnh sửa nhân viên'}
-        </Link>
-        <div className="mt-5 flex items-center gap-2 text-sm text-slate-500">
+      <div className="mb-8 w-full">
+        <h1 className="text-2xl font-bold text-slate-950">{pageTitle}</h1>
+        <div className="mt-2 flex items-center gap-2 text-sm text-slate-500">
           <span>Dashboard</span>
           <span className="h-1 w-1 rounded-full bg-slate-300" />
-          <span>Nhân viên</span>
+          <span>Tài khoản</span>
+          <span className="h-1 w-1 rounded-full bg-slate-300" />
+          <span>Người dùng</span>
           <span className="h-1 w-1 rounded-full bg-slate-300" />
           <span className="text-slate-950">{mode === 'create' ? 'Thêm mới' : displayName}</span>
         </div>
