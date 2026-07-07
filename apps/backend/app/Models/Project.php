@@ -11,6 +11,7 @@ class Project extends BaseModel
     protected $fillable = [
         'project_code',
         'customer_id',
+        'quotation_id',
         'service_id',
         'project_name',
         'status_id',
@@ -43,6 +44,11 @@ class Project extends BaseModel
     public function service(): BelongsTo
     {
         return $this->belongsTo(Service::class);
+    }
+
+    public function quotation(): BelongsTo
+    {
+        return $this->belongsTo(Quotation::class);
     }
 
     public function status(): BelongsTo

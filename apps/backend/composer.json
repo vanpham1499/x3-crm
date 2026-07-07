@@ -5,6 +5,7 @@
   "license": "proprietary",
   "require": {
     "php": "^8.2",
+    "darkaonline/l5-swagger": "^11.1",
     "firebase/php-jwt": "^6.10",
     "laravel/framework": "^11.0"
   },

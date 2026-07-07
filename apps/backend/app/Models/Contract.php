@@ -3,11 +3,15 @@
 namespace App\Models;
 
 use Illuminate\Database\Eloquent\Relations\BelongsTo;
+use Illuminate\Database\Eloquent\Relations\HasMany;
 
 class Contract extends BaseModel
 {
     protected $fillable = [
         'project_id',
+        'quotation_id',
+        'lead_id',
+        'customer_id',
         'contract_no',
         'contract_status_id',
         'deposit_amount',
@@ -35,8 +39,28 @@ class Contract extends BaseModel
         return $this->belongsTo(Project::class);
     }
 
+    public function quotation(): BelongsTo
+    {
+        return $this->belongsTo(Quotation::class);
+    }
+
+    public function lead(): BelongsTo
+    {
+        return $this->belongsTo(Lead::class);
+    }
+
+    public function customer(): BelongsTo
+    {
+        return $this->belongsTo(Customer::class);
+    }
+
     public function contractStatus(): BelongsTo
     {
         return $this->belongsTo(Status::class, 'contract_status_id');
+    }
+
+    public function payments(): HasMany
+    {
+        return $this->hasMany(Payment::class);
     }
 }
