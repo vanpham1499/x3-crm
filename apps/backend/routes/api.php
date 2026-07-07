@@ -2,11 +2,14 @@
 
 use App\Http\Controllers\AuthController;
 use App\Http\Controllers\CustomersController;
+use App\Http\Controllers\ContractsController;
 use App\Http\Controllers\LeadsController;
 use App\Http\Controllers\MediaController;
 use App\Http\Controllers\OptionsController;
+use App\Http\Controllers\PaymentsController;
 use App\Http\Controllers\PermissionsController;
 use App\Http\Controllers\ProjectsController;
+use App\Http\Controllers\QuotationsController;
 use App\Http\Controllers\RolesController;
 use App\Http\Controllers\ServicesController;
 use App\Http\Controllers\UsersController;
@@ -19,6 +22,7 @@ Route::get('/', fn () => [
 ]);
 
 Route::post('/auth/login', [AuthController::class, 'login']);
+Route::post('/payments/webhook', [PaymentsController::class, 'webhook']);
 
 Route::middleware('jwt')->group(function (): void {
     Route::get('/auth/profile', [AuthController::class, 'profile']);
@@ -57,6 +61,7 @@ Route::middleware('jwt')->group(function (): void {
 
     Route::get('/leads', [LeadsController::class, 'index']);
     Route::post('/leads', [LeadsController::class, 'store']);
+    Route::post('/leads/{id}/convert', [LeadsController::class, 'convert']);
     Route::get('/leads/{id}', [LeadsController::class, 'show']);
     Route::put('/leads/{id}', [LeadsController::class, 'update']);
     Route::patch('/leads/{id}', [LeadsController::class, 'update']);
@@ -75,6 +80,28 @@ Route::middleware('jwt')->group(function (): void {
     Route::put('/projects/{id}', [ProjectsController::class, 'update']);
     Route::patch('/projects/{id}', [ProjectsController::class, 'update']);
     Route::delete('/projects/{id}', [ProjectsController::class, 'destroy']);
+
+    Route::get('/quotations', [QuotationsController::class, 'index']);
+    Route::post('/quotations', [QuotationsController::class, 'store']);
+    Route::get('/quotations/{id}', [QuotationsController::class, 'show']);
+    Route::put('/quotations/{id}', [QuotationsController::class, 'update']);
+    Route::patch('/quotations/{id}', [QuotationsController::class, 'update']);
+    Route::delete('/quotations/{id}', [QuotationsController::class, 'destroy']);
+
+    Route::get('/contracts', [ContractsController::class, 'index']);
+    Route::post('/contracts', [ContractsController::class, 'store']);
+    Route::get('/contracts/{id}', [ContractsController::class, 'show']);
+    Route::put('/contracts/{id}', [ContractsController::class, 'update']);
+    Route::patch('/contracts/{id}', [ContractsController::class, 'update']);
+    Route::delete('/contracts/{id}', [ContractsController::class, 'destroy']);
+
+    Route::get('/payments', [PaymentsController::class, 'index']);
+    Route::post('/payments', [PaymentsController::class, 'store']);
+    Route::post('/payments/{id}/match-project', [PaymentsController::class, 'matchProject']);
+    Route::get('/payments/{id}', [PaymentsController::class, 'show']);
+    Route::put('/payments/{id}', [PaymentsController::class, 'update']);
+    Route::patch('/payments/{id}', [PaymentsController::class, 'update']);
+    Route::delete('/payments/{id}', [PaymentsController::class, 'destroy']);
 
     Route::middleware('role:ADMIN')->group(function (): void {
         Route::get('/roles', [RolesController::class, 'index']);

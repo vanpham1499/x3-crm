@@ -3,6 +3,7 @@
 namespace App\Http\Controllers;
 
 use App\Http\Requests\Leads\CreateLeadRequest;
+use App\Http\Requests\Leads\ConvertLeadRequest;
 use App\Http\Requests\Leads\UpdateLeadRequest;
 use App\Services\LeadsService;
 use Illuminate\Http\JsonResponse;
@@ -41,6 +42,11 @@ class LeadsController extends Controller
     public function store(CreateLeadRequest $request): JsonResponse
     {
         return $this->success($this->leads->create($request->validatedData()), 201);
+    }
+
+    public function convert(ConvertLeadRequest $request, string $id): JsonResponse
+    {
+        return $this->success($this->leads->convert($id, $request->validatedData()), 201);
     }
 
     public function update(UpdateLeadRequest $request, string $id): JsonResponse

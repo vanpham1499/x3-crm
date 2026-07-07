@@ -61,4 +61,9 @@ class Service extends BaseModel
     {
         return $this->hasMany(RevenueItem::class);
     }
+
+    public function quotationItems(): HasMany
+    {
+        return $this->hasMany(QuotationItem::class);
+    }
 }

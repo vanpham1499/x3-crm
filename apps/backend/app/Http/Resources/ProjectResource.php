@@ -13,6 +13,7 @@ class ProjectResource extends JsonResource
             'id' => $this->id,
             'projectCode' => $this->project_code,
             'customerId' => $this->customer_id,
+            'quotationId' => $this->quotation_id,
             'serviceId' => $this->service_id,
             'projectName' => $this->project_name,
             'statusId' => $this->status_id,
@@ -31,6 +32,10 @@ class ProjectResource extends JsonResource
                 'companyName' => $this->customer->company_name,
                 'phone' => $this->customer->phone,
                 'email' => $this->customer->email,
+            ] : null),
+            'quotation' => $this->whenLoaded('quotation', fn () => $this->quotation ? [
+                'id' => $this->quotation->id,
+                'quotationCode' => $this->quotation->quotation_code,
             ] : null),
             'service' => $this->whenLoaded('service', fn () => $this->service ? new ServiceResource($this->service) : null),
             'statusOption' => $this->whenLoaded('statusOption', fn () => $this->statusOption ? new OptionResource($this->statusOption) : null),

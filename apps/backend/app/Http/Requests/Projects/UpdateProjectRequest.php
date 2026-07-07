@@ -15,6 +15,8 @@ class UpdateProjectRequest extends BaseRequest
             'projectCode' => ['sometimes', 'nullable', 'string', 'max:100', Rule::unique('projects', 'project_code')->ignore($this->route('id'))->whereNull('deleted_at')],
             'customer_id' => ['sometimes', 'uuid', Rule::exists('customers', 'id')->whereNull('deleted_at')],
             'customerId' => ['sometimes', 'uuid', Rule::exists('customers', 'id')->whereNull('deleted_at')],
+            'quotation_id' => ['sometimes', 'nullable', 'uuid', Rule::exists('quotations', 'id')->whereNull('deleted_at')],
+            'quotationId' => ['sometimes', 'nullable', 'uuid', Rule::exists('quotations', 'id')->whereNull('deleted_at')],
             'service_id' => ['sometimes', 'uuid', Rule::exists('services', 'id')->whereNull('deleted_at')],
             'serviceId' => ['sometimes', 'uuid', Rule::exists('services', 'id')->whereNull('deleted_at')],
             'project_name' => ['sometimes', 'string', 'max:255'],

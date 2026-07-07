@@ -90,4 +90,14 @@ class Lead extends BaseModel
     {
         return $this->hasMany(CustomerTimeline::class)->orderByDesc('created_at');
     }
+
+    public function quotations(): HasMany
+    {
+        return $this->hasMany(Quotation::class);
+    }
+
+    public function payments(): HasMany
+    {
+        return $this->hasMany(Payment::class);
+    }
 }

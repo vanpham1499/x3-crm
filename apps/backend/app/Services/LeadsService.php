@@ -11,10 +11,17 @@ use App\Repositories\LeadRepository;
 use Illuminate\Support\Collection;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Str;
+use Symfony\Component\HttpKernel\Exception\ConflictHttpException;
 
 class LeadsService extends BaseService
 {
-    public function __construct(private readonly LeadRepository $leads) {}
+    public function __construct(
+        private readonly LeadRepository $leads,
+        private readonly CustomersService $customers,
+        private readonly ProjectsService $projects,
+        private readonly ContractsService $contracts,
+        private readonly QuotationsService $quotations,
+    ) {}
 
     public function findAll(array $filters = [])
     {
@@ -95,6 +102,49 @@ class LeadsService extends BaseService
         });
     }
 
+    public function convert(string $id, array $data): array
+    {
+        return $this->transaction(function () use ($id, $data): array {
+            $data = $this->normalizeConvertPayload($data);
+            $lead = $this->leads->findWithRelationsOrFail($id);
+
+            if ($lead->converted_customer_id) {
+                throw new ConflictHttpException('Lead đã được chuyển đổi');
+            }
+
+            $quotation = ! empty($data['quotation_id']) ? $this->quotations->findModel($data['quotation_id']) : null;
+
+            if ($quotation && $quotation->lead_id !== $lead->id) {
+                throw new ConflictHttpException('Quotation không thuộc lead này');
+            }
+
+            $customer = $this->customers->create($this->convertedCustomerPayload($lead, $data['customer'] ?? []));
+            $project = $this->projects->create($this->convertedProjectPayload($lead, $customer, $quotation, $data['project'] ?? []));
+            $contract = $this->contracts->create($this->convertedContractPayload($lead, $customer, $project, $quotation, $data['contract'] ?? []));
+
+            if ($quotation) {
+                $quotation = $this->quotations->linkWonRecords($quotation->id, $customer['id'], $project['id'], $contract['id']);
+            }
+
+            /** @var Lead $convertedLead */
+            $convertedLead = $this->leads->update($lead->id, [
+                'converted_customer_id' => $customer['id'],
+                'closed_date' => $lead->closed_date?->toDateString() ?? now()->toDateString(),
+            ]);
+
+            $convertedLead = $this->loadLeadRelations($convertedLead);
+            $this->recordTimeline($convertedLead, 'convert', $this->buildConvertedTimelineContent($convertedLead, $customer, $project, $contract, $quotation?->id));
+
+            return [
+                'lead' => $this->apiResource($this->loadLeadRelations($convertedLead), LeadResource::class),
+                'customer' => $customer,
+                'project' => $project,
+                'contract' => $contract,
+                'quotation' => $quotation ? $this->apiResource($quotation, \App\Http\Resources\QuotationResource::class) : null,
+            ];
+        });
+    }
+
     public function remove(string $id): array
     {
         return $this->transaction(function () use ($id): array {
@@ -156,6 +206,123 @@ class LeadsService extends BaseService
         return $data;
     }
 
+    private function normalizeConvertPayload(array $data): array
+    {
+        if (array_key_exists('quotationId', $data)) {
+            $data['quotation_id'] = $data['quotationId'];
+            unset($data['quotationId']);
+        }
+
+        return $data;
+    }
+
+    private function convertedCustomerPayload(Lead $lead, array $data): array
+    {
+        $data = $this->normalizeKeys($data);
+
+        return array_merge([
+            'lead_id' => $lead->id,
+            'customer_name' => $lead->customer_name,
+            'phone' => $lead->phone,
+            'website' => $lead->website,
+            'industry' => $lead->industry,
+            'industry_option_id' => $lead->industry_option_id,
+            'source_option_id' => $lead->source_option_id,
+            'sales_user_id' => $lead->assigned_user_id,
+            'note' => $lead->note,
+        ], $data, [
+            'lead_id' => $lead->id,
+        ]);
+    }
+
+    private function convertedProjectPayload(Lead $lead, array $customer, ?\App\Models\Quotation $quotation, array $data): array
+    {
+        $data = $this->normalizeProjectKeys($data);
+        $serviceId = $data['service_id'] ?? $quotation?->service_id;
+
+        if (! $serviceId) {
+            throw new ConflictHttpException('Cần service_id hoặc quotation có service để tạo project');
+        }
+
+        return array_merge([
+            'customer_id' => $customer['id'],
+            'quotation_id' => $quotation?->id,
+            'service_id' => $serviceId,
+            'project_code' => $quotation?->quotation_code,
+            'project_name' => ($customer['customerName'] ?? $lead->customer_name).' - '.($quotation?->service_name ?? 'Dự án'),
+            'sales_user_id' => $lead->assigned_user_id,
+            'note' => $lead->note,
+        ], $data, [
+            'customer_id' => $customer['id'],
+            'quotation_id' => $quotation?->id,
+            'service_id' => $serviceId,
+            'project_code' => $quotation?->quotation_code ?? $data['project_code'] ?? null,
+        ]);
+    }
+
+    private function convertedContractPayload(Lead $lead, array $customer, array $project, ?\App\Models\Quotation $quotation, array $data): array
+    {
+        $data = $this->normalizeContractKeys($data);
+
+        return array_merge([
+            'project_id' => $project['id'],
+            'quotation_id' => $quotation?->id,
+            'lead_id' => $lead->id,
+            'customer_id' => $customer['id'],
+            'contract_no' => $quotation?->quotation_code ?? $project['projectCode'] ?? null,
+            'deposit_amount' => $quotation?->deposit_amount ?? 0,
+            'signed_date' => now()->toDateString(),
+            'note' => $quotation?->note ?? $lead->note,
+        ], $data, [
+            'project_id' => $project['id'],
+            'quotation_id' => $quotation?->id,
+            'lead_id' => $lead->id,
+            'customer_id' => $customer['id'],
+            'contract_no' => $quotation?->quotation_code ?? $data['contract_no'] ?? $project['projectCode'] ?? null,
+        ]);
+    }
+
+    private function normalizeProjectKeys(array $data): array
+    {
+        $map = [
+            'projectName' => 'project_name',
+            'serviceId' => 'service_id',
+            'managerUserId' => 'manager_user_id',
+            'salesUserId' => 'sales_user_id',
+            'startDate' => 'start_date',
+            'endDate' => 'end_date',
+        ];
+
+        foreach ($map as $from => $to) {
+            if (array_key_exists($from, $data)) {
+                $data[$to] = $data[$from];
+                unset($data[$from]);
+            }
+        }
+
+        return $data;
+    }
+
+    private function normalizeContractKeys(array $data): array
+    {
+        $map = [
+            'contractNo' => 'contract_no',
+            'depositAmount' => 'deposit_amount',
+            'signedDate' => 'signed_date',
+            'expiredDate' => 'expired_date',
+            'contractMonth' => 'contract_month',
+        ];
+
+        foreach ($map as $from => $to) {
+            if (array_key_exists($from, $data)) {
+                $data[$to] = $data[$from];
+                unset($data[$from]);
+            }
+        }
+
+        return $data;
+    }
+
     private function extractServiceOptionIds(array &$data): ?array
     {
         $hasArray = array_key_exists('interestedServiceOptionIds', $data) || array_key_exists('interested_service_option_ids', $data);
@@ -200,6 +367,27 @@ class LeadsService extends BaseService
     {
         return $this->leadTimelinePayload('update', 'Cập nhật lead', $lead, [
             'changes' => $changes,
+        ]);
+    }
+
+    private function buildConvertedTimelineContent(Lead $lead, array $customer, array $project, array $contract, ?string $quotationId): array
+    {
+        return $this->leadTimelinePayload('convert', 'Chuyển đổi lead', $lead, [
+            'quotationId' => $quotationId,
+            'customer' => [
+                'id' => $customer['id'] ?? null,
+                'code' => $customer['customerCode'] ?? null,
+                'customerName' => $customer['customerName'] ?? null,
+            ],
+            'project' => [
+                'id' => $project['id'] ?? null,
+                'code' => $project['projectCode'] ?? null,
+                'name' => $project['projectName'] ?? null,
+            ],
+            'contract' => [
+                'id' => $contract['id'] ?? null,
+                'contractNo' => $contract['contractNo'] ?? null,
+            ],
         ]);
     }
 

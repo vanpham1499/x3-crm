@@ -15,6 +15,8 @@ class CreateProjectRequest extends BaseRequest
             'projectCode' => ['nullable', 'string', 'max:100'],
             'customer_id' => ['required_without:customerId', 'uuid', Rule::exists('customers', 'id')->whereNull('deleted_at')],
             'customerId' => ['required_without:customer_id', 'uuid', Rule::exists('customers', 'id')->whereNull('deleted_at')],
+            'quotation_id' => ['nullable', 'uuid', Rule::exists('quotations', 'id')->whereNull('deleted_at')],
+            'quotationId' => ['nullable', 'uuid', Rule::exists('quotations', 'id')->whereNull('deleted_at')],
             'service_id' => ['required_without:serviceId', 'uuid', Rule::exists('services', 'id')->whereNull('deleted_at')],
             'serviceId' => ['required_without:service_id', 'uuid', Rule::exists('services', 'id')->whereNull('deleted_at')],
             'project_name' => ['required_without:projectName', 'string', 'max:255'],

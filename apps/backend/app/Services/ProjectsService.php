@@ -91,6 +91,7 @@ class ProjectsService extends BaseService
         $map = [
             'projectCode' => 'project_code',
             'customerId' => 'customer_id',
+            'quotationId' => 'quotation_id',
             'serviceId' => 'service_id',
             'projectName' => 'project_name',
             'statusId' => 'status_id',
@@ -115,7 +116,7 @@ class ProjectsService extends BaseService
 
     private function loadProjectRelations(Project $project): Project
     {
-        return $project->load(['customer', 'service', 'statusOption', 'managerUser', 'salesUser', 'timelines.createdBy']);
+        return $project->load(['customer', 'quotation', 'service', 'statusOption', 'managerUser', 'salesUser', 'timelines.createdBy']);
     }
 
     private function recordTimeline(Project $project, string $type, array $content): void
