@@ -2,6 +2,7 @@
 
 import { useEffect, useState } from 'react';
 import Link from 'next/link';
+import AccountBalanceRoundedIcon from '@mui/icons-material/AccountBalanceRounded';
 import CategoryRoundedIcon from '@mui/icons-material/CategoryRounded';
 import SaveRoundedIcon from '@mui/icons-material/SaveRounded';
 import { Button, LinearProgress, TextField } from '@mui/material';
@@ -125,20 +126,37 @@ export default function SettingsPage() {
           </div>
         </section>
 
-        <Link
-          href="/settings/options"
-          className="inline-flex min-h-24 items-center gap-4 self-start rounded-2xl border border-slate-200 bg-white p-5 shadow-sm transition hover:border-primary/30 hover:shadow-md"
-        >
-          <span className="inline-flex h-11 w-11 items-center justify-center rounded-xl bg-primary/10 text-primary">
-            <CategoryRoundedIcon />
-          </span>
-          <span>
-            <span className="block font-bold text-slate-950">Tùy chọn</span>
-            <span className="mt-1 block text-sm text-slate-500">
-              Quản lý option dùng chung cho các page.
+        <div className="space-y-4 self-start">
+          <Link
+            href="/settings/bank-accounts"
+            className="inline-flex min-h-24 w-full items-center gap-4 rounded-2xl border border-slate-200 bg-white p-5 shadow-sm transition hover:border-primary/30 hover:shadow-md"
+          >
+            <span className="inline-flex h-11 w-11 items-center justify-center rounded-xl bg-emerald-50 text-emerald-600">
+              <AccountBalanceRoundedIcon />
             </span>
-          </span>
-        </Link>
+            <span>
+              <span className="block font-bold text-slate-950">Tài khoản nhận tiền</span>
+              <span className="mt-1 block text-sm text-slate-500">
+                Lưu số tài khoản dùng để tạo VietQR trên báo giá.
+              </span>
+            </span>
+          </Link>
+
+          <Link
+            href="/settings/options"
+            className="inline-flex min-h-24 w-full items-center gap-4 rounded-2xl border border-slate-200 bg-white p-5 shadow-sm transition hover:border-primary/30 hover:shadow-md"
+          >
+            <span className="inline-flex h-11 w-11 items-center justify-center rounded-xl bg-primary/10 text-primary">
+              <CategoryRoundedIcon />
+            </span>
+            <span>
+              <span className="block font-bold text-slate-950">Tùy chọn</span>
+              <span className="mt-1 block text-sm text-slate-500">
+                Quản lý option dùng chung cho các page.
+              </span>
+            </span>
+          </Link>
+        </div>
       </div>
     </div>
   );

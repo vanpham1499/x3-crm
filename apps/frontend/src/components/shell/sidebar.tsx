@@ -17,6 +17,7 @@ import PaymentsTwoToneIcon from '@mui/icons-material/PaymentsTwoTone';
 import PeopleAltTwoToneIcon from '@mui/icons-material/PeopleAltTwoTone';
 import PersonSearchTwoToneIcon from '@mui/icons-material/PersonSearchTwoTone';
 import ReceiptLongTwoToneIcon from '@mui/icons-material/ReceiptLongTwoTone';
+import RequestQuoteTwoToneIcon from '@mui/icons-material/RequestQuoteTwoTone';
 import SettingsTwoToneIcon from '@mui/icons-material/SettingsTwoTone';
 import WorkTwoToneIcon from '@mui/icons-material/WorkTwoTone';
 import x3salesLogo from '@assets/logos/x3sales-logo.svg';
@@ -35,9 +36,9 @@ const navGroups = [
         children: [
           { href: '/projects/services', label: 'Dịch vụ' },
           { href: '/projects/partners', label: 'Đối tác' },
-          { href: '/projects/quotes', label: 'Báo giá' },
         ],
       },
+      { href: '/quotations', label: 'Báo giá', icon: RequestQuoteTwoToneIcon },
       { href: '/revenues', label: 'Doanh thu', icon: PaidTwoToneIcon },
       { href: '/payments', label: 'Thanh toán', icon: PaymentsTwoToneIcon },
       { href: '/invoices', label: 'Hóa đơn', icon: ReceiptLongTwoToneIcon },
@@ -59,6 +60,7 @@ const navGroups = [
         label: 'Cài đặt',
         icon: SettingsTwoToneIcon,
         children: [
+          { href: '/settings/bank-accounts', label: 'Tài khoản nhận tiền' },
           { href: '/settings/options', label: 'Tùy chọn' },
         ],
       },

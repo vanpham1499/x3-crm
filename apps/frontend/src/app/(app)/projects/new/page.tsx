@@ -11,6 +11,7 @@ import api from '@/services/api/client';
 import type { Customer } from '@/types/customer';
 import type { AppOption } from '@/types/option';
 import type { ProjectFormValues, ProjectItem } from '@/types/project';
+import type { Quotation } from '@/types/quotation';
 import type { ServiceItem } from '@/types/service';
 import type { User } from '@/types/user';
 
@@ -20,6 +21,7 @@ export default function NewProjectPage() {
   const queryClient = useQueryClient();
   const notify = useAppNotification();
   const customerId = searchParams.get('customerId') || '';
+  const quotationId = searchParams.get('quotationId') || '';
 
   const { data: customers = [], isLoading: isCustomersLoading } = useQuery<Customer[]>({
     queryKey: ['customers', 'project-form-options'],
@@ -46,6 +48,27 @@ export default function NewProjectPage() {
   const statuses = projectOptions.filter((option) => option.group === 'project_status');
   const contractStatuses = projectOptions.filter((option) => option.group === 'contract_status');
 
+  const { data: quotation, isLoading: isQuotationLoading } = useQuery<Quotation>({
+    queryKey: ['quotations', quotationId, 'project-create'],
+    queryFn: () => api.get(`/quotations/${quotationId}`).then((response) => response.data),
+    enabled: Boolean(quotationId),
+  });
+
+  const quotationMetadata = quotation?.metadata || {};
+  const defaultValues: Partial<ProjectFormValues> = {
+    customerId: customerId || quotation?.customerId || '',
+    quotationId,
+    serviceId: quotation?.serviceId || '',
+    projectName:
+      typeof quotationMetadata.projectName === 'string' && quotationMetadata.projectName
+        ? quotationMetadata.projectName
+        : quotation?.serviceName || '',
+    depositAmount:
+      quotation?.depositAmount !== undefined && quotation?.depositAmount !== null
+        ? String(quotation.depositAmount)
+        : '',
+  };
+
   const createMutation = useMutation({
     mutationFn: (values: ProjectFormValues) =>
       api.post<ProjectItem>('/projects', toProjectPayload(values)).then((response) => response.data),
@@ -59,7 +82,7 @@ export default function NewProjectPage() {
     },
   });
 
-  if (isCustomersLoading || isServicesLoading || isUsersLoading || isStatusesLoading) {
+  if (isCustomersLoading || isServicesLoading || isUsersLoading || isStatusesLoading || isQuotationLoading) {
     return <ContentLoading />;
   }
 
@@ -83,7 +106,7 @@ export default function NewProjectPage() {
         users={users}
         statuses={statuses}
         contractStatuses={contractStatuses}
-        defaultValues={{ customerId }}
+        defaultValues={defaultValues}
         isSubmitting={createMutation.isPending}
         onSubmit={(values) => createMutation.mutate(values)}
       />

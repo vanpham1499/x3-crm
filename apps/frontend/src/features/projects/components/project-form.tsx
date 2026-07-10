@@ -127,6 +127,7 @@ export function ProjectForm({
 
   return (
     <form className="w-full space-y-8" onSubmit={handleSubmit(onSubmit)}>
+      <input type="hidden" {...register('quotationId')} />
       <div className="grid w-full items-start gap-6 xl:grid-cols-12">
         <div className="space-y-6 xl:col-span-8">
           <FormSection
