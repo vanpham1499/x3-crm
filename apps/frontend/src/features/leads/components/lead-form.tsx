@@ -37,7 +37,7 @@ function FormSection({
         <h2 className="text-lg font-bold text-slate-950">{title}</h2>
         <p className="mt-1 text-sm text-slate-500">{description}</p>
       </div>
-      <div className="space-y-6 p-6">{children}</div>
+      <div className="space-y-5 p-6">{children}</div>
     </section>
   );
 }

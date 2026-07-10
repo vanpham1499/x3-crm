@@ -1,0 +1,71 @@
+import type { Customer } from '@/types/customer';
+import type { Lead } from '@/types/lead';
+import type { ProjectItem } from '@/types/project';
+import type { ServiceItem } from '@/types/service';
+
+export type QuotationStatus = 'draft' | 'sent' | 'won' | 'lost';
+
+export type QuotationItem = {
+  id?: string;
+  quotationId?: string;
+  serviceId?: string | null;
+  itemCode?: string | null;
+  itemName: string;
+  description?: string | null;
+  quantity?: string | number | null;
+  unitPrice?: string | number | null;
+  amountBeforeVat?: string | number | null;
+  vatRate?: string | number | null;
+  vatAmount?: string | number | null;
+  amountAfterVat?: string | number | null;
+  sortOrder?: number | null;
+  metadata?: Record<string, unknown> | null;
+  service?: ServiceItem | null;
+};
+
+export type Quotation = {
+  id: string;
+  quotationCode?: string | null;
+  leadId?: string | null;
+  customerId?: string | null;
+  projectId?: string | null;
+  contractId?: string | null;
+  serviceId?: string | null;
+  serviceCode?: string | null;
+  serviceName?: string | null;
+  status?: QuotationStatus | string | null;
+  subtotalAmount?: string | number | null;
+  vatRate?: string | number | null;
+  vatAmount?: string | number | null;
+  totalAmount?: string | number | null;
+  depositAmount?: string | number | null;
+  validUntil?: string | null;
+  note?: string | null;
+  metadata?: Record<string, unknown> | null;
+  lead?: Pick<Lead, 'id' | 'leadCode' | 'customerName'> | null;
+  customer?: Pick<Customer, 'id' | 'customerCode' | 'customerName'> | null;
+  project?: Pick<ProjectItem, 'id' | 'projectCode' | 'projectName'> | null;
+  contract?: {
+    id: string;
+    contractNo?: string | null;
+  } | null;
+  service?: ServiceItem | null;
+  items?: QuotationItem[];
+  createdAt?: string;
+  updatedAt?: string;
+};
+
+export type QuotationFilters = {
+  keyword: string;
+  status: string;
+};
+
+export type QuotationLineFormValue = {
+  id: string;
+  name: string;
+  unit: string;
+  quantity: string;
+  unitPrice: string;
+  locked?: boolean;
+};
+

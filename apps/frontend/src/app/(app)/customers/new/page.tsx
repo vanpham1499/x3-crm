@@ -12,6 +12,7 @@ import api from '@/services/api/client';
 import type { Customer, CustomerFormValues } from '@/types/customer';
 import type { Lead } from '@/types/lead';
 import type { AppOption } from '@/types/option';
+import type { Quotation } from '@/types/quotation';
 import type { ServiceItem } from '@/types/service';
 import type { User } from '@/types/user';
 
@@ -60,6 +61,13 @@ export default function NewCustomerPage() {
       api.get('/customers', { params: { lead_id: leadId } }).then((response) => response.data),
     enabled: Boolean(leadId),
     retry: false,
+  });
+
+  const { data: leadQuotations = [] } = useQuery<Quotation[]>({
+    queryKey: ['quotations', 'by-lead', leadId],
+    queryFn: () =>
+      api.get('/quotations', { params: { lead_id: leadId } }).then((response) => response.data),
+    enabled: Boolean(leadId),
   });
 
   const customerTypes = options.filter((option) => option.group === 'customer_type');
@@ -113,7 +121,14 @@ export default function NewCustomerPage() {
       queryClient.invalidateQueries({ queryKey: ['customers'] });
       queryClient.invalidateQueries({ queryKey: ['leads'] });
       notify.success('Tạo khách hàng thành công');
-      router.push(`/projects/new?customerId=${customer.id}`);
+      const quotationId = leadQuotations[0]?.id;
+      const params = new URLSearchParams({ customerId: customer.id });
+
+      if (quotationId) {
+        params.set('quotationId', quotationId);
+      }
+
+      router.push(`/projects/new?${params.toString()}`);
     },
     onError: (error) => {
       notify.error(getApiErrorMessage(error, 'Tạo khách hàng thất bại'));

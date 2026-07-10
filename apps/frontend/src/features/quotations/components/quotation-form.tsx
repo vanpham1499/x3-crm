@@ -1,0 +1,638 @@
+'use client';
+
+import { useEffect, useMemo, useState } from 'react';
+import Link from 'next/link';
+import AddRoundedIcon from '@mui/icons-material/AddRounded';
+import DeleteRoundedIcon from '@mui/icons-material/DeleteRounded';
+import SaveRoundedIcon from '@mui/icons-material/SaveRounded';
+import { Autocomplete, Button, IconButton, MenuItem, TextField } from '@mui/material';
+import { MoneyInput } from '@/components/form/money-input';
+import {
+  getCompanyBankAccounts,
+  getDefaultCompanyBankAccount,
+} from '@/lib/company-bank-account-options';
+import {
+  SERVICE_QUOTE_CONFIG_GROUP,
+  calculateManagementFee,
+  getConfigForRoot,
+  getServiceQuoteConfigMeta,
+} from '@/lib/service-quote-config';
+import { flattenServices } from '@/lib/service-utils';
+import type { AppOption } from '@/types/option';
+import type { Customer } from '@/types/customer';
+import type { Lead } from '@/types/lead';
+import type { ProjectItem } from '@/types/project';
+import type { Quotation, QuotationLineFormValue, QuotationStatus } from '@/types/quotation';
+import type { ServiceItem } from '@/types/service';
+
+type QuoteCustomerMode = 'new_customer' | 'existing_customer';
+type QuoteProjectMode = 'new_project' | 'existing_project';
+
+type QuotationFormProps = {
+  mode: 'create' | 'edit';
+  quotation?: Quotation | null;
+  leads: Lead[];
+  customers: Customer[];
+  projects: ProjectItem[];
+  services: ServiceItem[];
+  quoteConfigs: AppOption[];
+  bankAccountOptions: AppOption[];
+  isSubmitting: boolean;
+  onSubmit: (payload: Record<string, unknown>) => void;
+};
+
+function formatMoney(value: string | number | null | undefined) {
+  return new Intl.NumberFormat('vi-VN').format(Math.round(Number(value) || 0));
+}
+
+function formatCurrency(value: string | number | null | undefined) {
+  return `${formatMoney(value)} đ`;
+}
+
+function toNumber(value: string | number | null | undefined) {
+  return Number(String(value ?? '').replace(/[^\d.-]/g, '')) || 0;
+}
+
+function createQuoteLineId() {
+  return `quote-line-${Date.now()}-${Math.random().toString(36).slice(2, 8)}`;
+}
+
+function findRootService(services: ServiceItem[], serviceId: string): ServiceItem | null {
+  const flatServices = flattenServices(services);
+  const selected = flatServices.find((service) => service.id === serviceId);
+
+  if (!selected) return null;
+  if (!selected.parentId) return selected;
+
+  return flatServices.find((service) => selected.pathName.startsWith(`${service.name} /`)) || null;
+}
+
+function getMetadataValue(metadata: Record<string, unknown> | null | undefined, key: string) {
+  const value = metadata?.[key];
+  return typeof value === 'string' || typeof value === 'number' ? String(value) : '';
+}
+
+function getLineUnit(line: { metadata?: Record<string, unknown> | null }) {
+  const unit = line.metadata?.unit;
+  return typeof unit === 'string' && unit ? unit : 'Dịch vụ';
+}
+
+export function QuotationForm({
+  mode,
+  quotation,
+  leads,
+  customers,
+  projects,
+  services,
+  quoteConfigs,
+  bankAccountOptions,
+  isSubmitting,
+  onSubmit,
+}: QuotationFormProps) {
+  const [customerMode, setCustomerMode] = useState<QuoteCustomerMode>('new_customer');
+  const [projectMode, setProjectMode] = useState<QuoteProjectMode>('new_project');
+  const [leadId, setLeadId] = useState('');
+  const [customerId, setCustomerId] = useState('');
+  const [projectId, setProjectId] = useState('');
+  const [customerName, setCustomerName] = useState('');
+  const [projectName, setProjectName] = useState('');
+  const [duration, setDuration] = useState('1 tháng');
+  const [status, setStatus] = useState<QuotationStatus>('draft');
+  const [vatRate, setVatRate] = useState('0');
+  const [validUntil, setValidUntil] = useState('');
+  const [note, setNote] = useState('');
+  const [selectedServiceId, setSelectedServiceId] = useState('');
+  const [selectedBankAccountId, setSelectedBankAccountId] = useState('');
+  const [setupPackageKey, setSetupPackageKey] = useState('basic');
+  const [budget, setBudget] = useState('0');
+  const [manualLines, setManualLines] = useState<QuotationLineFormValue[]>([
+    { id: 'quote-line-1', name: '', unit: 'Dịch vụ', quantity: '1', unitPrice: '0' },
+  ]);
+
+  const serviceOptions = useMemo(() => flattenServices(services), [services]);
+  const bankAccounts = useMemo(
+    () => getCompanyBankAccounts(bankAccountOptions),
+    [bankAccountOptions],
+  );
+  const selectedLead = leads.find((lead) => lead.id === leadId) || null;
+  const selectedCustomer = customers.find((customer) => customer.id === customerId) || null;
+  const selectedProject = projects.find((project) => project.id === projectId) || null;
+  const selectedService = serviceOptions.find((service) => service.id === selectedServiceId) || null;
+  const selectedBankAccount =
+    bankAccounts.find((account) => account.id === selectedBankAccountId) ||
+    getDefaultCompanyBankAccount(bankAccountOptions);
+  const rootService = useMemo(
+    () => findRootService(services, selectedServiceId),
+    [selectedServiceId, services],
+  );
+  const rootConfigOption = getConfigForRoot(quoteConfigs, rootService);
+  const rootConfig = rootConfigOption ? getServiceQuoteConfigMeta(rootConfigOption, rootService) : null;
+  const canUseAutoQuote = Boolean(rootConfig?.enabled);
+  const setupPackage =
+    rootConfig?.setupPackages.find((item) => item.key === setupPackageKey) ||
+    rootConfig?.setupPackages[0] ||
+    null;
+  const managementFee = rootConfig
+    ? calculateManagementFee({
+        budget: toNumber(budget),
+        channelMode: 'single',
+        rates: rootConfig.managementFeeRates,
+      })
+    : null;
+
+  const autoLines: QuotationLineFormValue[] = canUseAutoQuote
+    ? [
+        { id: 'auto-budget', name: 'Ngân sách', unit: 'Tháng', quantity: '1', unitPrice: budget, locked: true },
+        {
+          id: 'auto-management-fee',
+          name: `Phí quản lý (${managementFee?.percent || 0}%)`,
+          unit: 'Dịch vụ',
+          quantity: '1',
+          unitPrice: String(managementFee?.amount || 0),
+          locked: true,
+        },
+        {
+          id: 'auto-setup-fee',
+          name: `Phí Setup${setupPackage ? ` - ${setupPackage.label}` : ''}`,
+          unit: 'Lần',
+          quantity: '1',
+          unitPrice: String(setupPackage?.price || 0),
+          locked: true,
+        },
+      ]
+    : [];
+
+  const quoteLines = [...autoLines, ...manualLines].map((line, index) => {
+    const amount = toNumber(line.quantity) * toNumber(line.unitPrice);
+    return { ...line, no: index + 1, amount };
+  });
+  const subtotal = quoteLines.reduce((sum, line) => sum + line.amount, 0);
+  const vatAmount = Math.round((subtotal * toNumber(vatRate)) / 100);
+  const total = subtotal + vatAmount;
+  const paymentContent = quotation?.quotationCode || '';
+  const missingRequiredLead = mode === 'create' && !leadId;
+
+  useEffect(() => {
+    if (!quotation) return;
+
+    const metadata = quotation.metadata || {};
+    const nextCustomerMode =
+      getMetadataValue(metadata, 'customerMode') === 'existing_customer' || quotation.customerId
+        ? 'existing_customer'
+        : 'new_customer';
+    const nextProjectMode =
+      getMetadataValue(metadata, 'projectMode') === 'existing_project' || quotation.projectId
+        ? 'existing_project'
+        : 'new_project';
+
+    setCustomerMode(nextCustomerMode);
+    setProjectMode(nextProjectMode);
+    setLeadId(quotation.leadId || '');
+    setCustomerId(quotation.customerId || '');
+    setProjectId(quotation.projectId || '');
+    setCustomerName(
+      getMetadataValue(metadata, 'customerName') ||
+        quotation.lead?.customerName ||
+        quotation.customer?.customerName ||
+        '',
+    );
+    setProjectName(getMetadataValue(metadata, 'projectName') || quotation.project?.projectName || '');
+    setDuration(getMetadataValue(metadata, 'duration') || '1 tháng');
+    setStatus((quotation.status as QuotationStatus) || 'draft');
+    setVatRate(String(quotation.vatRate ?? '0'));
+    setValidUntil(quotation.validUntil || '');
+    setNote(quotation.note || '');
+    setSelectedServiceId(quotation.serviceId || '');
+    setBudget(getMetadataValue(metadata, 'budget') || '0');
+    setSetupPackageKey(getMetadataValue(metadata, 'setupPackageKey') || 'basic');
+    setSelectedBankAccountId(getMetadataValue(metadata, 'bankAccountOptionId'));
+
+    const nextManualLines =
+      quotation.items
+        ?.filter((item) => item.metadata?.locked !== true)
+        .map((item) => ({
+          id: item.id || createQuoteLineId(),
+          name: item.itemName || '',
+          unit: getLineUnit(item),
+          quantity: String(item.quantity ?? '1'),
+          unitPrice: String(item.unitPrice ?? '0'),
+        })) || [];
+
+    setManualLines(
+      nextManualLines.length > 0
+        ? nextManualLines
+        : [{ id: 'quote-line-1', name: '', unit: 'Dịch vụ', quantity: '1', unitPrice: '0' }],
+    );
+  }, [quotation]);
+
+  useEffect(() => {
+    if (selectedBankAccountId || bankAccounts.length === 0) return;
+    setSelectedBankAccountId(
+      getDefaultCompanyBankAccount(bankAccountOptions)?.id || bankAccounts[0]?.id || '',
+    );
+  }, [bankAccountOptions, bankAccounts, selectedBankAccountId]);
+
+  useEffect(() => {
+    if (customerName || !selectedLead) return;
+    setCustomerName(selectedLead.customerName || '');
+  }, [customerName, selectedLead]);
+
+  useEffect(() => {
+    if (mode !== 'create' || customerMode !== 'new_customer' || !selectedLead) return;
+    setCustomerName(selectedLead.customerName || '');
+    setCustomerId('');
+    setProjectId('');
+  }, [customerMode, mode, selectedLead]);
+
+  useEffect(() => {
+    if (mode !== 'create' || customerMode !== 'existing_customer' || !selectedCustomer) return;
+    setLeadId(selectedCustomer.leadId || '');
+    setCustomerName(selectedCustomer.customerName || selectedCustomer.companyName || '');
+  }, [customerMode, mode, selectedCustomer]);
+
+  useEffect(() => {
+    if (mode !== 'create' || customerMode !== 'existing_customer' || projectMode !== 'existing_project' || !selectedProject) return;
+
+    setProjectName(selectedProject.projectName || '');
+    setCustomerId(selectedProject.customerId || '');
+    setCustomerName(
+      selectedProject.customer?.customerName ||
+        selectedProject.customer?.companyName ||
+        selectedProject.projectName ||
+        '',
+    );
+    setLeadId(selectedProject.customer?.leadId || '');
+    setSelectedServiceId(selectedProject.serviceId || '');
+  }, [customerMode, mode, projectMode, selectedProject]);
+
+  const updateLine = (lineId: string, values: Partial<QuotationLineFormValue>) => {
+    setManualLines((current) =>
+      current.map((line) => (line.id === lineId ? { ...line, ...values } : line)),
+    );
+  };
+
+  const addLine = () => {
+    setManualLines((current) => [
+      ...current,
+      { id: createQuoteLineId(), name: '', unit: 'Dịch vụ', quantity: '1', unitPrice: '0' },
+    ]);
+  };
+
+  const deleteLine = (lineId: string) => {
+    setManualLines((current) => {
+      if (current.length === 1) return current;
+      return current.filter((line) => line.id !== lineId);
+    });
+  };
+
+  const submitForm = () => {
+    const payload: Record<string, unknown> = {
+      quotationCode: quotation?.quotationCode || undefined,
+      serviceId: selectedServiceId || null,
+      serviceCode: selectedService?.code || null,
+      serviceName: selectedService?.name || null,
+      status,
+      subtotalAmount: subtotal,
+      vatRate: toNumber(vatRate),
+      vatAmount,
+      totalAmount: total,
+      depositAmount: total,
+      validUntil: validUntil || null,
+      note: note.trim() || null,
+      metadata: {
+        customerMode,
+        projectMode: customerMode === 'existing_customer' ? projectMode : 'new_project',
+        customerName,
+        projectName,
+        duration,
+        budget,
+        setupPackageKey,
+        bankAccountOptionId: selectedBankAccount?.id || null,
+        bankCode: selectedBankAccount?.bankCode || null,
+        bankAccountNo: selectedBankAccount?.accountNo || null,
+        bankAccountName: selectedBankAccount?.accountName || null,
+        bankName: selectedBankAccount?.bankName || null,
+        bankBranch: selectedBankAccount?.branch || null,
+        paymentContent: paymentContent || null,
+        serviceQuoteConfigGroup: SERVICE_QUOTE_CONFIG_GROUP,
+      },
+      items: quoteLines
+        .filter((line) => line.name.trim())
+        .map((line, index) => ({
+          serviceId: selectedServiceId || null,
+          service_id: selectedServiceId || null,
+          itemCode: line.id.startsWith('auto-') ? line.id : null,
+          item_code: line.id.startsWith('auto-') ? line.id : null,
+          itemName: line.name.trim(),
+          item_name: line.name.trim(),
+          quantity: toNumber(line.quantity),
+          unitPrice: toNumber(line.unitPrice),
+          unit_price: toNumber(line.unitPrice),
+          amountBeforeVat: line.amount,
+          amount_before_vat: line.amount,
+          vatRate: 0,
+          vat_rate: 0,
+          vatAmount: 0,
+          vat_amount: 0,
+          amountAfterVat: line.amount,
+          amount_after_vat: line.amount,
+          sortOrder: index * 10,
+          sort_order: index * 10,
+          metadata: {
+            unit: line.unit,
+            locked: Boolean(line.locked),
+          },
+        })),
+    };
+
+    if (mode === 'create') {
+      payload.leadId = leadId;
+      payload.lead_id = leadId;
+      payload.customerId = customerMode === 'existing_customer' ? customerId || null : null;
+      payload.customer_id = customerMode === 'existing_customer' ? customerId || null : null;
+      payload.projectId =
+        customerMode === 'existing_customer' && projectMode === 'existing_project'
+          ? projectId || null
+          : null;
+      payload.project_id =
+        customerMode === 'existing_customer' && projectMode === 'existing_project'
+          ? projectId || null
+          : null;
+    }
+
+    onSubmit(payload);
+  };
+
+  return (
+    <div className="min-h-[calc(100vh-72px)] bg-slate-50/60 p-6">
+      <div className="mb-8 flex flex-col gap-4 sm:flex-row sm:items-center sm:justify-between">
+        <div>
+          <h1 className="text-2xl font-bold text-slate-950">
+            {mode === 'edit' ? 'Chỉnh sửa báo giá' : 'Thêm báo giá'}
+          </h1>
+          <div className="mt-2 flex items-center gap-2 text-sm text-slate-500">
+            <span>Dashboard</span>
+            <span className="h-1 w-1 rounded-full bg-slate-300" />
+            <span>Báo giá</span>
+            <span className="h-1 w-1 rounded-full bg-slate-300" />
+            <span className="text-slate-950">{mode === 'edit' ? 'Chỉnh sửa' : 'Thêm mới'}</span>
+          </div>
+        </div>
+
+        <Button component={Link} href="/quotations" variant="outlined">
+          Quay lại
+        </Button>
+      </div>
+
+      <div className="grid gap-6 xl:grid-cols-12">
+        <section className="rounded-2xl border border-slate-200 bg-white shadow-sm xl:col-span-5">
+          <div className="border-b border-slate-200 px-6 py-5">
+            <h2 className="text-lg font-bold text-slate-950">Thông tin báo giá</h2>
+          </div>
+
+          <div className="space-y-4 p-6">
+            <div className="grid gap-4 md:grid-cols-2">
+              <TextField
+                select
+                fullWidth
+                label="Loại khách hàng"
+                value={customerMode}
+                disabled={mode === 'edit'}
+                onChange={(event) => {
+                  const nextMode = event.target.value as QuoteCustomerMode;
+                  setCustomerMode(nextMode);
+                  setLeadId('');
+                  setCustomerId('');
+                  setProjectId('');
+                  setCustomerName('');
+                  setProjectName('');
+                  setProjectMode('new_project');
+                }}
+              >
+                <MenuItem value="new_customer">Khách hàng mới</MenuItem>
+                <MenuItem value="existing_customer">Khách hàng cũ</MenuItem>
+              </TextField>
+
+              {customerMode === 'new_customer' ? (
+                <Autocomplete
+                  options={leads}
+                  value={selectedLead}
+                  disabled={mode === 'edit'}
+                  onChange={(_, value) => {
+                    setLeadId(value?.id || '');
+                    setCustomerName(value?.customerName || '');
+                  }}
+                  getOptionLabel={(option) => `${option.leadCode || ''} - ${option.customerName || ''}`}
+                  isOptionEqualToValue={(option, value) => option.id === value.id}
+                  renderInput={(params) => <TextField {...params} required label="Lead" />}
+                />
+              ) : (
+                <>
+                  <TextField
+                    select
+                    fullWidth
+                    label="Loại dự án"
+                    value={projectMode}
+                    disabled={mode === 'edit'}
+                    onChange={(event) => {
+                      const nextMode = event.target.value as QuoteProjectMode;
+                      setProjectMode(nextMode);
+                      setProjectId('');
+                      if (nextMode === 'new_project') setProjectName('');
+                    }}
+                  >
+                    <MenuItem value="new_project">Dự án mới</MenuItem>
+                    <MenuItem value="existing_project">Dự án cũ</MenuItem>
+                  </TextField>
+
+                  {projectMode === 'existing_project' ? (
+                    <Autocomplete
+                      className="md:col-span-2"
+                      options={projects}
+                      value={selectedProject}
+                      disabled={mode === 'edit'}
+                      onChange={(_, value) => {
+                        setProjectId(value?.id || '');
+                        setProjectName(value?.projectName || '');
+                        setCustomerId(value?.customerId || '');
+                        setCustomerName(value?.customer?.customerName || value?.customer?.companyName || '');
+                        setLeadId(value?.customer?.leadId || '');
+                        setSelectedServiceId(value?.serviceId || '');
+                      }}
+                      getOptionLabel={(option) =>
+                        `${option.projectCode || ''} - ${option.customer?.customerName || option.projectName || ''}`
+                      }
+                      isOptionEqualToValue={(option, value) => option.id === value.id}
+                      renderInput={(params) => <TextField {...params} required label="Dự án cũ" />}
+                    />
+                  ) : (
+                    <Autocomplete
+                      className="md:col-span-2"
+                      options={customers}
+                      value={selectedCustomer}
+                      disabled={mode === 'edit'}
+                      onChange={(_, value) => {
+                        setCustomerId(value?.id || '');
+                        setLeadId(value?.leadId || '');
+                        setCustomerName(value?.customerName || value?.companyName || '');
+                      }}
+                      getOptionLabel={(option) => `${option.customerCode || ''} - ${option.customerName || ''}`}
+                      isOptionEqualToValue={(option, value) => option.id === value.id}
+                      renderInput={(params) => <TextField {...params} required label="Khách hàng" />}
+                    />
+                  )}
+                </>
+              )}
+
+              <TextField
+                fullWidth
+                label="Khách hàng"
+                value={customerName}
+                disabled={customerMode === 'existing_customer'}
+                onChange={(event) => setCustomerName(event.target.value)}
+              />
+              <TextField
+                fullWidth
+                label="Tên dự án"
+                value={projectName}
+                disabled={customerMode === 'existing_customer' && projectMode === 'existing_project'}
+                onChange={(event) => setProjectName(event.target.value)}
+              />
+            </div>
+
+            <div className="grid gap-4 md:grid-cols-2">
+              <TextField fullWidth label="Thời gian" value={duration} onChange={(event) => setDuration(event.target.value)} />
+              <TextField select fullWidth label="Trạng thái" value={status} onChange={(event) => setStatus(event.target.value as QuotationStatus)}>
+                <MenuItem value="draft">Nháp</MenuItem>
+                <MenuItem value="sent">Đã gửi</MenuItem>
+                <MenuItem value="won">Thắng</MenuItem>
+                <MenuItem value="lost">Thua</MenuItem>
+              </TextField>
+              <TextField fullWidth type="date" label="Hiệu lực đến" value={validUntil} onChange={(event) => setValidUntil(event.target.value)} slotProps={{ inputLabel: { shrink: true } }} />
+              <TextField fullWidth label="VAT (%)" value={vatRate} onChange={(event) => setVatRate(event.target.value)} />
+            </div>
+
+            <div className="grid gap-4 md:grid-cols-2">
+              <Autocomplete
+                className="md:col-span-2"
+                options={serviceOptions}
+                value={selectedService}
+                onChange={(_, value) => setSelectedServiceId(value?.id || '')}
+                getOptionLabel={(option) => `${option.code} - ${option.pathName}`}
+                isOptionEqualToValue={(option, value) => option.id === value.id}
+                renderInput={(params) => <TextField {...params} label="Dịch vụ" />}
+              />
+              {canUseAutoQuote && (
+                <>
+                  <MoneyInput fullWidth label="Ngân sách" value={budget} onValueChange={setBudget} />
+                  <TextField select fullWidth label="Gói setup" value={setupPackageKey} onChange={(event) => setSetupPackageKey(event.target.value)}>
+                    {(rootConfig?.setupPackages || []).map((item) => (
+                      <MenuItem key={item.key} value={item.key}>
+                        {item.label} - {formatCurrency(item.price)}
+                      </MenuItem>
+                    ))}
+                  </TextField>
+                </>
+              )}
+            </div>
+
+            <TextField fullWidth multiline minRows={3} label="Ghi chú" value={note} onChange={(event) => setNote(event.target.value)} />
+
+            <Autocomplete
+              options={bankAccounts}
+              value={selectedBankAccount}
+              onChange={(_, value) => setSelectedBankAccountId(value?.id || '')}
+              getOptionLabel={(option) =>
+                `${option.bankCode} - ${option.accountNo} - ${option.accountName}`
+              }
+              isOptionEqualToValue={(option, value) => option.id === value.id}
+              noOptionsText="Chưa có tài khoản nhận tiền"
+              renderInput={(params) => <TextField {...params} label="Tài khoản nhận tiền" />}
+            />
+          </div>
+        </section>
+
+        <section className="overflow-hidden rounded-2xl border border-slate-200 bg-white shadow-sm xl:col-span-7">
+          <div className="flex items-center justify-between border-b border-slate-200 px-6 py-5">
+            <div>
+              <h2 className="text-lg font-bold text-slate-950">Dòng báo giá</h2>
+              <p className="mt-1 text-sm text-slate-500">Dòng tự động nằm trước, dòng thủ công nằm sau.</p>
+            </div>
+            <Button variant="contained" startIcon={<AddRoundedIcon />} onClick={addLine} className="!bg-slate-900 hover:!bg-slate-800">
+              Thêm dòng
+            </Button>
+          </div>
+
+          <div className="space-y-4 p-6">
+            {manualLines.map((line) => (
+              <div key={line.id}>
+                <div className="grid items-start gap-3 xl:grid-cols-[minmax(0,1.7fr)_110px_90px_140px_38px]">
+                  <TextField fullWidth label="Nội dung" size="small" value={line.name} onChange={(event) => updateLine(line.id, { name: event.target.value })} />
+                  <TextField fullWidth label="ĐVT" size="small" value={line.unit} onChange={(event) => updateLine(line.id, { unit: event.target.value })} />
+                  <TextField fullWidth label="Số lần" size="small" value={line.quantity} onChange={(event) => updateLine(line.id, { quantity: event.target.value })} />
+                  <MoneyInput fullWidth label="Đơn giá" size="small" value={line.unitPrice} onValueChange={(value) => updateLine(line.id, { unitPrice: value })} />
+                  <IconButton size="small" color="error" disabled={manualLines.length === 1} onClick={() => deleteLine(line.id)} title="Xóa dòng" className="!mt-1">
+                    <DeleteRoundedIcon fontSize="small" />
+                  </IconButton>
+                </div>
+              </div>
+            ))}
+
+            <div className="overflow-hidden rounded-xl border border-slate-200">
+              <table className="w-full min-w-[760px] text-left text-sm">
+                <thead className="bg-slate-50 text-xs font-bold uppercase text-slate-500">
+                  <tr>
+                    <th className="w-16 px-4 py-3">STT</th>
+                    <th className="px-4 py-3">Nội dung</th>
+                    <th className="w-28 px-4 py-3">ĐVT</th>
+                    <th className="w-24 px-4 py-3 text-right">Số lần</th>
+                    <th className="w-40 px-4 py-3 text-right">Đơn giá</th>
+                    <th className="w-40 px-4 py-3 text-right">Thành tiền</th>
+                  </tr>
+                </thead>
+                <tbody className="divide-y divide-slate-100">
+                  {quoteLines.map((line) => (
+                    <tr key={line.id} className={line.locked ? 'bg-emerald-50/30' : undefined}>
+                      <td className="px-4 py-3 font-bold text-slate-950">{line.no}</td>
+                      <td className="px-4 py-3 text-slate-700">{line.name || '-'}</td>
+                      <td className="px-4 py-3 text-slate-600">{line.unit || '-'}</td>
+                      <td className="px-4 py-3 text-right text-slate-600">{formatMoney(line.quantity)}</td>
+                      <td className="px-4 py-3 text-right text-slate-700">{formatCurrency(line.unitPrice)}</td>
+                      <td className="px-4 py-3 text-right font-bold text-slate-950">{formatCurrency(line.amount)}</td>
+                    </tr>
+                  ))}
+                </tbody>
+                <tfoot className="bg-slate-50 text-sm">
+                  <tr>
+                    <td colSpan={5} className="px-4 py-3 text-right font-bold text-slate-700">Tổng trước thuế</td>
+                    <td className="px-4 py-3 text-right font-extrabold text-slate-950">{formatCurrency(subtotal)}</td>
+                  </tr>
+                  <tr>
+                    <td colSpan={5} className="px-4 py-3 text-right font-bold text-slate-700">VAT {toNumber(vatRate)}%</td>
+                    <td className="px-4 py-3 text-right font-extrabold text-slate-950">{formatCurrency(vatAmount)}</td>
+                  </tr>
+                  <tr>
+                    <td colSpan={5} className="px-4 py-4 text-right font-extrabold text-slate-950">Tổng thanh toán</td>
+                    <td className="px-4 py-4 text-right text-lg font-extrabold text-emerald-700">{formatCurrency(total)}</td>
+                  </tr>
+                </tfoot>
+              </table>
+            </div>
+
+            <div className="flex justify-end">
+              <Button
+                variant="contained"
+                startIcon={<SaveRoundedIcon />}
+                disabled={isSubmitting || missingRequiredLead}
+                onClick={submitForm}
+                className="!bg-slate-900 hover:!bg-slate-800"
+              >
+                {isSubmitting ? 'Đang lưu...' : 'Lưu báo giá'}
+              </Button>
+            </div>
+          </div>
+        </section>
+      </div>
+    </div>
+  );
+}

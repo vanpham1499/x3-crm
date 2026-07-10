@@ -1,5 +1,5 @@
-import { QuoteBuilder } from '@/features/quotes/components/quote-builder';
+import { redirect } from 'next/navigation';
 
 export default function ProjectQuotesPage() {
-  return <QuoteBuilder />;
+  redirect('/quotations');
 }

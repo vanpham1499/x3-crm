@@ -374,12 +374,11 @@ function QuoteConfigDialog({
             <p className="font-bold text-slate-950">% phí quản lý theo ngân sách</p>
           </div>
           <div className="overflow-x-auto">
-            <table className="w-full min-w-[760px] text-left text-sm">
+            <table className="w-full min-w-[560px] text-left text-sm">
               <thead className="bg-white text-xs font-bold uppercase text-slate-500">
                 <tr>
                   <th className="px-4 py-3">Ngân sách</th>
                   <th className="w-40 px-4 py-3">Đơn kênh (%)</th>
-                  <th className="w-40 px-4 py-3">Đa kênh (%)</th>
                 </tr>
               </thead>
               <tbody className="divide-y divide-slate-100">
@@ -393,15 +392,6 @@ function QuoteConfigDialog({
                         type="number"
                         value={rate.single}
                         onChange={(event) => updateRate(index, 'single', event.target.value)}
-                      />
-                    </td>
-                    <td className="px-4 py-3">
-                      <TextField
-                        fullWidth
-                        size="small"
-                        type="number"
-                        value={rate.multi}
-                        onChange={(event) => updateRate(index, 'multi', event.target.value)}
                       />
                     </td>
                   </tr>

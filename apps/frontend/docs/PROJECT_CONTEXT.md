@@ -86,9 +86,11 @@ This file is the first place Codex should read before changing the project.
 - `/projects`: project list using backend `GET /projects`.
 - `/projects/new` and `/projects/[id]`: full-page create/edit forms using
   `src/features/projects/components/project-form.tsx`, laid out like customer and lead forms.
-- `/projects/quotes`: quotation builder screen based on the referenced Google Sheet quotation
-  structure. It currently works as a frontend tool, not persisted to backend yet, and renders VietQR
-  payment QR from the configured BIDV account and calculated total amount.
+- `/quotations`: quotation list using backend `GET/DELETE /quotations`.
+- `/quotations/new` and `/quotations/[id]`: full-page create/edit quotation forms using backend
+  `POST/PUT /quotations`. The form stores quote lines in API `items`, keeps manual rows dynamic, and
+  can prepend automatic budget/management/setup rows from service quote config when available.
+- `/projects/quotes`: legacy route that redirects to `/quotations`.
 - `/projects/partners`: project partner option screen using backend `/options` group
   `project_partner`. Visible fields are Mã đối tác, Tên đối tác, STK, Ngân hàng, and Dịch vụ.
   Mapping: `key` stores partner code, `label` stores partner name, `value` stores service, and
@@ -103,6 +105,9 @@ This file is the first place Codex should read before changing the project.
 - `/settings`: settings overview screen. It stores website/company profile information in backend
   options group `site_profile` with keys `companyName`, `taxCode`, `phone`, `website`, `address`,
   and `office`. Shared defaults and mapping live in `src/lib/site-profile-options.ts`.
+- `/settings/bank-accounts`: company receiving bank accounts stored in backend options group
+  `company_bank_account`. Mapping: `key` is the VietQR bank code, `label` is account holder name,
+  `value` is account number, and `meta` stores `bankName`, `branch`, and `isDefault`.
 - `/users/new`: create employee/user.
 - `/users/[id]`: employee/user detail and edit form.
 - `/users/roles`: role list screen using backend `GET /roles` with `keyword` filter.
@@ -313,7 +318,8 @@ with this snapshot, prefer this snapshot because it reflects the latest user pre
   - Khách hàng.
   - Dự án.
   - Dự án > Dịch vụ.
-  - Dự án > Báo giá.
+  - Dự án > Đối tác.
+  - Báo giá.
   - Doanh thu.
   - Thanh toán.
   - Hóa đơn.
@@ -368,7 +374,10 @@ with this snapshot, prefer this snapshot because it reflects the latest user pre
 - `/projects`: project list.
 - `/projects/new`: create project.
 - `/projects/[id]`: edit project.
-- `/projects/quotes`: quote builder.
+- `/quotations`: quotation list.
+- `/quotations/new`: create quotation.
+- `/quotations/[id]`: edit quotation.
+- `/projects/quotes`: legacy redirect to `/quotations`.
 - `/projects/partners`: partner options.
 - `/projects/services`: service management.
 - `/settings`: settings overview and website/company profile form.
@@ -585,32 +594,88 @@ with this snapshot, prefer this snapshot because it reflects the latest user pre
   `enabled`, `managementFeeRates`, and `setupPackages`. Shared defaults/calculation helpers live in
   `src/lib/service-quote-config.ts`.
 - `/projects/services` should show quote configuration only for root services. The config dialog
-  edits the management fee rate table for `Đơn kênh` and `Đa kênh`, plus setup packages. Default
-  setup packages are `Gói cơ bản` = 1,000,000 and `Gói nâng cao` = 1,500,000.
+  edits the management fee rate table for `Đơn kênh` only, plus setup packages. The legacy `multi`
+  value may remain in option metadata for backward compatibility, but the current UI should not show
+  or use the `Đa kênh` column. Default setup packages are `Gói cơ bản` = 1,000,000 and
+  `Gói nâng cao` = 1,500,000.
 - `/projects/partners` manages partner records through backend `/options` group `project_partner`.
   Keep this page under the Dự án submenu as `Đối tác`. Partner records are still options, but the
   table/form should expose business fields: `Mã đối tác`, `Tên đối tác`, `STK`, `Ngân hàng`, and
   `Dịch vụ`. Store them as `key`, `label`, `meta.accountNo`, `meta.bankName`, and `value`
   respectively. Helper/default/payload logic lives in `src/lib/project-partner-options.ts`; UI lives
   in `src/features/partners/components/partner-manager.tsx`.
-- `/projects/quotes` is a quotation builder inspired by the Google Sheet quote template. Keep the
-  page under the Dự án submenu as `Báo giá`. Quote rows must be dynamic: users can add/remove their
-  own rows with `Nội dung`, `Đơn vị tính`, `Số lần`, and `Đơn giá`; do not hard-code rows such as
-  ngân sách, phí quản lý, or phí setup. The page calculates each row as `Số lần * Đơn giá`, sums the
-  subtotal, applies optional VAT, and renders VietQR through
-  `https://img.vietqr.io/image/<bank>-<account>-compact2.png` with amount and transfer content query
-  params. The quote page layout uses a 5/7 split: input/configuration on the left and preview/QR on
-  the right. Quote row inputs should stay compact on one row on desktop. It is frontend-only for now;
-  add backend persistence only when requested.
+- `/quotations` is the active quotation module and has its own top-level sidebar menu. It uses
+  backend `/quotations` for list/create/edit/delete instead of the old frontend-only builder. Quote
+  rows must remain dynamic: users can add/remove their own rows with `Nội dung`, `Đơn vị tính`,
+  `Số lần`, and `Đơn giá`; do not hard-code rows as the only available structure. The form calculates
+  each row as `Số lần * Đơn giá`, sums the subtotal, and applies optional VAT before sending totals
+  and `items` to the API. Keep `/projects/quotes` only as a redirect for old links.
+- Quotation item payloads currently send both camelCase and snake_case item keys, especially
+  `itemName` and `item_name`, because the backend quotation request validates both forms on nested
+  `items.*`. Do not remove the duplicate nested item keys unless the backend validator is simplified.
+- Quotation is the financial anchor between sales/project/payment. `quotation_code` is the VietQR
+  transfer code and should identify a single billing period or quote round, not the long-lived
+  project. The backend generates codes as `<project-code-base>.Q001`, `<project-code-base>.Q002`,
+  etc. The project code uses the base part without `.Qxxx`; for example project
+  `001.DV1.M.X3SALES` can have quotations `001.DV1.M.X3SALES.Q001` and
+  `001.DV1.M.X3SALES.Q002`.
+- Payment webhook auto-matches only when the transfer content contains an exact `quotation_code`.
+  If the quotation already has project/contract, the payment is linked to quotation, lead, customer,
+  project, and contract. If project/contract do not exist yet, payment stays linked to quotation and
+  lead with `matched_quotation`; once project/contract are created, backend sync updates those
+  payments to project/contract via the quotation. Transfers with wrong/manual content should remain
+  `unmatched` for accounting to handle manually; do not add fuzzy matching by amount/name/code.
+- Local SePay webhook testing uses ngrok. `npm run dev:backend` starts the backend and opens an
+  ngrok tunnel to port 4000. The ngrok binary is kept locally under
+  `apps/backend/.tools/ngrok/ngrok.exe` and `.tools` is gitignored; `scripts/ensure-ngrok.cmd`
+  downloads it if missing. By default the script uses a random ngrok URL because the current ngrok
+  account is on the Free plan. `npm run dev:backend:x3sales` sets
+  `NGROK_URL=despitefully-ahungered-anh.ngrok-free.dev`, the fixed ngrok dev domain currently
+  reserved in the account. SePay webhook URL is
+  `https://<ngrok-domain>/api/payments/webhook`.
+- Project create/update accepts a nested `contract` payload. When a project is created with
+  `quotation_id` and contract data, backend creates/updates the contract and calls quotation sync so
+  earlier payments on the same quotation receive `customer_id`, `project_id`, and `contract_id`.
 - Quote company/website information should come from backend options group `site_profile`. If the
   backend has no saved values yet, use the default profile from `src/lib/site-profile-options.ts`.
+- Quote payment QR should use company bank account options from group `company_bank_account`.
+  Helper/default/payload logic lives in `src/lib/company-bank-account-options.ts`; management UI
+  lives at `/settings/bank-accounts` in
+  `src/features/settings/components/company-bank-account-manager.tsx`. The selected receiving
+  account is saved in quotation `metadata` with `bankAccountOptionId`, `bankCode`, `bankAccountNo`,
+  `bankAccountName`, `bankName`, and `bankBranch`.
+- `/settings/bank-accounts` must select the bank from VietQR data instead of manually typing bank
+  code/name. Frontend proxy route `/api/vietqr/banks` fetches `https://api.vietqr.io/v2/banks`;
+  helper `src/lib/vietqr-banks.ts` loads this list for the dialog. Selecting a bank stores its VietQR
+  `code` in option `key` and full bank name in `meta.bankName`.
+- VietQR on quotation forms is generated with the selected account, the quotation total, and the
+  exact `quotation_code` as transfer content. On create, QR appears after saving because the backend
+  generates `quotation_code` and the page redirects to edit.
+- Quotation create/edit form target flow:
+  - First choose `Khách hàng mới` or `Khách hàng cũ`.
+  - New customer flow selects a lead and enters the project name.
+  - Existing customer flow then chooses `Dự án mới` or `Dự án cũ`.
+  - Existing customer + new project selects a customer and enters the project name.
+  - Existing customer + existing project selects a project; customer, lead, service, and project
+    name are inferred from that project/customer. The backend quotation schema still requires
+    `lead_id`, so customers/projects used here must resolve to a lead.
+- Quotation form should keep the VietQR payment block compact at the end of the information column:
+  only select the receiving company bank account. Do not show QR preview or warning alerts inside
+  the form. QR preview belongs on the `/quotations` list via the row action `Xem QR thanh toán`.
+- Quotation form information column should avoid nested bordered boxes. Keep customer/project,
+  service pricing, notes, and payment account controls as flat form grids inside the main card.
+  Service selector is full width; when auto pricing is enabled, `Ngân sách` and `Gói setup` are two
+  half-width fields. Do not show helper copy like "Chọn dịch vụ để kiểm tra bảng giá tự động".
+- Quotation manual input rows should also stay flat on a white background. Do not wrap each row in a
+  rounded light-gray card; keep only the form controls and spacing needed for scanning.
 - Quote service pricing should read backend options group `service_quote_config`. When a selected
   service belongs to a root service with enabled quote config, the quote automatically prepends 3
   calculated rows: `Ngân sách` from user input, `Phí quản lý` from the configured budget rate table,
   and `Phí Setup` from the selected setup package. Manual quote rows remain available below those
-  generated rows. The budget/channel/setup inputs should be hidden when the selected service/root
-  has no enabled quote config. The service selector should show a visible loading state while service
-  and quote-config data are loading.
+  generated rows. The current quote flow uses the `Đơn kênh` rate only; do not show a `Đa kênh`
+  selector or column unless the user asks to restore it. The budget/setup inputs should be hidden
+  when the selected service/root has no enabled quote config. The service selector should show a
+  visible loading state while service and quote-config data are loading.
 - Services are tree data.
 - Service manager component: `src/features/services/components/service-manager.tsx`.
 - Service UI decisions:
@@ -665,6 +730,27 @@ with this snapshot, prefer this snapshot because it reflects the latest user pre
   - Báo cáo.
   - Danh mục.
 - If the user asks only to update sidebar/menu, do not create full page content.
+
+### Payments / SePay Webhook
+
+- Backend webhook route: `/api/payments/webhook`.
+- Public local tunnel currently used for SePay testing:
+  `https://despitefully-ahungered-anh.ngrok-free.dev/api/payments/webhook`.
+- SePay payload fields are provider-specific and should be normalized before creating `payments`:
+  - `content` or `description` -> `transaction_content`.
+  - `transferAmount` or `transfer_amount` -> `amount`.
+  - `accountNumber` -> `bank_account`.
+  - `subAccount` -> `customer_code_text`.
+  - `referenceCode` -> `reference`.
+- Raw validated webhook data should be preserved in `payments.webhook_payload` for later manual
+  reconciliation.
+- If the transfer content has no quotation code, create the payment as `unmatched`; this is expected
+  for manual transfers or SePay test transactions without a quote code.
+- A SePay sample payload with `content = "Giao dich thu nghiem 1h19m34s"` and
+  `transferAmount = 1000000` should return HTTP 200 and create an unmatched payment, not HTTP 422.
+- SePay requires the webhook response body to contain root-level `{"success": true}`. Do not return
+  the normal API resource body from this webhook endpoint; save/match the payment internally, then
+  respond with `success: true`.
 
 ### Important Files To Check When Resuming
 
