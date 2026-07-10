@@ -28,6 +28,7 @@ class ProjectResource extends JsonResource
             'customer' => $this->whenLoaded('customer', fn () => $this->customer ? [
                 'id' => $this->customer->id,
                 'customerCode' => $this->customer->customer_code,
+                'leadId' => $this->customer->lead_id,
                 'customerName' => $this->customer->customer_name,
                 'companyName' => $this->customer->company_name,
                 'phone' => $this->customer->phone,
@@ -51,6 +52,8 @@ class ProjectResource extends JsonResource
                 'name' => $this->salesUser->name,
                 'email' => $this->salesUser->email,
             ] : null),
+            'contracts' => ContractResource::collection($this->whenLoaded('contracts')),
+            'payments' => PaymentResource::collection($this->whenLoaded('payments')),
             'timelines' => CustomerTimelineResource::collection($this->whenLoaded('timelines')),
             'createdAt' => $this->created_at?->toISOString(),
             'updatedAt' => $this->updated_at?->toISOString(),

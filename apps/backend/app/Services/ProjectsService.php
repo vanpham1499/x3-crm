@@ -3,6 +3,7 @@
 namespace App\Services;
 
 use App\Http\Resources\ProjectResource;
+use App\Models\Contract;
 use App\Models\CustomerTimeline;
 use App\Models\Option;
 use App\Models\Project;
@@ -12,7 +13,10 @@ use Illuminate\Support\Facades\DB;
 
 class ProjectsService extends BaseService
 {
-    public function __construct(private readonly ProjectRepository $projects) {}
+    public function __construct(
+        private readonly ProjectRepository $projects,
+        private readonly QuotationsService $quotations,
+    ) {}
 
     public function findAll(array $filters = [])
     {
@@ -27,7 +31,11 @@ class ProjectsService extends BaseService
     public function create(array $data): array
     {
         return $this->transaction(function () use ($data): array {
+            $contractData = $data['contract'] ?? null;
+            unset($data['contract']);
+
             $data = $this->normalizePayload($data);
+            $data['project_code'] = $data['project_code'] ?? $this->projectCodeFromQuotation($data['quotation_id'] ?? null);
             $data['project_code'] = $data['project_code'] ?? $this->generateProjectCode();
             $data['project_code'] = $this->ensureUniqueProjectCode($data['project_code']);
             $data['status_option_id'] = $data['status_option_id'] ?? $this->defaultStatusOption()->id;
@@ -36,6 +44,11 @@ class ProjectsService extends BaseService
             $project = $this->projects->create($data);
             $project = $this->loadProjectRelations($project);
             $this->recordTimeline($project, 'create', $this->buildCreatedTimelineContent($project));
+            $contract = is_array($contractData) ? $this->syncProjectContract($project, $contractData) : null;
+
+            if ($project->quotation_id && $contract) {
+                $this->quotations->linkWonRecords($project->quotation_id, $project->customer_id, $project->id, $contract->id);
+            }
 
             return $this->apiResource($this->loadProjectRelations($project), ProjectResource::class);
         });
@@ -44,6 +57,10 @@ class ProjectsService extends BaseService
     public function update(string $id, array $data): array
     {
         return $this->transaction(function () use ($id, $data): array {
+            $hasContract = array_key_exists('contract', $data);
+            $contractData = $data['contract'] ?? null;
+            unset($data['contract']);
+
             $data = $this->normalizePayload($data);
             $before = $this->loadProjectRelations($this->projects->findWithRelationsOrFail($id));
 
@@ -54,6 +71,12 @@ class ProjectsService extends BaseService
 
             if ($changes !== []) {
                 $this->recordTimeline($project, 'update', $this->buildUpdatedTimelineContent($project, $changes));
+            }
+
+            $contract = $hasContract && is_array($contractData) ? $this->syncProjectContract($project, $contractData) : $project->contracts()->first();
+
+            if ($project->quotation_id && $contract) {
+                $this->quotations->linkWonRecords($project->quotation_id, $project->customer_id, $project->id, $contract->id);
             }
 
             return $this->apiResource($this->loadProjectRelations($project), ProjectResource::class);
@@ -116,7 +139,88 @@ class ProjectsService extends BaseService
 
     private function loadProjectRelations(Project $project): Project
     {
-        return $project->load(['customer', 'quotation', 'service', 'statusOption', 'managerUser', 'salesUser', 'timelines.createdBy']);
+        return $project->load(['customer', 'quotation', 'service', 'statusOption', 'managerUser', 'salesUser', 'contracts.contractStatus', 'payments', 'timelines.createdBy']);
+    }
+
+    private function syncProjectContract(Project $project, array $data): ?Contract
+    {
+        $data = $this->normalizeContractPayload($data);
+
+        if (! $this->hasContractPayload($data)) {
+            return null;
+        }
+
+        $contractId = $data['id'] ?? null;
+        unset($data['id'], $data['contract_status_option_id']);
+
+        $data = array_merge($data, [
+            'project_id' => $project->id,
+            'quotation_id' => $project->quotation_id,
+            'customer_id' => $project->customer_id,
+            'contract_no' => $data['contract_no'] ?? $project->project_code,
+        ]);
+
+        if ($project->quotation_id) {
+            $quotation = $this->quotations->findModel($project->quotation_id);
+            $data['lead_id'] = $quotation->lead_id;
+            $data['deposit_amount'] = $data['deposit_amount'] ?? $quotation->deposit_amount;
+            $data['note'] = $data['note'] ?? $quotation->note;
+        }
+
+        if ($contractId) {
+            $contract = Contract::query()
+                ->where('project_id', $project->id)
+                ->whereKey($contractId)
+                ->first();
+
+            if ($contract) {
+                $contract->update($data);
+
+                return $contract->refresh();
+            }
+        }
+
+        return Contract::query()->create($data);
+    }
+
+    private function normalizeContractPayload(array $data): array
+    {
+        $map = [
+            'contractNo' => 'contract_no',
+            'contractStatusId' => 'contract_status_id',
+            'contractStatusOptionId' => 'contract_status_option_id',
+            'depositAmount' => 'deposit_amount',
+            'signedDate' => 'signed_date',
+            'expiredDate' => 'expired_date',
+            'contractMonth' => 'contract_month',
+            'fileUrl' => 'file_url',
+        ];
+
+        foreach ($map as $from => $to) {
+            if (array_key_exists($from, $data)) {
+                $data[$to] = $data[$from];
+                unset($data[$from]);
+            }
+        }
+
+        foreach (['contract_no', 'contract_status_id', 'deposit_amount', 'signed_date', 'expired_date', 'contract_month', 'file_url', 'note'] as $key) {
+            if (array_key_exists($key, $data) && $data[$key] === '') {
+                $data[$key] = null;
+            }
+        }
+
+        return $data;
+    }
+
+    private function hasContractPayload(array $data): bool
+    {
+        foreach (['id', 'contract_no', 'deposit_amount', 'signed_date', 'expired_date', 'contract_month', 'file_url', 'note'] as $key) {
+            if (($data[$key] ?? null) !== null && ($data[$key] ?? '') !== '') {
+                return true;
+            }
+        }
+
+        return false;
     }
 
     private function recordTimeline(Project $project, string $type, array $content): void
@@ -290,6 +394,21 @@ class ProjectsService extends BaseService
         } while (DB::table('projects')->where('project_code', $code)->exists());
 
         return $code;
+    }
+
+    private function projectCodeFromQuotation(?string $quotationId): ?string
+    {
+        if (! $quotationId) {
+            return null;
+        }
+
+        $quotationCode = DB::table('quotations')->where('id', $quotationId)->value('quotation_code');
+
+        if (! $quotationCode) {
+            return null;
+        }
+
+        return preg_replace('/\.Q[0-9]+$/i', '', $quotationCode) ?: $quotationCode;
     }
 
     private function ensureUniqueProjectCode(string $code): string

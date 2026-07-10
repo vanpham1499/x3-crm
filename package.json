@@ -8,6 +8,7 @@
   ],
   "scripts": {
     "dev:backend": "npm run dev --workspace=apps/backend",
+    "dev:backend:x3sales": "npm run dev:backend:x3sales --workspace=apps/backend",
     "dev:frontend": "npm run dev --workspace=apps/frontend",
     "dev": "concurrently \"npm run dev:backend\" \"npm run dev:frontend\"",
     "build:backend": "npm run build --workspace=apps/backend",

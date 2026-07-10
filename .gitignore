@@ -1,6 +1,7 @@
 # Dependencies
 node_modules/
 apps/backend/vendor/
+apps/backend/.tools/
 .pnp
 .pnp.js
 
