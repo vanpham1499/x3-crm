@@ -3,9 +3,10 @@
   "version": "1.0.0",
   "private": true,
   "scripts": {
-    "dev": "php -S 0.0.0.0:${PORT:-4000} -t public public/index.php",
+    "dev": ".\\scripts\\dev-backend.cmd",
     "start": "php -S 0.0.0.0:${PORT:-4000} -t public public/index.php",
     "dev:backend": ".\\scripts\\dev-backend.cmd",
+    "dev:backend:x3sales": "set NGROK_URL=despitefully-ahungered-anh.ngrok-free.dev&& .\\scripts\\dev-backend.cmd",
     "build": "composer install --no-dev --optimize-autoloader",
     "db:migrate": "composer install && php artisan migrate",
     "db:seed": "composer install && php artisan db:seed",

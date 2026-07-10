@@ -47,7 +47,9 @@ class PaymentsController extends Controller
 
     public function webhook(WebhookPaymentRequest $request): JsonResponse
     {
-        return $this->success($this->payments->webhook($request->validatedData()), 201);
+        $this->payments->webhook($request->validatedData());
+
+        return response()->json(['success' => true]);
     }
 
     public function matchProject(Request $request, string $id): JsonResponse

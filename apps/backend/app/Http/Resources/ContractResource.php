@@ -17,6 +17,7 @@ class ContractResource extends JsonResource
             'customerId' => $this->customer_id,
             'contractNo' => $this->contract_no,
             'contractStatusId' => $this->contract_status_id,
+            'contractStatusOptionId' => $this->contract_status_id,
             'depositAmount' => $this->deposit_amount,
             'signedDate' => $this->signed_date?->toDateString(),
             'expiredDate' => $this->expired_date?->toDateString(),

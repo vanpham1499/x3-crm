@@ -239,6 +239,8 @@ class LeadsService extends BaseService
     {
         $data = $this->normalizeProjectKeys($data);
         $serviceId = $data['service_id'] ?? $quotation?->service_id;
+        $projectCode = $quotation ? $this->quotationProjectCode($quotation) : ($data['project_code'] ?? null);
+        $projectName = $data['project_name'] ?? $this->quotationProjectName($quotation) ?? (($customer['customerName'] ?? $lead->customer_name).' - '.($quotation?->service_name ?? 'Project'));
 
         if (! $serviceId) {
             throw new ConflictHttpException('Cần service_id hoặc quotation có service để tạo project');
@@ -248,7 +250,7 @@ class LeadsService extends BaseService
             'customer_id' => $customer['id'],
             'quotation_id' => $quotation?->id,
             'service_id' => $serviceId,
-            'project_code' => $quotation?->quotation_code,
+            'project_code' => $projectCode,
             'project_name' => ($customer['customerName'] ?? $lead->customer_name).' - '.($quotation?->service_name ?? 'Dự án'),
             'sales_user_id' => $lead->assigned_user_id,
             'note' => $lead->note,
@@ -256,7 +258,8 @@ class LeadsService extends BaseService
             'customer_id' => $customer['id'],
             'quotation_id' => $quotation?->id,
             'service_id' => $serviceId,
-            'project_code' => $quotation?->quotation_code ?? $data['project_code'] ?? null,
+            'project_code' => $projectCode,
+            'project_name' => $projectName,
         ]);
     }
 
@@ -269,7 +272,7 @@ class LeadsService extends BaseService
             'quotation_id' => $quotation?->id,
             'lead_id' => $lead->id,
             'customer_id' => $customer['id'],
-            'contract_no' => $quotation?->quotation_code ?? $project['projectCode'] ?? null,
+            'contract_no' => $project['projectCode'] ?? null,
             'deposit_amount' => $quotation?->deposit_amount ?? 0,
             'signed_date' => now()->toDateString(),
             'note' => $quotation?->note ?? $lead->note,
@@ -278,13 +281,31 @@ class LeadsService extends BaseService
             'quotation_id' => $quotation?->id,
             'lead_id' => $lead->id,
             'customer_id' => $customer['id'],
-            'contract_no' => $quotation?->quotation_code ?? $data['contract_no'] ?? $project['projectCode'] ?? null,
+            'contract_no' => $data['contract_no'] ?? $project['projectCode'] ?? null,
         ]);
+    }
+
+    private function quotationProjectCode(\App\Models\Quotation $quotation): ?string
+    {
+        if (! $quotation->quotation_code) {
+            return null;
+        }
+
+        return preg_replace('/\.Q[0-9]+$/i', '', $quotation->quotation_code) ?: $quotation->quotation_code;
+    }
+
+    private function quotationProjectName(?\App\Models\Quotation $quotation): ?string
+    {
+        $metadata = is_array($quotation?->metadata) ? $quotation->metadata : [];
+        $projectName = $metadata['projectName'] ?? null;
+
+        return is_string($projectName) && trim($projectName) !== '' ? trim($projectName) : null;
     }
 
     private function normalizeProjectKeys(array $data): array
     {
         $map = [
+            'projectCode' => 'project_code',
             'projectName' => 'project_name',
             'serviceId' => 'service_id',
             'managerUserId' => 'manager_user_id',
@@ -307,10 +328,12 @@ class LeadsService extends BaseService
     {
         $map = [
             'contractNo' => 'contract_no',
+            'contractStatusId' => 'contract_status_id',
             'depositAmount' => 'deposit_amount',
             'signedDate' => 'signed_date',
             'expiredDate' => 'expired_date',
             'contractMonth' => 'contract_month',
+            'fileUrl' => 'file_url',
         ];
 
         foreach ($map as $from => $to) {

@@ -285,17 +285,80 @@ class QuotationsService extends BaseService
 
     private function generateQuotationCode(array $data): string
     {
-        $leadCode = DB::table('leads')->where('id', $data['lead_id'])->value('lead_code') ?: 'LD';
-        $serviceCode = $data['service_code'] ?? 'DV';
-        $baseCode = Str::upper(Str::slug($leadCode.'-'.$serviceCode, '-'));
-        $code = $baseCode;
-        $index = 2;
+        $baseCode = $this->quotationBaseCode($data);
+        $nextNumber = ((int) DB::table('quotations')
+            ->where('quotation_code', 'like', $baseCode.'.Q%')
+            ->whereRaw("quotation_code ~ ?", ['^'.preg_quote($baseCode, '/').'\\.Q[0-9]+$'])
+            ->selectRaw("MAX(CAST(SUBSTRING(quotation_code FROM '\\.Q([0-9]+)$') AS INTEGER)) as max_number")
+            ->value('max_number')) + 1;
 
-        while (DB::table('quotations')->where('quotation_code', $code)->exists()) {
-            $code = $baseCode.'-'.$index;
-            $index++;
-        }
+        do {
+            $code = sprintf('%s.Q%03d', $baseCode, $nextNumber);
+            $nextNumber++;
+        } while (DB::table('quotations')->where('quotation_code', $code)->exists());
 
         return $code;
+    }
+
+    private function quotationBaseCode(array $data): string
+    {
+        if (! empty($data['project_id'])) {
+            $projectCode = DB::table('projects')->where('id', $data['project_id'])->value('project_code');
+
+            if ($projectCode) {
+                return $this->normalizeCodeSegment($projectCode);
+            }
+        }
+
+        $metadata = is_array($data['metadata'] ?? null) ? $data['metadata'] : [];
+        $explicitBase = $metadata['projectCodeBase'] ?? null;
+
+        if (is_string($explicitBase) && trim($explicitBase) !== '') {
+            return $this->normalizeCodeSegment($explicitBase);
+        }
+
+        $leadCode = DB::table('leads')->where('id', $data['lead_id'])->value('lead_code') ?: 'LD';
+        $serviceCode = $this->rootServiceCode($data['service_id'] ?? null) ?: ($data['service_code'] ?? 'DV');
+        $projectName = $metadata['projectName'] ?? null;
+        $parts = [$leadCode, $serviceCode];
+
+        if (is_string($projectName) && trim($projectName) !== '') {
+            $parts[] = $projectName;
+        }
+
+        return collect($parts)
+            ->map(fn (string $part): string => $this->normalizeCodeSegment($part))
+            ->filter()
+            ->join('.');
+    }
+
+    private function rootServiceCode(?string $serviceId): ?string
+    {
+        if (! $serviceId) {
+            return null;
+        }
+
+        $service = DB::table('services')->where('id', $serviceId)->whereNull('deleted_at')->first(['id', 'parent_id', 'code']);
+
+        while ($service && $service->parent_id) {
+            $parent = DB::table('services')->where('id', $service->parent_id)->whereNull('deleted_at')->first(['id', 'parent_id', 'code']);
+
+            if (! $parent) {
+                break;
+            }
+
+            $service = $parent;
+        }
+
+        return $service?->code;
+    }
+
+    private function normalizeCodeSegment(string $value): string
+    {
+        $value = Str::ascii(trim($value));
+        $value = preg_replace('/\s+/', '', $value) ?: '';
+        $value = preg_replace('/[^A-Za-z0-9._-]/', '', $value) ?: '';
+
+        return Str::upper($value);
     }
 }

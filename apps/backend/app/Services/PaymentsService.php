@@ -58,6 +58,7 @@ class PaymentsService extends BaseService
     public function webhook(array $data): array
     {
         return $this->transaction(function () use ($data): array {
+            $rawPayload = $data;
             $data = $this->normalizePayload($data);
             $content = (string) ($data['transaction_content'] ?? '');
             $quotation = $this->quotations->findCodeInText($content);
@@ -66,14 +67,14 @@ class PaymentsService extends BaseService
                 $payment = $this->payments->create(array_merge($data, [
                     'status' => 'unmatched',
                     'reconciled_status' => 'unmatched',
-                    'webhook_payload' => $data['payload'] ?? $data,
+                    'webhook_payload' => $rawPayload,
                 ]));
 
                 return $this->apiResource($payment->load(['quotation', 'lead', 'customer', 'project', 'contract', 'revenue']), PaymentResource::class);
             }
 
             $payment = $this->payments->create(array_merge($data, $this->matchedPayload($quotation), [
-                'webhook_payload' => $data['payload'] ?? $data,
+                'webhook_payload' => $rawPayload,
             ]));
 
             return $this->apiResource($payment->load(['quotation', 'lead', 'customer', 'project', 'contract', 'revenue']), PaymentResource::class);
@@ -160,6 +161,27 @@ class PaymentsService extends BaseService
             if (array_key_exists($from, $data)) {
                 $data[$to] = $data[$from];
                 unset($data[$from]);
+            }
+        }
+
+        $aliases = [
+            'transaction_content' => ['content', 'description'],
+            'amount' => ['transferAmount', 'transfer_amount'],
+            'bank_account' => ['accountNumber', 'account_number', 'gateway'],
+            'customer_code_text' => ['subAccount', 'sub_account'],
+            'reference' => ['referenceCode', 'reference_code', 'code'],
+        ];
+
+        foreach ($aliases as $target => $sources) {
+            if (isset($data[$target]) && $data[$target] !== '') {
+                continue;
+            }
+
+            foreach ($sources as $source) {
+                if (isset($data[$source]) && $data[$source] !== '') {
+                    $data[$target] = $data[$source];
+                    break;
+                }
             }
         }
 
