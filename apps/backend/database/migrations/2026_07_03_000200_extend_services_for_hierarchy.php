@@ -10,7 +10,7 @@ return new class extends Migration
     {
         Schema::table('services', function (Blueprint $table): void {
             if (! Schema::hasColumn('services', 'parent_id')) {
-                $table->foreignUuid('parent_id')->nullable()->after('id')->constrained('services')->restrictOnDelete();
+                $table->foreignId('parent_id')->nullable()->after('id')->constrained('services')->restrictOnDelete();
             }
 
             if (! Schema::hasColumn('services', 'content')) {

@@ -9,23 +9,23 @@ return new class extends Migration
     public function up(): void
     {
         Schema::create('projects', function (Blueprint $table): void {
-            $table->uuid('id')->primary();
+            $table->id();
             $table->string('project_code', 100)->unique();
-            $table->foreignUuid('customer_id')->constrained('customers')->cascadeOnDelete();
-            $table->foreignUuid('service_id')->constrained('services')->restrictOnDelete();
+            $table->foreignId('customer_id')->constrained('customers')->cascadeOnDelete();
+            $table->foreignId('service_id')->constrained('services')->restrictOnDelete();
             $table->string('project_name');
-            $table->foreignUuid('status_id')->constrained('statuses')->restrictOnDelete();
-            $table->foreignUuid('manager_user_id')->nullable()->constrained('users')->nullOnDelete();
-            $table->foreignUuid('sales_user_id')->nullable()->constrained('users')->nullOnDelete();
+            $table->foreignId('status_id')->constrained('statuses')->restrictOnDelete();
+            $table->foreignId('manager_user_id')->nullable()->constrained('users')->nullOnDelete();
+            $table->foreignId('sales_user_id')->nullable()->constrained('users')->nullOnDelete();
             $table->text('zalo_group')->nullable();
             $table->text('plan_link')->nullable();
             $table->date('start_date')->nullable();
             $table->date('end_date')->nullable();
             $table->text('note')->nullable();
-            $table->foreignUuid('created_by')->nullable()->constrained('users')->nullOnDelete();
+            $table->foreignId('created_by')->nullable()->constrained('users')->nullOnDelete();
             $table->timestamps();
-            $table->foreignUuid('updated_by')->nullable()->constrained('users')->nullOnDelete();
-            $table->foreignUuid('deleted_by')->nullable()->constrained('users')->nullOnDelete();
+            $table->foreignId('updated_by')->nullable()->constrained('users')->nullOnDelete();
+            $table->foreignId('deleted_by')->nullable()->constrained('users')->nullOnDelete();
             $table->softDeletes();
 
             $table->index(['customer_id', 'service_id', 'status_id', 'manager_user_id', 'deleted_at']);

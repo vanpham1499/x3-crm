@@ -9,9 +9,9 @@ return new class extends Migration
     public function up(): void
     {
         Schema::create('invoices', function (Blueprint $table): void {
-            $table->uuid('id')->primary();
-            $table->foreignUuid('revenue_id')->constrained('revenues')->cascadeOnDelete();
-            $table->foreignUuid('customer_id')->constrained('customers')->restrictOnDelete();
+            $table->id();
+            $table->foreignId('revenue_id')->constrained('revenues')->cascadeOnDelete();
+            $table->foreignId('customer_id')->constrained('customers')->restrictOnDelete();
             $table->string('invoice_type', 50)->nullable()->default('vat');
             $table->string('invoice_no', 100)->nullable();
             $table->date('issued_date')->nullable();
@@ -22,13 +22,13 @@ return new class extends Migration
             $table->decimal('amount_before_vat', 15, 2)->default(0);
             $table->decimal('vat_amount', 15, 2)->default(0);
             $table->decimal('amount_after_vat', 15, 2)->default(0);
-            $table->foreignUuid('status_id')->nullable()->constrained('statuses')->nullOnDelete();
+            $table->foreignId('status_id')->nullable()->constrained('statuses')->nullOnDelete();
             $table->text('file_url')->nullable();
             $table->text('note')->nullable();
-            $table->foreignUuid('created_by')->nullable()->constrained('users')->nullOnDelete();
+            $table->foreignId('created_by')->nullable()->constrained('users')->nullOnDelete();
             $table->timestamps();
-            $table->foreignUuid('updated_by')->nullable()->constrained('users')->nullOnDelete();
-            $table->foreignUuid('deleted_by')->nullable()->constrained('users')->nullOnDelete();
+            $table->foreignId('updated_by')->nullable()->constrained('users')->nullOnDelete();
+            $table->foreignId('deleted_by')->nullable()->constrained('users')->nullOnDelete();
             $table->softDeletes();
 
             $table->index(['revenue_id', 'status_id', 'deleted_at']);

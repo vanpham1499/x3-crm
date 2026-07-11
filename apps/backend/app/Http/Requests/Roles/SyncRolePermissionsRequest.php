@@ -10,7 +10,7 @@ class SyncRolePermissionsRequest extends BaseRequest
     {
         return [
             'permission_ids' => ['required', 'array'],
-            'permission_ids.*' => ['required', 'uuid', 'distinct', 'exists:permissions,id'],
+            'permission_ids.*' => ['required', 'integer', 'distinct', 'exists:permissions,id'],
         ];
     }
 }

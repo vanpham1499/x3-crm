@@ -22,7 +22,7 @@ export default function UsersPage() {
   const queryClient = useQueryClient();
   const notify = useAppNotification();
   const [deleteTarget, setDeleteTarget] = useState<User | null>(null);
-  const [bulkDeleteIds, setBulkDeleteIds] = useState<string[]>([]);
+  const [bulkDeleteIds, setBulkDeleteIds] = useState<number[]>([]);
   const [filters, setFilters] = useState<UserFilters>({
     keyword: '',
     role_id: '',
@@ -41,7 +41,7 @@ export default function UsersPage() {
   });
 
   const deleteMutation = useMutation({
-    mutationFn: (userId: string) => api.delete(`/users/${userId}`),
+    mutationFn: (userId: number) => api.delete(`/users/${userId}`),
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ['users'] });
       notify.success('Xóa nhân viên thành công');
@@ -53,7 +53,7 @@ export default function UsersPage() {
   });
 
   const bulkDeleteMutation = useMutation({
-    mutationFn: (userIds: string[]) => Promise.all(userIds.map((userId) => api.delete(`/users/${userId}`))),
+    mutationFn: (userIds: number[]) => Promise.all(userIds.map((userId) => api.delete(`/users/${userId}`))),
     onSuccess: (_, userIds) => {
       queryClient.invalidateQueries({ queryKey: ['users'] });
       notify.success(`Đã xóa ${userIds.length} nhân viên`);

@@ -11,15 +11,15 @@ return new class extends Migration
     {
         Schema::table('leads', function (Blueprint $table): void {
             if (! Schema::hasColumn('leads', 'status_option_id')) {
-                $table->foreignUuid('status_option_id')->nullable()->after('customer_name')->constrained('options')->nullOnDelete();
+                $table->foreignId('status_option_id')->nullable()->after('customer_name')->constrained('options')->nullOnDelete();
             }
 
             if (! Schema::hasColumn('leads', 'source_option_id')) {
-                $table->foreignUuid('source_option_id')->nullable()->after('assigned_user_id')->constrained('options')->nullOnDelete();
+                $table->foreignId('source_option_id')->nullable()->after('assigned_user_id')->constrained('options')->nullOnDelete();
             }
 
             if (! Schema::hasColumn('leads', 'industry_option_id')) {
-                $table->foreignUuid('industry_option_id')->nullable()->after('website')->constrained('options')->nullOnDelete();
+                $table->foreignId('industry_option_id')->nullable()->after('website')->constrained('options')->nullOnDelete();
             }
         });
 

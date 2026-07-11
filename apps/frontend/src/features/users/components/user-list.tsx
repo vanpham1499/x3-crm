@@ -37,7 +37,7 @@ type UserListProps = {
   isFetching: boolean;
   onFiltersChange: (filters: UserFilters) => void;
   onDelete: (user: User) => void;
-  onBulkDelete: (userIds: string[]) => void;
+  onBulkDelete: (userIds: number[]) => void;
   isDeleting?: boolean;
 };
 
@@ -57,7 +57,7 @@ export function UserList({
   isDeleting = false,
 }: UserListProps) {
   const router = useRouter();
-  const [selectedUserIds, setSelectedUserIds] = useState<string[]>([]);
+  const [selectedUserIds, setSelectedUserIds] = useState<number[]>([]);
   const [menuAnchorEl, setMenuAnchorEl] = useState<HTMLElement | null>(null);
   const [activeUser, setActiveUser] = useState<User | null>(null);
 
@@ -77,7 +77,7 @@ export function UserList({
     setSelectedUserIds((current) => current.filter((id) => !visibleUserIds.includes(id)));
   };
 
-  const toggleUserRow = (userId: string, checked: boolean) => {
+  const toggleUserRow = (userId: number, checked: boolean) => {
     setSelectedUserIds((current) => {
       if (checked) return Array.from(new Set([...current, userId]));
       return current.filter((id) => id !== userId);
@@ -169,7 +169,7 @@ export function UserList({
             >
               <MenuItem value="">{USER_ALL_FILTER}</MenuItem>
               {roles.map((item) => (
-                <MenuItem key={item.id} value={item.id}>
+                <MenuItem key={item.id} value={String(item.id)}>
                   {getUserRoleLabel(item.name)}
                 </MenuItem>
               ))}

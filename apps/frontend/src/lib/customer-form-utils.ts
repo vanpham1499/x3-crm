@@ -15,6 +15,10 @@ function emptyToNull(value: string) {
   return trimmed ? trimmed : null;
 }
 
+function idToString(value?: string | number | null): string {
+  return value === undefined || value === null || value === '' ? '' : String(value);
+}
+
 function findRootService(service: ServiceItem, services: ServiceItem[]) {
   const flatServices = flattenServices(services);
   const serviceMap = new Map(flatServices.map((item) => [item.id, item]));
@@ -82,7 +86,7 @@ export function createEmptyCustomerFormValues(
 ): CustomerFormValues {
   return {
     customerCode: lead ? generateCustomerCodeFromLead(lead, services) : '',
-    leadId: lead?.id || '',
+    leadId: idToString(lead?.id),
     customerName: lead?.customerName || '',
     customerType: '',
     customerTypeOptionId: '',
@@ -97,8 +101,8 @@ export function createEmptyCustomerFormValues(
     industry: lead?.industryOption?.label || lead?.industry || '',
     industryOptionId: '',
     birthday: '',
-    sourceOptionId: lead?.sourceOptionId || '',
-    salesUserId: lead?.assignedUserId || '',
+    sourceOptionId: idToString(lead?.sourceOptionId),
+    salesUserId: idToString(lead?.assignedUserId),
     note: lead?.note || '',
   };
 }
@@ -106,10 +110,10 @@ export function createEmptyCustomerFormValues(
 export function customerToFormValues(customer: Customer): CustomerFormValues {
   return {
     customerCode: customer.customerCode || '',
-    leadId: customer.leadId || customer.lead?.id || '',
+    leadId: idToString(customer.leadId ?? customer.lead?.id),
     customerName: customer.customerName || '',
     customerType: '',
-    customerTypeOptionId: customer.customerTypeOptionId || '',
+    customerTypeOptionId: idToString(customer.customerTypeOptionId),
     companyName: customer.companyName || '',
     representativeName: customer.representativeName || '',
     taxCode: customer.taxCode || '',
@@ -121,8 +125,8 @@ export function customerToFormValues(customer: Customer): CustomerFormValues {
     industry: customer.industry || '',
     industryOptionId: '',
     birthday: getDateInputValue(customer.birthday),
-    sourceOptionId: customer.sourceOptionId || '',
-    salesUserId: customer.salesUserId || '',
+    sourceOptionId: idToString(customer.sourceOptionId),
+    salesUserId: idToString(customer.salesUserId),
     note: customer.note || '',
   };
 }

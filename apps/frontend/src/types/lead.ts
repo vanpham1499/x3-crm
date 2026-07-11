@@ -1,14 +1,14 @@
 import type { AppOption } from '@/types/option';
 
 export type LeadStatus = {
-  id: string;
+  id: number;
   type?: string;
   name: string;
   sortOrder?: number;
 };
 
 export type LeadRelationOption = {
-  id: string;
+  id: number;
   name: string;
   code?: string;
   email?: string;
@@ -80,19 +80,19 @@ export type LeadAttachment = {
 };
 
 export type Lead = {
-  id: string;
+  id: number;
   leadCode?: string | null;
   customerName: string;
-  statusId?: string | null;
-  statusOptionId?: string | null;
+  statusId?: number | null;
+  statusOptionId?: number | null;
   occurredDate?: string | null;
-  assignedUserId?: string | null;
-  sourceId?: string | null;
-  sourceOptionId?: string | null;
-  industryOptionId?: string | null;
-  interestedServiceOptionId?: string | null;
+  assignedUserId?: number | null;
+  sourceId?: number | null;
+  sourceOptionId?: number | null;
+  industryOptionId?: number | null;
+  interestedServiceOptionId?: number | null;
   interestedServiceOptionIds?: string[];
-  interestedServiceId?: string | null;
+  interestedServiceId?: number | null;
   interestedServiceText?: string | null;
   phone?: string | null;
   website?: string | null;
@@ -160,6 +160,6 @@ export type LeadFormValues = {
 };
 
 export type CustomerSourceOption = {
-  id: string;
+  id: number;
   name: string;
 };

@@ -10,8 +10,8 @@ class CreateServiceRequest extends BaseRequest
     public function rules(): array
     {
         return [
-            'parent_id' => ['nullable', 'uuid', Rule::exists('services', 'id')->whereNull('deleted_at')],
-            'parentId' => ['nullable', 'uuid', Rule::exists('services', 'id')->whereNull('deleted_at')],
+            'parent_id' => ['nullable', 'integer', Rule::exists('services', 'id')->whereNull('deleted_at')],
+            'parentId' => ['nullable', 'integer', Rule::exists('services', 'id')->whereNull('deleted_at')],
             'code' => ['required', 'string', 'max:20'],
             'name' => ['required', 'string', 'max:255'],
             'content' => ['nullable', 'string'],

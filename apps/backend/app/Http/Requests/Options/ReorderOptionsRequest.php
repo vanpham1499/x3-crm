@@ -14,7 +14,7 @@ class ReorderOptionsRequest extends BaseRequest
             'optionIds' => ['required', 'array', 'min:1'],
             'optionIds.*' => [
                 'required',
-                'uuid',
+                'integer',
                 'distinct',
                 Rule::exists('options', 'id')
                     ->where('group', $this->input('group'))

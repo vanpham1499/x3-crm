@@ -2,21 +2,15 @@
 
 namespace App\Models;
 
-use Illuminate\Database\Eloquent\Concerns\HasUuids;
 use Illuminate\Database\Eloquent\Relations\BelongsTo;
 use Illuminate\Database\Eloquent\Relations\Pivot;
 use Illuminate\Database\Eloquent\SoftDeletes;
 
 class RolePermission extends Pivot
 {
-    use HasUuids;
     use SoftDeletes;
 
-    public $incrementing = false;
-
     protected $table = 'role_permissions';
-
-    protected $keyType = 'string';
 
     protected $fillable = [
         'id',

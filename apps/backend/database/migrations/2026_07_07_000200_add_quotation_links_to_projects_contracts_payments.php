@@ -10,22 +10,22 @@ return new class extends Migration
     {
         Schema::table('projects', function (Blueprint $table): void {
             if (! Schema::hasColumn('projects', 'quotation_id')) {
-                $table->foreignUuid('quotation_id')->nullable()->after('customer_id')->constrained('quotations')->nullOnDelete();
+                $table->foreignId('quotation_id')->nullable()->after('customer_id')->constrained('quotations')->nullOnDelete();
                 $table->index(['quotation_id', 'deleted_at']);
             }
         });
 
         Schema::table('contracts', function (Blueprint $table): void {
             if (! Schema::hasColumn('contracts', 'quotation_id')) {
-                $table->foreignUuid('quotation_id')->nullable()->after('project_id')->constrained('quotations')->nullOnDelete();
+                $table->foreignId('quotation_id')->nullable()->after('project_id')->constrained('quotations')->nullOnDelete();
             }
 
             if (! Schema::hasColumn('contracts', 'lead_id')) {
-                $table->foreignUuid('lead_id')->nullable()->after('quotation_id')->constrained('leads')->nullOnDelete();
+                $table->foreignId('lead_id')->nullable()->after('quotation_id')->constrained('leads')->nullOnDelete();
             }
 
             if (! Schema::hasColumn('contracts', 'customer_id')) {
-                $table->foreignUuid('customer_id')->nullable()->after('lead_id')->constrained('customers')->nullOnDelete();
+                $table->foreignId('customer_id')->nullable()->after('lead_id')->constrained('customers')->nullOnDelete();
             }
 
             $table->index(['quotation_id', 'lead_id', 'customer_id']);
@@ -33,19 +33,19 @@ return new class extends Migration
 
         Schema::table('payments', function (Blueprint $table): void {
             if (! Schema::hasColumn('payments', 'quotation_id')) {
-                $table->foreignUuid('quotation_id')->nullable()->after('id')->constrained('quotations')->nullOnDelete();
+                $table->foreignId('quotation_id')->nullable()->after('id')->constrained('quotations')->nullOnDelete();
             }
 
             if (! Schema::hasColumn('payments', 'lead_id')) {
-                $table->foreignUuid('lead_id')->nullable()->after('quotation_id')->constrained('leads')->nullOnDelete();
+                $table->foreignId('lead_id')->nullable()->after('quotation_id')->constrained('leads')->nullOnDelete();
             }
 
             if (! Schema::hasColumn('payments', 'customer_id')) {
-                $table->foreignUuid('customer_id')->nullable()->after('lead_id')->constrained('customers')->nullOnDelete();
+                $table->foreignId('customer_id')->nullable()->after('lead_id')->constrained('customers')->nullOnDelete();
             }
 
             if (! Schema::hasColumn('payments', 'contract_id')) {
-                $table->foreignUuid('contract_id')->nullable()->after('project_id')->constrained('contracts')->nullOnDelete();
+                $table->foreignId('contract_id')->nullable()->after('project_id')->constrained('contracts')->nullOnDelete();
             }
 
             if (! Schema::hasColumn('payments', 'status')) {

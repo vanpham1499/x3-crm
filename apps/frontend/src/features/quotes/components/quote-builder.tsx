@@ -72,7 +72,7 @@ function createQuoteLineId() {
 
 function findRootService(services: ServiceItem[], serviceId: string): ServiceItem | null {
   const flatServices = flattenServices(services);
-  const selected = flatServices.find((service) => service.id === serviceId);
+  const selected = flatServices.find((service) => String(service.id) === serviceId);
 
   if (!selected) return null;
   if (!selected.parentId) return selected;
@@ -124,7 +124,8 @@ export function QuoteBuilder() {
     [siteProfileOptions],
   );
   const serviceOptions = useMemo(() => flattenServices(services), [services]);
-  const selectedService = serviceOptions.find((service) => service.id === selectedServiceId) || null;
+  const selectedService =
+    serviceOptions.find((service) => String(service.id) === selectedServiceId) || null;
   const rootService = useMemo(
     () => findRootService(services, selectedServiceId),
     [selectedServiceId, services],
@@ -280,7 +281,9 @@ export function QuoteBuilder() {
                   options={serviceOptions}
                   value={selectedService}
                   loading={servicePricingLoading}
-                  onChange={(_, value) => setSelectedServiceId(value?.id || '')}
+                  onChange={(_, value) =>
+                    setSelectedServiceId(value?.id !== undefined ? String(value.id) : '')
+                  }
                   getOptionLabel={(option) => `${option.code} - ${option.pathName}`}
                   isOptionEqualToValue={(option, value) => option.id === value.id}
                   className="md:col-span-2"

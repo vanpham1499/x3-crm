@@ -29,7 +29,12 @@ export function countServices(services: ServiceItem[]) {
 
 export function getServiceDefaults(service?: ServiceItem, parent?: ServiceItem | null): ServiceFormValues {
   return {
-    parentId: service?.parentId || parent?.id || '',
+    parentId:
+      service?.parentId !== undefined && service?.parentId !== null
+        ? String(service.parentId)
+        : parent?.id !== undefined && parent?.id !== null
+          ? String(parent.id)
+          : '',
     code: service?.code || '',
     name: service?.name || '',
     content: service?.content || '',

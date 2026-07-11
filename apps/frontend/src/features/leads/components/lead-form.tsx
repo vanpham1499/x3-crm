@@ -82,7 +82,7 @@ export function LeadForm({
   } = useForm<LeadFormValues>({ defaultValues: defaults });
   const selectedSourceId = watch('sourceOptionId') || watch('sourceId');
   const typedSourceName = watch('sourceName');
-  const selectedSource = sources.find((source) => source.id === selectedSourceId) || null;
+  const selectedSource = sources.find((source) => String(source.id) === selectedSourceId) || null;
 
   return (
     <form className="w-full space-y-8" onSubmit={handleSubmit(onSubmit)}>
@@ -136,11 +136,15 @@ export function LeadForm({
                 fullWidth
                 select
                 label="Trạng thái"
-                defaultValue={defaults.statusOptionId || defaults.statusId || statuses[0]?.id || ''}
+                defaultValue={
+                  defaults.statusOptionId ||
+                  defaults.statusId ||
+                  (statuses[0]?.id !== undefined ? String(statuses[0].id) : '')
+                }
                 {...register('statusOptionId')}
               >
                 {statuses.map((status) => (
-                  <MenuItem key={status.id} value={status.id}>
+                  <MenuItem key={status.id} value={String(status.id)}>
                     {status.name}
                   </MenuItem>
                 ))}
@@ -196,7 +200,7 @@ export function LeadForm({
               {...register('assignedUserId')}
             >
               {users.map((user) => (
-                <MenuItem key={user.id} value={user.id}>
+                <MenuItem key={user.id} value={String(user.id)}>
                   {user.name || user.email || user.code}
                 </MenuItem>
               ))}
@@ -223,7 +227,7 @@ export function LeadForm({
                 }
 
                 setValue('sourceId', '');
-                setValue('sourceOptionId', nextValue?.id || '');
+                setValue('sourceOptionId', nextValue?.id !== undefined ? String(nextValue.id) : '');
                 setValue('sourceName', nextValue?.label || '');
               }}
               onInputChange={(_, nextValue, reason) => {
@@ -264,7 +268,7 @@ export function LeadForm({
                         if (!selectedIds.length) return 'Chưa chọn';
 
                         return services
-                          .filter((service) => selectedIds.includes(service.id))
+                          .filter((service) => selectedIds.includes(String(service.id)))
                           .map((service) => service.label)
                           .join(', ');
                       },
@@ -272,8 +276,8 @@ export function LeadForm({
                   }}
                 >
                   {services.map((service) => (
-                    <MenuItem key={service.id} value={service.id}>
-                      <Checkbox checked={(field.value || []).includes(service.id)} />
+                    <MenuItem key={service.id} value={String(service.id)}>
+                      <Checkbox checked={(field.value || []).includes(String(service.id))} />
                       <ListItemText primary={service.label} />
                     </MenuItem>
                   ))}

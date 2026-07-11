@@ -108,7 +108,9 @@ export function ProjectForm({
   const selectedCustomerId = watch('customerId');
   const selectedServiceId = watch('serviceId');
   const projectName = watch('projectName');
-  const selectedCustomer = customers.find((customer) => customer.id === selectedCustomerId);
+  const selectedCustomer = customers.find(
+    (customer) => String(customer.id) === selectedCustomerId,
+  );
   const rootServiceCode = useMemo(
     () => getRootServiceCode(services, selectedServiceId),
     [selectedServiceId, services],
@@ -219,7 +221,7 @@ export function ProjectForm({
                   <TextField fullWidth select label="Tình trạng hợp đồng" {...field}>
                     <MenuItem value="">Chưa chọn</MenuItem>
                     {contractStatuses.map((status) => (
-                      <MenuItem key={status.id} value={status.id}>
+                      <MenuItem key={status.id} value={String(status.id)}>
                         {status.label}
                       </MenuItem>
                     ))}
@@ -298,7 +300,7 @@ export function ProjectForm({
                   {...field}
                 >
                   {customers.map((customer) => (
-                    <MenuItem key={customer.id} value={customer.id}>
+                    <MenuItem key={customer.id} value={String(customer.id)}>
                       {customerLabel(customer)}
                     </MenuItem>
                   ))}
@@ -312,13 +314,15 @@ export function ProjectForm({
               rules={{ required: 'Vui lòng chọn dịch vụ' }}
               render={({ field }) => {
                 const selectedService =
-                  serviceOptions.find((service) => service.id === field.value) || null;
+                  serviceOptions.find((service) => String(service.id) === field.value) || null;
 
                 return (
                   <Autocomplete
                     options={serviceOptions}
                     value={selectedService}
-                    onChange={(_, nextValue) => field.onChange(nextValue?.id || '')}
+                    onChange={(_, nextValue) =>
+                      field.onChange(nextValue?.id !== undefined ? String(nextValue.id) : '')
+                    }
                     getOptionLabel={serviceLabel}
                     isOptionEqualToValue={(option, value) => option.id === value.id}
                     filterOptions={(options, state) => {
@@ -354,7 +358,7 @@ export function ProjectForm({
                 <TextField fullWidth select label="Trạng thái" {...field}>
                   <MenuItem value="">Chưa chọn</MenuItem>
                   {statuses.map((status) => (
-                    <MenuItem key={status.id} value={status.id}>
+                    <MenuItem key={status.id} value={String(status.id)}>
                       {status.label}
                     </MenuItem>
                   ))}
@@ -369,7 +373,7 @@ export function ProjectForm({
                 <TextField fullWidth select label="Người quản lý" {...field}>
                   <MenuItem value="">Chưa chọn</MenuItem>
                   {users.map((user) => (
-                    <MenuItem key={user.id} value={user.id}>
+                    <MenuItem key={user.id} value={String(user.id)}>
                       {userLabel(user)}
                     </MenuItem>
                   ))}
@@ -384,7 +388,7 @@ export function ProjectForm({
                 <TextField fullWidth select label="Sales phụ trách" {...field}>
                   <MenuItem value="">Chưa chọn</MenuItem>
                   {users.map((user) => (
-                    <MenuItem key={user.id} value={user.id}>
+                    <MenuItem key={user.id} value={String(user.id)}>
                       {userLabel(user)}
                     </MenuItem>
                   ))}

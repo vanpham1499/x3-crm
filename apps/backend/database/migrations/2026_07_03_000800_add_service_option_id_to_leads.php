@@ -10,7 +10,7 @@ return new class extends Migration
     {
         Schema::table('leads', function (Blueprint $table): void {
             if (! Schema::hasColumn('leads', 'interested_service_option_id')) {
-                $table->foreignUuid('interested_service_option_id')
+                $table->foreignId('interested_service_option_id')
                     ->nullable()
                     ->after('industry_option_id')
                     ->constrained('options')

@@ -9,17 +9,17 @@ return new class extends Migration
     public function up(): void
     {
         Schema::create('google_ad_accounts', function (Blueprint $table): void {
-            $table->uuid('id')->primary();
-            $table->foreignUuid('project_id')->constrained('projects')->cascadeOnDelete();
+            $table->id();
+            $table->foreignId('project_id')->constrained('projects')->cascadeOnDelete();
             $table->string('cid', 100)->nullable();
             $table->string('ad_account')->nullable();
             $table->date('topup_date')->nullable();
             $table->decimal('topup_amount', 15, 2)->default(0);
             $table->text('note')->nullable();
-            $table->foreignUuid('created_by')->nullable()->constrained('users')->nullOnDelete();
+            $table->foreignId('created_by')->nullable()->constrained('users')->nullOnDelete();
             $table->timestamps();
-            $table->foreignUuid('updated_by')->nullable()->constrained('users')->nullOnDelete();
-            $table->foreignUuid('deleted_by')->nullable()->constrained('users')->nullOnDelete();
+            $table->foreignId('updated_by')->nullable()->constrained('users')->nullOnDelete();
+            $table->foreignId('deleted_by')->nullable()->constrained('users')->nullOnDelete();
             $table->softDeletes();
 
             $table->index(['project_id', 'cid']);

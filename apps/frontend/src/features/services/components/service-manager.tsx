@@ -331,7 +331,7 @@ function QuoteConfigDialog({
   const resetDefaults = () => {
     if (!state) return;
     setConfig({
-      serviceRootId: state.service.id,
+      serviceRootId: String(state.service.id),
       serviceRootCode: state.service.code,
       enabled: true,
       managementFeeRates: DEFAULT_MANAGEMENT_FEE_RATES,

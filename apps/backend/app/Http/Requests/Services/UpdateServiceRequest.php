@@ -10,8 +10,8 @@ class UpdateServiceRequest extends BaseRequest
     public function rules(): array
     {
         return [
-            'parent_id' => ['sometimes', 'nullable', 'uuid', Rule::exists('services', 'id')->whereNull('deleted_at')],
-            'parentId' => ['sometimes', 'nullable', 'uuid', Rule::exists('services', 'id')->whereNull('deleted_at')],
+            'parent_id' => ['sometimes', 'nullable', 'integer', Rule::exists('services', 'id')->whereNull('deleted_at')],
+            'parentId' => ['sometimes', 'nullable', 'integer', Rule::exists('services', 'id')->whereNull('deleted_at')],
             'code' => ['sometimes', 'string', 'max:20'],
             'name' => ['sometimes', 'string', 'max:255'],
             'content' => ['sometimes', 'nullable', 'string'],

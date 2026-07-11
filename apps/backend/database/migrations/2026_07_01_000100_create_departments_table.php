@@ -9,12 +9,12 @@ return new class extends Migration
     public function up(): void
     {
         Schema::create('departments', function (Blueprint $table): void {
-            $table->uuid('id')->primary();
+            $table->id();
             $table->string('name', 100);
-            $table->uuid('created_by')->nullable();
+            $table->unsignedBigInteger('created_by')->nullable();
             $table->timestamps();
-            $table->uuid('updated_by')->nullable();
-            $table->uuid('deleted_by')->nullable();
+            $table->unsignedBigInteger('updated_by')->nullable();
+            $table->unsignedBigInteger('deleted_by')->nullable();
             $table->softDeletes();
         });
     }

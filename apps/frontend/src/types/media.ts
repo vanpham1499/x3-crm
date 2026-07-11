@@ -1,5 +1,5 @@
 export type MediaItem = {
-  id: string;
+  id: number;
   url: string;
   previewUrl?: string | null;
   fileName: string;

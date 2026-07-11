@@ -122,10 +122,10 @@ export default function NewCustomerPage() {
       queryClient.invalidateQueries({ queryKey: ['leads'] });
       notify.success('Tạo khách hàng thành công');
       const quotationId = leadQuotations[0]?.id;
-      const params = new URLSearchParams({ customerId: customer.id });
+      const params = new URLSearchParams({ customerId: String(customer.id) });
 
       if (quotationId) {
-        params.set('quotationId', quotationId);
+        params.set('quotationId', String(quotationId));
       }
 
       router.push(`/projects/new?${params.toString()}`);

@@ -10,15 +10,15 @@ return new class extends Migration
     {
         Schema::table('customers', function (Blueprint $table): void {
             if (! Schema::hasColumn('customers', 'customer_type_option_id')) {
-                $table->foreignUuid('customer_type_option_id')->nullable()->after('customer_type')->constrained('options')->nullOnDelete();
+                $table->foreignId('customer_type_option_id')->nullable()->after('customer_type')->constrained('options')->nullOnDelete();
             }
 
             if (! Schema::hasColumn('customers', 'source_option_id')) {
-                $table->foreignUuid('source_option_id')->nullable()->after('source_id')->constrained('options')->nullOnDelete();
+                $table->foreignId('source_option_id')->nullable()->after('source_id')->constrained('options')->nullOnDelete();
             }
 
             if (! Schema::hasColumn('customers', 'industry_option_id')) {
-                $table->foreignUuid('industry_option_id')->nullable()->after('industry')->constrained('options')->nullOnDelete();
+                $table->foreignId('industry_option_id')->nullable()->after('industry')->constrained('options')->nullOnDelete();
             }
         });
     }

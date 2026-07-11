@@ -20,7 +20,7 @@ export default function RolesPage() {
   const queryClient = useQueryClient();
   const notify = useAppNotification();
   const [deleteTarget, setDeleteTarget] = useState<Role | null>(null);
-  const [bulkDeleteIds, setBulkDeleteIds] = useState<string[]>([]);
+  const [bulkDeleteIds, setBulkDeleteIds] = useState<number[]>([]);
   const [filters, setFilters] = useState<RoleFilters>({ keyword: '' });
 
   const { data: roles = [], isFetching, isLoading } = useQuery<Role[]>({
@@ -42,7 +42,7 @@ export default function RolesPage() {
   });
 
   const bulkDeleteMutation = useMutation({
-    mutationFn: (roleIds: string[]) => Promise.all(roleIds.map((roleId) => api.delete(`/roles/${roleId}`))),
+    mutationFn: (roleIds: number[]) => Promise.all(roleIds.map((roleId) => api.delete(`/roles/${roleId}`))),
     onSuccess: (_, roleIds) => {
       queryClient.invalidateQueries({ queryKey: ['roles'] });
       notify.success(`Đã xóa ${roleIds.length} vai trò`);
