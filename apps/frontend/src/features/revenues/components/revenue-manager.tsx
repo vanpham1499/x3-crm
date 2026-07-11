@@ -173,9 +173,13 @@ export function RevenueManager({
                   <tr key={revenue.id} className="hover:bg-slate-50/80">
                     <td className="px-5 py-4 font-bold text-slate-950">{revenue.revenueCode || '-'}</td>
                     <td className="px-5 py-4">
-                      <p className="truncate font-semibold text-slate-900">
-                        {revenue.project?.projectName || '-'}
-                      </p>
+                      {revenue.project ? (
+                        <Link href={`/projects/${revenue.project.id}`} className="block truncate font-semibold text-slate-900 hover:underline">
+                          {revenue.project.projectName || '-'}
+                        </Link>
+                      ) : (
+                        <p className="truncate font-semibold text-slate-900">-</p>
+                      )}
                       <p className="mt-1 truncate text-xs font-semibold text-slate-500">
                         {revenue.project?.customer?.customerName || revenue.project?.projectCode || '-'}
                       </p>

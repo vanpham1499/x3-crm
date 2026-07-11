@@ -1,6 +1,7 @@
 'use client';
 
 import { useMemo, useState } from 'react';
+import Link from 'next/link';
 import AddRoundedIcon from '@mui/icons-material/AddRounded';
 import DeleteRoundedIcon from '@mui/icons-material/DeleteRounded';
 import EditRoundedIcon from '@mui/icons-material/EditRounded';
@@ -338,12 +339,29 @@ export function InvoiceManager({
               ) : (
                 invoices.map((invoice) => (
                   <tr key={invoice.id} className="hover:bg-slate-50/80">
-                    <td className="px-5 py-4 font-bold text-slate-950">{invoice.invoiceNo || '-'}</td>
+                    <td className="px-5 py-4 font-bold text-slate-950">
+                      <p>{invoice.invoiceNo || '-'}</p>
+                      {invoice.revenue ? (
+                        <Link
+                          href={`/revenues/${invoice.revenue.id}`}
+                          className="mt-1 block text-xs font-normal text-slate-400 hover:underline"
+                        >
+                          {invoice.revenue.revenueCode}
+                        </Link>
+                      ) : null}
+                    </td>
                     <td className="px-5 py-4">
                       <p className="truncate font-semibold text-slate-900">{invoice.companyName || '-'}</p>
-                      <p className="mt-1 truncate text-xs text-slate-500">
-                        {invoice.revenue?.project?.projectName || '-'}
-                      </p>
+                      {invoice.revenue?.project ? (
+                        <Link
+                          href={`/projects/${invoice.revenue.project.id}`}
+                          className="mt-1 block truncate text-xs text-slate-500 hover:underline"
+                        >
+                          {invoice.revenue.project.projectName || '-'}
+                        </Link>
+                      ) : (
+                        <p className="mt-1 truncate text-xs text-slate-500">-</p>
+                      )}
                     </td>
                     <td className="px-5 py-4 text-slate-600">{invoice.issuedDate || '-'}</td>
                     <td className="px-5 py-4 text-right font-bold text-slate-950">

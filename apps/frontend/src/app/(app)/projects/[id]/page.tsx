@@ -5,6 +5,7 @@ import { Alert } from '@mui/material';
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import { useAppNotification } from '@/components/feedback/notification-provider';
 import { ContentLoading } from '@/components/shell/content-loading';
+import { ProjectFinancePanel } from '@/features/projects/components/project-finance-panel';
 import { ProjectForm } from '@/features/projects/components/project-form';
 import { getApiErrorMessage } from '@/lib/api-error';
 import { toProjectPayload } from '@/lib/project-utils';
@@ -12,7 +13,9 @@ import { SERVICE_QUOTE_CONFIG_GROUP } from '@/lib/service-quote-config';
 import api from '@/services/api/client';
 import type { Customer } from '@/types/customer';
 import type { AppOption } from '@/types/option';
+import type { Payment } from '@/types/payment';
 import type { ProjectFormValues, ProjectItem } from '@/types/project';
+import type { Revenue } from '@/types/revenue';
 import type { ServiceItem } from '@/types/service';
 import type { User } from '@/types/user';
 
@@ -60,6 +63,16 @@ export default function EditProjectPage() {
     queryFn: () => api.get(`/projects/${id}`).then((response) => response.data),
   });
 
+  const { data: payments = [] } = useQuery<Payment[]>({
+    queryKey: ['payments', 'by-project', id],
+    queryFn: () => api.get<Payment[]>('/payments', { params: { project_id: id } }).then((response) => response.data),
+  });
+
+  const { data: revenues = [] } = useQuery<Revenue[]>({
+    queryKey: ['revenues', 'by-project', id],
+    queryFn: () => api.get<Revenue[]>('/revenues', { params: { project_id: id } }).then((response) => response.data),
+  });
+
   const updateMutation = useMutation({
     mutationFn: (values: ProjectFormValues) =>
       api.put<ProjectItem>(`/projects/${id}`, toProjectPayload(values)).then((response) => response.data),
@@ -96,6 +109,10 @@ export default function EditProjectPage() {
           <span className="h-1 w-1 rounded-full bg-slate-300" />
           <span className="text-slate-950">{project.projectCode || project.projectName}</span>
         </div>
+      </div>
+
+      <div className="mb-6">
+        <ProjectFinancePanel projectId={project.id} payments={payments} revenues={revenues} />
       </div>
 
       <ProjectForm

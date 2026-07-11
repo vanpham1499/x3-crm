@@ -1,6 +1,7 @@
 'use client';
 
 import { useState } from 'react';
+import NextLink from 'next/link';
 import LinkRoundedIcon from '@mui/icons-material/LinkRounded';
 import LinkOffRoundedIcon from '@mui/icons-material/LinkOffRounded';
 import {
@@ -133,12 +134,34 @@ export function PaymentManager({
                   <tr key={payment.id} className="hover:bg-slate-50/80">
                     <td className="px-5 py-4 text-slate-600">{payment.transactionDate || '-'}</td>
                     <td className="px-5 py-4 text-right font-bold text-slate-950">{formatCurrency(payment.amount)}</td>
-                    <td className="px-5 py-4 font-semibold text-slate-800">{payment.quotation?.quotationCode || '-'}</td>
+                    <td className="px-5 py-4 font-semibold text-slate-800">
+                      {payment.quotation ? (
+                        <NextLink href={`/quotations/${payment.quotation.id}`} className="hover:underline">
+                          {payment.quotation.quotationCode || '-'}
+                        </NextLink>
+                      ) : (
+                        '-'
+                      )}
+                    </td>
                     <td className="px-5 py-4">
-                      <p className="truncate font-semibold text-slate-900">{payment.project?.projectCode || '-'}</p>
+                      {payment.project ? (
+                        <NextLink href={`/projects/${payment.project.id}`} className="block truncate font-semibold text-slate-900 hover:underline">
+                          {payment.project.projectCode || '-'}
+                        </NextLink>
+                      ) : (
+                        <p className="truncate font-semibold text-slate-900">-</p>
+                      )}
                       <p className="mt-1 truncate text-xs text-slate-500">{payment.project?.projectName || ''}</p>
                     </td>
-                    <td className="px-5 py-4 text-slate-700">{payment.contract?.contractNo || '-'}</td>
+                    <td className="px-5 py-4 text-slate-700">
+                      {payment.contract && payment.project ? (
+                        <NextLink href={`/projects/${payment.project.id}`} className="hover:underline">
+                          {payment.contract.contractNo || '-'}
+                        </NextLink>
+                      ) : (
+                        payment.contract?.contractNo || '-'
+                      )}
+                    </td>
                     <td className="px-5 py-4">
                       <span className={`rounded-md px-2 py-1 text-xs font-bold ${statusClass(payment.status)}`}>
                         {statusLabels[payment.status || ''] || payment.status || '-'}

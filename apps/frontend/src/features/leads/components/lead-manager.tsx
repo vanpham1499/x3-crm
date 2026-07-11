@@ -15,6 +15,7 @@ import MoreVertRoundedIcon from '@mui/icons-material/MoreVertRounded';
 import OpenInNewRoundedIcon from '@mui/icons-material/OpenInNewRounded';
 import PersonAddAlt1RoundedIcon from '@mui/icons-material/PersonAddAlt1Rounded';
 import PhoneRoundedIcon from '@mui/icons-material/PhoneRounded';
+import RequestQuoteRoundedIcon from '@mui/icons-material/RequestQuoteRounded';
 import SearchRoundedIcon from '@mui/icons-material/SearchRounded';
 import VisibilityRoundedIcon from '@mui/icons-material/VisibilityRounded';
 import {
@@ -39,6 +40,7 @@ import { formatDate, formatDateTime } from '@/lib/utils';
 import api from '@/services/api/client';
 import type { Lead, LeadAttachment, LeadFilters, LeadTimelineEntry } from '@/types/lead';
 import type { AppOption } from '@/types/option';
+import type { Quotation } from '@/types/quotation';
 import type { User } from '@/types/user';
 
 type LeadManagerProps = {
@@ -308,6 +310,12 @@ function LeadViewDialog({
   onTabChange: (tab: number) => void;
   onClose: () => void;
 }) {
+  const { data: quotations = [] } = useQuery<Quotation[]>({
+    queryKey: ['quotations', 'by-lead', lead?.id],
+    queryFn: () => api.get<Quotation[]>('/quotations', { params: { lead_id: lead?.id } }).then((response) => response.data),
+    enabled: Boolean(lead?.id),
+  });
+
   if (!lead) return null;
 
   const serviceOptions = lead.interestedServiceOptions?.length
@@ -335,16 +343,27 @@ function LeadViewDialog({
         </div>
         <div className="flex shrink-0 flex-wrap items-center gap-2">
           {!lead.convertedCustomerId && (
-            <Button
-              component={Link}
-              href={`/customers/new?leadId=${lead.id}`}
-              size="small"
-              variant="contained"
-              startIcon={<PersonAddAlt1RoundedIcon />}
-              className="!bg-slate-900 hover:!bg-slate-800"
-            >
-              Tạo khách hàng mới
-            </Button>
+            <>
+              <Button
+                component={Link}
+                href={`/quotations/new?leadId=${lead.id}`}
+                size="small"
+                variant="outlined"
+                startIcon={<RequestQuoteRoundedIcon />}
+              >
+                Tạo báo giá
+              </Button>
+              <Button
+                component={Link}
+                href={`/customers/new?leadId=${lead.id}`}
+                size="small"
+                variant="contained"
+                startIcon={<PersonAddAlt1RoundedIcon />}
+                className="!bg-slate-900 hover:!bg-slate-800"
+              >
+                Tạo khách hàng mới
+              </Button>
+            </>
           )}
           <Button
             component={Link}
@@ -401,6 +420,54 @@ function LeadViewDialog({
             <section className="rounded-lg border border-slate-200 bg-white p-5">
               <h3 className="mb-5 text-sm font-bold text-slate-950">Timeline chăm sóc</h3>
               <LeadTimelineList entries={timelineEntries} lead={lead} statuses={statuses} />
+            </section>
+
+            <section className="rounded-lg border border-slate-200 bg-white p-5 lg:col-span-2">
+              <div className="mb-4 flex items-center justify-between">
+                <h3 className="text-sm font-bold text-slate-950">Báo giá ({quotations.length})</h3>
+                {!lead.convertedCustomerId && (
+                  <Button
+                    component={Link}
+                    href={`/quotations/new?leadId=${lead.id}`}
+                    size="small"
+                    startIcon={<RequestQuoteRoundedIcon />}
+                  >
+                    Tạo báo giá
+                  </Button>
+                )}
+              </div>
+              {quotations.length === 0 ? (
+                <p className="text-sm font-medium text-slate-500">Lead chưa có báo giá nào.</p>
+              ) : (
+                <div className="divide-y divide-slate-100">
+                  {quotations.map((quotation) => (
+                    <div key={quotation.id} className="flex flex-wrap items-center justify-between gap-2 py-3">
+                      <Link
+                        href={`/quotations/${quotation.id}`}
+                        className="font-bold text-slate-950 hover:underline"
+                      >
+                        {quotation.quotationCode || `#${quotation.id}`}
+                      </Link>
+                      <span className="text-sm font-semibold text-slate-700">
+                        {new Intl.NumberFormat('vi-VN').format(Math.round(Number(quotation.totalAmount) || 0))} đ
+                      </span>
+                      <span className="rounded-md bg-slate-100 px-2 py-1 text-xs font-bold text-slate-700">
+                        {quotation.status || '-'}
+                      </span>
+                      {!quotation.projectId && (
+                        <Button
+                          component={Link}
+                          href={`/projects/new?quotationId=${quotation.id}`}
+                          size="small"
+                          variant="outlined"
+                        >
+                          Tạo dự án từ báo giá này
+                        </Button>
+                      )}
+                    </div>
+                  ))}
+                </div>
+              )}
             </section>
           </div>
         )}

@@ -11,6 +11,7 @@ use App\Repositories\LeadRepository;
 use Illuminate\Support\Collection;
 use Illuminate\Support\Facades\DB;
 use Symfony\Component\HttpKernel\Exception\ConflictHttpException;
+use Symfony\Component\HttpKernel\Exception\NotFoundHttpException;
 
 class LeadsService extends BaseService
 {
@@ -105,11 +106,19 @@ class LeadsService extends BaseService
     {
         return $this->transaction(function () use ($id, $data): array {
             $data = $this->normalizeConvertPayload($data);
-            $lead = $this->leads->findWithRelationsOrFail($id);
 
-            if ($lead->converted_customer_id) {
+            /** @var Lead|null $lockedLead */
+            $lockedLead = Lead::query()->whereKey($id)->lockForUpdate()->first();
+
+            if (! $lockedLead) {
+                throw new NotFoundHttpException('Lead không tồn tại');
+            }
+
+            if ($lockedLead->converted_customer_id) {
                 throw new ConflictHttpException('Lead đã được chuyển đổi');
             }
+
+            $lead = $this->leads->findWithRelationsOrFail($id);
 
             $quotation = ! empty($data['quotation_id']) ? $this->quotations->findModel($data['quotation_id']) : null;
 

@@ -1,6 +1,6 @@
 'use client';
 
-import { useRouter } from 'next/navigation';
+import { useRouter, useSearchParams } from 'next/navigation';
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import { useAppNotification } from '@/components/feedback/notification-provider';
 import { ContentLoading } from '@/components/shell/content-loading';
@@ -18,8 +18,10 @@ import type { ServiceItem } from '@/types/service';
 
 export default function NewQuotationPage() {
   const router = useRouter();
+  const searchParams = useSearchParams();
   const queryClient = useQueryClient();
   const notify = useAppNotification();
+  const leadId = searchParams.get('leadId') || '';
 
   const { data: leads = [], isLoading: isLeadsLoading } = useQuery<Lead[]>({
     queryKey: ['leads', 'quotation-form-options'],
@@ -90,6 +92,7 @@ export default function NewQuotationPage() {
       services={services}
       quoteConfigs={quoteConfigs}
       bankAccountOptions={bankAccountOptions}
+      defaultLeadId={leadId}
       isSubmitting={createMutation.isPending}
       onSubmit={(payload) => createMutation.mutate(payload)}
     />

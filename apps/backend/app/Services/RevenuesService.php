@@ -6,6 +6,7 @@ use App\Http\Resources\RevenueResource;
 use App\Models\Revenue;
 use App\Repositories\RevenueRepository;
 use Illuminate\Support\Facades\DB;
+use Symfony\Component\HttpKernel\Exception\ConflictHttpException;
 
 class RevenuesService extends BaseService
 {
@@ -67,6 +68,13 @@ class RevenuesService extends BaseService
     public function remove(string $id): array
     {
         return $this->transaction(function () use ($id): array {
+            /** @var Revenue $revenue */
+            $revenue = $this->revenues->findOrFail($id);
+
+            if ($revenue->invoice()->exists()) {
+                throw new ConflictHttpException('Không thể xóa doanh thu đã có hóa đơn — hãy xóa hóa đơn liên quan trước');
+            }
+
             $this->revenues->delete($id);
 
             return ['message' => 'Xóa doanh thu thành công'];
