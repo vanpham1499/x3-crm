@@ -16,7 +16,7 @@ import type { Permission, Role } from '@/types/access-control';
 export type RoleFormValues = {
   name: string;
   description: string;
-  permissionIds: string[];
+  permissionIds: number[];
 };
 
 type RoleFormProps = {

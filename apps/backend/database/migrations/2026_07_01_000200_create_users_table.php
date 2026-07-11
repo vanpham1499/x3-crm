@@ -12,11 +12,11 @@ return new class extends Migration
         if (Schema::hasTable('users')) {
             Schema::table('users', function (Blueprint $table): void {
                 if (! Schema::hasColumn('users', 'role_id')) {
-                    $table->foreignUuid('role_id')->nullable()->after('code')->constrained('roles')->restrictOnDelete();
+                    $table->foreignId('role_id')->nullable()->after('code')->constrained('roles')->restrictOnDelete();
                 }
 
                 if (! Schema::hasColumn('users', 'department_id')) {
-                    $table->foreignUuid('department_id')->nullable()->after('role_id')->constrained('departments')->nullOnDelete();
+                    $table->foreignId('department_id')->nullable()->after('role_id')->constrained('departments')->nullOnDelete();
                 }
 
                 if (! Schema::hasColumn('users', 'avatar')) {
@@ -25,10 +25,10 @@ return new class extends Migration
             });
         } else {
             Schema::create('users', function (Blueprint $table): void {
-                $table->uuid('id')->primary();
+                $table->id();
                 $table->string('code', 50)->unique();
-                $table->foreignUuid('role_id')->constrained('roles')->restrictOnDelete();
-                $table->foreignUuid('department_id')->nullable()->constrained('departments')->nullOnDelete();
+                $table->foreignId('role_id')->constrained('roles')->restrictOnDelete();
+                $table->foreignId('department_id')->nullable()->constrained('departments')->nullOnDelete();
                 $table->string('name');
                 $table->string('email')->unique();
                 $table->string('phone', 30)->nullable();
@@ -36,10 +36,10 @@ return new class extends Migration
                 $table->string('role', 50)->default(User::ROLE_EMPLOYEE);
                 $table->string('avatar')->nullable();
                 $table->boolean('is_active')->default(true);
-                $table->uuid('created_by')->nullable();
+                $table->unsignedBigInteger('created_by')->nullable();
                 $table->timestamps();
-                $table->uuid('updated_by')->nullable();
-                $table->uuid('deleted_by')->nullable();
+                $table->unsignedBigInteger('updated_by')->nullable();
+                $table->unsignedBigInteger('deleted_by')->nullable();
                 $table->softDeletes();
 
                 $table->index(['role_id', 'department_id']);

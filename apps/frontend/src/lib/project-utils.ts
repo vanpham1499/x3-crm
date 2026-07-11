@@ -10,6 +10,10 @@ export const DEFAULT_PROJECT_FILTERS = {
   sales_user_id: '',
 };
 
+function idToString(value?: string | number | null): string {
+  return value === undefined || value === null || value === '' ? '' : String(value);
+}
+
 export function getProjectDefaults(
   project?: ProjectItem | null,
   defaults?: Partial<ProjectFormValues>,
@@ -18,22 +22,22 @@ export function getProjectDefaults(
 
   return {
     projectCode: project?.projectCode || defaults?.projectCode || '',
-    customerId: project?.customerId || defaults?.customerId || '',
-    quotationId: project?.quotationId || defaults?.quotationId || '',
-    serviceId: project?.serviceId || defaults?.serviceId || '',
+    customerId: idToString(project?.customerId) || defaults?.customerId || '',
+    quotationId: idToString(project?.quotationId) || defaults?.quotationId || '',
+    serviceId: idToString(project?.serviceId) || defaults?.serviceId || '',
     projectName: project?.projectName || defaults?.projectName || '',
-    statusOptionId: project?.statusOptionId || defaults?.statusOptionId || '',
-    managerUserId: project?.managerUserId || defaults?.managerUserId || '',
-    salesUserId: project?.salesUserId || defaults?.salesUserId || '',
+    statusOptionId: idToString(project?.statusOptionId) || defaults?.statusOptionId || '',
+    managerUserId: idToString(project?.managerUserId) || defaults?.managerUserId || '',
+    salesUserId: idToString(project?.salesUserId) || defaults?.salesUserId || '',
     zaloGroup: project?.zaloGroup || defaults?.zaloGroup || '',
     planLink: project?.planLink || defaults?.planLink || '',
     startDate: project?.startDate || defaults?.startDate || '',
     endDate: project?.endDate || defaults?.endDate || '',
     note: project?.note || defaults?.note || '',
-    contractId: contract?.id || defaults?.contractId || '',
+    contractId: idToString(contract?.id) || defaults?.contractId || '',
     contractNo: project?.projectCode || contract?.contractNo || defaults?.contractNo || '',
     contractStatusOptionId:
-      contract?.contractStatusOptionId || defaults?.contractStatusOptionId || '',
+      idToString(contract?.contractStatusOptionId) || defaults?.contractStatusOptionId || '',
     depositAmount:
       contract?.depositAmount !== undefined && contract?.depositAmount !== null
         ? String(contract.depositAmount)
@@ -95,13 +99,24 @@ export function toProjectPayload(values: ProjectFormValues) {
 
 export function getRootServiceCode(services: ServiceItem[], serviceId: string): string {
   for (const service of services) {
-    if (service.id === serviceId) return service.code;
+    if (String(service.id) === serviceId) return service.code;
 
     const childCode = getRootServiceCode(service.children || [], serviceId);
     if (childCode) return service.code;
   }
 
   return '';
+}
+
+export function toCodeSegment(value?: string | null): string {
+  return (value || '')
+    .trim()
+    .replace(/đ/g, 'd')
+    .replace(/Đ/g, 'D')
+    .normalize('NFD')
+    .replace(/[̀-ͯ]/g, '')
+    .toUpperCase()
+    .replace(/\s+/g, '');
 }
 
 export function generateProjectCode({
@@ -113,7 +128,7 @@ export function generateProjectCode({
   rootServiceCode?: string | null;
   projectName?: string | null;
 }) {
-  const parts = [customerCode, rootServiceCode, projectName].map((part) => (part || '').trim());
+  const parts = [customerCode, rootServiceCode, projectName].map((part) => toCodeSegment(part));
 
   if (parts.some((part) => !part)) return '';
 

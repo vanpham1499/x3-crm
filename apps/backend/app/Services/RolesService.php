@@ -7,7 +7,6 @@ use App\Http\Resources\RoleResource;
 use App\Models\Role;
 use App\Repositories\RoleRepository;
 use Illuminate\Support\Facades\DB;
-use Illuminate\Support\Str;
 
 class RolesService extends BaseService
 {
@@ -68,8 +67,7 @@ class RolesService extends BaseService
 
             $now = now();
             $rows = collect($permissionIds)
-                ->map(fn (string $permissionId): array => [
-                    'id' => (string) Str::uuid(),
+                ->map(fn ($permissionId): array => [
                     'role_id' => $role->id,
                     'permission_id' => $permissionId,
                     'created_at' => $now,

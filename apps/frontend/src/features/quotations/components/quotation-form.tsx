@@ -54,12 +54,16 @@ function toNumber(value: string | number | null | undefined) {
 }
 
 function createQuoteLineId() {
-  return `quote-line-${Date.now()}-${Math.random().toString(36).slice(2, 8)}`;
+  return Date.now() + Math.floor(Math.random() * 1000);
+}
+
+function idToString(value?: string | number | null): string {
+  return value === undefined || value === null || value === '' ? '' : String(value);
 }
 
 function findRootService(services: ServiceItem[], serviceId: string): ServiceItem | null {
   const flatServices = flattenServices(services);
-  const selected = flatServices.find((service) => service.id === serviceId);
+  const selected = flatServices.find((service) => String(service.id) === serviceId);
 
   if (!selected) return null;
   if (!selected.parentId) return selected;
@@ -106,7 +110,7 @@ export function QuotationForm({
   const [setupPackageKey, setSetupPackageKey] = useState('basic');
   const [budget, setBudget] = useState('0');
   const [manualLines, setManualLines] = useState<QuotationLineFormValue[]>([
-    { id: 'quote-line-1', name: '', unit: 'Dịch vụ', quantity: '1', unitPrice: '0' },
+    { id: 1, name: '', unit: 'Dịch vụ', quantity: '1', unitPrice: '0' },
   ]);
 
   const serviceOptions = useMemo(() => flattenServices(services), [services]);
@@ -114,10 +118,11 @@ export function QuotationForm({
     () => getCompanyBankAccounts(bankAccountOptions),
     [bankAccountOptions],
   );
-  const selectedLead = leads.find((lead) => lead.id === leadId) || null;
-  const selectedCustomer = customers.find((customer) => customer.id === customerId) || null;
-  const selectedProject = projects.find((project) => project.id === projectId) || null;
-  const selectedService = serviceOptions.find((service) => service.id === selectedServiceId) || null;
+  const selectedLead = leads.find((lead) => String(lead.id) === leadId) || null;
+  const selectedCustomer = customers.find((customer) => String(customer.id) === customerId) || null;
+  const selectedProject = projects.find((project) => String(project.id) === projectId) || null;
+  const selectedService =
+    serviceOptions.find((service) => String(service.id) === selectedServiceId) || null;
   const selectedBankAccount =
     bankAccounts.find((account) => account.id === selectedBankAccountId) ||
     getDefaultCompanyBankAccount(bankAccountOptions);
@@ -142,9 +147,9 @@ export function QuotationForm({
 
   const autoLines: QuotationLineFormValue[] = canUseAutoQuote
     ? [
-        { id: 'auto-budget', name: 'Ngân sách', unit: 'Tháng', quantity: '1', unitPrice: budget, locked: true },
+        { id: -1, name: 'Ngân sách', unit: 'Tháng', quantity: '1', unitPrice: budget, locked: true },
         {
-          id: 'auto-management-fee',
+          id: -2,
           name: `Phí quản lý (${managementFee?.percent || 0}%)`,
           unit: 'Dịch vụ',
           quantity: '1',
@@ -152,7 +157,7 @@ export function QuotationForm({
           locked: true,
         },
         {
-          id: 'auto-setup-fee',
+          id: -3,
           name: `Phí Setup${setupPackage ? ` - ${setupPackage.label}` : ''}`,
           unit: 'Lần',
           quantity: '1',
@@ -187,9 +192,9 @@ export function QuotationForm({
 
     setCustomerMode(nextCustomerMode);
     setProjectMode(nextProjectMode);
-    setLeadId(quotation.leadId || '');
-    setCustomerId(quotation.customerId || '');
-    setProjectId(quotation.projectId || '');
+    setLeadId(idToString(quotation.leadId));
+    setCustomerId(idToString(quotation.customerId));
+    setProjectId(idToString(quotation.projectId));
     setCustomerName(
       getMetadataValue(metadata, 'customerName') ||
         quotation.lead?.customerName ||
@@ -202,7 +207,7 @@ export function QuotationForm({
     setVatRate(String(quotation.vatRate ?? '0'));
     setValidUntil(quotation.validUntil || '');
     setNote(quotation.note || '');
-    setSelectedServiceId(quotation.serviceId || '');
+    setSelectedServiceId(idToString(quotation.serviceId));
     setBudget(getMetadataValue(metadata, 'budget') || '0');
     setSetupPackageKey(getMetadataValue(metadata, 'setupPackageKey') || 'basic');
     setSelectedBankAccountId(getMetadataValue(metadata, 'bankAccountOptionId'));
@@ -221,7 +226,7 @@ export function QuotationForm({
     setManualLines(
       nextManualLines.length > 0
         ? nextManualLines
-        : [{ id: 'quote-line-1', name: '', unit: 'Dịch vụ', quantity: '1', unitPrice: '0' }],
+        : [{ id: 1, name: '', unit: 'Dịch vụ', quantity: '1', unitPrice: '0' }],
     );
   }, [quotation]);
 
@@ -246,7 +251,7 @@ export function QuotationForm({
 
   useEffect(() => {
     if (mode !== 'create' || customerMode !== 'existing_customer' || !selectedCustomer) return;
-    setLeadId(selectedCustomer.leadId || '');
+    setLeadId(idToString(selectedCustomer.leadId));
     setCustomerName(selectedCustomer.customerName || selectedCustomer.companyName || '');
   }, [customerMode, mode, selectedCustomer]);
 
@@ -254,18 +259,18 @@ export function QuotationForm({
     if (mode !== 'create' || customerMode !== 'existing_customer' || projectMode !== 'existing_project' || !selectedProject) return;
 
     setProjectName(selectedProject.projectName || '');
-    setCustomerId(selectedProject.customerId || '');
+    setCustomerId(idToString(selectedProject.customerId));
     setCustomerName(
       selectedProject.customer?.customerName ||
         selectedProject.customer?.companyName ||
         selectedProject.projectName ||
         '',
     );
-    setLeadId(selectedProject.customer?.leadId || '');
-    setSelectedServiceId(selectedProject.serviceId || '');
+    setLeadId(idToString(selectedProject.customer?.leadId));
+    setSelectedServiceId(idToString(selectedProject.serviceId));
   }, [customerMode, mode, projectMode, selectedProject]);
 
-  const updateLine = (lineId: string, values: Partial<QuotationLineFormValue>) => {
+  const updateLine = (lineId: number, values: Partial<QuotationLineFormValue>) => {
     setManualLines((current) =>
       current.map((line) => (line.id === lineId ? { ...line, ...values } : line)),
     );
@@ -278,7 +283,7 @@ export function QuotationForm({
     ]);
   };
 
-  const deleteLine = (lineId: string) => {
+  const deleteLine = (lineId: number) => {
     setManualLines((current) => {
       if (current.length === 1) return current;
       return current.filter((line) => line.id !== lineId);
@@ -288,7 +293,7 @@ export function QuotationForm({
   const submitForm = () => {
     const payload: Record<string, unknown> = {
       quotationCode: quotation?.quotationCode || undefined,
-      serviceId: selectedServiceId || null,
+      serviceId: selectedServiceId ? Number(selectedServiceId) : null,
       serviceCode: selectedService?.code || null,
       serviceName: selectedService?.name || null,
       status,
@@ -319,10 +324,10 @@ export function QuotationForm({
       items: quoteLines
         .filter((line) => line.name.trim())
         .map((line, index) => ({
-          serviceId: selectedServiceId || null,
-          service_id: selectedServiceId || null,
-          itemCode: line.id.startsWith('auto-') ? line.id : null,
-          item_code: line.id.startsWith('auto-') ? line.id : null,
+          serviceId: selectedServiceId ? Number(selectedServiceId) : null,
+          service_id: selectedServiceId ? Number(selectedServiceId) : null,
+          itemCode: line.locked ? String(line.id) : null,
+          item_code: line.locked ? String(line.id) : null,
           itemName: line.name.trim(),
           item_name: line.name.trim(),
           quantity: toNumber(line.quantity),
@@ -346,18 +351,20 @@ export function QuotationForm({
     };
 
     if (mode === 'create') {
-      payload.leadId = leadId;
-      payload.lead_id = leadId;
-      payload.customerId = customerMode === 'existing_customer' ? customerId || null : null;
-      payload.customer_id = customerMode === 'existing_customer' ? customerId || null : null;
-      payload.projectId =
-        customerMode === 'existing_customer' && projectMode === 'existing_project'
-          ? projectId || null
+      const leadIdValue = leadId ? Number(leadId) : null;
+      const customerIdValue =
+        customerMode === 'existing_customer' && customerId ? Number(customerId) : null;
+      const projectIdValue =
+        customerMode === 'existing_customer' && projectMode === 'existing_project' && projectId
+          ? Number(projectId)
           : null;
-      payload.project_id =
-        customerMode === 'existing_customer' && projectMode === 'existing_project'
-          ? projectId || null
-          : null;
+
+      payload.leadId = leadIdValue;
+      payload.lead_id = leadIdValue;
+      payload.customerId = customerIdValue;
+      payload.customer_id = customerIdValue;
+      payload.projectId = projectIdValue;
+      payload.project_id = projectIdValue;
     }
 
     onSubmit(payload);
@@ -419,7 +426,7 @@ export function QuotationForm({
                   value={selectedLead}
                   disabled={mode === 'edit'}
                   onChange={(_, value) => {
-                    setLeadId(value?.id || '');
+                    setLeadId(idToString(value?.id));
                     setCustomerName(value?.customerName || '');
                   }}
                   getOptionLabel={(option) => `${option.leadCode || ''} - ${option.customerName || ''}`}
@@ -452,12 +459,12 @@ export function QuotationForm({
                       value={selectedProject}
                       disabled={mode === 'edit'}
                       onChange={(_, value) => {
-                        setProjectId(value?.id || '');
+                        setProjectId(idToString(value?.id));
                         setProjectName(value?.projectName || '');
-                        setCustomerId(value?.customerId || '');
+                        setCustomerId(idToString(value?.customerId));
                         setCustomerName(value?.customer?.customerName || value?.customer?.companyName || '');
-                        setLeadId(value?.customer?.leadId || '');
-                        setSelectedServiceId(value?.serviceId || '');
+                        setLeadId(idToString(value?.customer?.leadId));
+                        setSelectedServiceId(idToString(value?.serviceId));
                       }}
                       getOptionLabel={(option) =>
                         `${option.projectCode || ''} - ${option.customer?.customerName || option.projectName || ''}`
@@ -472,8 +479,8 @@ export function QuotationForm({
                       value={selectedCustomer}
                       disabled={mode === 'edit'}
                       onChange={(_, value) => {
-                        setCustomerId(value?.id || '');
-                        setLeadId(value?.leadId || '');
+                        setCustomerId(idToString(value?.id));
+                        setLeadId(idToString(value?.leadId));
                         setCustomerName(value?.customerName || value?.companyName || '');
                       }}
                       getOptionLabel={(option) => `${option.customerCode || ''} - ${option.customerName || ''}`}
@@ -517,7 +524,7 @@ export function QuotationForm({
                 className="md:col-span-2"
                 options={serviceOptions}
                 value={selectedService}
-                onChange={(_, value) => setSelectedServiceId(value?.id || '')}
+                onChange={(_, value) => setSelectedServiceId(idToString(value?.id))}
                 getOptionLabel={(option) => `${option.code} - ${option.pathName}`}
                 isOptionEqualToValue={(option, value) => option.id === value.id}
                 renderInput={(params) => <TextField {...params} label="Dịch vụ" />}

@@ -59,7 +59,7 @@ export function CustomerManager({
   onDelete,
 }: CustomerManagerProps) {
   const router = useRouter();
-  const [selectedCustomerIds, setSelectedCustomerIds] = useState<string[]>([]);
+  const [selectedCustomerIds, setSelectedCustomerIds] = useState<number[]>([]);
   const [menuAnchorEl, setMenuAnchorEl] = useState<HTMLElement | null>(null);
   const [activeCustomer, setActiveCustomer] = useState<Customer | null>(null);
 
@@ -86,7 +86,7 @@ export function CustomerManager({
     setSelectedCustomerIds((current) => current.filter((id) => !visibleCustomerIds.includes(id)));
   };
 
-  const toggleCustomerRow = (customerId: string, checked: boolean) => {
+  const toggleCustomerRow = (customerId: number, checked: boolean) => {
     setSelectedCustomerIds((current) => {
       if (checked) return Array.from(new Set([...current, customerId]));
       return current.filter((id) => id !== customerId);
@@ -156,8 +156,10 @@ export function CustomerManager({
           <TextField
             select
             label="Loại khách"
-            value={filters.customer_type_option_id}
-            onChange={(event) => updateFilters({ customer_type_option_id: event.target.value })}
+            value={filters.customer_type_option_id || ''}
+            onChange={(event) =>
+              updateFilters({ customer_type_option_id: Number(event.target.value) || 0 })
+            }
           >
             <MenuItem value="">Tất cả</MenuItem>
             {customerTypes.map((option) => (
@@ -198,8 +200,10 @@ export function CustomerManager({
           <TextField
             select
             label="Sales"
-            value={filters.sales_user_id}
-            onChange={(event) => updateFilters({ sales_user_id: event.target.value })}
+            value={filters.sales_user_id || ''}
+            onChange={(event) =>
+              updateFilters({ sales_user_id: Number(event.target.value) || 0 })
+            }
           >
             <MenuItem value="">Tất cả</MenuItem>
             {users.map((user) => (

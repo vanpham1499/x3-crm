@@ -11,7 +11,7 @@ return new class extends Migration
     {
         Schema::table('projects', function (Blueprint $table): void {
             if (! Schema::hasColumn('projects', 'status_option_id')) {
-                $table->foreignUuid('status_option_id')->nullable()->after('status_id')->constrained('options')->nullOnDelete();
+                $table->foreignId('status_option_id')->nullable()->after('status_id')->constrained('options')->nullOnDelete();
             }
         });
 

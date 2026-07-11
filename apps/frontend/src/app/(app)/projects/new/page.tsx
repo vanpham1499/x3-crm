@@ -56,9 +56,9 @@ export default function NewProjectPage() {
 
   const quotationMetadata = quotation?.metadata || {};
   const defaultValues: Partial<ProjectFormValues> = {
-    customerId: customerId || quotation?.customerId || '',
+    customerId: customerId || (quotation?.customerId ? String(quotation.customerId) : ''),
     quotationId,
-    serviceId: quotation?.serviceId || '',
+    serviceId: quotation?.serviceId ? String(quotation.serviceId) : '',
     projectName:
       typeof quotationMetadata.projectName === 'string' && quotationMetadata.projectName
         ? quotationMetadata.projectName

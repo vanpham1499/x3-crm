@@ -95,7 +95,9 @@ export function getServiceQuoteConfigMeta(
 
   return {
     serviceRootId:
-      (typeof meta.serviceRootId === 'string' && meta.serviceRootId) || rootService?.id || '',
+      (typeof meta.serviceRootId === 'string' && meta.serviceRootId) ||
+      (rootService?.id !== undefined && rootService?.id !== null ? String(rootService.id) : '') ||
+      '',
     serviceRootCode:
       (typeof meta.serviceRootCode === 'string' && meta.serviceRootCode) ||
       rootService?.code ||
@@ -114,10 +116,10 @@ export function getConfigForRoot(configs: AppOption[], rootService?: ServiceItem
     configs.find((option) => {
       const meta = getServiceQuoteConfigMeta(option);
       return (
-        meta.serviceRootId === rootService.id ||
+        meta.serviceRootId === String(rootService.id) ||
         meta.serviceRootCode === rootService.code ||
         option.key === rootService.code ||
-        option.value === rootService.id
+        option.value === String(rootService.id)
       );
     }) || null
   );

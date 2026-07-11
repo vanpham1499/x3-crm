@@ -64,7 +64,7 @@ export default function EditLeadPage() {
     const existingSource = sources.find(
       (source) => source.label.trim().toLowerCase() === sourceName.toLowerCase(),
     );
-    if (existingSource) return existingSource.id;
+    if (existingSource) return String(existingSource.id);
 
     const response = await api.post<AppOption>('/options', {
       group: 'lead_source',
@@ -74,7 +74,7 @@ export default function EditLeadPage() {
     });
     queryClient.invalidateQueries({ queryKey: ['options'] });
 
-    return response.data.id;
+    return String(response.data.id);
   };
 
   const updateMutation = useMutation({

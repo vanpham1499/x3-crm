@@ -532,7 +532,7 @@ export function LeadManager({
   onDelete,
 }: LeadManagerProps) {
   const router = useRouter();
-  const [selectedLeadIds, setSelectedLeadIds] = useState<string[]>([]);
+  const [selectedLeadIds, setSelectedLeadIds] = useState<number[]>([]);
   const [deleteTarget, setDeleteTarget] = useState<Lead | null>(null);
   const [viewTarget, setViewTarget] = useState<Lead | null>(null);
   const [viewTab, setViewTab] = useState(0);
@@ -576,7 +576,7 @@ export function LeadManager({
     setSelectedLeadIds((current) => current.filter((id) => !visibleLeadIds.includes(id)));
   };
 
-  const toggleLeadRow = (leadId: string, checked: boolean) => {
+  const toggleLeadRow = (leadId: number, checked: boolean) => {
     setSelectedLeadIds((current) => {
       if (checked) return Array.from(new Set([...current, leadId]));
       return current.filter((id) => id !== leadId);
@@ -667,7 +667,7 @@ export function LeadManager({
           >
             <MenuItem value="">Tất cả</MenuItem>
             {statusOptions.map((status) => (
-              <MenuItem key={status.id} value={status.id}>
+              <MenuItem key={status.id} value={String(status.id)}>
                 {status.name}
               </MenuItem>
             ))}
@@ -681,7 +681,7 @@ export function LeadManager({
           >
             <MenuItem value="">Tất cả</MenuItem>
             {users.map((user) => (
-              <MenuItem key={user.id} value={user.id}>
+              <MenuItem key={user.id} value={String(user.id)}>
                 {user.name || user.email || user.code}
               </MenuItem>
             ))}
@@ -697,7 +697,7 @@ export function LeadManager({
           >
             <MenuItem value="">Tất cả</MenuItem>
             {sources.map((source) => (
-              <MenuItem key={source.id} value={source.id}>
+              <MenuItem key={source.id} value={String(source.id)}>
                 {source.label}
               </MenuItem>
             ))}
@@ -716,7 +716,7 @@ export function LeadManager({
           >
             <MenuItem value="">Tất cả</MenuItem>
             {services.map((service) => (
-              <MenuItem key={service.id} value={service.id}>
+              <MenuItem key={service.id} value={String(service.id)}>
                 {service.label}
               </MenuItem>
             ))}

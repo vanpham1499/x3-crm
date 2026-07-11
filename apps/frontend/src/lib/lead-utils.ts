@@ -12,22 +12,26 @@ export function getLeadParams(filters: LeadFilters) {
   };
 }
 
+function idToString(value?: string | number | null): string {
+  return value === undefined || value === null || value === '' ? '' : String(value);
+}
+
 export function getLeadDefaults(lead?: Lead | null): LeadFormValues {
   return {
     customerName: lead?.customerName || '',
-    statusId: lead?.statusId || '',
-    statusOptionId: lead?.statusOptionId || '',
+    statusId: idToString(lead?.statusId),
+    statusOptionId: idToString(lead?.statusOptionId),
     occurredDate: lead?.occurredDate || new Date().toISOString().slice(0, 10),
-    assignedUserId: lead?.assignedUserId || '',
-    sourceId: lead?.sourceId || '',
-    sourceOptionId: lead?.sourceOptionId || '',
+    assignedUserId: idToString(lead?.assignedUserId),
+    sourceId: idToString(lead?.sourceId),
+    sourceOptionId: idToString(lead?.sourceOptionId),
     sourceName: lead?.sourceOption?.label || lead?.source?.name || '',
-    interestedServiceOptionId: lead?.interestedServiceOptionId || '',
+    interestedServiceOptionId: idToString(lead?.interestedServiceOptionId),
     interestedServiceOptionIds:
       lead?.interestedServiceOptionIds ||
-      lead?.interestedServiceOptions?.map((service) => service.id) ||
-      (lead?.interestedServiceOptionId ? [lead.interestedServiceOptionId] : []),
-    interestedServiceId: lead?.interestedServiceId || '',
+      lead?.interestedServiceOptions?.map((service) => idToString(service.id)) ||
+      (lead?.interestedServiceOptionId ? [idToString(lead.interestedServiceOptionId)] : []),
+    interestedServiceId: idToString(lead?.interestedServiceId),
     interestedServiceText: lead?.interestedServiceText || '',
     phone: lead?.phone || '',
     website: lead?.website || '',
@@ -82,7 +86,7 @@ export function getLeadStatusClass(status?: LeadStatus | null) {
 }
 
 export function getUniqueLeadStatuses(leads: Lead[]) {
-  const map = new Map<string, LeadStatus>();
+  const map = new Map<number, LeadStatus>();
 
   leads.forEach((lead) => {
     const status = lead.statusOption

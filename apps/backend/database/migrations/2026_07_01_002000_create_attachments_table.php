@@ -9,17 +9,17 @@ return new class extends Migration
     public function up(): void
     {
         Schema::create('attachments', function (Blueprint $table): void {
-            $table->uuid('id')->primary();
+            $table->id();
             $table->string('entity_type', 50);
-            $table->uuid('entity_id');
+            $table->unsignedBigInteger('entity_id');
             $table->string('file_name');
             $table->text('file_url');
             $table->string('file_type', 100)->nullable();
-            $table->foreignUuid('uploaded_by')->nullable()->constrained('users')->nullOnDelete();
-            $table->foreignUuid('created_by')->nullable()->constrained('users')->nullOnDelete();
+            $table->foreignId('uploaded_by')->nullable()->constrained('users')->nullOnDelete();
+            $table->foreignId('created_by')->nullable()->constrained('users')->nullOnDelete();
             $table->timestamps();
-            $table->foreignUuid('updated_by')->nullable()->constrained('users')->nullOnDelete();
-            $table->foreignUuid('deleted_by')->nullable()->constrained('users')->nullOnDelete();
+            $table->foreignId('updated_by')->nullable()->constrained('users')->nullOnDelete();
+            $table->foreignId('deleted_by')->nullable()->constrained('users')->nullOnDelete();
             $table->softDeletes();
 
             $table->index(['entity_type', 'entity_id', 'deleted_at']);

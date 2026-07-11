@@ -9,8 +9,8 @@ return new class extends Migration
     public function up(): void
     {
         Schema::create('revenues', function (Blueprint $table): void {
-            $table->uuid('id')->primary();
-            $table->foreignUuid('project_id')->constrained('projects')->cascadeOnDelete();
+            $table->id();
+            $table->foreignId('project_id')->constrained('projects')->cascadeOnDelete();
             $table->string('revenue_code', 100)->nullable();
             $table->string('revenue_type', 50)->default('service_fee');
             $table->date('reported_date')->nullable();
@@ -22,13 +22,13 @@ return new class extends Migration
             $table->decimal('vat_amount', 15, 2)->default(0);
             $table->decimal('amount_after_vat', 15, 2)->default(0);
             $table->decimal('actual_received_amount', 15, 2)->default(0);
-            $table->foreignUuid('payment_status_id')->nullable()->constrained('statuses')->nullOnDelete();
-            $table->foreignUuid('invoice_status_id')->nullable()->constrained('statuses')->nullOnDelete();
+            $table->foreignId('payment_status_id')->nullable()->constrained('statuses')->nullOnDelete();
+            $table->foreignId('invoice_status_id')->nullable()->constrained('statuses')->nullOnDelete();
             $table->text('note')->nullable();
-            $table->foreignUuid('created_by')->nullable()->constrained('users')->nullOnDelete();
+            $table->foreignId('created_by')->nullable()->constrained('users')->nullOnDelete();
             $table->timestamps();
-            $table->foreignUuid('updated_by')->nullable()->constrained('users')->nullOnDelete();
-            $table->foreignUuid('deleted_by')->nullable()->constrained('users')->nullOnDelete();
+            $table->foreignId('updated_by')->nullable()->constrained('users')->nullOnDelete();
+            $table->foreignId('deleted_by')->nullable()->constrained('users')->nullOnDelete();
             $table->softDeletes();
 
             $table->index(['project_id', 'revenue_month', 'deleted_at']);

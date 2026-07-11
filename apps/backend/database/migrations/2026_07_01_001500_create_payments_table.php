@@ -9,9 +9,9 @@ return new class extends Migration
     public function up(): void
     {
         Schema::create('payments', function (Blueprint $table): void {
-            $table->uuid('id')->primary();
-            $table->foreignUuid('project_id')->nullable()->constrained('projects')->nullOnDelete();
-            $table->foreignUuid('revenue_id')->nullable()->constrained('revenues')->nullOnDelete();
+            $table->id();
+            $table->foreignId('project_id')->nullable()->constrained('projects')->nullOnDelete();
+            $table->foreignId('revenue_id')->nullable()->constrained('revenues')->nullOnDelete();
             $table->date('transaction_date');
             $table->string('bank_account', 100)->nullable();
             $table->text('transaction_content')->nullable();
@@ -20,10 +20,10 @@ return new class extends Migration
             $table->boolean('is_notified')->default(false);
             $table->string('reconciled_status', 50)->default('unmatched');
             $table->text('note')->nullable();
-            $table->foreignUuid('created_by')->nullable()->constrained('users')->nullOnDelete();
+            $table->foreignId('created_by')->nullable()->constrained('users')->nullOnDelete();
             $table->timestamps();
-            $table->foreignUuid('updated_by')->nullable()->constrained('users')->nullOnDelete();
-            $table->foreignUuid('deleted_by')->nullable()->constrained('users')->nullOnDelete();
+            $table->foreignId('updated_by')->nullable()->constrained('users')->nullOnDelete();
+            $table->foreignId('deleted_by')->nullable()->constrained('users')->nullOnDelete();
             $table->softDeletes();
 
             $table->index(['project_id', 'revenue_id', 'deleted_at']);

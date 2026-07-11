@@ -1,6 +1,6 @@
 export type ServiceItem = {
-  id: string;
-  parentId?: string | null;
+  id: number;
+  parentId?: number | null;
   code: string;
   name: string;
   content?: string | null;
@@ -11,7 +11,7 @@ export type ServiceItem = {
   sortOrder: number;
   isActive: boolean;
   parent?: {
-    id: string;
+    id: number;
     code: string;
     name: string;
   } | null;

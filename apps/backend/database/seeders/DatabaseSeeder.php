@@ -6,7 +6,6 @@ use App\Models\User;
 use Illuminate\Database\Seeder;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Hash;
-use Illuminate\Support\Str;
 
 class DatabaseSeeder extends Seeder
 {
@@ -23,12 +22,9 @@ class DatabaseSeeder extends Seeder
         $roleIds = [];
 
         foreach ($roles as $name => $description) {
-            $id = DB::table('roles')->where('name', $name)->value('id') ?: (string) Str::uuid();
-
             DB::table('roles')->updateOrInsert(
                 ['name' => $name],
                 [
-                    'id' => $id,
                     'description' => $description,
                     'updated_at' => now(),
                     'created_at' => now(),
@@ -54,12 +50,9 @@ class DatabaseSeeder extends Seeder
         $permissionIds = [];
 
         foreach ($permissions as $permission) {
-            $id = DB::table('permissions')->where('code', $permission['code'])->value('id') ?: (string) Str::uuid();
-
             DB::table('permissions')->updateOrInsert(
                 ['code' => $permission['code']],
                 [
-                    'id' => $id,
                     'name' => $permission['name'],
                     'module' => $permission['module'],
                     'description' => 'Quyền '.$permission['name'],
@@ -74,7 +67,6 @@ class DatabaseSeeder extends Seeder
         foreach ($permissionIds as $permissionId) {
             if (! DB::table('role_permissions')->where('role_id', $roleIds[User::ROLE_ADMIN])->where('permission_id', $permissionId)->exists()) {
                 DB::table('role_permissions')->insert([
-                    'id' => (string) Str::uuid(),
                     'role_id' => $roleIds[User::ROLE_ADMIN],
                     'permission_id' => $permissionId,
                     'created_at' => now(),

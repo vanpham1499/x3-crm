@@ -1,5 +1,5 @@
 export type Permission = {
-  id: string;
+  id: number;
   code: string;
   name: string;
   module: string;
@@ -9,7 +9,7 @@ export type Permission = {
 };
 
 export type Role = {
-  id: string;
+  id: number;
   name: string;
   description?: string | null;
   permissions?: Permission[];

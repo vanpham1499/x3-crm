@@ -6,9 +6,9 @@ import type { ServiceItem } from '@/types/service';
 export type QuotationStatus = 'draft' | 'sent' | 'won' | 'lost';
 
 export type QuotationItem = {
-  id?: string;
-  quotationId?: string;
-  serviceId?: string | null;
+  id?: number;
+  quotationId?: number;
+  serviceId?: number | null;
   itemCode?: string | null;
   itemName: string;
   description?: string | null;
@@ -24,13 +24,13 @@ export type QuotationItem = {
 };
 
 export type Quotation = {
-  id: string;
+  id: number;
   quotationCode?: string | null;
-  leadId?: string | null;
-  customerId?: string | null;
-  projectId?: string | null;
-  contractId?: string | null;
-  serviceId?: string | null;
+  leadId?: number | null;
+  customerId?: number | null;
+  projectId?: number | null;
+  contractId?: number | null;
+  serviceId?: number | null;
   serviceCode?: string | null;
   serviceName?: string | null;
   status?: QuotationStatus | string | null;
@@ -46,7 +46,7 @@ export type Quotation = {
   customer?: Pick<Customer, 'id' | 'customerCode' | 'customerName'> | null;
   project?: Pick<ProjectItem, 'id' | 'projectCode' | 'projectName'> | null;
   contract?: {
-    id: string;
+    id: number;
     contractNo?: string | null;
   } | null;
   service?: ServiceItem | null;
@@ -61,7 +61,7 @@ export type QuotationFilters = {
 };
 
 export type QuotationLineFormValue = {
-  id: string;
+  id: number;
   name: string;
   unit: string;
   quantity: string;

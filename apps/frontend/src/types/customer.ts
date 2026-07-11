@@ -2,13 +2,13 @@ import type { AppOption } from '@/types/option';
 import type { User } from '@/types/user';
 
 export type CustomerLeadSummary = {
-  id: string;
+  id: number;
   leadCode?: string | null;
   customerName?: string | null;
 };
 
 export type Customer = {
-  id: string;
+  id: number;
   customerCode: string;
   leadCode?: string | null;
   status?: string | null;
@@ -18,10 +18,10 @@ export type Customer = {
   planLink?: string | null;
   zaloGroup?: string | null;
   closedAt?: string | null;
-  leadId?: string | null;
+  leadId?: number | null;
   customerName: string;
   customerType?: string | null;
-  customerTypeOptionId?: string | null;
+  customerTypeOptionId?: number | null;
   companyName?: string | null;
   representativeName?: string | null;
   taxCode?: string | null;
@@ -31,10 +31,10 @@ export type Customer = {
   email?: string | null;
   website?: string | null;
   industry?: string | null;
-  industryOptionId?: string | null;
+  industryOptionId?: number | null;
   birthday?: string | null;
-  sourceOptionId?: string | null;
-  salesUserId?: string | null;
+  sourceOptionId?: number | null;
+  salesUserId?: number | null;
   note?: string | null;
   lead?: CustomerLeadSummary | null;
   customerTypeOption?: AppOption | null;
@@ -49,11 +49,11 @@ export type Customer = {
 
 export type CustomerFilters = {
   keyword: string;
-  customer_type_option_id: string;
-  source_option_id: string;
-  industry_option_id: string;
-  sales_user_id: string;
-  lead_id: string;
+  customer_type_option_id: number;
+  source_option_id: number;
+  industry_option_id: number;
+  sales_user_id: number;
+  lead_id: number;
 };
 
 export type CustomerFormValues = {

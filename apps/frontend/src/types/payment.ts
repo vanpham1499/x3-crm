@@ -10,13 +10,13 @@ export type PaymentStatus =
   | string;
 
 export type Payment = {
-  id: string;
-  quotationId?: string | null;
-  leadId?: string | null;
-  customerId?: string | null;
-  projectId?: string | null;
-  contractId?: string | null;
-  revenueId?: string | null;
+  id: number;
+  quotationId?: number | null;
+  leadId?: number | null;
+  customerId?: number | null;
+  projectId?: number | null;
+  contractId?: number | null;
+  revenueId?: number | null;
   transactionDate?: string | null;
   bankAccount?: string | null;
   transactionContent?: string | null;
@@ -29,12 +29,12 @@ export type Payment = {
   note?: string | null;
   quotation?: Pick<Quotation, 'id' | 'quotationCode'> | null;
   project?: {
-    id: string;
+    id: number;
     projectCode?: string | null;
     projectName?: string | null;
   } | null;
   contract?: {
-    id: string;
+    id: number;
     contractNo?: string | null;
   } | null;
   createdAt?: string;

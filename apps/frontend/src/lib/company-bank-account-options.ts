@@ -68,7 +68,7 @@ export function toCompanyBankAccountPayload(
 
 export function companyBankAccountFromOption(option: AppOption): CompanyBankAccount {
   return {
-    id: option.id,
+    id: String(option.id),
     bankCode: option.key || '',
     accountNo: option.value || '',
     accountName: option.label || '',

@@ -19,7 +19,7 @@ type RoleListProps = {
   isFetching: boolean;
   onFiltersChange: (filters: RoleFilters) => void;
   onDelete: (role: Role) => void;
-  onBulkDelete: (roleIds: string[]) => void;
+  onBulkDelete: (roleIds: number[]) => void;
   isDeleting?: boolean;
 };
 
@@ -33,7 +33,7 @@ export function RoleList({
   isDeleting = false,
 }: RoleListProps) {
   const router = useRouter();
-  const [selectedRoleIds, setSelectedRoleIds] = useState<string[]>([]);
+  const [selectedRoleIds, setSelectedRoleIds] = useState<number[]>([]);
   const [menuAnchorEl, setMenuAnchorEl] = useState<HTMLElement | null>(null);
   const [activeRole, setActiveRole] = useState<Role | null>(null);
 
@@ -53,7 +53,7 @@ export function RoleList({
     setSelectedRoleIds((current) => current.filter((id) => !visibleRoleIds.includes(id)));
   };
 
-  const toggleRoleRow = (roleId: string, checked: boolean) => {
+  const toggleRoleRow = (roleId: number, checked: boolean) => {
     setSelectedRoleIds((current) => {
       if (checked) return Array.from(new Set([...current, roleId]));
       return current.filter((id) => id !== roleId);

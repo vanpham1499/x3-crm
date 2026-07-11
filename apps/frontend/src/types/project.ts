@@ -12,7 +12,7 @@ export type ProjectCustomerSummary = Pick<
 >;
 
 export type ProjectContract = {
-  id: string;
+  id: number;
   projectId?: string | null;
   contractNo?: string | null;
   contractStatusId?: string | null;
@@ -29,16 +29,16 @@ export type ProjectContract = {
 };
 
 export type ProjectItem = {
-  id: string;
+  id: number;
   projectCode?: string | null;
-  customerId: string;
-  quotationId?: string | null;
-  serviceId: string;
+  customerId: number;
+  quotationId?: number | null;
+  serviceId: number;
   projectName: string;
-  statusId?: string | null;
-  statusOptionId?: string | null;
-  managerUserId?: string | null;
-  salesUserId?: string | null;
+  statusId?: number | null;
+  statusOptionId?: number | null;
+  managerUserId?: number | null;
+  salesUserId?: number | null;
   zaloGroup?: string | null;
   planLink?: string | null;
   startDate?: string | null;
@@ -57,12 +57,12 @@ export type ProjectItem = {
 };
 
 export type ProjectPaymentSummary = {
-  id: string;
-  quotationId?: string | null;
-  leadId?: string | null;
-  customerId?: string | null;
-  projectId?: string | null;
-  contractId?: string | null;
+  id: number;
+  quotationId?: number | null;
+  leadId?: number | null;
+  customerId?: number | null;
+  projectId?: number | null;
+  contractId?: number | null;
   transactionDate?: string | null;
   transactionContent?: string | null;
   amount?: string | number | null;

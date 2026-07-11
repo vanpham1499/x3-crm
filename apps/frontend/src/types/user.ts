@@ -1,9 +1,9 @@
 export interface User {
-  id: string;
+  id: number;
   code: string;
   name: string;
   email: string;
-  roleId?: string;
+  roleId?: number;
   role: string;
   phone?: string;
   avatar?: string;
@@ -19,7 +19,7 @@ export type UserFilters = {
 };
 
 export type RoleOption = {
-  id: string;
+  id: number;
   name: string;
   description?: string;
 };

@@ -9,13 +9,11 @@ return new class extends Migration
     public function up(): void
     {
         Schema::create('lead_service_options', function (Blueprint $table): void {
-            $table->uuid('lead_id');
-            $table->uuid('option_id');
+            $table->foreignId('lead_id')->constrained('leads')->cascadeOnDelete();
+            $table->foreignId('option_id')->constrained('options')->cascadeOnDelete();
             $table->timestamps();
 
             $table->primary(['lead_id', 'option_id']);
-            $table->foreign('lead_id')->references('id')->on('leads')->cascadeOnDelete();
-            $table->foreign('option_id')->references('id')->on('options')->cascadeOnDelete();
         });
     }
 

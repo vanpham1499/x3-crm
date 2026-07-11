@@ -10,7 +10,7 @@ return new class extends Migration
     {
         Schema::table('revenue_items', function (Blueprint $table): void {
             if (! Schema::hasColumn('revenue_items', 'service_id')) {
-                $table->foreignUuid('service_id')->nullable()->after('revenue_id')->constrained('services')->nullOnDelete();
+                $table->foreignId('service_id')->nullable()->after('revenue_id')->constrained('services')->nullOnDelete();
             }
         });
     }

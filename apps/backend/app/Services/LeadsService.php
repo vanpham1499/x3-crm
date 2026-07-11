@@ -10,7 +10,6 @@ use App\Models\User;
 use App\Repositories\LeadRepository;
 use Illuminate\Support\Collection;
 use Illuminate\Support\Facades\DB;
-use Illuminate\Support\Str;
 use Symfony\Component\HttpKernel\Exception\ConflictHttpException;
 
 class LeadsService extends BaseService
@@ -558,7 +557,7 @@ class LeadsService extends BaseService
         return $code;
     }
 
-    private function defaultStatusOptionId(): string
+    private function defaultStatusOptionId(): int
     {
         $statusOptionId = DB::table('options')
             ->where('group', Option::GROUP_LEAD_STATUS)
@@ -570,10 +569,7 @@ class LeadsService extends BaseService
             return $statusOptionId;
         }
 
-        $id = (string) Str::uuid();
-
-        DB::table('options')->insert([
-            'id' => $id,
+        return DB::table('options')->insertGetId([
             'group' => Option::GROUP_LEAD_STATUS,
             'key' => 'new',
             'value' => 'new',
@@ -584,7 +580,5 @@ class LeadsService extends BaseService
             'created_at' => now(),
             'updated_at' => now(),
         ]);
-
-        return $id;
     }
 }

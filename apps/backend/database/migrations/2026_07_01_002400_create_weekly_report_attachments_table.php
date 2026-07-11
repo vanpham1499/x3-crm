@@ -9,16 +9,16 @@ return new class extends Migration
     public function up(): void
     {
         Schema::create('weekly_report_attachments', function (Blueprint $table): void {
-            $table->uuid('id')->primary();
-            $table->foreignUuid('weekly_report_id')->constrained('weekly_reports')->cascadeOnDelete();
+            $table->id();
+            $table->foreignId('weekly_report_id')->constrained('weekly_reports')->cascadeOnDelete();
             $table->string('file_name');
             $table->string('file_url', 500);
             $table->string('mime_type', 100)->nullable();
-            $table->foreignUuid('uploaded_by')->constrained('users')->restrictOnDelete();
-            $table->foreignUuid('created_by')->nullable()->constrained('users')->nullOnDelete();
+            $table->foreignId('uploaded_by')->constrained('users')->restrictOnDelete();
+            $table->foreignId('created_by')->nullable()->constrained('users')->nullOnDelete();
             $table->timestamps();
-            $table->foreignUuid('updated_by')->nullable()->constrained('users')->nullOnDelete();
-            $table->foreignUuid('deleted_by')->nullable()->constrained('users')->nullOnDelete();
+            $table->foreignId('updated_by')->nullable()->constrained('users')->nullOnDelete();
+            $table->foreignId('deleted_by')->nullable()->constrained('users')->nullOnDelete();
             $table->softDeletes();
 
             $table->index(['weekly_report_id', 'deleted_at']);

@@ -1,5 +1,5 @@
 export type AppOption = {
-  id: string;
+  id: number;
   group: string;
   key?: string | null;
   value?: string | null;

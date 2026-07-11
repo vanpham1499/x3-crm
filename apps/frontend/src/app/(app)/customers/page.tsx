@@ -29,11 +29,11 @@ export default function CustomersPage() {
   const [deleteTarget, setDeleteTarget] = useState<Customer | null>(null);
   const [filters, setFilters] = useState<CustomerFilters>({
     keyword: '',
-    customer_type_option_id: '',
-    source_option_id: '',
-    industry_option_id: '',
-    sales_user_id: '',
-    lead_id: '',
+    customer_type_option_id: 0,
+    source_option_id: 0,
+    industry_option_id: 0,
+    sales_user_id: 0,
+    lead_id: 0,
   });
 
   const { data: users = [] } = useQuery<User[]>({
