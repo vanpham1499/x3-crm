@@ -139,7 +139,7 @@ class ProjectsService extends BaseService
 
     private function loadProjectRelations(Project $project): Project
     {
-        return $project->load(['customer', 'quotation', 'service', 'statusOption', 'managerUser', 'salesUser', 'contracts.contractStatus', 'payments', 'timelines.createdBy']);
+        return $project->load(['customer', 'quotation', 'service', 'statusOption', 'managerUser', 'salesUser', 'contracts.contractStatus', 'contracts.contractStatusOption', 'payments', 'timelines.createdBy']);
     }
 
     private function syncProjectContract(Project $project, array $data): ?Contract
@@ -151,7 +151,7 @@ class ProjectsService extends BaseService
         }
 
         $contractId = $data['id'] ?? null;
-        unset($data['id'], $data['contract_status_option_id']);
+        unset($data['id']);
 
         $data = array_merge($data, [
             'project_id' => $project->id,
@@ -203,7 +203,7 @@ class ProjectsService extends BaseService
             }
         }
 
-        foreach (['contract_no', 'contract_status_id', 'deposit_amount', 'signed_date', 'expired_date', 'contract_month', 'file_url', 'note'] as $key) {
+        foreach (['contract_no', 'contract_status_id', 'contract_status_option_id', 'deposit_amount', 'signed_date', 'expired_date', 'contract_month', 'file_url', 'note'] as $key) {
             if (array_key_exists($key, $data) && $data[$key] === '') {
                 $data[$key] = null;
             }
@@ -214,7 +214,7 @@ class ProjectsService extends BaseService
 
     private function hasContractPayload(array $data): bool
     {
-        foreach (['id', 'contract_no', 'deposit_amount', 'signed_date', 'expired_date', 'contract_month', 'file_url', 'note'] as $key) {
+        foreach (['id', 'contract_no', 'contract_status_id', 'contract_status_option_id', 'deposit_amount', 'signed_date', 'expired_date', 'contract_month', 'file_url', 'note'] as $key) {
             if (($data[$key] ?? null) !== null && ($data[$key] ?? '') !== '') {
                 return true;
             }

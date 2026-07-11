@@ -56,6 +56,7 @@ export default function NewProjectPage() {
 
   const quotationMetadata = quotation?.metadata || {};
   const defaultValues: Partial<ProjectFormValues> = {
+    projectCode: quotation?.quotationCode || '',
     customerId: customerId || quotation?.customerId || '',
     quotationId,
     serviceId: quotation?.serviceId || '',
@@ -67,6 +68,8 @@ export default function NewProjectPage() {
       quotation?.depositAmount !== undefined && quotation?.depositAmount !== null
         ? String(quotation.depositAmount)
         : '',
+    contractNo: quotation?.quotationCode || '',
+    contractNote: quotation?.note || '',
   };
 
   const createMutation = useMutation({

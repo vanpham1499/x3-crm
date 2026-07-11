@@ -18,6 +18,8 @@ class Option extends BaseModel
 
     public const GROUP_PROJECT_STATUS = 'project_status';
 
+    public const GROUP_CONTRACT_STATUS = 'contract_status';
+
     protected $fillable = [
         'group',
         'key',

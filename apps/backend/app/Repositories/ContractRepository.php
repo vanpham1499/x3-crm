@@ -18,7 +18,7 @@ class ContractRepository extends BaseRepository
     public function findAll(array $filters = []): Collection
     {
         return $this->query()
-            ->with(['project', 'quotation', 'lead', 'customer', 'contractStatus'])
+            ->with(['project', 'quotation', 'lead', 'customer', 'contractStatus', 'contractStatusOption'])
             ->when($filters['project_id'] ?? null, fn ($query, $value) => $query->where('project_id', $value))
             ->when($filters['quotation_id'] ?? null, fn ($query, $value) => $query->where('quotation_id', $value))
             ->when($filters['lead_id'] ?? null, fn ($query, $value) => $query->where('lead_id', $value))
@@ -31,7 +31,7 @@ class ContractRepository extends BaseRepository
     {
         /** @var Contract|null $contract */
         $contract = $this->query()
-            ->with(['project', 'quotation', 'lead', 'customer', 'contractStatus', 'payments'])
+            ->with(['project', 'quotation', 'lead', 'customer', 'contractStatus', 'contractStatusOption', 'payments'])
             ->whereKey($id)
             ->first();
 

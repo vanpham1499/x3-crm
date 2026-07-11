@@ -17,7 +17,7 @@ class ContractResource extends JsonResource
             'customerId' => $this->customer_id,
             'contractNo' => $this->contract_no,
             'contractStatusId' => $this->contract_status_id,
-            'contractStatusOptionId' => $this->contract_status_id,
+            'contractStatusOptionId' => $this->contract_status_option_id,
             'depositAmount' => $this->deposit_amount,
             'signedDate' => $this->signed_date?->toDateString(),
             'expiredDate' => $this->expired_date?->toDateString(),
@@ -38,6 +38,7 @@ class ContractResource extends JsonResource
                 'customerCode' => $this->customer->customer_code,
                 'customerName' => $this->customer->customer_name,
             ] : null),
+            'contractStatusOption' => $this->whenLoaded('contractStatusOption', fn () => $this->contractStatusOption ? new OptionResource($this->contractStatusOption) : null),
             'createdAt' => $this->created_at?->toISOString(),
             'updatedAt' => $this->updated_at?->toISOString(),
         ];

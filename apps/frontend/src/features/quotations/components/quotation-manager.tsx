@@ -6,6 +6,7 @@ import EditRoundedIcon from '@mui/icons-material/EditRounded';
 import MoreVertRoundedIcon from '@mui/icons-material/MoreVertRounded';
 import QrCode2RoundedIcon from '@mui/icons-material/QrCode2Rounded';
 import SearchRoundedIcon from '@mui/icons-material/SearchRounded';
+import WorkRoundedIcon from '@mui/icons-material/WorkRounded';
 import {
   Button,
   Dialog,
@@ -57,6 +58,30 @@ function getQuotationQrUrl(quotation: Quotation) {
   });
 
   return `https://img.vietqr.io/image/${bankCode}-${accountNo}-compact2.png?${params.toString()}`;
+}
+
+function getProjectActionHref(quotation: Quotation) {
+  if (quotation.projectId) return `/projects/${quotation.projectId}`;
+
+  if (quotation.customerId) {
+    const params = new URLSearchParams({
+      customerId: quotation.customerId,
+      quotationId: quotation.id,
+    });
+
+    return `/projects/new?${params.toString()}`;
+  }
+
+  if (quotation.leadId) {
+    const params = new URLSearchParams({
+      leadId: quotation.leadId,
+      quotationId: quotation.id,
+    });
+
+    return `/customers/new?${params.toString()}`;
+  }
+
+  return '';
 }
 
 const statusLabels: Record<string, string> = {
@@ -224,6 +249,15 @@ export function QuotationManager({
         >
           <QrCode2RoundedIcon fontSize="small" className="mr-2 text-slate-500" />
           Xem QR thanh toán
+        </MenuItem>
+        <MenuItem
+          component={Link}
+          href={activeQuotation ? getProjectActionHref(activeQuotation) || '/quotations' : '/quotations'}
+          disabled={!activeQuotation || !getProjectActionHref(activeQuotation)}
+          onClick={closeActionMenu}
+        >
+          <WorkRoundedIcon fontSize="small" className="mr-2 text-slate-500" />
+          {activeQuotation?.projectId ? 'Xem dự án' : activeQuotation?.customerId ? 'Tạo dự án' : 'Tạo khách hàng & dự án'}
         </MenuItem>
         <MenuItem
           component={Link}

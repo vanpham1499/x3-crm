@@ -106,6 +106,7 @@ export function ProjectForm({
     values: getProjectDefaults(project, defaultValues),
   });
   const selectedCustomerId = watch('customerId');
+  const selectedQuotationId = watch('quotationId');
   const selectedServiceId = watch('serviceId');
   const projectName = watch('projectName');
   const selectedCustomer = customers.find((customer) => customer.id === selectedCustomerId);
@@ -115,6 +116,14 @@ export function ProjectForm({
   );
 
   useEffect(() => {
+    if (selectedQuotationId) {
+      const quotationProjectCode = defaultValues?.projectCode || '';
+
+      setValue('projectCode', quotationProjectCode, { shouldDirty: true });
+      setValue('contractNo', quotationProjectCode, { shouldDirty: true });
+      return;
+    }
+
     const nextProjectCode = generateProjectCode({
       customerCode: selectedCustomer?.customerCode,
       rootServiceCode,
@@ -123,7 +132,7 @@ export function ProjectForm({
 
     setValue('projectCode', nextProjectCode, { shouldDirty: true });
     setValue('contractNo', nextProjectCode, { shouldDirty: true });
-  }, [projectName, rootServiceCode, selectedCustomer?.customerCode, setValue]);
+  }, [defaultValues?.projectCode, projectName, rootServiceCode, selectedCustomer?.customerCode, selectedQuotationId, setValue]);
 
   return (
     <form className="w-full space-y-8" onSubmit={handleSubmit(onSubmit)}>

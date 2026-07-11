@@ -329,6 +329,7 @@ class LeadsService extends BaseService
         $map = [
             'contractNo' => 'contract_no',
             'contractStatusId' => 'contract_status_id',
+            'contractStatusOptionId' => 'contract_status_option_id',
             'depositAmount' => 'deposit_amount',
             'signedDate' => 'signed_date',
             'expiredDate' => 'expired_date',

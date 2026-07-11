@@ -28,7 +28,7 @@ class ContractsService extends BaseService
             /** @var Contract $contract */
             $contract = $this->contracts->create($data);
 
-            return $this->apiResource($contract->load(['project', 'quotation', 'lead', 'customer', 'contractStatus']), ContractResource::class);
+            return $this->apiResource($contract->load(['project', 'quotation', 'lead', 'customer', 'contractStatus', 'contractStatusOption']), ContractResource::class);
         });
     }
 
@@ -38,7 +38,7 @@ class ContractsService extends BaseService
             /** @var Contract $contract */
             $contract = $this->contracts->update($id, $this->normalizePayload($data));
 
-            return $this->apiResource($contract->load(['project', 'quotation', 'lead', 'customer', 'contractStatus']), ContractResource::class);
+            return $this->apiResource($contract->load(['project', 'quotation', 'lead', 'customer', 'contractStatus', 'contractStatusOption']), ContractResource::class);
         });
     }
 
@@ -65,6 +65,7 @@ class ContractsService extends BaseService
             'customerId' => 'customer_id',
             'contractNo' => 'contract_no',
             'contractStatusId' => 'contract_status_id',
+            'contractStatusOptionId' => 'contract_status_option_id',
             'depositAmount' => 'deposit_amount',
             'signedDate' => 'signed_date',
             'expiredDate' => 'expired_date',

@@ -3,6 +3,7 @@
 namespace App\Http\Requests\Contracts;
 
 use App\Http\Requests\BaseRequest;
+use App\Models\Option;
 use Illuminate\Validation\Rule;
 
 class CreateContractRequest extends BaseRequest
@@ -22,6 +23,8 @@ class CreateContractRequest extends BaseRequest
             'contractNo' => ['nullable', 'string', 'max:100'],
             'contract_status_id' => ['nullable', 'uuid', Rule::exists('statuses', 'id')->whereNull('deleted_at')],
             'contractStatusId' => ['nullable', 'uuid', Rule::exists('statuses', 'id')->whereNull('deleted_at')],
+            'contract_status_option_id' => ['nullable', 'uuid', Rule::exists('options', 'id')->where('group', Option::GROUP_CONTRACT_STATUS)->whereNull('deleted_at')],
+            'contractStatusOptionId' => ['nullable', 'uuid', Rule::exists('options', 'id')->where('group', Option::GROUP_CONTRACT_STATUS)->whereNull('deleted_at')],
             'deposit_amount' => ['nullable', 'numeric', 'min:0'],
             'depositAmount' => ['nullable', 'numeric', 'min:0'],
             'signed_date' => ['nullable', 'date'],

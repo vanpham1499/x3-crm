@@ -22,6 +22,7 @@ export default function NewCustomerPage() {
   const queryClient = useQueryClient();
   const notify = useAppNotification();
   const leadId = searchParams.get('leadId') || '';
+  const preferredQuotationId = searchParams.get('quotationId') || '';
 
   const { data: users = [] } = useQuery<User[]>({
     queryKey: ['users', 'customer-form-options'],
@@ -121,7 +122,7 @@ export default function NewCustomerPage() {
       queryClient.invalidateQueries({ queryKey: ['customers'] });
       queryClient.invalidateQueries({ queryKey: ['leads'] });
       notify.success('Tạo khách hàng thành công');
-      const quotationId = leadQuotations[0]?.id;
+      const quotationId = preferredQuotationId || leadQuotations[0]?.id;
       const params = new URLSearchParams({ customerId: customer.id });
 
       if (quotationId) {
