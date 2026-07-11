@@ -37,6 +37,7 @@ type QuotationFormProps = {
   services: ServiceItem[];
   quoteConfigs: AppOption[];
   bankAccountOptions: AppOption[];
+  defaultLeadId?: string;
   isSubmitting: boolean;
   onSubmit: (payload: Record<string, unknown>) => void;
 };
@@ -90,12 +91,13 @@ export function QuotationForm({
   services,
   quoteConfigs,
   bankAccountOptions,
+  defaultLeadId,
   isSubmitting,
   onSubmit,
 }: QuotationFormProps) {
   const [customerMode, setCustomerMode] = useState<QuoteCustomerMode>('new_customer');
   const [projectMode, setProjectMode] = useState<QuoteProjectMode>('new_project');
-  const [leadId, setLeadId] = useState('');
+  const [leadId, setLeadId] = useState(defaultLeadId || '');
   const [customerId, setCustomerId] = useState('');
   const [projectId, setProjectId] = useState('');
   const [customerName, setCustomerName] = useState('');
@@ -386,9 +388,21 @@ export function QuotationForm({
           </div>
         </div>
 
-        <Button component={Link} href="/quotations" variant="outlined">
-          Quay lại
-        </Button>
+        <div className="flex flex-wrap items-center gap-2">
+          {mode === 'edit' && quotation && !quotation.projectId && (
+            <Button
+              component={Link}
+              href={`/projects/new?quotationId=${quotation.id}`}
+              variant="contained"
+              className="!bg-slate-900 hover:!bg-slate-800"
+            >
+              Tạo dự án từ báo giá này
+            </Button>
+          )}
+          <Button component={Link} href="/quotations" variant="outlined">
+            Quay lại
+          </Button>
+        </div>
       </div>
 
       <div className="grid gap-6 xl:grid-cols-12">

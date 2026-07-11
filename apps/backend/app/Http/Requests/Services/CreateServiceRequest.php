@@ -22,6 +22,9 @@ class CreateServiceRequest extends BaseRequest
             'description' => ['nullable', 'string'],
             'sort_order' => ['nullable', 'integer', 'min:0'],
             'sortOrder' => ['nullable', 'integer', 'min:0'],
+            'unit' => ['nullable', 'string', 'max:50'],
+            'default_price' => ['nullable', 'numeric', 'min:0'],
+            'defaultPrice' => ['nullable', 'numeric', 'min:0'],
             'is_active' => ['nullable', 'boolean'],
             'isActive' => ['nullable', 'boolean'],
         ];

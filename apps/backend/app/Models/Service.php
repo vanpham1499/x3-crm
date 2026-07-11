@@ -17,6 +17,8 @@ class Service extends BaseModel
         'description',
         'level',
         'sort_order',
+        'unit',
+        'default_price',
         'is_active',
         'created_by',
         'updated_by',
@@ -26,6 +28,7 @@ class Service extends BaseModel
     protected $casts = [
         'level' => 'integer',
         'sort_order' => 'integer',
+        'default_price' => 'decimal:2',
         'is_active' => 'boolean',
         'created_at' => 'datetime',
         'updated_at' => 'datetime',

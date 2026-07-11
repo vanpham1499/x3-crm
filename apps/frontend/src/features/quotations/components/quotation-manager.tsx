@@ -179,9 +179,17 @@ export function QuotationManager({
                   <tr key={quotation.id} className="hover:bg-slate-50/80">
                     <td className="px-5 py-4 font-bold text-slate-950">{quotation.quotationCode || '-'}</td>
                     <td className="px-5 py-4">
-                      <p className="truncate font-semibold text-slate-900">
-                        {quotation.lead?.customerName || quotation.customer?.customerName || '-'}
-                      </p>
+                      {quotation.lead ? (
+                        <Link href={`/leads/${quotation.lead.id}`} className="block truncate font-semibold text-slate-900 hover:underline">
+                          {quotation.lead.customerName || '-'}
+                        </Link>
+                      ) : quotation.customer ? (
+                        <Link href={`/customers/${quotation.customer.id}`} className="block truncate font-semibold text-slate-900 hover:underline">
+                          {quotation.customer.customerName || '-'}
+                        </Link>
+                      ) : (
+                        <p className="truncate font-semibold text-slate-900">-</p>
+                      )}
                       <p className="mt-1 truncate text-xs font-semibold text-slate-500">
                         {quotation.lead?.leadCode || quotation.customer?.customerCode || '-'}
                       </p>

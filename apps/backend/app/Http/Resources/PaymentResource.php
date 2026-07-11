@@ -40,6 +40,11 @@ class PaymentResource extends JsonResource
                 'id' => $this->contract->id,
                 'contractNo' => $this->contract->contract_no,
             ] : null),
+            'revenue' => $this->whenLoaded('revenue', fn () => $this->revenue ? [
+                'id' => $this->revenue->id,
+                'revenueCode' => $this->revenue->revenue_code,
+                'amountAfterVat' => $this->revenue->amount_after_vat,
+            ] : null),
             'createdAt' => $this->created_at?->toISOString(),
             'updatedAt' => $this->updated_at?->toISOString(),
         ];

@@ -116,6 +116,15 @@ class ServicesService extends BaseService
             $data['sort_order'] = 0;
         }
 
+        if (array_key_exists('defaultPrice', $data)) {
+            $data['default_price'] = $data['defaultPrice'];
+            unset($data['defaultPrice']);
+        }
+
+        if (array_key_exists('default_price', $data) && $data['default_price'] === null) {
+            $data['default_price'] = 0;
+        }
+
         return $data;
     }
 

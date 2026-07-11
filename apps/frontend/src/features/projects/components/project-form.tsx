@@ -8,8 +8,15 @@ import { DatePicker } from '@mui/x-date-pickers/DatePicker';
 import dayjs from 'dayjs';
 import { Controller, useForm } from 'react-hook-form';
 import { MoneyInput } from '@/components/form/money-input';
-import { generateProjectCode, getProjectDefaults, getRootServiceCode } from '@/lib/project-utils';
+import {
+  generateProjectCode,
+  getProjectDefaults,
+  getRootServiceCode,
+  getRootServiceItem,
+} from '@/lib/project-utils';
+import { getConfigForRoot, getServiceQuoteConfigMeta } from '@/lib/service-quote-config';
 import { flattenServices } from '@/lib/service-utils';
+import { formatCurrency } from '@/lib/utils';
 import type { Customer } from '@/types/customer';
 import type { AppOption } from '@/types/option';
 import type { ProjectFormValues, ProjectItem } from '@/types/project';
@@ -24,6 +31,7 @@ type ProjectFormProps = {
   users: User[];
   statuses: AppOption[];
   contractStatuses: AppOption[];
+  quoteConfigs?: AppOption[];
   defaultValues?: Partial<ProjectFormValues>;
   isSubmitting: boolean;
   onSubmit: (values: ProjectFormValues) => void;
@@ -90,6 +98,7 @@ export function ProjectForm({
   users,
   statuses,
   contractStatuses,
+  quoteConfigs = [],
   defaultValues,
   isSubmitting,
   onSubmit,
@@ -108,13 +117,31 @@ export function ProjectForm({
   const selectedCustomerId = watch('customerId');
   const selectedServiceId = watch('serviceId');
   const projectName = watch('projectName');
+  const signedDate = watch('signedDate');
+  const expiredDate = watch('expiredDate');
+  const computedContractMonths =
+    signedDate && expiredDate && dayjs(expiredDate).isAfter(dayjs(signedDate))
+      ? dayjs(expiredDate).diff(dayjs(signedDate), 'month')
+      : null;
   const selectedCustomer = customers.find(
     (customer) => String(customer.id) === selectedCustomerId,
+  );
+  const selectedService = serviceOptions.find(
+    (service) => String(service.id) === selectedServiceId,
   );
   const rootServiceCode = useMemo(
     () => getRootServiceCode(services, selectedServiceId),
     [selectedServiceId, services],
   );
+  const rootService = useMemo(
+    () => getRootServiceItem(services, selectedServiceId),
+    [selectedServiceId, services],
+  );
+  const quoteConfigOption = getConfigForRoot(quoteConfigs, rootService);
+  const quoteConfig = quoteConfigOption
+    ? getServiceQuoteConfigMeta(quoteConfigOption, rootService)
+    : null;
+  const hasManagementFeeConfig = Boolean(quoteConfig?.enabled && quoteConfig.managementFeeRates.length);
 
   useEffect(() => {
     const nextProjectCode = generateProjectCode({
@@ -155,6 +182,104 @@ export function ProjectForm({
                 {...register('projectName', { required: 'Vui lòng nhập tên dự án' })}
               />
             </div>
+
+            <div className="grid gap-4 md:grid-cols-2">
+              <Controller
+                name="customerId"
+                control={control}
+                rules={{ required: 'Vui lòng chọn khách hàng' }}
+                render={({ field }) => (
+                  <TextField
+                    fullWidth
+                    select
+                    label="Khách hàng *"
+                    error={Boolean(errors.customerId)}
+                    helperText={errors.customerId?.message}
+                    {...field}
+                  >
+                    {customers.map((customer) => (
+                      <MenuItem key={customer.id} value={String(customer.id)}>
+                        {customerLabel(customer)}
+                      </MenuItem>
+                    ))}
+                  </TextField>
+                )}
+              />
+
+              <Controller
+                name="serviceId"
+                control={control}
+                rules={{ required: 'Vui lòng chọn dịch vụ' }}
+                render={({ field }) => {
+                  const selectedServiceOption =
+                    serviceOptions.find((service) => String(service.id) === field.value) || null;
+
+                  return (
+                    <Autocomplete
+                      options={serviceOptions}
+                      value={selectedServiceOption}
+                      onChange={(_, nextValue) =>
+                        field.onChange(nextValue?.id !== undefined ? String(nextValue.id) : '')
+                      }
+                      getOptionLabel={serviceLabel}
+                      isOptionEqualToValue={(option, value) => option.id === value.id}
+                      filterOptions={(options, state) => {
+                        const keyword = state.inputValue.trim().toLowerCase();
+                        if (!keyword) return options;
+
+                        return options.filter((service) =>
+                          [service.code, service.name, service.pathName]
+                            .join(' ')
+                            .toLowerCase()
+                            .includes(keyword),
+                        );
+                      }}
+                      renderInput={(params) => (
+                        <TextField
+                          {...params}
+                          fullWidth
+                          label="Dịch vụ *"
+                          placeholder="Tìm theo mã hoặc tên dịch vụ"
+                          error={Boolean(errors.serviceId)}
+                          helperText={errors.serviceId?.message}
+                        />
+                      )}
+                    />
+                  );
+                }}
+              />
+            </div>
+
+            {hasManagementFeeConfig && quoteConfig ? (
+              <div className="rounded-xl bg-slate-50 p-4 ring-1 ring-slate-100">
+                <p className="text-sm font-semibold text-slate-600">
+                  % phí quản lý theo ngân sách ({rootService?.code})
+                </p>
+                <p className="mt-1 text-xs text-slate-400">
+                  Doanh thu dự kiến = Ngân sách quảng cáo × % phí quản lý tương ứng bậc ngân sách.
+                </p>
+                <div className="mt-3 space-y-1">
+                  {quoteConfig.managementFeeRates.map((rate) => (
+                    <div key={rate.label} className="flex items-center justify-between text-sm">
+                      <span className="text-slate-600">{rate.label}</span>
+                      <span className="font-bold text-slate-950">{rate.single}%</span>
+                    </div>
+                  ))}
+                </div>
+              </div>
+            ) : selectedService?.defaultPrice ? (
+              <div className="flex items-center justify-between rounded-xl bg-slate-50 px-4 py-3 ring-1 ring-slate-100">
+                <span className="text-sm font-semibold text-slate-600">Đơn giá dịch vụ</span>
+                <span className="text-sm font-bold text-slate-950">
+                  {formatCurrency(selectedService.defaultPrice)}
+                  {selectedService.unit ? (
+                    <span className="ml-1 text-xs font-normal text-slate-400">
+                      / {selectedService.unit}
+                    </span>
+                  ) : null}
+                </span>
+              </div>
+            ) : null}
 
             <TextField
               fullWidth
@@ -211,7 +336,6 @@ export function ProjectForm({
           >
             <input type="hidden" {...register('contractId')} />
             <input type="hidden" {...register('contractNo')} />
-            <input type="hidden" {...register('contractNote')} />
 
             <div className="grid gap-4 md:grid-cols-2 xl:grid-cols-3">
               <Controller
@@ -245,6 +369,11 @@ export function ProjectForm({
                 fullWidth
                 label="Thời hạn hợp đồng"
                 placeholder="Ví dụ: 6 tháng"
+                helperText={
+                  computedContractMonths !== null
+                    ? `Theo ngày ký/hết hạn: khoảng ${computedContractMonths} tháng`
+                    : undefined
+                }
                 {...register('contractMonth')}
               />
 
@@ -278,6 +407,15 @@ export function ProjectForm({
                 {...register('fileUrl')}
               />
             </div>
+
+            <TextField
+              fullWidth
+              multiline
+              minRows={2}
+              label="Ghi chú hợp đồng"
+              placeholder="Điều khoản đặc biệt, ghi chú riêng cho hợp đồng..."
+              {...register('contractNote')}
+            />
           </FormSection>
         </div>
 
@@ -286,71 +424,6 @@ export function ProjectForm({
             title="Trạng thái & phụ trách"
             description="Trạng thái dự án và nhân sự phụ trách triển khai."
           >
-            <Controller
-              name="customerId"
-              control={control}
-              rules={{ required: 'Vui lòng chọn khách hàng' }}
-              render={({ field }) => (
-                <TextField
-                  fullWidth
-                  select
-                  label="Khách hàng *"
-                  error={Boolean(errors.customerId)}
-                  helperText={errors.customerId?.message}
-                  {...field}
-                >
-                  {customers.map((customer) => (
-                    <MenuItem key={customer.id} value={String(customer.id)}>
-                      {customerLabel(customer)}
-                    </MenuItem>
-                  ))}
-                </TextField>
-              )}
-            />
-
-            <Controller
-              name="serviceId"
-              control={control}
-              rules={{ required: 'Vui lòng chọn dịch vụ' }}
-              render={({ field }) => {
-                const selectedService =
-                  serviceOptions.find((service) => String(service.id) === field.value) || null;
-
-                return (
-                  <Autocomplete
-                    options={serviceOptions}
-                    value={selectedService}
-                    onChange={(_, nextValue) =>
-                      field.onChange(nextValue?.id !== undefined ? String(nextValue.id) : '')
-                    }
-                    getOptionLabel={serviceLabel}
-                    isOptionEqualToValue={(option, value) => option.id === value.id}
-                    filterOptions={(options, state) => {
-                      const keyword = state.inputValue.trim().toLowerCase();
-                      if (!keyword) return options;
-
-                      return options.filter((service) =>
-                        [service.code, service.name, service.pathName]
-                          .join(' ')
-                          .toLowerCase()
-                          .includes(keyword),
-                      );
-                    }}
-                    renderInput={(params) => (
-                      <TextField
-                        {...params}
-                        fullWidth
-                        label="Dịch vụ *"
-                        placeholder="Tìm theo mã hoặc tên dịch vụ"
-                        error={Boolean(errors.serviceId)}
-                        helperText={errors.serviceId?.message}
-                      />
-                    )}
-                  />
-                );
-              }}
-            />
-
             <Controller
               name="statusOptionId"
               control={control}

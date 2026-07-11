@@ -108,6 +108,20 @@ export function getRootServiceCode(services: ServiceItem[], serviceId: string): 
   return '';
 }
 
+export function getRootServiceItem(
+  services: ServiceItem[],
+  serviceId: string,
+): ServiceItem | null {
+  for (const service of services) {
+    if (String(service.id) === serviceId) return service;
+
+    const child = getRootServiceItem(service.children || [], serviceId);
+    if (child) return service;
+  }
+
+  return null;
+}
+
 export function toCodeSegment(value?: string | null): string {
   return (value || '')
     .trim()

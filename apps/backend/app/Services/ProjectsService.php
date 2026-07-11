@@ -139,7 +139,7 @@ class ProjectsService extends BaseService
 
     private function loadProjectRelations(Project $project): Project
     {
-        return $project->load(['customer', 'quotation', 'service', 'statusOption', 'managerUser', 'salesUser', 'contracts.contractStatus', 'payments', 'timelines.createdBy']);
+        return $project->load(['customer', 'quotation', 'service', 'statusOption', 'managerUser', 'salesUser', 'contracts.contractStatus', 'contracts.contractStatusOption', 'payments', 'timelines.createdBy']);
     }
 
     private function syncProjectContract(Project $project, array $data): ?Contract
@@ -151,7 +151,7 @@ class ProjectsService extends BaseService
         }
 
         $contractId = $data['id'] ?? null;
-        unset($data['id'], $data['contract_status_option_id']);
+        unset($data['id']);
 
         $data = array_merge($data, [
             'project_id' => $project->id,

@@ -3,6 +3,7 @@
 use App\Http\Controllers\AuthController;
 use App\Http\Controllers\CustomersController;
 use App\Http\Controllers\ContractsController;
+use App\Http\Controllers\InvoicesController;
 use App\Http\Controllers\LeadsController;
 use App\Http\Controllers\MediaController;
 use App\Http\Controllers\OptionsController;
@@ -10,6 +11,7 @@ use App\Http\Controllers\PaymentsController;
 use App\Http\Controllers\PermissionsController;
 use App\Http\Controllers\ProjectsController;
 use App\Http\Controllers\QuotationsController;
+use App\Http\Controllers\RevenuesController;
 use App\Http\Controllers\RolesController;
 use App\Http\Controllers\ServicesController;
 use App\Http\Controllers\UsersController;
@@ -87,6 +89,20 @@ Route::middleware('jwt')->group(function (): void {
     Route::put('/quotations/{id}', [QuotationsController::class, 'update']);
     Route::patch('/quotations/{id}', [QuotationsController::class, 'update']);
     Route::delete('/quotations/{id}', [QuotationsController::class, 'destroy']);
+
+    Route::get('/revenues', [RevenuesController::class, 'index']);
+    Route::post('/revenues', [RevenuesController::class, 'store']);
+    Route::get('/revenues/{id}', [RevenuesController::class, 'show']);
+    Route::put('/revenues/{id}', [RevenuesController::class, 'update']);
+    Route::patch('/revenues/{id}', [RevenuesController::class, 'update']);
+    Route::delete('/revenues/{id}', [RevenuesController::class, 'destroy']);
+
+    Route::get('/invoices', [InvoicesController::class, 'index']);
+    Route::post('/invoices', [InvoicesController::class, 'store']);
+    Route::get('/invoices/{id}', [InvoicesController::class, 'show']);
+    Route::put('/invoices/{id}', [InvoicesController::class, 'update']);
+    Route::patch('/invoices/{id}', [InvoicesController::class, 'update']);
+    Route::delete('/invoices/{id}', [InvoicesController::class, 'destroy']);
 
     Route::get('/contracts', [ContractsController::class, 'index']);
     Route::post('/contracts', [ContractsController::class, 'store']);

@@ -5,13 +5,17 @@ import { Alert } from '@mui/material';
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import { useAppNotification } from '@/components/feedback/notification-provider';
 import { ContentLoading } from '@/components/shell/content-loading';
+import { ProjectFinancePanel } from '@/features/projects/components/project-finance-panel';
 import { ProjectForm } from '@/features/projects/components/project-form';
 import { getApiErrorMessage } from '@/lib/api-error';
 import { toProjectPayload } from '@/lib/project-utils';
+import { SERVICE_QUOTE_CONFIG_GROUP } from '@/lib/service-quote-config';
 import api from '@/services/api/client';
 import type { Customer } from '@/types/customer';
 import type { AppOption } from '@/types/option';
+import type { Payment } from '@/types/payment';
 import type { ProjectFormValues, ProjectItem } from '@/types/project';
+import type { Revenue } from '@/types/revenue';
 import type { ServiceItem } from '@/types/service';
 import type { User } from '@/types/user';
 
@@ -46,9 +50,27 @@ export default function EditProjectPage() {
   const statuses = projectOptions.filter((option) => option.group === 'project_status');
   const contractStatuses = projectOptions.filter((option) => option.group === 'contract_status');
 
+  const { data: quoteConfigs = [] } = useQuery<AppOption[]>({
+    queryKey: ['options', SERVICE_QUOTE_CONFIG_GROUP],
+    queryFn: () =>
+      api
+        .get<AppOption[]>('/options', { params: { groups: SERVICE_QUOTE_CONFIG_GROUP } })
+        .then((response) => response.data),
+  });
+
   const { data: project, isLoading } = useQuery<ProjectItem>({
     queryKey: ['projects', id],
     queryFn: () => api.get(`/projects/${id}`).then((response) => response.data),
+  });
+
+  const { data: payments = [] } = useQuery<Payment[]>({
+    queryKey: ['payments', 'by-project', id],
+    queryFn: () => api.get<Payment[]>('/payments', { params: { project_id: id } }).then((response) => response.data),
+  });
+
+  const { data: revenues = [] } = useQuery<Revenue[]>({
+    queryKey: ['revenues', 'by-project', id],
+    queryFn: () => api.get<Revenue[]>('/revenues', { params: { project_id: id } }).then((response) => response.data),
   });
 
   const updateMutation = useMutation({
@@ -89,6 +111,10 @@ export default function EditProjectPage() {
         </div>
       </div>
 
+      <div className="mb-6">
+        <ProjectFinancePanel projectId={project.id} payments={payments} revenues={revenues} />
+      </div>
+
       <ProjectForm
         mode="edit"
         project={project}
@@ -97,6 +123,7 @@ export default function EditProjectPage() {
         users={users}
         statuses={statuses}
         contractStatuses={contractStatuses}
+        quoteConfigs={quoteConfigs}
         isSubmitting={updateMutation.isPending}
         onSubmit={(values) => updateMutation.mutate(values)}
       />

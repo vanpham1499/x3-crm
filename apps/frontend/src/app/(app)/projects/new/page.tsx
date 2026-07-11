@@ -7,6 +7,7 @@ import { ContentLoading } from '@/components/shell/content-loading';
 import { ProjectForm } from '@/features/projects/components/project-form';
 import { getApiErrorMessage } from '@/lib/api-error';
 import { toProjectPayload } from '@/lib/project-utils';
+import { SERVICE_QUOTE_CONFIG_GROUP } from '@/lib/service-quote-config';
 import api from '@/services/api/client';
 import type { Customer } from '@/types/customer';
 import type { AppOption } from '@/types/option';
@@ -47,6 +48,14 @@ export default function NewProjectPage() {
   });
   const statuses = projectOptions.filter((option) => option.group === 'project_status');
   const contractStatuses = projectOptions.filter((option) => option.group === 'contract_status');
+
+  const { data: quoteConfigs = [] } = useQuery<AppOption[]>({
+    queryKey: ['options', SERVICE_QUOTE_CONFIG_GROUP],
+    queryFn: () =>
+      api
+        .get<AppOption[]>('/options', { params: { groups: SERVICE_QUOTE_CONFIG_GROUP } })
+        .then((response) => response.data),
+  });
 
   const { data: quotation, isLoading: isQuotationLoading } = useQuery<Quotation>({
     queryKey: ['quotations', quotationId, 'project-create'],
@@ -106,6 +115,7 @@ export default function NewProjectPage() {
         users={users}
         statuses={statuses}
         contractStatuses={contractStatuses}
+        quoteConfigs={quoteConfigs}
         defaultValues={defaultValues}
         isSubmitting={createMutation.isPending}
         onSubmit={(values) => createMutation.mutate(values)}

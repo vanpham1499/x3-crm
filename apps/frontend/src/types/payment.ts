@@ -37,6 +37,11 @@ export type Payment = {
     id: number;
     contractNo?: string | null;
   } | null;
+  revenue?: {
+    id: number;
+    revenueCode?: string | null;
+    amountAfterVat?: string | number | null;
+  } | null;
   createdAt?: string;
   updatedAt?: string;
 };

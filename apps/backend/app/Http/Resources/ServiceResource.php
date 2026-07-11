@@ -20,6 +20,8 @@ class ServiceResource extends JsonResource
             'description' => $this->description,
             'level' => $this->level,
             'sortOrder' => $this->sort_order,
+            'unit' => $this->unit,
+            'defaultPrice' => (float) $this->default_price,
             'isActive' => (bool) $this->is_active,
             'parent' => $this->whenLoaded('parent', fn () => $this->parent ? [
                 'id' => $this->parent->id,
