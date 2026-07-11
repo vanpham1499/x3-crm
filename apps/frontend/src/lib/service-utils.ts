@@ -42,6 +42,11 @@ export function getServiceDefaults(service?: ServiceItem, parent?: ServiceItem |
     invoiceTiming: service?.invoiceTiming || '',
     description: service?.description || '',
     sortOrder: service?.sortOrder ?? 0,
+    unit: service?.unit || '',
+    defaultPrice:
+      service?.defaultPrice !== undefined && service?.defaultPrice !== null
+        ? String(service.defaultPrice)
+        : '',
     isActive: service?.isActive ?? true,
   };
 }
@@ -56,6 +61,8 @@ export function toServicePayload(values: ServiceFormValues) {
     invoiceTiming: values.invoiceTiming.trim() || null,
     description: values.description.trim() || null,
     sortOrder: Number(values.sortOrder) || 0,
+    unit: values.unit.trim() || null,
+    defaultPrice: values.defaultPrice ? Number(values.defaultPrice) : 0,
     isActive: values.isActive,
   };
 }

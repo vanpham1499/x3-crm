@@ -8,8 +8,15 @@ import { DatePicker } from '@mui/x-date-pickers/DatePicker';
 import dayjs from 'dayjs';
 import { Controller, useForm } from 'react-hook-form';
 import { MoneyInput } from '@/components/form/money-input';
-import { generateProjectCode, getProjectDefaults, getRootServiceCode } from '@/lib/project-utils';
+import {
+  generateProjectCode,
+  getProjectDefaults,
+  getRootServiceCode,
+  getRootServiceItem,
+} from '@/lib/project-utils';
+import { getConfigForRoot, getServiceQuoteConfigMeta } from '@/lib/service-quote-config';
 import { flattenServices } from '@/lib/service-utils';
+import { formatCurrency } from '@/lib/utils';
 import type { Customer } from '@/types/customer';
 import type { AppOption } from '@/types/option';
 import type { ProjectFormValues, ProjectItem } from '@/types/project';
@@ -24,6 +31,7 @@ type ProjectFormProps = {
   users: User[];
   statuses: AppOption[];
   contractStatuses: AppOption[];
+  quoteConfigs?: AppOption[];
   defaultValues?: Partial<ProjectFormValues>;
   isSubmitting: boolean;
   onSubmit: (values: ProjectFormValues) => void;
@@ -90,6 +98,7 @@ export function ProjectForm({
   users,
   statuses,
   contractStatuses,
+  quoteConfigs = [],
   defaultValues,
   isSubmitting,
   onSubmit,
@@ -111,10 +120,22 @@ export function ProjectForm({
   const selectedCustomer = customers.find(
     (customer) => String(customer.id) === selectedCustomerId,
   );
+  const selectedService = serviceOptions.find(
+    (service) => String(service.id) === selectedServiceId,
+  );
   const rootServiceCode = useMemo(
     () => getRootServiceCode(services, selectedServiceId),
     [selectedServiceId, services],
   );
+  const rootService = useMemo(
+    () => getRootServiceItem(services, selectedServiceId),
+    [selectedServiceId, services],
+  );
+  const quoteConfigOption = getConfigForRoot(quoteConfigs, rootService);
+  const quoteConfig = quoteConfigOption
+    ? getServiceQuoteConfigMeta(quoteConfigOption, rootService)
+    : null;
+  const hasManagementFeeConfig = Boolean(quoteConfig?.enabled && quoteConfig.managementFeeRates.length);
 
   useEffect(() => {
     const nextProjectCode = generateProjectCode({
@@ -350,6 +371,37 @@ export function ProjectForm({
                 );
               }}
             />
+
+            {hasManagementFeeConfig && quoteConfig ? (
+              <div className="rounded-xl bg-slate-50 p-4 ring-1 ring-slate-100">
+                <p className="text-sm font-semibold text-slate-600">
+                  % phí quản lý theo ngân sách ({rootService?.code})
+                </p>
+                <p className="mt-1 text-xs text-slate-400">
+                  Doanh thu dự kiến = Ngân sách quảng cáo × % phí quản lý tương ứng bậc ngân sách.
+                </p>
+                <div className="mt-3 space-y-1">
+                  {quoteConfig.managementFeeRates.map((rate) => (
+                    <div key={rate.label} className="flex items-center justify-between text-sm">
+                      <span className="text-slate-600">{rate.label}</span>
+                      <span className="font-bold text-slate-950">{rate.single}%</span>
+                    </div>
+                  ))}
+                </div>
+              </div>
+            ) : selectedService?.defaultPrice ? (
+              <div className="flex items-center justify-between rounded-xl bg-slate-50 px-4 py-3 ring-1 ring-slate-100">
+                <span className="text-sm font-semibold text-slate-600">Đơn giá dịch vụ</span>
+                <span className="text-sm font-bold text-slate-950">
+                  {formatCurrency(selectedService.defaultPrice)}
+                  {selectedService.unit ? (
+                    <span className="ml-1 text-xs font-normal text-slate-400">
+                      / {selectedService.unit}
+                    </span>
+                  ) : null}
+                </span>
+              </div>
+            ) : null}
 
             <Controller
               name="statusOptionId"

@@ -9,6 +9,8 @@ export type ServiceItem = {
   description?: string | null;
   level: number;
   sortOrder: number;
+  unit?: string | null;
+  defaultPrice?: number | null;
   isActive: boolean;
   parent?: {
     id: number;
@@ -34,5 +36,7 @@ export type ServiceFormValues = {
   invoiceTiming: string;
   description: string;
   sortOrder: number;
+  unit: string;
+  defaultPrice: string;
   isActive: boolean;
 };

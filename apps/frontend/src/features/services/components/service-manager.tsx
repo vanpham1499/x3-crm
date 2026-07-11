@@ -24,6 +24,7 @@ import {
 import { Controller, useForm } from 'react-hook-form';
 import { ConfirmDialog } from '@/components/feedback/confirm-dialog';
 import { MoneyInput } from '@/components/form/money-input';
+import { formatCurrency } from '@/lib/utils';
 import {
   DEFAULT_MANAGEMENT_FEE_RATES,
   DEFAULT_SETUP_PACKAGES,
@@ -208,6 +209,26 @@ function ServiceFormDialog({
             type="number"
             label="Thứ tự"
             {...register('sortOrder', { valueAsNumber: true })}
+          />
+
+          <TextField
+            fullWidth
+            label="Đơn vị tính"
+            placeholder="tháng, cái, lần..."
+            {...register('unit')}
+          />
+
+          <Controller
+            name="defaultPrice"
+            control={control}
+            render={({ field }) => (
+              <MoneyInput
+                fullWidth
+                label="Đơn giá"
+                value={field.value}
+                onValueChange={field.onChange}
+              />
+            )}
           />
 
           <TextField
@@ -543,6 +564,7 @@ export function ServiceManager({
               <tr>
                 <th className="w-[390px] px-5 py-4">Dịch vụ</th>
                 <th className="w-36 px-3 py-4">Trạng thái</th>
+                <th className="w-40 px-3 py-4">Đơn giá</th>
                 <th className="w-[260px] px-3 py-4">Nội dung</th>
                 <th className="w-[260px] px-3 py-4">Nội dung hóa đơn</th>
                 <th className="w-[220px] px-3 py-4">Thời điểm hóa đơn</th>
@@ -609,6 +631,18 @@ export function ServiceManager({
                         >
                           {service.isActive ? 'Hoạt động' : 'Tạm tắt'}
                         </span>
+                      </td>
+                      <td className="px-3 py-4">
+                        {service.defaultPrice ? (
+                          <p className="font-semibold text-slate-700">
+                            {formatCurrency(service.defaultPrice)}
+                            {service.unit ? (
+                              <span className="text-xs font-normal text-slate-400"> / {service.unit}</span>
+                            ) : null}
+                          </p>
+                        ) : (
+                          <p className="text-slate-400">-</p>
+                        )}
                       </td>
                       <td className="px-3 py-4">
                         <p className="line-clamp-2 text-slate-600" title={service.content || ''}>

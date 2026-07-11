@@ -6,6 +6,12 @@ use Illuminate\Database\Eloquent\Relations\BelongsTo;
 
 class Invoice extends BaseModel
 {
+    public const STATUS_DRAFT = 'draft';
+
+    public const STATUS_ISSUED = 'issued';
+
+    public const STATUS_CANCELLED = 'cancelled';
+
     protected $fillable = [
         'revenue_id',
         'customer_id',
@@ -19,7 +25,7 @@ class Invoice extends BaseModel
         'amount_before_vat',
         'vat_amount',
         'amount_after_vat',
-        'status_id',
+        'status',
         'file_url',
         'note',
         'created_by',
@@ -45,10 +51,5 @@ class Invoice extends BaseModel
     public function customer(): BelongsTo
     {
         return $this->belongsTo(Customer::class);
-    }
-
-    public function status(): BelongsTo
-    {
-        return $this->belongsTo(Status::class);
     }
 }

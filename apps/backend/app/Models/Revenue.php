@@ -8,6 +8,16 @@ use Illuminate\Database\Eloquent\Relations\HasOne;
 
 class Revenue extends BaseModel
 {
+    public const PAYMENT_STATUS_UNPAID = 'unpaid';
+
+    public const PAYMENT_STATUS_PARTIAL = 'partial';
+
+    public const PAYMENT_STATUS_PAID = 'paid';
+
+    public const INVOICE_STATUS_NOT_ISSUED = 'not_issued';
+
+    public const INVOICE_STATUS_ISSUED = 'issued';
+
     protected $fillable = [
         'project_id',
         'revenue_code',
@@ -21,8 +31,8 @@ class Revenue extends BaseModel
         'vat_amount',
         'amount_after_vat',
         'actual_received_amount',
-        'payment_status_id',
-        'invoice_status_id',
+        'payment_status',
+        'invoice_status',
         'note',
         'created_by',
         'updated_by',
@@ -47,16 +57,6 @@ class Revenue extends BaseModel
     public function project(): BelongsTo
     {
         return $this->belongsTo(Project::class);
-    }
-
-    public function paymentStatus(): BelongsTo
-    {
-        return $this->belongsTo(Status::class, 'payment_status_id');
-    }
-
-    public function invoiceStatus(): BelongsTo
-    {
-        return $this->belongsTo(Status::class, 'invoice_status_id');
     }
 
     public function items(): HasMany
