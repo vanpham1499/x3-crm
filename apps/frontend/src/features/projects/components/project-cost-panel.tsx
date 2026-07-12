@@ -4,20 +4,17 @@ import { useState } from 'react';
 import AddRoundedIcon from '@mui/icons-material/AddRounded';
 import DeleteOutlineRoundedIcon from '@mui/icons-material/DeleteOutlineRounded';
 import EditOutlinedIcon from '@mui/icons-material/EditOutlined';
-import {
-  Button,
-  Dialog,
-  DialogActions,
-  DialogContent,
-  DialogTitle,
-  IconButton,
-  MenuItem,
-  TextField,
-} from '@mui/material';
+import { IconButton, MenuItem } from '@mui/material';
 import { useMutation, useQueryClient } from '@tanstack/react-query';
 import { Controller, useForm } from 'react-hook-form';
+import { DialogActionButton } from '@/components/actions/dialog-action-button';
+import { TabActionButton } from '@/components/actions/tab-action-button';
+import { AppFormDialog } from '@/components/dialog/app-form-dialog';
 import { ConfirmDialog } from '@/components/feedback/confirm-dialog';
 import { useAppNotification } from '@/components/feedback/notification-provider';
+import { compactFormFieldClassName } from '@/components/form/form-field-styles';
+import { FormInputField } from '@/components/form/form-input-field';
+import { FormSelectField } from '@/components/form/form-select-field';
 import { MoneyInput } from '@/components/form/money-input';
 import { getApiErrorMessage } from '@/lib/api-error';
 import { getBankAccountBankCode } from '@/lib/company-bank-account-options';
@@ -132,227 +129,212 @@ function CostDialog({
   };
 
   return (
-    <Dialog open={open} onClose={isSubmitting ? undefined : closeDialog} maxWidth="md" fullWidth>
-      <DialogTitle className="border-b border-slate-100 px-5 py-4">
-        <p className="text-base font-bold text-slate-950">
-          {cost ? 'Sửa khoản chi' : isAdSpend ? 'Thêm lần nạp quảng cáo' : 'Thêm chi phí đối tác'}
-        </p>
-      </DialogTitle>
+    <AppFormDialog
+      open={open}
+      title={cost ? 'Sửa khoản chi' : isAdSpend ? 'Thêm lần nạp quảng cáo' : 'Thêm chi phí đối tác'}
+      maxWidth="md"
+      submitting={isSubmitting}
+      onClose={closeDialog}
+      onSubmit={handleSubmit(async (values) => {
+        await onSubmit(values, cost);
+        closeDialog();
+      })}
+      contentClassName="grid gap-3 md:grid-cols-2"
+      actions={
+        <>
+          <DialogActionButton onClick={closeDialog} disabled={isSubmitting}>
+            Hủy
+          </DialogActionButton>
+          <DialogActionButton type="submit" tone="primary" disabled={isSubmitting}>
+            {isSubmitting ? 'Đang lưu...' : 'Lưu khoản chi'}
+          </DialogActionButton>
+        </>
+      }
+    >
+      <Controller
+        name="quotationId"
+        control={control}
+        render={({ field }) => (
+          <FormSelectField label="Báo phí liên quan" {...field}>
+            <MenuItem value="">Không gắn báo phí</MenuItem>
+            {quotations.map((quotation) => (
+              <MenuItem key={quotation.id} value={String(quotation.id)}>
+                {quotation.quotationCode || `Báo phí #${quotation.id}`}
+              </MenuItem>
+            ))}
+          </FormSelectField>
+        )}
+      />
+      <FormInputField
+        type="date"
+        label={isAdSpend ? 'Ngày nạp/hủy *' : 'Ngày chi/hủy *'}
+        error={Boolean(errors.transactionDate)}
+        helperText={errors.transactionDate?.message}
+        slotProps={{ inputLabel: { shrink: true } }}
+        {...register('transactionDate', { required: 'Bắt buộc' })}
+      />
 
-      <form
-        onSubmit={handleSubmit(async (values) => {
-          await onSubmit(values, cost);
-          closeDialog();
-        })}
-      >
-        <DialogContent className="grid gap-3 px-5 py-4 md:grid-cols-2">
-          <Controller
-            name="quotationId"
-            control={control}
-            render={({ field }) => (
-              <TextField select fullWidth label="Báo phí liên quan" {...field}>
-                <MenuItem value="">Không gắn báo phí</MenuItem>
-                {quotations.map((quotation) => (
-                  <MenuItem key={quotation.id} value={String(quotation.id)}>
-                    {quotation.quotationCode || `Báo phí #${quotation.id}`}
-                  </MenuItem>
-                ))}
-              </TextField>
-            )}
+      {isAdSpend ? (
+        <>
+          <FormInputField
+            label="Mã CID *"
+            error={Boolean(errors.cid)}
+            helperText={errors.cid?.message}
+            {...register('cid', { required: 'Bắt buộc' })}
           />
-          <TextField
+          <FormInputField label="Tài khoản quảng cáo" {...register('adAccount')} />
+        </>
+      ) : (
+        <Controller
+          name="partnerOptionId"
+          control={control}
+          rules={{ required: 'Bắt buộc' }}
+          render={({ field }) => (
+            <FormSelectField
+              label="Đối tác *"
+              error={Boolean(errors.partnerOptionId)}
+              helperText={errors.partnerOptionId?.message}
+              {...field}
+            >
+              <MenuItem value="">Chưa chọn</MenuItem>
+              {partners.map((partner) => (
+                <MenuItem key={partner.id} value={String(partner.id)}>
+                  {partnerLabel(partner)}
+                </MenuItem>
+              ))}
+            </FormSelectField>
+          )}
+        />
+      )}
+
+      <Controller
+        name="bankAccountOptionId"
+        control={control}
+        rules={{ required: 'Bắt buộc' }}
+        render={({ field }) => (
+          <FormSelectField
+            label={isAdSpend ? 'TK ngân hàng nạp QC *' : 'TK công ty chi *'}
+            error={Boolean(errors.bankAccountOptionId)}
+            helperText={errors.bankAccountOptionId?.message}
+            {...field}
+          >
+            <MenuItem value="">Chưa chọn</MenuItem>
+            {bankAccounts.map((account) => (
+              <MenuItem key={account.id} value={String(account.id)}>
+                {bankAccountLabel(account)} · {account.label}
+              </MenuItem>
+            ))}
+          </FormSelectField>
+        )}
+      />
+
+      <Controller
+        name="amountBeforeVat"
+        control={control}
+        rules={{ required: 'Bắt buộc' }}
+        render={({ field }) => (
+          <MoneyInput
             fullWidth
-            type="date"
-            label={isAdSpend ? 'Ngày nạp/hủy *' : 'Ngày chi/hủy *'}
-            error={Boolean(errors.transactionDate)}
-            helperText={errors.transactionDate?.message}
-            slotProps={{ inputLabel: { shrink: true } }}
-            {...register('transactionDate', { required: 'Bắt buộc' })}
+            size="small"
+            label={isAdSpend ? 'Ngân sách nạp *' : 'Chi phí đối tác *'}
+            value={field.value}
+            onValueChange={field.onChange}
+            error={Boolean(errors.amountBeforeVat)}
+            helperText={errors.amountBeforeVat?.message}
+            className={compactFormFieldClassName}
           />
+        )}
+      />
+      <FormInputField
+        type="number"
+        label="Thuế suất VAT (%)"
+        slotProps={{ htmlInput: { min: 0, step: 0.01 } }}
+        {...register('vatRate')}
+      />
 
-          {isAdSpend ? (
-            <>
-              <TextField
-                fullWidth
-                label="Mã CID *"
-                error={Boolean(errors.cid)}
-                helperText={errors.cid?.message}
-                {...register('cid', { required: 'Bắt buộc' })}
-              />
-              <TextField fullWidth label="Tài khoản quảng cáo" {...register('adAccount')} />
-            </>
-          ) : (
-            <Controller
-              name="partnerOptionId"
-              control={control}
-              rules={{ required: 'Bắt buộc' }}
-              render={({ field }) => (
-                <TextField
-                  select
-                  fullWidth
-                  label="Đối tác *"
-                  error={Boolean(errors.partnerOptionId)}
-                  helperText={errors.partnerOptionId?.message}
-                  {...field}
-                >
-                  <MenuItem value="">Chưa chọn</MenuItem>
-                  {partners.map((partner) => (
-                    <MenuItem key={partner.id} value={String(partner.id)}>
-                      {partnerLabel(partner)}
-                    </MenuItem>
-                  ))}
-                </TextField>
-              )}
+      {!isAdSpend ? (
+        <Controller
+          name="discountAmount"
+          control={control}
+          render={({ field }) => (
+            <MoneyInput
+              fullWidth
+              size="small"
+              label="Voucher / khuyến mại / chiết khấu"
+              value={field.value}
+              onValueChange={field.onChange}
+              className={compactFormFieldClassName}
             />
           )}
+        />
+      ) : null}
 
+      <Controller
+        name="status"
+        control={control}
+        render={({ field }) => (
+          <FormSelectField label="Tình trạng" {...field}>
+            <MenuItem value="pending">{isAdSpend ? 'Chờ nạp' : 'Chờ chi'}</MenuItem>
+            <MenuItem value="completed">{isAdSpend ? 'Đã nạp' : 'Đã chi'}</MenuItem>
+            <MenuItem value="cancelled">Đã hủy</MenuItem>
+          </FormSelectField>
+        )}
+      />
+
+      {!isAdSpend ? (
+        <>
           <Controller
-            name="bankAccountOptionId"
-            control={control}
-            rules={{ required: 'Bắt buộc' }}
-            render={({ field }) => (
-              <TextField
-                select
-                fullWidth
-                label={isAdSpend ? 'TK ngân hàng nạp QC *' : 'TK công ty chi *'}
-                error={Boolean(errors.bankAccountOptionId)}
-                helperText={errors.bankAccountOptionId?.message}
-                {...field}
-              >
-                <MenuItem value="">Chưa chọn</MenuItem>
-                {bankAccounts.map((account) => (
-                  <MenuItem key={account.id} value={String(account.id)}>
-                    {bankAccountLabel(account)} · {account.label}
-                  </MenuItem>
-                ))}
-              </TextField>
-            )}
-          />
-
-          <Controller
-            name="amountBeforeVat"
-            control={control}
-            rules={{ required: 'Bắt buộc' }}
-            render={({ field }) => (
-              <MoneyInput
-                fullWidth
-                label={isAdSpend ? 'Ngân sách nạp *' : 'Chi phí đối tác *'}
-                value={field.value}
-                onValueChange={field.onChange}
-                error={Boolean(errors.amountBeforeVat)}
-                helperText={errors.amountBeforeVat?.message}
-              />
-            )}
-          />
-          <TextField
-            fullWidth
-            type="number"
-            label="Thuế suất VAT (%)"
-            slotProps={{ htmlInput: { min: 0, step: 0.01 } }}
-            {...register('vatRate')}
-          />
-
-          {!isAdSpend ? (
-            <Controller
-              name="discountAmount"
-              control={control}
-              render={({ field }) => (
-                <MoneyInput
-                  fullWidth
-                  label="Voucher / khuyến mại / chiết khấu"
-                  value={field.value}
-                  onValueChange={field.onChange}
-                />
-              )}
-            />
-          ) : null}
-
-          <Controller
-            name="status"
+            name="acceptanceStatus"
             control={control}
             render={({ field }) => (
-              <TextField select fullWidth label="Tình trạng" {...field}>
-                <MenuItem value="pending">{isAdSpend ? 'Chờ nạp' : 'Chờ chi'}</MenuItem>
-                <MenuItem value="completed">{isAdSpend ? 'Đã nạp' : 'Đã chi'}</MenuItem>
-                <MenuItem value="cancelled">Đã hủy</MenuItem>
-              </TextField>
+              <FormSelectField label="Nghiệm thu" {...field}>
+                <MenuItem value="pending">Chờ nghiệm thu</MenuItem>
+                <MenuItem value="accepted">Đã nghiệm thu</MenuItem>
+                <MenuItem value="not_required">Không yêu cầu</MenuItem>
+              </FormSelectField>
             )}
           />
-
-          {!isAdSpend ? (
-            <>
-              <Controller
-                name="acceptanceStatus"
-                control={control}
-                render={({ field }) => (
-                  <TextField select fullWidth label="Nghiệm thu" {...field}>
-                    <MenuItem value="pending">Chờ nghiệm thu</MenuItem>
-                    <MenuItem value="accepted">Đã nghiệm thu</MenuItem>
-                    <MenuItem value="not_required">Không yêu cầu</MenuItem>
-                  </TextField>
-                )}
-              />
-              <Controller
-                name="inputInvoiceStatus"
-                control={control}
-                render={({ field }) => (
-                  <TextField select fullWidth label="Hóa đơn đầu vào" {...field}>
-                    <MenuItem value="pending">Chờ hóa đơn</MenuItem>
-                    <MenuItem value="received">Đã nhận</MenuItem>
-                    <MenuItem value="not_required">Không yêu cầu</MenuItem>
-                  </TextField>
-                )}
-              />
-            </>
-          ) : null}
-
-          <TextField
-            fullWidth
-            multiline
-            minRows={2}
-            label="Ghi chú"
-            className="md:col-span-2"
-            {...register('note')}
+          <Controller
+            name="inputInvoiceStatus"
+            control={control}
+            render={({ field }) => (
+              <FormSelectField label="Hóa đơn đầu vào" {...field}>
+                <MenuItem value="pending">Chờ hóa đơn</MenuItem>
+                <MenuItem value="received">Đã nhận</MenuItem>
+                <MenuItem value="not_required">Không yêu cầu</MenuItem>
+              </FormSelectField>
+            )}
           />
+        </>
+      ) : null}
 
-          <div className="md:col-span-2 grid grid-cols-3 overflow-hidden rounded-lg border border-slate-200 bg-slate-50">
-            <div className="px-3 py-2.5">
-              <p className="text-[11px] font-bold uppercase text-slate-400">VAT</p>
-              <p className="mt-1 text-sm font-bold text-slate-800">{formatCurrency(vatAmount)}</p>
-            </div>
-            <div className="border-x border-slate-200 px-3 py-2.5">
-              <p className="text-[11px] font-bold uppercase text-slate-400">Giảm trừ</p>
-              <p className="mt-1 text-sm font-bold text-slate-800">
-                {formatCurrency(discountAmount)}
-              </p>
-            </div>
-            <div className="px-3 py-2.5">
-              <p className="text-[11px] font-bold uppercase text-slate-400">
-                {isAdSpend ? 'Ngân sách + VAT' : 'Thực chi'}
-              </p>
-              <p className="mt-1 text-sm font-extrabold text-slate-950">
-                {formatCurrency(totalAmount)}
-              </p>
-            </div>
-          </div>
-        </DialogContent>
+      <FormInputField
+        multiline
+        minRows={2}
+        label="Ghi chú"
+        className="md:col-span-2"
+        {...register('note')}
+      />
 
-        <DialogActions className="border-t border-slate-100 px-5 py-3">
-          <Button size="small" variant="outlined" onClick={closeDialog} disabled={isSubmitting}>
-            Hủy
-          </Button>
-          <Button
-            type="submit"
-            size="small"
-            variant="contained"
-            disabled={isSubmitting}
-            className="!bg-slate-900 hover:!bg-slate-800"
-          >
-            {isSubmitting ? 'Đang lưu...' : 'Lưu khoản chi'}
-          </Button>
-        </DialogActions>
-      </form>
-    </Dialog>
+      <div className="md:col-span-2 grid grid-cols-3 overflow-hidden rounded-lg border border-slate-200 bg-slate-50">
+        <div className="px-3 py-2.5">
+          <p className="text-[11px] font-bold uppercase text-slate-400">VAT</p>
+          <p className="mt-1 text-sm font-bold text-slate-800">{formatCurrency(vatAmount)}</p>
+        </div>
+        <div className="border-x border-slate-200 px-3 py-2.5">
+          <p className="text-[11px] font-bold uppercase text-slate-400">Giảm trừ</p>
+          <p className="mt-1 text-sm font-bold text-slate-800">{formatCurrency(discountAmount)}</p>
+        </div>
+        <div className="px-3 py-2.5">
+          <p className="text-[11px] font-bold uppercase text-slate-400">
+            {isAdSpend ? 'Ngân sách + VAT' : 'Thực chi'}
+          </p>
+          <p className="mt-1 text-sm font-extrabold text-slate-950">
+            {formatCurrency(totalAmount)}
+          </p>
+        </div>
+      </div>
+    </AppFormDialog>
   );
 }
 
@@ -380,7 +362,13 @@ export function ProjectCostPanel({
   const [deleteTarget, setDeleteTarget] = useState<ProjectCost | null>(null);
 
   const saveMutation = useMutation({
-    mutationFn: ({ values, cost }: { values: ProjectCostFormValues; cost?: ProjectCost | null }) => {
+    mutationFn: ({
+      values,
+      cost,
+    }: {
+      values: ProjectCostFormValues;
+      cost?: ProjectCost | null;
+    }) => {
       const payload = {
         projectId,
         entryType,
@@ -389,9 +377,7 @@ export function ProjectCostPanel({
         status: values.status,
         cid: values.cid.trim() || null,
         adAccount: values.adAccount.trim() || null,
-        bankAccountOptionId: values.bankAccountOptionId
-          ? Number(values.bankAccountOptionId)
-          : null,
+        bankAccountOptionId: values.bankAccountOptionId ? Number(values.bankAccountOptionId) : null,
         partnerOptionId: values.partnerOptionId ? Number(values.partnerOptionId) : null,
         amountBeforeVat: Number(values.amountBeforeVat) || 0,
         vatRate: Number(values.vatRate) || 0,
@@ -402,11 +388,15 @@ export function ProjectCostPanel({
       };
 
       return cost
-        ? api.put<ProjectCost>(`/project-costs/${cost.id}`, payload).then((response) => response.data)
+        ? api
+            .put<ProjectCost>(`/project-costs/${cost.id}`, payload)
+            .then((response) => response.data)
         : api.post<ProjectCost>('/project-costs', payload).then((response) => response.data);
     },
     onSuccess: (_, variables) => {
-      queryClient.invalidateQueries({ queryKey: ['project-costs', 'by-project', String(projectId)] });
+      queryClient.invalidateQueries({
+        queryKey: ['project-costs', 'by-project', String(projectId)],
+      });
       notify.success(variables.cost ? 'Đã cập nhật khoản chi' : 'Đã thêm khoản chi');
     },
     onError: (error) => notify.error(getApiErrorMessage(error, 'Không thể lưu khoản chi')),
@@ -415,7 +405,9 @@ export function ProjectCostPanel({
   const deleteMutation = useMutation({
     mutationFn: (cost: ProjectCost) => api.delete(`/project-costs/${cost.id}`),
     onSuccess: () => {
-      queryClient.invalidateQueries({ queryKey: ['project-costs', 'by-project', String(projectId)] });
+      queryClient.invalidateQueries({
+        queryKey: ['project-costs', 'by-project', String(projectId)],
+      });
       notify.success('Đã xóa khoản chi');
     },
     onError: (error) => notify.error(getApiErrorMessage(error, 'Không thể xóa khoản chi')),
@@ -432,10 +424,10 @@ export function ProjectCostPanel({
   };
 
   return (
-    <section className="overflow-hidden rounded-xl border border-slate-200 bg-white">
+    <section className="overflow-hidden rounded-2xl border border-slate-200 bg-white shadow-sm">
       <div className="flex flex-wrap items-center justify-between gap-3 border-b border-slate-200 px-4 py-3">
         <div className="flex items-center gap-2">
-          <h2 className="font-bold text-slate-950">
+          <h2 className="text-sm font-bold text-slate-950">
             {entryType === 'ad_spend' ? 'Chi phí nạp quảng cáo' : 'Chi phí đối tác'}
           </h2>
           <span
@@ -448,21 +440,15 @@ export function ProjectCostPanel({
             {revenueGroup}
           </span>
         </div>
-        <Button
-          size="small"
-          variant="contained"
-          startIcon={<AddRoundedIcon />}
-          onClick={openCreate}
-          className="!bg-slate-900 hover:!bg-slate-800"
-        >
+        <TabActionButton startIcon={<AddRoundedIcon />} onClick={openCreate}>
           {entryType === 'ad_spend' ? 'Thêm lần nạp' : 'Thêm chi phí'}
-        </Button>
+        </TabActionButton>
       </div>
 
       <div className="overflow-x-auto">
         {entryType === 'ad_spend' ? (
           <table className="w-full min-w-[1180px] text-left text-sm">
-            <thead className="bg-slate-50 text-[11px] font-bold uppercase text-slate-500">
+            <thead className="border-y border-slate-200 bg-slate-100 text-sm font-bold text-slate-700">
               <tr>
                 <th className="px-4 py-3">Ngày nạp/hủy</th>
                 <th className="px-3 py-3">Báo phí</th>
@@ -492,7 +478,9 @@ export function ProjectCostPanel({
                     <td className="px-3 py-3 font-bold text-blue-700">
                       {cost.quotation?.quotationCode || '-'}
                     </td>
-                    <td className="px-3 py-3 font-mono font-bold text-slate-800">{cost.cid || '-'}</td>
+                    <td className="px-3 py-3 font-mono font-bold text-slate-800">
+                      {cost.cid || '-'}
+                    </td>
                     <td className="px-3 py-3 text-slate-700">{cost.adAccount || '-'}</td>
                     <td className="px-3 py-3 text-slate-700">
                       {bankAccountLabel(cost.bankAccountOption)}
@@ -507,7 +495,9 @@ export function ProjectCostPanel({
                       {formatCurrency(Number(cost.totalAmount) || 0)}
                     </td>
                     <td className="px-3 py-3">
-                      <span className={`rounded-md px-2 py-1 text-xs font-bold ring-1 ${statusClass(cost.status)}`}>
+                      <span
+                        className={`rounded-md px-2 py-1 text-xs font-bold ring-1 ${statusClass(cost.status)}`}
+                      >
                         {COST_STATUS_LABELS[cost.status] || cost.status}
                       </span>
                     </td>
@@ -528,7 +518,7 @@ export function ProjectCostPanel({
           </table>
         ) : (
           <table className="w-full min-w-[1420px] text-left text-sm">
-            <thead className="bg-slate-50 text-[11px] font-bold uppercase text-slate-500">
+            <thead className="border-y border-slate-200 bg-slate-100 text-sm font-bold text-slate-700">
               <tr>
                 <th className="px-4 py-3">Ngày chi/hủy</th>
                 <th className="px-3 py-3">Báo phí</th>
@@ -591,7 +581,9 @@ export function ProjectCostPanel({
                       {INPUT_INVOICE_STATUS_LABELS[cost.inputInvoiceStatus || ''] || '-'}
                     </td>
                     <td className="px-3 py-3">
-                      <span className={`rounded-md px-2 py-1 text-xs font-bold ring-1 ${statusClass(cost.status)}`}>
+                      <span
+                        className={`rounded-md px-2 py-1 text-xs font-bold ring-1 ${statusClass(cost.status)}`}
+                      >
                         {COST_STATUS_LABELS[cost.status] || cost.status}
                       </span>
                     </td>

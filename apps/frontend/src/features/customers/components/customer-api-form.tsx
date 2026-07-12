@@ -1,11 +1,15 @@
 'use client';
 
-import Link from 'next/link';
 import SaveRoundedIcon from '@mui/icons-material/SaveRounded';
-import { Button, MenuItem, TextField } from '@mui/material';
+import { MenuItem } from '@mui/material';
 import { DatePicker } from '@mui/x-date-pickers/DatePicker';
 import dayjs from 'dayjs';
 import { Controller, useForm } from 'react-hook-form';
+import { FormActionBar } from '@/components/form/form-action-bar';
+import { compactFormFieldClassName } from '@/components/form/form-field-styles';
+import { FormInputField } from '@/components/form/form-input-field';
+import { FormSection } from '@/components/form/form-section';
+import { FormSelectField } from '@/components/form/form-select-field';
 import type { Customer, CustomerFormValues } from '@/types/customer';
 import type { AppOption } from '@/types/option';
 import type { User } from '@/types/user';
@@ -17,29 +21,10 @@ type CustomerApiFormProps = {
   users: User[];
   customerTypes: AppOption[];
   sources: AppOption[];
+  cancelHref?: string;
   isSubmitting: boolean;
   onSubmit: (values: CustomerFormValues) => void;
 };
-
-function FormSection({
-  title,
-  description,
-  children,
-}: {
-  title: string;
-  description: string;
-  children: React.ReactNode;
-}) {
-  return (
-    <section className="overflow-hidden rounded-2xl border border-slate-200 bg-white shadow-sm">
-      <div className="border-b border-slate-200 px-6 py-5">
-        <h2 className="text-lg font-bold text-slate-950">{title}</h2>
-        <p className="mt-1 text-sm text-slate-500">{description}</p>
-      </div>
-      <div className="space-y-5 p-6">{children}</div>
-    </section>
-  );
-}
 
 function CustomerDatePicker({
   label,
@@ -55,7 +40,13 @@ function CustomerDatePicker({
       label={label}
       value={value ? dayjs(value) : null}
       onChange={(nextValue) => onChange(nextValue?.isValid() ? nextValue.format('YYYY-MM-DD') : '')}
-      slotProps={{ textField: { fullWidth: true } }}
+      slotProps={{
+        textField: {
+          fullWidth: true,
+          size: 'small',
+          className: compactFormFieldClassName,
+        },
+      }}
     />
   );
 }
@@ -67,6 +58,7 @@ export function CustomerApiForm({
   users,
   customerTypes,
   sources,
+  cancelHref = '/customers',
   isSubmitting,
   onSubmit,
 }: CustomerApiFormProps) {
@@ -78,44 +70,40 @@ export function CustomerApiForm({
   } = useForm<CustomerFormValues>({ values: defaultValues });
 
   return (
-    <form className="w-full space-y-8" onSubmit={handleSubmit(onSubmit)}>
+    <form className="flex w-full flex-1 flex-col" onSubmit={handleSubmit(onSubmit)}>
       <div className="grid w-full items-start gap-6 xl:grid-cols-12">
         <div className="xl:col-span-8">
-          <FormSection
-            title="Thông tin khách hàng"
-            description="Thông tin định danh, liên hệ, pháp lý và ghi chú chăm sóc."
-          >
+          <FormSection title="Thông tin khách hàng">
             <input type="hidden" {...register('customerCode')} />
             <input type="hidden" {...register('leadId')} />
 
             <div className="grid gap-4 md:grid-cols-2 !mt-0">
-              <TextField
-                fullWidth
+              <FormInputField
                 label="Tên khách hàng *"
                 placeholder="K.HYUNDAINGOCAN - C.Mai"
                 error={Boolean(errors.customerName)}
                 helperText={errors.customerName?.message}
                 {...register('customerName', { required: 'Vui lòng nhập tên khách hàng' })}
               />
-              <TextField fullWidth label="Tên công ty" {...register('companyName')} />
+              <FormInputField label="Tên công ty" {...register('companyName')} />
             </div>
             <div className="grid gap-4 md:grid-cols-2">
-              <TextField fullWidth label="Người đại diện" {...register('representativeName')} />
-              <TextField fullWidth label="Số điện thoại" {...register('phone')} />
-            </div>
-
-            <div className="grid gap-4 md:grid-cols-2">
-              <TextField fullWidth type="email" label="Email" {...register('email')} />
-              <TextField fullWidth label="Website" {...register('website')} />
+              <FormInputField label="Người đại diện" {...register('representativeName')} />
+              <FormInputField label="Số điện thoại" {...register('phone')} />
             </div>
 
             <div className="grid gap-4 md:grid-cols-2">
-              <TextField fullWidth label="Ngành" {...register('industry')} />
-              <TextField fullWidth label="Mã số thuế" {...register('taxCode')} />
+              <FormInputField type="email" label="Email" {...register('email')} />
+              <FormInputField label="Website" {...register('website')} />
             </div>
 
             <div className="grid gap-4 md:grid-cols-2">
-              <TextField fullWidth label="CCCD/CMND" {...register('identityNo')} />
+              <FormInputField label="Ngành" {...register('industry')} />
+              <FormInputField label="Mã số thuế" {...register('taxCode')} />
+            </div>
+
+            <div className="grid gap-4 md:grid-cols-2">
+              <FormInputField label="CCCD/CMND" {...register('identityNo')} />
               <Controller
                 name="birthday"
                 control={control}
@@ -129,10 +117,9 @@ export function CustomerApiForm({
               />
             </div>
 
-            <TextField fullWidth multiline minRows={2} label="Địa chỉ" {...register('address')} />
+            <FormInputField multiline minRows={2} label="Địa chỉ" {...register('address')} />
 
-            <TextField
-              fullWidth
+            <FormInputField
               multiline
               minRows={5}
               label="Ghi chú"
@@ -143,10 +130,7 @@ export function CustomerApiForm({
         </div>
 
         <div className="xl:col-span-4">
-          <FormSection
-            title="Phân loại & phụ trách"
-            description="Loại khách hàng, nguồn phát sinh và sales phụ trách."
-          >
+          <FormSection title="Phân loại & phụ trách">
             {customer?.lead && (
               <div className="rounded-xl bg-slate-50 p-4 text-sm text-slate-600 ring-1 ring-slate-100">
                 <p className="font-bold text-slate-950">{customer.lead.customerName}</p>
@@ -158,14 +142,14 @@ export function CustomerApiForm({
               name="customerTypeOptionId"
               control={control}
               render={({ field }) => (
-                <TextField fullWidth select label="Loại khách hàng" {...field}>
+                <FormSelectField label="Loại khách hàng" {...field}>
                   <MenuItem value="">Chưa chọn</MenuItem>
                   {customerTypes.map((option) => (
                     <MenuItem key={option.id} value={option.id}>
                       {option.label}
                     </MenuItem>
                   ))}
-                </TextField>
+                </FormSelectField>
               )}
             />
 
@@ -173,14 +157,14 @@ export function CustomerApiForm({
               name="sourceOptionId"
               control={control}
               render={({ field }) => (
-                <TextField fullWidth select label="Nguồn phát sinh" {...field}>
+                <FormSelectField label="Nguồn phát sinh" {...field}>
                   <MenuItem value="">Chưa chọn</MenuItem>
                   {sources.map((option) => (
                     <MenuItem key={option.id} value={option.id}>
                       {option.label}
                     </MenuItem>
                   ))}
-                </TextField>
+                </FormSelectField>
               )}
             />
 
@@ -188,37 +172,26 @@ export function CustomerApiForm({
               name="salesUserId"
               control={control}
               render={({ field }) => (
-                <TextField fullWidth select label="Nhân sự sales" {...field}>
+                <FormSelectField label="Nhân sự sales" {...field}>
                   <MenuItem value="">Chưa chọn</MenuItem>
                   {users.map((user) => (
                     <MenuItem key={user.id} value={user.id}>
                       {user.name || user.email || user.code}
                     </MenuItem>
                   ))}
-                </TextField>
+                </FormSelectField>
               )}
             />
           </FormSection>
         </div>
       </div>
 
-      <div className="sticky bottom-0 z-10 flex justify-end gap-3 border-t border-slate-200 bg-white/90 px-1 py-4 backdrop-blur">
-        <Link
-          href="/customers"
-          className="inline-flex h-10 items-center justify-center rounded-lg border border-slate-200 px-4 text-sm font-bold text-slate-700 transition hover:bg-slate-50"
-        >
-          Hủy
-        </Link>
-        <Button
-          type="submit"
-          variant="contained"
-          disabled={isSubmitting}
-          startIcon={<SaveRoundedIcon />}
-          className="!bg-slate-900 hover:!bg-slate-800"
-        >
-          {isSubmitting ? 'Đang lưu...' : mode === 'create' ? 'Tạo khách hàng' : 'Lưu thay đổi'}
-        </Button>
-      </div>
+      <FormActionBar
+        cancelHref={cancelHref}
+        submitLabel={mode === 'create' ? 'Tạo khách hàng' : 'Lưu thay đổi'}
+        isSubmitting={isSubmitting}
+        submitIcon={<SaveRoundedIcon />}
+      />
     </form>
   );
 }

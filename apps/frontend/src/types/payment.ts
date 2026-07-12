@@ -1,13 +1,7 @@
 import type { Quotation } from '@/types/quotation';
 
 export type PaymentStatus =
-  | 'unmatched'
-  | 'matched_quotation'
-  | 'matched_project'
-  | 'partial'
-  | 'paid'
-  | 'overpaid'
-  | string;
+  'unmatched' | 'matched_quotation' | 'matched_project' | 'partial' | 'paid' | 'overpaid' | string;
 
 export type Payment = {
   id: number;
@@ -18,7 +12,10 @@ export type Payment = {
   contractId?: number | null;
   revenueId?: number | null;
   transactionDate?: string | null;
+  transactionAt?: string | null;
   bankAccount?: string | null;
+  bankGateway?: string | null;
+  senderName?: string | null;
   transactionContent?: string | null;
   amount?: string | number | null;
   customerCodeText?: string | null;

@@ -1,62 +1,71 @@
 import { create } from 'zustand';
+import axios from 'axios';
+import { getAuthUser, type AuthResponseBody } from '@/lib/auth-response';
+import { api } from '@/services/api/client';
 import type { User } from '@/types/user';
+
+export type AuthStatus = 'checking' | 'authenticated' | 'unauthenticated' | 'unavailable';
 
 interface AuthStore {
   user: User | null;
-  token: string | null;
-  initialized: boolean;
-  setAuth: (user: User | null, token: string) => void;
-  logout: () => void;
-  init: () => void;
+  status: AuthStatus;
+  setAuth: (user: User) => void;
+  logout: () => Promise<void>;
+  init: () => Promise<void>;
+  verify: () => Promise<void>;
 }
 
 export const useAuthStore = create<AuthStore>((set) => ({
   user: null,
-  token: null,
-  initialized: false,
+  status: 'checking',
 
-  init: () => {
+  init: async () => {
     if (typeof window === 'undefined') {
-      set({ initialized: true });
+      set({ user: null, status: 'checking' });
       return;
     }
 
-    const token = localStorage.getItem('access_token');
-    const userStr = localStorage.getItem('user');
-
-    if (!token) {
-      set({ user: null, token: null, initialized: true });
-      return;
-    }
-
-    if (!userStr) {
-      set({ user: null, token, initialized: true });
-      return;
-    }
-
-    try {
-      set({ token, user: JSON.parse(userStr), initialized: true });
-    } catch {
-      try {
-        localStorage.removeItem('user');
-      } catch {}
-      set({ user: null, token, initialized: true });
-    }
-  },
-
-  setAuth: (user, token) => {
-    localStorage.setItem('access_token', token);
-    if (user) {
-      localStorage.setItem('user', JSON.stringify(user));
-    } else {
-      localStorage.removeItem('user');
-    }
-    set({ user, token, initialized: true });
-  },
-
-  logout: () => {
     localStorage.removeItem('access_token');
     localStorage.removeItem('user');
-    set({ user: null, token: null, initialized: true });
+    set({ status: 'checking' });
+
+    try {
+      const response = await api.get<AuthResponseBody>('/auth/me');
+      const user = getAuthUser(response.data);
+
+      if (!user?.id) {
+        set({ user: null, status: 'unauthenticated' });
+        return;
+      }
+
+      set({ user, status: 'authenticated' });
+    } catch (error) {
+      const unauthorized = axios.isAxiosError(error) && error.response?.status === 401;
+      set({ user: null, status: unauthorized ? 'unauthenticated' : 'unavailable' });
+    }
+  },
+
+  verify: async () => {
+    try {
+      const response = await api.get<AuthResponseBody>('/auth/me');
+      const user = getAuthUser(response.data);
+
+      set({
+        user,
+        status: user?.id ? 'authenticated' : 'unauthenticated',
+      });
+    } catch (error) {
+      const unauthorized = axios.isAxiosError(error) && error.response?.status === 401;
+      set({ user: null, status: unauthorized ? 'unauthenticated' : 'unavailable' });
+    }
+  },
+
+  setAuth: (user) => {
+    set({ user, status: 'authenticated' });
+  },
+
+  logout: async () => {
+    await api.post('/auth/logout');
+    set({ user: null, status: 'unauthenticated' });
   },
 }));

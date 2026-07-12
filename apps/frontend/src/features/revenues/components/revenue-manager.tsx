@@ -5,9 +5,19 @@ import DeleteRoundedIcon from '@mui/icons-material/DeleteRounded';
 import EditRoundedIcon from '@mui/icons-material/EditRounded';
 import MoreVertRoundedIcon from '@mui/icons-material/MoreVertRounded';
 import SearchRoundedIcon from '@mui/icons-material/SearchRounded';
-import { Button, IconButton, InputAdornment, LinearProgress, Menu, MenuItem, TextField } from '@mui/material';
+import {
+  Button,
+  IconButton,
+  InputAdornment,
+  LinearProgress,
+  Menu,
+  MenuItem,
+  TextField,
+} from '@mui/material';
 import { useState, type MouseEvent } from 'react';
+import { PrimaryActionButton } from '@/components/actions/primary-action-button';
 import { ConfirmDialog } from '@/components/feedback/confirm-dialog';
+import { PageHeader } from '@/components/shell/page-header';
 import {
   REVENUE_INVOICE_STATUS_LABELS,
   REVENUE_PAYMENT_STATUS_LABELS,
@@ -63,35 +73,27 @@ export function RevenueManager({
     onFiltersChange({ ...filters, ...nextFilters });
   };
 
-  const totalReceived = revenues.reduce((sum, revenue) => sum + (Number(revenue.actualReceivedAmount) || 0), 0);
+  const totalReceived = revenues.reduce(
+    (sum, revenue) => sum + (Number(revenue.actualReceivedAmount) || 0),
+    0,
+  );
 
   return (
     <div className="min-h-[calc(100vh-72px)] w-full bg-slate-50/60 p-6">
-      <div className="mb-6 flex flex-col gap-4 sm:flex-row sm:items-center sm:justify-between">
-        <div>
-          <h1 className="text-2xl font-bold text-slate-950">Doanh thu</h1>
-          <div className="mt-2 flex items-center gap-2 text-sm text-slate-500">
-            <span>Dashboard</span>
-            <span className="h-1 w-1 rounded-full bg-slate-300" />
-            <span className="text-slate-950">Doanh thu</span>
+      <PageHeader
+        title="Doanh thu"
+        actions={
+          <div className="flex items-center gap-4">
+            <div className="text-right">
+              <p className="text-xs font-semibold uppercase text-slate-400">Tổng thực nhận</p>
+              <p className="text-lg font-extrabold text-slate-950">
+                {formatCurrency(totalReceived)}
+              </p>
+            </div>
+            <PrimaryActionButton href="/revenues/new">Ghi nhận doanh thu</PrimaryActionButton>
           </div>
-        </div>
-
-        <div className="flex items-center gap-4">
-          <div className="text-right">
-            <p className="text-xs font-semibold uppercase text-slate-400">Tổng thực nhận</p>
-            <p className="text-lg font-extrabold text-slate-950">{formatCurrency(totalReceived)}</p>
-          </div>
-          <Button
-            component={Link}
-            href="/revenues/new"
-            variant="contained"
-            className="!bg-slate-900 hover:!bg-slate-800"
-          >
-            Ghi nhận doanh thu
-          </Button>
-        </div>
-      </div>
+        }
+      />
 
       <section className="w-full overflow-hidden rounded-2xl border border-slate-200 bg-white shadow-sm">
         <div className="grid gap-3 border-b border-slate-200 p-5 lg:grid-cols-[minmax(260px,1fr)_180px_180px]">
@@ -148,7 +150,9 @@ export function RevenueManager({
             </div>
           )}
 
-          <table className={`w-full min-w-[1180px] table-fixed text-left text-sm transition-opacity ${isFetching ? 'opacity-60' : 'opacity-100'}`}>
+          <table
+            className={`w-full min-w-[1180px] table-fixed text-left text-sm transition-opacity ${isFetching ? 'opacity-60' : 'opacity-100'}`}
+          >
             <thead className="bg-slate-50 text-xs font-bold uppercase text-slate-500">
               <tr>
                 <th className="w-40 px-5 py-4">Mã doanh thu</th>
@@ -164,27 +168,39 @@ export function RevenueManager({
             <tbody className="divide-y divide-slate-100">
               {revenues.length === 0 ? (
                 <tr>
-                  <td colSpan={8} className="px-5 py-12 text-center text-sm font-semibold text-slate-500">
+                  <td
+                    colSpan={8}
+                    className="px-5 py-12 text-center text-sm font-semibold text-slate-500"
+                  >
                     Chưa có doanh thu nào
                   </td>
                 </tr>
               ) : (
                 revenues.map((revenue) => (
                   <tr key={revenue.id} className="hover:bg-slate-50/80">
-                    <td className="px-5 py-4 font-bold text-slate-950">{revenue.revenueCode || '-'}</td>
+                    <td className="px-5 py-4 font-bold text-slate-950">
+                      {revenue.revenueCode || '-'}
+                    </td>
                     <td className="px-5 py-4">
                       {revenue.project ? (
-                        <Link href={`/projects/${revenue.project.id}`} className="block truncate font-semibold text-slate-900 hover:underline">
+                        <Link
+                          href={`/projects/${revenue.project.id}`}
+                          className="block truncate font-semibold text-slate-900 hover:underline"
+                        >
                           {revenue.project.projectName || '-'}
                         </Link>
                       ) : (
                         <p className="truncate font-semibold text-slate-900">-</p>
                       )}
                       <p className="mt-1 truncate text-xs font-semibold text-slate-500">
-                        {revenue.project?.customer?.customerName || revenue.project?.projectCode || '-'}
+                        {revenue.project?.customer?.customerName ||
+                          revenue.project?.projectCode ||
+                          '-'}
                       </p>
                     </td>
-                    <td className="px-5 py-4 text-slate-600">{formatRevenueMonth(revenue.revenueMonth)}</td>
+                    <td className="px-5 py-4 text-slate-600">
+                      {formatRevenueMonth(revenue.revenueMonth)}
+                    </td>
                     <td className="px-5 py-4 text-right font-bold text-slate-950">
                       {formatCurrency(Number(revenue.amountAfterVat) || 0)}
                     </td>
@@ -195,19 +211,27 @@ export function RevenueManager({
                       <span
                         className={`rounded-md px-2 py-1 text-xs font-bold ring-1 ${paymentStatusClass(revenue.paymentStatus)}`}
                       >
-                        {REVENUE_PAYMENT_STATUS_LABELS[revenue.paymentStatus || ''] || revenue.paymentStatus || '-'}
+                        {REVENUE_PAYMENT_STATUS_LABELS[revenue.paymentStatus || ''] ||
+                          revenue.paymentStatus ||
+                          '-'}
                       </span>
                     </td>
                     <td className="px-5 py-4">
                       <span
                         className={`rounded-md px-2 py-1 text-xs font-bold ring-1 ${invoiceStatusClass(revenue.invoiceStatus)}`}
                       >
-                        {REVENUE_INVOICE_STATUS_LABELS[revenue.invoiceStatus || ''] || revenue.invoiceStatus || '-'}
+                        {REVENUE_INVOICE_STATUS_LABELS[revenue.invoiceStatus || ''] ||
+                          revenue.invoiceStatus ||
+                          '-'}
                       </span>
                     </td>
                     <td className="px-5 py-4">
                       <div className="flex justify-end">
-                        <IconButton size="small" title="Tác vụ" onClick={(event) => openActionMenu(event, revenue)}>
+                        <IconButton
+                          size="small"
+                          title="Tác vụ"
+                          onClick={(event) => openActionMenu(event, revenue)}
+                        >
                           <MoreVertRoundedIcon fontSize="small" />
                         </IconButton>
                       </div>

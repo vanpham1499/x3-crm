@@ -5,6 +5,7 @@ import { Alert } from '@mui/material';
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import { useAppNotification } from '@/components/feedback/notification-provider';
 import { ContentLoading } from '@/components/shell/content-loading';
+import { PageHeader } from '@/components/shell/page-header';
 import { RevenueForm } from '@/features/revenues/components/revenue-form';
 import { getApiErrorMessage } from '@/lib/api-error';
 import api from '@/services/api/client';
@@ -25,7 +26,8 @@ export default function EditRevenuePage() {
 
   const { data: services = [] } = useQuery<ServiceItem[]>({
     queryKey: ['services', 'revenue-form-options'],
-    queryFn: () => api.get('/services', { params: { tree: true } }).then((response) => response.data),
+    queryFn: () =>
+      api.get('/services', { params: { tree: true } }).then((response) => response.data),
   });
 
   const { data: revenue, isLoading } = useQuery<Revenue>({
@@ -60,16 +62,10 @@ export default function EditRevenuePage() {
 
   return (
     <div className="min-h-[calc(100vh-72px)] bg-slate-50/60 p-6">
-      <div className="mb-8 w-full">
-        <h1 className="text-2xl font-bold text-slate-950">Chỉnh sửa doanh thu</h1>
-        <div className="mt-2 flex items-center gap-2 text-sm text-slate-500">
-          <span>Dashboard</span>
-          <span className="h-1 w-1 rounded-full bg-slate-300" />
-          <span>Doanh thu</span>
-          <span className="h-1 w-1 rounded-full bg-slate-300" />
-          <span className="text-slate-950">{revenue.revenueCode || revenue.id}</span>
-        </div>
-      </div>
+      <PageHeader
+        title="Chỉnh sửa doanh thu"
+        currentLabel={revenue.revenueCode || String(revenue.id)}
+      />
 
       <RevenueForm
         mode="edit"

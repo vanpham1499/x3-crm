@@ -7,6 +7,7 @@ import QrCode2RoundedIcon from '@mui/icons-material/QrCode2Rounded';
 import { Autocomplete, Button, IconButton, MenuItem, TextField } from '@mui/material';
 import { useQuery } from '@tanstack/react-query';
 import { MoneyInput } from '@/components/form/money-input';
+import { PageHeader } from '@/components/shell/page-header';
 import {
   SERVICE_QUOTE_CONFIG_GROUP,
   calculateManagementFee,
@@ -15,10 +16,7 @@ import {
   type QuoteChannelMode,
 } from '@/lib/service-quote-config';
 import { flattenServices } from '@/lib/service-utils';
-import {
-  SITE_PROFILE_OPTION_GROUP,
-  siteProfileFromOptions,
-} from '@/lib/site-profile-options';
+import { SITE_PROFILE_OPTION_GROUP, siteProfileFromOptions } from '@/lib/site-profile-options';
 import api from '@/services/api/client';
 import type { AppOption } from '@/types/option';
 import type { ServiceItem } from '@/types/service';
@@ -108,7 +106,10 @@ export function QuoteBuilder() {
 
   const { data: services = [], isFetching: servicesFetching } = useQuery<ServiceItem[]>({
     queryKey: ['services', 'quote-builder'],
-    queryFn: () => api.get<ServiceItem[]>('/services', { params: { tree: true } }).then((response) => response.data),
+    queryFn: () =>
+      api
+        .get<ServiceItem[]>('/services', { params: { tree: true } })
+        .then((response) => response.data),
   });
 
   const { data: quoteConfigs = [], isFetching: quoteConfigsFetching } = useQuery<AppOption[]>({
@@ -131,7 +132,9 @@ export function QuoteBuilder() {
     [selectedServiceId, services],
   );
   const rootConfigOption = getConfigForRoot(quoteConfigs, rootService);
-  const rootConfig = rootConfigOption ? getServiceQuoteConfigMeta(rootConfigOption, rootService) : null;
+  const rootConfig = rootConfigOption
+    ? getServiceQuoteConfigMeta(rootConfigOption, rootService)
+    : null;
   const canUseAutoQuote = Boolean(rootConfig?.enabled);
   const servicePricingLoading = servicesFetching || quoteConfigsFetching;
   const setupPackage =
@@ -235,16 +238,14 @@ export function QuoteBuilder() {
 
   return (
     <div className="min-h-[calc(100vh-72px)] bg-slate-50/60 p-6">
-      <div className="mb-8 w-full">
-        <h1 className="text-2xl font-bold text-slate-950">Báo giá</h1>
-        <div className="mt-2 flex items-center gap-2 text-sm text-slate-500">
-          <span>Dashboard</span>
-          <span className="h-1 w-1 rounded-full bg-slate-300" />
-          <span>Dự án</span>
-          <span className="h-1 w-1 rounded-full bg-slate-300" />
-          <span className="text-slate-950">Báo giá</span>
-        </div>
-      </div>
+      <PageHeader
+        title="Báo giá"
+        breadcrumbs={[
+          { label: 'Dashboard', href: '/dashboard' },
+          { label: 'Dự án', href: '/projects' },
+          { label: 'Báo giá' },
+        ]}
+      />
 
       <div className="grid gap-6 xl:grid-cols-12">
         <section className="rounded-2xl border border-slate-200 bg-white shadow-sm xl:col-span-5">
@@ -293,7 +294,9 @@ export function QuoteBuilder() {
                     <TextField
                       {...params}
                       label="Dịch vụ"
-                      helperText={servicePricingLoading ? 'Đang tải danh sách dịch vụ...' : undefined}
+                      helperText={
+                        servicePricingLoading ? 'Đang tải danh sách dịch vụ...' : undefined
+                      }
                     />
                   )}
                 />
@@ -336,10 +339,10 @@ export function QuoteBuilder() {
                 {servicePricingLoading
                   ? 'Đang tải danh sách dịch vụ và cấu hình bảng giá...'
                   : selectedService && !canUseAutoQuote
-                  ? 'Dịch vụ cha chưa có cấu hình báo giá tự động.'
-                  : rootService
-                    ? `Đang áp dụng bảng giá của ${rootService.code} - ${rootService.name}.`
-                    : 'Chọn dịch vụ để kiểm tra bảng giá tự động.'}
+                    ? 'Dịch vụ cha chưa có cấu hình báo giá tự động.'
+                    : rootService
+                      ? `Đang áp dụng bảng giá của ${rootService.code} - ${rootService.name}.`
+                      : 'Chọn dịch vụ để kiểm tra bảng giá tự động.'}
               </p>
             </div>
 
@@ -407,7 +410,8 @@ export function QuoteBuilder() {
                       </IconButton>
                     </div>
                     <div className="mt-2 text-right text-xs font-bold text-slate-500">
-                      #{index + 1} · {formatCurrency(toNumber(line.quantity) * toNumber(line.unitPrice))}
+                      #{index + 1} ·{' '}
+                      {formatCurrency(toNumber(line.quantity) * toNumber(line.unitPrice))}
                     </div>
                   </div>
                 ))}
@@ -419,7 +423,9 @@ export function QuoteBuilder() {
         <section className="overflow-hidden rounded-2xl border border-slate-200 bg-white shadow-sm xl:col-span-7">
           <div className="grid gap-6 border-b border-slate-200 p-6 lg:grid-cols-[minmax(0,1fr)_260px]">
             <div>
-              <p className="text-xs font-bold uppercase tracking-wide text-slate-400">Mẫu báo giá</p>
+              <p className="text-xs font-bold uppercase tracking-wide text-slate-400">
+                Mẫu báo giá
+              </p>
               <h2 className="mt-2 text-2xl font-extrabold text-slate-950">
                 Bảng báo giá dịch vụ quảng cáo
               </h2>
@@ -480,9 +486,15 @@ export function QuoteBuilder() {
                       <td className="px-4 py-3 font-bold text-slate-950">{line.no}</td>
                       <td className="px-4 py-3 text-slate-700">{line.name || '-'}</td>
                       <td className="px-4 py-3 text-slate-600">{line.unit || '-'}</td>
-                      <td className="px-4 py-3 text-right text-slate-600">{formatMoney(toNumber(line.quantity))}</td>
-                      <td className="px-4 py-3 text-right text-slate-700">{formatCurrency(toNumber(line.unitPrice))}</td>
-                      <td className="px-4 py-3 text-right font-bold text-slate-950">{formatCurrency(line.amount)}</td>
+                      <td className="px-4 py-3 text-right text-slate-600">
+                        {formatMoney(toNumber(line.quantity))}
+                      </td>
+                      <td className="px-4 py-3 text-right text-slate-700">
+                        {formatCurrency(toNumber(line.unitPrice))}
+                      </td>
+                      <td className="px-4 py-3 text-right font-bold text-slate-950">
+                        {formatCurrency(line.amount)}
+                      </td>
                     </tr>
                   ))}
                 </tbody>
@@ -528,10 +540,18 @@ export function QuoteBuilder() {
               <div className="rounded-xl border border-emerald-100 bg-emerald-50 p-5 text-sm">
                 <p className="font-bold text-emerald-900">Thông tin chuyển khoản</p>
                 <div className="mt-3 space-y-2 text-emerald-900">
-                  <p>Số tài khoản: <strong>{BANK_INFO.accountNo}</strong></p>
-                  <p>Ngân hàng: <strong>{BANK_INFO.branch}</strong></p>
-                  <p>Chủ tài khoản: <strong>{BANK_INFO.accountName}</strong></p>
-                  <p>Nội dung: <strong>{quote.transferContent}</strong></p>
+                  <p>
+                    Số tài khoản: <strong>{BANK_INFO.accountNo}</strong>
+                  </p>
+                  <p>
+                    Ngân hàng: <strong>{BANK_INFO.branch}</strong>
+                  </p>
+                  <p>
+                    Chủ tài khoản: <strong>{BANK_INFO.accountName}</strong>
+                  </p>
+                  <p>
+                    Nội dung: <strong>{quote.transferContent}</strong>
+                  </p>
                 </div>
               </div>
             </div>

@@ -1,29 +1,26 @@
 'use client';
 
 import { useEffect, useMemo, useState } from 'react';
+import type { MouseEvent } from 'react';
 import AddRoundedIcon from '@mui/icons-material/AddRounded';
 import AccountTreeRoundedIcon from '@mui/icons-material/AccountTreeRounded';
 import DeleteRoundedIcon from '@mui/icons-material/DeleteRounded';
 import EditRoundedIcon from '@mui/icons-material/EditRounded';
+import MoreVertRoundedIcon from '@mui/icons-material/MoreVertRounded';
 import PriceCheckRoundedIcon from '@mui/icons-material/PriceCheckRounded';
-import SearchRoundedIcon from '@mui/icons-material/SearchRounded';
 import SubdirectoryArrowRightRoundedIcon from '@mui/icons-material/SubdirectoryArrowRightRounded';
-import {
-  Button,
-  Dialog,
-  DialogActions,
-  DialogContent,
-  DialogTitle,
-  IconButton,
-  InputAdornment,
-  LinearProgress,
-  MenuItem,
-  Switch,
-  TextField,
-} from '@mui/material';
+import { IconButton, Menu, MenuItem, Switch } from '@mui/material';
 import { Controller, useForm } from 'react-hook-form';
+import { DialogActionButton } from '@/components/actions/dialog-action-button';
+import { AppFormDialog } from '@/components/dialog/app-form-dialog';
 import { ConfirmDialog } from '@/components/feedback/confirm-dialog';
+import { CompactSearchField } from '@/components/form/compact-search-field';
+import { compactFormFieldClassName } from '@/components/form/form-field-styles';
+import { FormInputField } from '@/components/form/form-input-field';
+import { FormSelectField } from '@/components/form/form-select-field';
 import { MoneyInput } from '@/components/form/money-input';
+import { PageHeader } from '@/components/shell/page-header';
+import { AppDataTable } from '@/components/table/app-data-table';
 import {
   DEFAULT_MANAGEMENT_FEE_RATES,
   DEFAULT_SETUP_PACKAGES,
@@ -62,12 +59,6 @@ type QuoteConfigDialogState = {
   service: ServiceItem;
   option?: AppOption | null;
 };
-
-function serviceStatusClass(service: ServiceItem) {
-  return service.isActive
-    ? 'bg-emerald-50 text-emerald-700 ring-emerald-100'
-    : 'bg-slate-100 text-slate-600 ring-slate-200';
-}
 
 const ROOT_COLOR_CLASSES = [
   {
@@ -145,105 +136,82 @@ function ServiceFormDialog({
   };
 
   return (
-    <Dialog
+    <AppFormDialog
       open={Boolean(state)}
-      onClose={isSubmitting ? undefined : closeDialog}
+      title={state?.mode === 'edit' ? 'Chỉnh sửa dịch vụ' : 'Thêm dịch vụ'}
       maxWidth="md"
-      fullWidth
-    >
-      <DialogTitle className="border-b border-slate-100 px-6 py-5">
-        <p className="text-lg font-bold text-slate-950">
-          {state?.mode === 'edit' ? 'Chỉnh sửa dịch vụ' : 'Thêm dịch vụ'}
-        </p>
-        <p className="mt-1 text-sm text-slate-500">
-          Quản lý nhóm dịch vụ theo cây để dùng cho dự án, doanh thu và hóa đơn.
-        </p>
-      </DialogTitle>
-
-      <form
-        onSubmit={handleSubmit((values) => {
-          onSubmit(values, currentService);
-          closeDialog();
-        })}
-      >
-        <DialogContent className="grid gap-4 px-6 py-5 md:grid-cols-2">
-          <TextField
-            fullWidth
-            label="Mã dịch vụ *"
-            placeholder="DV01"
-            error={Boolean(errors.code)}
-            helperText={errors.code?.message}
-            {...register('code', { required: 'Bắt buộc' })}
-          />
-
-          <TextField
-            fullWidth
-            label="Tên dịch vụ *"
-            placeholder="SEO tổng thể"
-            error={Boolean(errors.name)}
-            helperText={errors.name?.message}
-            {...register('name', { required: 'Bắt buộc' })}
-          />
-
-          <Controller
-            name="parentId"
-            control={control}
-            render={({ field }) => (
-              <TextField fullWidth select label="Dịch vụ cha" {...field}>
-                <MenuItem value="">Không có</MenuItem>
-                {parentOptions
-                  .filter((option) => canUseAsParent(option, currentService))
-                  .map((option) => (
-                    <MenuItem key={option.id} value={option.id}>
-                      {'— '.repeat(option.depth)}
-                      {option.name}
-                    </MenuItem>
-                  ))}
-              </TextField>
-            )}
-          />
-
-          <TextField
-            fullWidth
-            multiline
-            minRows={3}
-            label="Nội dung"
-            className="md:col-span-2"
-            {...register('content')}
-          />
-
-          <TextField
-            fullWidth
-            multiline
-            minRows={2}
-            label="Nội dung hóa đơn"
-            {...register('invoiceContent')}
-          />
-
-          <TextField
-            fullWidth
-            multiline
-            minRows={2}
-            label="Thời điểm xuất hóa đơn"
-            {...register('invoiceTiming')}
-          />
-        </DialogContent>
-
-        <DialogActions className="border-t border-slate-100 px-6 py-4">
-          <Button variant="outlined" onClick={closeDialog} disabled={isSubmitting}>
+      submitting={isSubmitting}
+      contentClassName="space-y-4"
+      onClose={closeDialog}
+      onSubmit={handleSubmit((values) => {
+        onSubmit(values, currentService);
+        closeDialog();
+      })}
+      actions={
+        <>
+          <DialogActionButton onClick={closeDialog} disabled={isSubmitting}>
             Hủy
-          </Button>
-          <Button
-            type="submit"
-            variant="contained"
-            disabled={isSubmitting}
-            className="!bg-slate-900 hover:!bg-slate-800"
-          >
+          </DialogActionButton>
+          <DialogActionButton type="submit" tone="primary" disabled={isSubmitting}>
             {isSubmitting ? 'Đang lưu...' : state?.mode === 'edit' ? 'Lưu thay đổi' : 'Tạo dịch vụ'}
-          </Button>
-        </DialogActions>
-      </form>
-    </Dialog>
+          </DialogActionButton>
+        </>
+      }
+    >
+      <div className="grid gap-4 sm:grid-cols-2">
+        <FormInputField
+          label="Mã dịch vụ *"
+          placeholder="DV01"
+          error={Boolean(errors.code)}
+          helperText={errors.code?.message}
+          {...register('code', { required: 'Bắt buộc' })}
+        />
+
+        <FormInputField
+          label="Tên dịch vụ *"
+          placeholder="Dịch vụ Google"
+          error={Boolean(errors.name)}
+          helperText={errors.name?.message}
+          {...register('name', { required: 'Bắt buộc' })}
+        />
+      </div>
+
+      <Controller
+        name="parentId"
+        control={control}
+        render={({ field }) => (
+          <FormSelectField label="Dịch vụ cha" {...field}>
+            <MenuItem value="">Không có</MenuItem>
+            {parentOptions
+              .filter((option) => canUseAsParent(option, currentService))
+              .map((option) => (
+                <MenuItem key={option.id} value={option.id}>
+                  {'— '.repeat(option.depth)}
+                  {option.name}
+                </MenuItem>
+              ))}
+          </FormSelectField>
+        )}
+      />
+
+      <FormInputField multiline minRows={3} label="Nội dung" {...register('content')} />
+
+      <div className="grid gap-4 md:grid-cols-2">
+        <FormInputField
+          multiline
+          minRows={2}
+          label="Nội dung hóa đơn"
+          {...register('invoiceContent')}
+        />
+
+        <FormInputField
+          multiline
+          minRows={2}
+          label="Thời điểm xuất hóa đơn"
+          {...register('invoiceTiming')}
+        />
+      </div>
+    </AppFormDialog>
   );
 }
 
@@ -301,96 +269,94 @@ function QuoteConfigDialog({
   };
 
   return (
-    <Dialog
+    <AppFormDialog
       open={Boolean(state)}
-      onClose={isSubmitting ? undefined : onClose}
-      maxWidth="md"
-      fullWidth
+      title="Cấu hình báo giá dịch vụ"
+      maxWidth="sm"
+      submitting={isSubmitting}
+      onClose={onClose}
+      onSubmit={async (event) => {
+        event.preventDefault();
+        if (!state) return;
+        await onSubmit(state.service, config, state.option);
+        onClose();
+      }}
+      contentClassName="space-y-4"
+      actions={
+        <>
+          <DialogActionButton onClick={resetDefaults} disabled={isSubmitting || !state}>
+            Khôi phục mặc định
+          </DialogActionButton>
+          <div className="flex-1" />
+          <DialogActionButton onClick={onClose} disabled={isSubmitting}>
+            Hủy
+          </DialogActionButton>
+          <DialogActionButton type="submit" tone="primary" disabled={isSubmitting || !state}>
+            {isSubmitting ? 'Đang lưu...' : 'Lưu cấu hình'}
+          </DialogActionButton>
+        </>
+      }
     >
-      <DialogTitle className="border-b border-slate-100 px-5 py-4">
-        <p className="text-base font-bold text-slate-950">Cấu hình báo giá dịch vụ</p>
-        <p className="mt-0.5 text-xs text-slate-500">
-          {state?.service.code} - {state?.service.name}
+      <div className="flex min-w-0 items-center gap-2 rounded-lg border border-slate-200 bg-slate-50 px-3 py-2.5">
+        <span className="shrink-0 rounded-md bg-white px-2 py-1 text-xs font-bold text-slate-700 ring-1 ring-slate-200">
+          {state?.service.code || '-'}
+        </span>
+        <p className="truncate text-sm font-semibold text-slate-900">
+          {state?.service.name || 'Dịch vụ'}
         </p>
-      </DialogTitle>
+      </div>
 
-      <DialogContent className="space-y-4 px-5 py-4">
-        <div className="flex items-center justify-between gap-4 rounded-lg border border-slate-200 px-3.5 py-2.5">
-          <div>
-            <p className="text-sm font-bold text-slate-950">Áp dụng tự động trong báo giá</p>
-            <p className="mt-0.5 text-xs text-slate-500">
-              Các dịch vụ con thuộc nhóm này sẽ dùng cùng bảng phí.
-            </p>
-          </div>
-          <Switch
-            checked={config.enabled}
-            onChange={(event) =>
-              setConfig((current) => ({ ...current, enabled: event.target.checked }))
-            }
-          />
+      <div className="flex items-center justify-between gap-4 rounded-lg border border-slate-200 px-3.5 py-2.5">
+        <p className="text-sm font-bold text-slate-950">Áp dụng tự động trong báo giá</p>
+        <Switch
+          checked={config.enabled}
+          onChange={(event) =>
+            setConfig((current) => ({ ...current, enabled: event.target.checked }))
+          }
+          slotProps={{ input: { 'aria-label': 'Áp dụng tự động trong báo giá' } }}
+        />
+      </div>
+
+      <section className="overflow-hidden rounded-lg border border-slate-200">
+        <div className="border-b border-slate-200 bg-slate-50 px-3.5 py-2.5">
+          <p className="text-sm font-bold text-slate-950">Phí quản lý theo ngân sách (%)</p>
         </div>
-
-        <div className="overflow-hidden rounded-lg border border-slate-200">
-          <div className="border-b border-slate-200 bg-slate-50 px-3.5 py-2.5">
-            <p className="text-sm font-bold text-slate-950">% phí quản lý theo ngân sách</p>
-          </div>
-          <div className="grid gap-px bg-slate-100 sm:grid-cols-2">
-            {config.managementFeeRates.map((rate, index) => (
-              <div
-                key={rate.label}
-                className="flex items-center justify-between gap-3 bg-white px-3.5 py-2"
-              >
-                <span className="text-xs font-semibold text-slate-700">{rate.label}</span>
-                <TextField
-                  size="small"
-                  type="number"
-                  value={rate.single}
-                  onChange={(event) => updateRate(index, 'single', event.target.value)}
-                  slotProps={{ htmlInput: { min: 0, className: 'py-1.5 text-right' } }}
-                  className="w-24"
-                />
-              </div>
-            ))}
-          </div>
+        <div className="grid gap-px bg-slate-100 sm:grid-cols-2">
+          {config.managementFeeRates.map((rate, index) => (
+            <div
+              key={rate.label}
+              className="grid grid-cols-[minmax(0,1fr)_84px] items-center gap-3 bg-white px-3.5 py-2.5"
+            >
+              <span className="text-xs font-semibold text-slate-700">{rate.label}</span>
+              <FormInputField
+                type="number"
+                value={rate.single}
+                onChange={(event) => updateRate(index, 'single', event.target.value)}
+                slotProps={{ htmlInput: { min: 0, className: 'text-right' } }}
+                aria-label={`Phí quản lý ${rate.label}`}
+              />
+            </div>
+          ))}
         </div>
+      </section>
 
+      <section>
+        <p className="mb-3 text-sm font-bold text-slate-950">Phí setup</p>
         <div className="grid gap-3 sm:grid-cols-2">
           {config.setupPackages.map((setupPackage, index) => (
             <MoneyInput
               key={setupPackage.key}
               fullWidth
-              label={`Phí setup - ${setupPackage.label}`}
+              size="small"
+              label={setupPackage.label}
               value={setupPackage.price}
               onValueChange={(value) => updateSetupPackage(index, value)}
+              className={compactFormFieldClassName}
             />
           ))}
         </div>
-      </DialogContent>
-
-      <DialogActions className="border-t border-slate-100 px-5 py-3">
-        <Button size="small" variant="text" onClick={resetDefaults} disabled={isSubmitting}>
-          Mặc định
-        </Button>
-        <div className="flex-1" />
-        <Button size="small" variant="outlined" onClick={onClose} disabled={isSubmitting}>
-          Hủy
-        </Button>
-        <Button
-          type="button"
-          size="small"
-          variant="contained"
-          disabled={isSubmitting || !state}
-          onClick={async () => {
-            if (!state) return;
-            await onSubmit(state.service, config, state.option);
-            onClose();
-          }}
-          className="!bg-slate-900 hover:!bg-slate-800"
-        >
-          {isSubmitting ? 'Đang lưu...' : 'Lưu cấu hình'}
-        </Button>
-      </DialogActions>
-    </Dialog>
+      </section>
+    </AppFormDialog>
   );
 }
 
@@ -411,6 +377,8 @@ export function ServiceManager({
   const [quoteConfigDialogState, setQuoteConfigDialogState] =
     useState<QuoteConfigDialogState | null>(null);
   const [deleteTarget, setDeleteTarget] = useState<ServiceItem | null>(null);
+  const [menuAnchorEl, setMenuAnchorEl] = useState<HTMLElement | null>(null);
+  const [activeService, setActiveService] = useState<FlatServiceItem | null>(null);
   const flatServices = useMemo(() => flattenServices(services), [services]);
   const rootColorMap = useMemo(() => {
     const roots = flatServices.filter((service) => service.depth === 0);
@@ -427,210 +395,198 @@ export function ServiceManager({
     onFiltersChange({ ...filters, ...nextFilters });
   };
 
+  const openActionMenu = (event: MouseEvent<HTMLButtonElement>, service: FlatServiceItem) => {
+    setMenuAnchorEl(event.currentTarget);
+    setActiveService(service);
+  };
+
+  const closeActionMenu = () => {
+    setMenuAnchorEl(null);
+    setActiveService(null);
+  };
+
   return (
     <div className="min-h-[calc(100vh-72px)] w-full bg-slate-50/60 p-6">
-      <div className="mb-6 flex flex-col gap-4 sm:flex-row sm:items-center sm:justify-between">
-        <div>
-          <h1 className="text-2xl font-bold text-slate-950">Dịch vụ</h1>
-          <div className="mt-2 flex items-center gap-2 text-sm text-slate-500">
-            <span>Dashboard</span>
-            <span className="h-1 w-1 rounded-full bg-slate-300" />
-            <span>Dự án</span>
-            <span className="h-1 w-1 rounded-full bg-slate-300" />
-            <span className="text-slate-950">Dịch vụ</span>
-          </div>
-        </div>
-
-        <Button
-          variant="contained"
-          startIcon={<AddRoundedIcon />}
-          onClick={() => setDialogState({ mode: 'create', parent: null })}
-          className="!bg-slate-900 hover:!bg-slate-800"
-        >
-          Thêm dịch vụ
-        </Button>
-      </div>
+      <PageHeader
+        title="Dịch vụ"
+        action={{
+          label: 'Thêm dịch vụ',
+          icon: <AddRoundedIcon />,
+          onClick: () => setDialogState({ mode: 'create', parent: null }),
+        }}
+      />
 
       <section className="w-full overflow-hidden rounded-2xl border border-slate-200 bg-white shadow-sm">
-        <div className="flex flex-col gap-3 border-b border-slate-200 p-5 lg:flex-row">
-          <TextField
-            fullWidth
+        <div className="border-slate-200 p-4">
+          <CompactSearchField
             label="Từ khóa"
             placeholder="Tìm mã, tên, nội dung dịch vụ..."
             value={filters.keyword}
-            onChange={(event) => updateFilters({ keyword: event.target.value })}
-            slotProps={{
-              input: {
-                startAdornment: (
-                  <InputAdornment position="start">
-                    <SearchRoundedIcon fontSize="small" />
-                  </InputAdornment>
-                ),
-              },
-            }}
+            onChange={(value) => updateFilters({ keyword: value })}
           />
-
-          <TextField
-            select
-            label="Trạng thái"
-            value={filters.is_active}
-            onChange={(event) => updateFilters({ is_active: event.target.value })}
-            className="lg:w-56"
-          >
-            <MenuItem value="">Tất cả</MenuItem>
-            <MenuItem value="true">Hoạt động</MenuItem>
-            <MenuItem value="false">Tạm tắt</MenuItem>
-          </TextField>
         </div>
 
-        <div className="relative overflow-x-auto">
-          {isFetching && (
-            <div className="absolute left-0 right-0 top-0 z-20">
-              <LinearProgress color="primary" />
-            </div>
-          )}
+        <AppDataTable
+          columns={[
+            { key: 'service', label: 'Dịch vụ', className: 'w-[390px]' },
+            { key: 'content', label: 'Nội dung', className: 'w-[260px]' },
+            { key: 'invoiceContent', label: 'Nội dung hóa đơn', className: 'w-[260px]' },
+            { key: 'invoiceTiming', label: 'Thời điểm hóa đơn', className: 'w-[220px]' },
+            { key: 'actions', className: 'w-40' },
+          ]}
+          isLoading={isFetching}
+          isEmpty={flatServices.length === 0}
+          emptyText="Chưa có dịch vụ nào"
+          minWidthClassName="min-w-[1080px]"
+        >
+          {flatServices.map((service) => {
+            const color = rootColorMap.get(getRootServiceId(service)) || ROOT_COLOR_CLASSES[0];
 
-          <table
-            className={`w-full min-w-[1160px] table-fixed text-left text-sm transition-opacity ${isFetching ? 'opacity-60' : 'opacity-100'}`}
-          >
-            <thead className="bg-slate-50 text-xs font-bold uppercase text-slate-500">
-              <tr>
-                <th className="w-[390px] px-5 py-4">Dịch vụ</th>
-                <th className="w-36 px-3 py-4">Trạng thái</th>
-                <th className="w-[260px] px-3 py-4">Nội dung</th>
-                <th className="w-[260px] px-3 py-4">Nội dung hóa đơn</th>
-                <th className="w-[220px] px-3 py-4">Thời điểm hóa đơn</th>
-                <th className="w-36 px-5 py-4" />
-              </tr>
-            </thead>
-            <tbody className="divide-y divide-slate-100">
-              {flatServices.length === 0 ? (
-                <tr>
-                  <td
-                    colSpan={6}
-                    className="px-5 py-12 text-center text-sm font-semibold text-slate-500"
+            return (
+              <tr key={service.id} className={`group border-l-4 ${color.row} hover:bg-slate-50/80`}>
+                <td className={`px-3 py-4 ${service.depth > 0 ? color.child : ''}`}>
+                  <div
+                    className="flex min-w-0 items-start gap-3"
+                    style={{ paddingLeft: service.depth * 24 }}
                   >
-                    Chưa có dịch vụ nào
-                  </td>
-                </tr>
-              ) : (
-                flatServices.map((service) => {
-                  const color =
-                    rootColorMap.get(getRootServiceId(service)) || ROOT_COLOR_CLASSES[0];
-
-                  return (
-                    <tr
-                      key={service.id}
-                      className={`group border-l-4 ${color.row} hover:bg-slate-50/80`}
+                    <span
+                      className={`mt-0.5 inline-flex h-8 w-8 shrink-0 items-center justify-center rounded-lg ring-1 ${color.icon}`}
                     >
-                      <td className={`px-5 py-4 ${service.depth > 0 ? color.child : ''}`}>
-                        <div
-                          className="flex min-w-0 items-start gap-3"
-                          style={{ paddingLeft: service.depth * 24 }}
-                        >
-                          <span
-                            className={`mt-0.5 inline-flex h-8 w-8 shrink-0 items-center justify-center rounded-lg ring-1 ${color.icon}`}
-                          >
-                            {service.depth === 0 ? (
-                              <AccountTreeRoundedIcon fontSize="small" />
-                            ) : (
-                              <SubdirectoryArrowRightRoundedIcon fontSize="small" />
-                            )}
-                          </span>
-                          <div className="min-w-0">
-                            <div className="flex min-w-0 items-center gap-2">
-                              <span
-                                className={`shrink-0 rounded-md px-2 py-1 text-xs font-bold ring-1 ${color.code}`}
-                              >
-                                {service.code}
-                              </span>
-                              <p className="truncate font-bold text-slate-950" title={service.name}>
-                                {service.name}
-                              </p>
-                            </div>
-                            <p
-                              className="mt-1 truncate text-xs leading-5 text-slate-500"
-                              title={service.pathName}
-                            >
-                              {service.pathName}
-                            </p>
-                          </div>
-                        </div>
-                      </td>
-                      <td className="px-3 py-4">
-                        <span
-                          className={`rounded-md px-2 py-1 text-xs font-bold ring-1 ${serviceStatusClass(service)}`}
-                        >
-                          {service.isActive ? 'Hoạt động' : 'Tạm tắt'}
-                        </span>
-                      </td>
-                      <td className="px-3 py-4">
-                        <p className="line-clamp-2 text-slate-600" title={service.content || ''}>
-                          {service.content || '-'}
-                        </p>
-                      </td>
-                      <td className="px-3 py-4">
-                        <p
-                          className="line-clamp-2 text-slate-600"
-                          title={service.invoiceContent || ''}
-                        >
-                          {service.invoiceContent || '-'}
-                        </p>
-                      </td>
-                      <td className="px-3 py-4">
-                        <p
-                          className="line-clamp-2 text-slate-600"
-                          title={service.invoiceTiming || ''}
-                        >
-                          {service.invoiceTiming || '-'}
-                        </p>
-                      </td>
-                      <td className="px-5 py-4">
-                        <div className="flex items-center justify-end gap-1">
-                          {service.depth === 0 && (
-                            <IconButton
-                              size="small"
-                              title="Cấu hình báo giá"
-                              onClick={() =>
-                                setQuoteConfigDialogState({
-                                  service,
-                                  option: getConfigForRoot(quoteConfigs, service),
-                                })
-                              }
-                            >
-                              <PriceCheckRoundedIcon fontSize="small" />
-                            </IconButton>
-                          )}
-                          <IconButton
-                            size="small"
-                            title="Thêm dịch vụ con"
-                            onClick={() => setDialogState({ mode: 'create', parent: service })}
-                          >
-                            <AddRoundedIcon fontSize="small" />
-                          </IconButton>
-                          <IconButton
-                            size="small"
-                            title="Chỉnh sửa"
-                            onClick={() => setDialogState({ mode: 'edit', service })}
-                          >
-                            <EditRoundedIcon fontSize="small" />
-                          </IconButton>
-                          <IconButton
-                            size="small"
-                            title="Xóa"
-                            className="hover:text-rose-600"
-                            onClick={() => setDeleteTarget(service)}
-                          >
-                            <DeleteRoundedIcon fontSize="small" />
-                          </IconButton>
-                        </div>
-                      </td>
-                    </tr>
-                  );
-                })
-              )}
-            </tbody>
-          </table>
+                      {service.depth === 0 ? (
+                        <AccountTreeRoundedIcon fontSize="small" />
+                      ) : (
+                        <SubdirectoryArrowRightRoundedIcon fontSize="small" />
+                      )}
+                    </span>
+                    <div className="flex min-w-0 items-center gap-2">
+                      <span
+                        className={`shrink-0 rounded-md px-2 py-1 text-xs font-bold ring-1 ${color.code}`}
+                      >
+                        {service.code}
+                      </span>
+                      <p className="truncate font-bold text-slate-950" title={service.name}>
+                        {service.name}
+                      </p>
+                    </div>
+                  </div>
+                </td>
+                <td className="px-3 py-4">
+                  <p className="line-clamp-2 text-slate-600" title={service.content || ''}>
+                    {service.content || '-'}
+                  </p>
+                </td>
+                <td className="px-3 py-4">
+                  <p className="line-clamp-2 text-slate-600" title={service.invoiceContent || ''}>
+                    {service.invoiceContent || '-'}
+                  </p>
+                </td>
+                <td className="px-3 py-4">
+                  <p className="line-clamp-2 text-slate-600" title={service.invoiceTiming || ''}>
+                    {service.invoiceTiming || '-'}
+                  </p>
+                </td>
+                <td className="py-4">
+                  <div className="flex items-center justify-end gap-1 pr-3">
+                    {service.depth === 0 && (
+                      <IconButton
+                        size="small"
+                        title="Cấu hình báo giá"
+                        aria-label={`Cấu hình báo giá dịch vụ ${service.name}`}
+                        disabled={isSavingQuoteConfig}
+                        onClick={() =>
+                          setQuoteConfigDialogState({
+                            service,
+                            option: getConfigForRoot(quoteConfigs, service),
+                          })
+                        }
+                      >
+                        <PriceCheckRoundedIcon fontSize="small" />
+                      </IconButton>
+                    )}
+                    <IconButton
+                      size="small"
+                      title="Thêm dịch vụ con"
+                      aria-label={`Thêm dịch vụ con cho ${service.name}`}
+                      onClick={() => setDialogState({ mode: 'create', parent: service })}
+                    >
+                      <AddRoundedIcon fontSize="small" />
+                    </IconButton>
+                    <IconButton
+                      size="small"
+                      title="Chỉnh sửa"
+                      aria-label={`Chỉnh sửa dịch vụ ${service.name}`}
+                      onClick={() => setDialogState({ mode: 'edit', service })}
+                    >
+                      <EditRoundedIcon fontSize="small" />
+                    </IconButton>
+                    <IconButton
+                      size="small"
+                      title="Tác vụ"
+                      aria-label={`Mở tác vụ dịch vụ ${service.name}`}
+                      onClick={(event) => openActionMenu(event, service)}
+                    >
+                      <MoreVertRoundedIcon fontSize="small" />
+                    </IconButton>
+                  </div>
+                </td>
+              </tr>
+            );
+          })}
+        </AppDataTable>
+
+        <Menu anchorEl={menuAnchorEl} open={Boolean(menuAnchorEl)} onClose={closeActionMenu}>
+          {activeService?.depth === 0 && (
+            <MenuItem
+              disabled={isSavingQuoteConfig}
+              onClick={() => {
+                if (activeService) {
+                  setQuoteConfigDialogState({
+                    service: activeService,
+                    option: getConfigForRoot(quoteConfigs, activeService),
+                  });
+                }
+                closeActionMenu();
+              }}
+            >
+              <PriceCheckRoundedIcon fontSize="small" className="mr-2 text-slate-500" />
+              Cấu hình báo giá
+            </MenuItem>
+          )}
+          <MenuItem
+            onClick={() => {
+              if (activeService) setDialogState({ mode: 'create', parent: activeService });
+              closeActionMenu();
+            }}
+          >
+            <AddRoundedIcon fontSize="small" className="mr-2 text-slate-500" />
+            Thêm dịch vụ con
+          </MenuItem>
+          <MenuItem
+            onClick={() => {
+              if (activeService) setDialogState({ mode: 'edit', service: activeService });
+              closeActionMenu();
+            }}
+          >
+            <EditRoundedIcon fontSize="small" className="mr-2 text-slate-500" />
+            Chỉnh sửa
+          </MenuItem>
+          <MenuItem
+            className="text-rose-600"
+            disabled={isDeleting}
+            onClick={() => {
+              if (activeService) setDeleteTarget(activeService);
+              closeActionMenu();
+            }}
+          >
+            <DeleteRoundedIcon fontSize="small" className="mr-2" />
+            Xóa
+          </MenuItem>
+        </Menu>
+
+        <div className="flex flex-col gap-3 border-t border-slate-200 px-5 py-4 text-sm text-slate-500 sm:flex-row sm:items-center sm:justify-between">
+          <span>
+            Hiển thị <strong className="text-slate-950">{flatServices.length}</strong> dịch vụ
+          </span>
         </div>
       </section>
 

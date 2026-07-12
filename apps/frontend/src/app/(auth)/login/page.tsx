@@ -17,9 +17,9 @@ import { useForm } from 'react-hook-form';
 import { zodResolver } from '@hookform/resolvers/zod';
 import { z } from 'zod';
 import { AppSplashScreen } from '@/components/shell/app-splash-screen';
+import { getAuthUser, type AuthResponseBody } from '@/lib/auth-response';
 import { useAuthStore } from '@/stores/auth-store';
-import { api } from '@/services/api/client';
-import type { User } from '@/types/user';
+import { api, initializeCsrfProtection } from '@/services/api/client';
 
 const schema = z.object({
   email: z.string().email('Email không hợp lệ'),
@@ -28,28 +28,9 @@ const schema = z.object({
 
 type FormData = z.infer<typeof schema>;
 
-type LoginResponseBody = {
-  access_token?: string;
-  token?: string;
-  user?: User;
-  data?: {
-    access_token?: string;
-    token?: string;
-    user?: User;
-  };
-  message?: string;
-};
-
-function normalizeLoginResponse(body: LoginResponseBody) {
-  const token = body.access_token || body.token || body.data?.access_token || body.data?.token;
-  const user = body.user || body.data?.user || null;
-
-  return { token, user };
-}
-
 export default function LoginPage() {
   const router = useRouter();
-  const { initialized, setAuth, token } = useAuthStore();
+  const { status, setAuth } = useAuthStore();
   const [error, setError] = useState('');
   const [loading, setLoading] = useState(false);
   const [showPassword, setShowPassword] = useState(false);
@@ -63,24 +44,25 @@ export default function LoginPage() {
   });
 
   useEffect(() => {
-    if (initialized && token) {
-      router.replace('/users');
+    if (status === 'authenticated') {
+      router.replace('/dashboard');
     }
-  }, [initialized, router, token]);
+  }, [router, status]);
 
   const onSubmit = async (data: FormData) => {
     try {
       setLoading(true);
       setError('');
-      const res = await api.post<LoginResponseBody>('/auth/login', data);
-      const auth = normalizeLoginResponse(res.data);
+      await initializeCsrfProtection();
+      const res = await api.post<AuthResponseBody>('/auth/login', data);
+      const user = getAuthUser(res.data);
 
-      if (!auth.token) {
-        throw new Error('LOGIN_TOKEN_MISSING');
+      if (!user?.id) {
+        throw new Error('LOGIN_USER_MISSING');
       }
 
-      setAuth(auth.user, auth.token);
-      router.replace('/users');
+      setAuth(user);
+      router.replace('/dashboard');
     } catch (err: any) {
       setError(err.response?.data?.message || 'Đăng nhập thất bại');
     } finally {
@@ -88,7 +70,7 @@ export default function LoginPage() {
     }
   };
 
-  if (!initialized || token) {
+  if (status === 'checking' || status === 'authenticated') {
     return <AppSplashScreen label="Dang kiem tra dang nhap" />;
   }
 
@@ -161,8 +143,10 @@ export default function LoginPage() {
           </FormControl>
         </div>
 
-        {error && (
-          <div className="rounded-lg bg-red-50 px-4 py-3 text-sm text-red-600">{error}</div>
+        {(error || status === 'unavailable') && (
+          <div className="rounded-lg bg-red-50 px-4 py-3 text-sm text-red-600">
+            {error || 'Không kết nối được máy chủ. Vui lòng kiểm tra backend rồi thử lại.'}
+          </div>
         )}
 
         <Button

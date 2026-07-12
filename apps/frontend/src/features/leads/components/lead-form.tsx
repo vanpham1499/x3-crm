@@ -1,11 +1,15 @@
 ﻿'use client';
 
-import Link from 'next/link';
 import SaveRoundedIcon from '@mui/icons-material/SaveRounded';
-import { Autocomplete, Button, Checkbox, ListItemText, MenuItem, TextField } from '@mui/material';
+import { Autocomplete, Checkbox, ListItemText, MenuItem } from '@mui/material';
 import { DatePicker } from '@mui/x-date-pickers/DatePicker';
 import dayjs from 'dayjs';
 import { Controller, useForm } from 'react-hook-form';
+import { FormActionBar } from '@/components/form/form-action-bar';
+import { compactFormFieldClassName } from '@/components/form/form-field-styles';
+import { FormInputField } from '@/components/form/form-input-field';
+import { FormSection } from '@/components/form/form-section';
+import { FormSelectField } from '@/components/form/form-select-field';
 import { getLeadDefaults } from '@/lib/lead-utils';
 import type { Lead, LeadFormValues, LeadStatus } from '@/types/lead';
 import type { AppOption } from '@/types/option';
@@ -22,26 +26,6 @@ type LeadFormProps = {
   onSubmit: (values: LeadFormValues) => void;
 };
 
-function FormSection({
-  title,
-  description,
-  children,
-}: {
-  title: string;
-  description: string;
-  children: React.ReactNode;
-}) {
-  return (
-    <section className="overflow-hidden rounded-2xl border border-slate-200 bg-white shadow-sm">
-      <div className="border-b border-slate-200 px-6 py-5">
-        <h2 className="text-lg font-bold text-slate-950">{title}</h2>
-        <p className="mt-1 text-sm text-slate-500">{description}</p>
-      </div>
-      <div className="space-y-5 p-6">{children}</div>
-    </section>
-  );
-}
-
 function LeadDatePicker({
   label,
   value,
@@ -56,7 +40,13 @@ function LeadDatePicker({
       label={label}
       value={value ? dayjs(value) : null}
       onChange={(nextValue) => onChange(nextValue?.isValid() ? nextValue.format('YYYY-MM-DD') : '')}
-      slotProps={{ textField: { fullWidth: true } }}
+      slotProps={{
+        textField: {
+          fullWidth: true,
+          size: 'small',
+          className: compactFormFieldClassName,
+        },
+      }}
     />
   );
 }
@@ -85,24 +75,19 @@ export function LeadForm({
   const selectedSource = sources.find((source) => String(source.id) === selectedSourceId) || null;
 
   return (
-    <form className="w-full space-y-8" onSubmit={handleSubmit(onSubmit)}>
+    <form className="flex w-full flex-1 flex-col" onSubmit={handleSubmit(onSubmit)}>
       <div className="grid w-full items-start gap-6 xl:grid-cols-12">
         <div className="xl:col-span-8">
-          <FormSection
-            title="Thông tin lead"
-            description="Thông tin liên hệ, trạng thái và thời gian chăm sóc."
-          >
+          <FormSection title="Thông tin lead">
             <div className="grid gap-4 md:grid-cols-2">
-              <TextField
-                fullWidth
+              <FormInputField
                 label="Tên khách hàng *"
                 placeholder="VD: ABC Spa - C.Linh"
                 error={Boolean(errors.customerName)}
                 helperText={errors.customerName?.message}
                 {...register('customerName', { required: 'Vui lòng nhập tên khách hàng' })}
               />
-              <TextField
-                fullWidth
+              <FormInputField
                 label="Số điện thoại"
                 placeholder="0901234567"
                 {...register('phone')}
@@ -110,31 +95,26 @@ export function LeadForm({
             </div>
 
             <div className="grid gap-4 md:grid-cols-2">
-              <TextField
-                fullWidth
+              <FormInputField
                 label="Ngành nghề"
                 placeholder="VD: Spa, bất động sản..."
                 {...register('industry')}
               />
-              <TextField
-                fullWidth
+              <FormInputField
                 label="Website"
                 placeholder="https://example.com"
                 {...register('website')}
               />
             </div>
 
-            <TextField
-              fullWidth
+            <FormInputField
               label="Link kế hoạch"
               placeholder="https://docs.google.com/..."
               {...register('planLink')}
             />
 
             <div className="grid gap-4 md:grid-cols-3">
-              <TextField
-                fullWidth
-                select
+              <FormSelectField
                 label="Trạng thái"
                 defaultValue={
                   defaults.statusOptionId ||
@@ -148,7 +128,7 @@ export function LeadForm({
                     {status.name}
                   </MenuItem>
                 ))}
-              </TextField>
+              </FormSelectField>
               <Controller
                 name="occurredDate"
                 control={control}
@@ -169,15 +149,13 @@ export function LeadForm({
               />
             </div>
 
-            <TextField
-              fullWidth
+            <FormInputField
               label="Nhóm Zalo"
               placeholder="Tên nhóm hoặc link nhóm"
               {...register('zaloGroup')}
             />
 
-            <TextField
-              fullWidth
+            <FormInputField
               multiline
               minRows={6}
               label="Ghi chú"
@@ -188,13 +166,8 @@ export function LeadForm({
         </div>
 
         <div className="xl:col-span-4">
-          <FormSection
-            title="Phân loại & phụ trách"
-            description="Nhân sự, nguồn phát sinh và dịch vụ quan tâm."
-          >
-            <TextField
-              fullWidth
-              select
+          <FormSection title="Phân loại & phụ trách">
+            <FormSelectField
               label="Nhân sự phụ trách"
               defaultValue={defaults.assignedUserId}
               {...register('assignedUserId')}
@@ -204,7 +177,7 @@ export function LeadForm({
                   {user.name || user.email || user.code}
                 </MenuItem>
               ))}
-            </TextField>
+            </FormSelectField>
 
             <input type="hidden" {...register('sourceId')} />
             <input type="hidden" {...register('sourceOptionId')} />
@@ -238,9 +211,8 @@ export function LeadForm({
                 }
               }}
               renderInput={(params) => (
-                <TextField
+                <FormInputField
                   {...params}
-                  fullWidth
                   label="Nguồn phát sinh"
                   placeholder="Chọn nguồn hoặc nhập nguồn mới"
                 />
@@ -251,9 +223,7 @@ export function LeadForm({
               name="interestedServiceOptionIds"
               control={control}
               render={({ field }) => (
-                <TextField
-                  fullWidth
-                  select
+                <FormSelectField
                   label="Dịch vụ quan tâm"
                   value={field.value || []}
                   onChange={(event) => {
@@ -281,12 +251,11 @@ export function LeadForm({
                       <ListItemText primary={service.label} />
                     </MenuItem>
                   ))}
-                </TextField>
+                </FormSelectField>
               )}
             />
 
-            <TextField
-              fullWidth
+            <FormInputField
               label="Dịch vụ quan tâm khác"
               placeholder="Nhập nếu chưa có trong danh mục"
               {...register('interestedServiceText')}
@@ -295,22 +264,12 @@ export function LeadForm({
         </div>
       </div>
 
-      <div className="sticky bottom-0 z-10 flex justify-end gap-3 border-t border-slate-200 bg-white/90 px-1 py-4 backdrop-blur">
-        <Link
-          href="/leads"
-          className="inline-flex h-10 items-center justify-center rounded-lg border border-slate-200 px-4 text-sm font-bold text-slate-700 transition hover:bg-slate-50"
-        >
-          Hủy
-        </Link>
-        <Button
-          type="submit"
-          variant="contained"
-          disabled={isSubmitting}
-          startIcon={<SaveRoundedIcon />}
-        >
-          {isSubmitting ? 'Đang lưu...' : mode === 'create' ? 'Tạo lead' : 'Lưu thay đổi'}
-        </Button>
-      </div>
+      <FormActionBar
+        cancelHref="/leads"
+        submitLabel={mode === 'create' ? 'Tạo lead' : 'Lưu thay đổi'}
+        isSubmitting={isSubmitting}
+        submitIcon={<SaveRoundedIcon />}
+      />
     </form>
   );
 }

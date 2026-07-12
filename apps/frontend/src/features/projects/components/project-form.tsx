@@ -1,12 +1,16 @@
 'use client';
 
-import { useEffect, useMemo } from 'react';
-import Link from 'next/link';
+import { useMemo } from 'react';
 import SaveRoundedIcon from '@mui/icons-material/SaveRounded';
-import { Autocomplete, Button, MenuItem, TextField } from '@mui/material';
+import { Autocomplete, MenuItem } from '@mui/material';
 import { DatePicker } from '@mui/x-date-pickers/DatePicker';
 import dayjs from 'dayjs';
-import { Controller, useForm } from 'react-hook-form';
+import { Controller, useForm, useWatch } from 'react-hook-form';
+import { FormActionBar } from '@/components/form/form-action-bar';
+import { compactFormFieldClassName } from '@/components/form/form-field-styles';
+import { FormInputField } from '@/components/form/form-input-field';
+import { FormSection } from '@/components/form/form-section';
+import { FormSelectField } from '@/components/form/form-select-field';
 import {
   generateProjectCode,
   getProjectDefaults,
@@ -37,26 +41,10 @@ type ProjectFormProps = {
   quoteConfigs?: AppOption[];
   quotations?: Quotation[];
   defaultValues?: Partial<ProjectFormValues>;
+  cancelHref?: string;
   isSubmitting: boolean;
   onSubmit: (values: ProjectFormValues) => void;
 };
-
-function FormSection({
-  title,
-  children,
-}: {
-  title: string;
-  children: React.ReactNode;
-}) {
-  return (
-    <section className="overflow-hidden rounded-xl border border-slate-200 bg-white">
-      <div className="border-b border-slate-200 px-5 py-4">
-        <h2 className="text-base font-bold text-slate-950">{title}</h2>
-      </div>
-      <div className="space-y-4 p-5">{children}</div>
-    </section>
-  );
-}
 
 function ProjectDatePicker({
   label,
@@ -72,7 +60,13 @@ function ProjectDatePicker({
       label={label}
       value={value ? dayjs(value) : null}
       onChange={(nextValue) => onChange(nextValue?.isValid() ? nextValue.format('YYYY-MM-DD') : '')}
-      slotProps={{ textField: { fullWidth: true } }}
+      slotProps={{
+        textField: {
+          fullWidth: true,
+          size: 'small',
+          className: compactFormFieldClassName,
+        },
+      }}
     />
   );
 }
@@ -124,6 +118,7 @@ export function ProjectForm({
   quoteConfigs = [],
   quotations = [],
   defaultValues,
+  cancelHref = '/projects',
   isSubmitting,
   onSubmit,
 }: ProjectFormProps) {
@@ -133,15 +128,14 @@ export function ProjectForm({
     register,
     handleSubmit,
     setValue,
-    watch,
     formState: { errors },
   } = useForm<ProjectFormValues>({
     defaultValues: getProjectDefaults(project, defaultValues),
   });
-  const selectedQuotationId = watch('quotationId');
-  const selectedCustomerId = watch('customerId');
-  const selectedServiceId = watch('serviceId');
-  const projectName = watch('projectName');
+  const selectedQuotationId = useWatch({ control, name: 'quotationId' }) || '';
+  const selectedCustomerId = useWatch({ control, name: 'customerId' }) || '';
+  const selectedServiceId = useWatch({ control, name: 'serviceId' }) || '';
+  const projectName = useWatch({ control, name: 'projectName' }) || '';
   const selectedCustomer = customers.find((customer) => String(customer.id) === selectedCustomerId);
   const selectedQuotation = quotations.find(
     (quotation) => String(quotation.id) === selectedQuotationId,
@@ -154,8 +148,12 @@ export function ProjectForm({
     (service) => String(service.id) === selectedServiceId,
   );
   const rootServiceCode = useMemo(
-    () => getRootServiceCode(services, selectedServiceId),
-    [selectedServiceId, services],
+    () =>
+      getRootServiceCode(services, selectedServiceId) ||
+      selectedService?.parent?.code ||
+      selectedService?.code ||
+      '',
+    [selectedService?.code, selectedService?.parent?.code, selectedServiceId, services],
   );
   const rootService = useMemo(
     () => getRootServiceItem(services, selectedServiceId),
@@ -167,19 +165,19 @@ export function ProjectForm({
     : null;
   const usesAutomaticQuote = Boolean(quoteConfig?.enabled);
   const revenueGroup = getProjectRevenueGroupInfo(usesAutomaticQuote);
-  const hasManagementFeeConfig = Boolean(
-    usesAutomaticQuote && quoteConfig?.managementFeeRates.length,
+  const selectedCustomerCode =
+    selectedCustomer?.customerCode || selectedCustomer?.lead?.leadCode || '';
+  const generatedProjectCode = useMemo(
+    () =>
+      generateProjectCode({
+        customerCode: selectedCustomerCode,
+        rootServiceCode,
+        projectName,
+      }),
+    [projectName, rootServiceCode, selectedCustomerCode],
   );
-
-  useEffect(() => {
-    const nextProjectCode = generateProjectCode({
-      customerCode: selectedCustomer?.customerCode,
-      rootServiceCode,
-      projectName,
-    });
-
-    setValue('projectCode', nextProjectCode, { shouldDirty: true });
-  }, [projectName, rootServiceCode, selectedCustomer?.customerCode, setValue]);
+  const displayedProjectCode =
+    generatedProjectCode || (mode === 'edit' ? project?.projectCode || '' : '');
 
   const applyOriginQuotation = (quotation: Quotation | null) => {
     setValue('quotationId', quotation ? String(quotation.id) : '', {
@@ -205,15 +203,169 @@ export function ProjectForm({
   };
 
   return (
-    <form className="w-full space-y-5" onSubmit={handleSubmit(onSubmit)}>
-      {mode === 'create' ? (
-        <section className="overflow-hidden rounded-2xl border border-sky-200 bg-white shadow-sm">
-          <div className="grid gap-5 p-5 lg:grid-cols-[minmax(0,1.35fr)_minmax(280px,0.65fr)] lg:items-center">
-            <div>
-              <div className="mb-3">
-                <h2 className="text-base font-bold text-slate-950">Bắt đầu từ báo phí có sẵn</h2>
-              </div>
+    <form
+      className="flex w-full flex-1 flex-col gap-5"
+      onSubmit={handleSubmit((values) =>
+        onSubmit({
+          ...values,
+          projectCode: displayedProjectCode,
+        }),
+      )}
+    >
+      {mode === 'edit' ? <input type="hidden" {...register('quotationId')} /> : null}
+      <div className="grid w-full items-start gap-6 xl:grid-cols-12">
+        <div className="space-y-6 xl:col-span-8">
+          <FormSection title="Thông tin dự án">
+            <div className="grid gap-4 md:grid-cols-2">
+              <Controller
+                name="customerId"
+                control={control}
+                rules={{ required: 'Vui lòng chọn khách hàng' }}
+                render={({ field }) => (
+                  <FormSelectField
+                    label="Khách hàng *"
+                    disabled={Boolean(selectedQuotation)}
+                    error={Boolean(errors.customerId)}
+                    helperText={errors.customerId?.message}
+                    {...field}
+                  >
+                    {customers.map((customer) => (
+                      <MenuItem key={customer.id} value={String(customer.id)}>
+                        {customerLabel(customer)}
+                      </MenuItem>
+                    ))}
+                  </FormSelectField>
+                )}
+              />
 
+              <Controller
+                name="serviceId"
+                control={control}
+                rules={{ required: 'Vui lòng chọn dịch vụ' }}
+                render={({ field }) => {
+                  const selectedServiceOption =
+                    serviceOptions.find((service) => String(service.id) === field.value) || null;
+
+                  return (
+                    <Autocomplete
+                      options={serviceOptions}
+                      value={selectedServiceOption}
+                      onChange={(_, nextValue) =>
+                        field.onChange(nextValue?.id !== undefined ? String(nextValue.id) : '')
+                      }
+                      getOptionLabel={serviceLabel}
+                      isOptionEqualToValue={(option, value) => option.id === value.id}
+                      filterOptions={(options, state) => {
+                        const keyword = state.inputValue.trim().toLowerCase();
+                        if (!keyword) return options;
+
+                        return options.filter((service) =>
+                          [service.code, service.name, service.pathName]
+                            .join(' ')
+                            .toLowerCase()
+                            .includes(keyword),
+                        );
+                      }}
+                      renderInput={(params) => (
+                        <FormInputField
+                          {...params}
+                          label="Dịch vụ *"
+                          disabled={Boolean(selectedQuotation)}
+                          placeholder="Tìm theo mã hoặc tên dịch vụ"
+                          error={Boolean(errors.serviceId)}
+                          helperText={errors.serviceId?.message}
+                        />
+                      )}
+                    />
+                  );
+                }}
+              />
+            </div>
+
+            <div className="grid gap-4 md:grid-cols-2">
+              <Controller
+                name="projectName"
+                control={control}
+                rules={{ required: 'Vui lòng nhập tên dự án' }}
+                render={({ field }) => (
+                  <FormInputField
+                    {...field}
+                    value={field.value || ''}
+                    label="Tên dự án *"
+                    error={Boolean(errors.projectName)}
+                    helperText={errors.projectName?.message}
+                  />
+                )}
+              />
+              <Controller
+                name="projectCode"
+                control={control}
+                render={({ field }) => (
+                  <FormInputField
+                    {...field}
+                    value={displayedProjectCode}
+                    label="Mã dự án"
+                    placeholder="Chọn khách hàng, dịch vụ và nhập tên dự án"
+                    className="[&_.MuiOutlinedInput-root]:!bg-emerald-50/60"
+                    slotProps={{
+                      htmlInput: { readOnly: true },
+                      inputLabel: { shrink: true },
+                    }}
+                  />
+                )}
+              />
+            </div>
+
+            <FormInputField
+              label="Link plan"
+              placeholder="https://docs.google.com/..."
+              {...register('planLink')}
+            />
+
+            <FormInputField
+              label="Nhóm Zalo"
+              placeholder="Tên nhóm hoặc link nhóm"
+              {...register('zaloGroup')}
+            />
+
+            <div className="grid gap-4 md:grid-cols-2">
+              <Controller
+                name="startDate"
+                control={control}
+                render={({ field }) => (
+                  <ProjectDatePicker
+                    label="Ngày bắt đầu"
+                    value={field.value}
+                    onChange={field.onChange}
+                  />
+                )}
+              />
+              <Controller
+                name="endDate"
+                control={control}
+                render={({ field }) => (
+                  <ProjectDatePicker
+                    label="Ngày kết thúc"
+                    value={field.value}
+                    onChange={field.onChange}
+                  />
+                )}
+              />
+            </div>
+
+            <FormInputField
+              multiline
+              minRows={3}
+              label="Ghi chú"
+              placeholder="Thông tin triển khai, lưu ý chăm sóc, tình trạng hiện tại..."
+              {...register('note')}
+            />
+          </FormSection>
+        </div>
+
+        <div className="space-y-6 xl:col-span-4">
+          {mode === 'create' ? (
+            <FormSection title="Báo phí khởi tạo">
               <Controller
                 name="quotationId"
                 control={control}
@@ -251,206 +403,63 @@ export function ProjectForm({
                       </li>
                     )}
                     renderInput={(params) => (
-                      <TextField
+                      <FormInputField
                         {...params}
-                        fullWidth
-                        label="Báo phí khởi tạo"
+                        label="Báo phí"
                         placeholder="Tìm theo mã, khách hàng hoặc dịch vụ"
                       />
                     )}
                   />
                 )}
               />
-            </div>
 
-            <div className="rounded-xl bg-sky-50 px-4 py-3 ring-1 ring-sky-100">
-              {selectedQuotation ? (
-                <>
-                  <p className="text-xs font-bold uppercase tracking-wide text-sky-700">
-                    Báo phí được chọn
-                  </p>
-                  <p className="mt-1 font-extrabold text-slate-950">
-                    {selectedQuotation.quotationCode || `#${selectedQuotation.id}`}
-                  </p>
-                  <div className="mt-2 flex items-end justify-between gap-3">
-                    <span className="text-xs text-slate-500">Tổng tiền báo phí</span>
-                    <span className="text-base font-extrabold tabular-nums text-slate-950">
-                      {formatCurrency(Number(selectedQuotation.totalAmount) || 0)}
-                    </span>
-                  </div>
-                </>
-              ) : (
-                <>
-                  <p className="text-sm font-bold text-slate-800">Tạo dự án độc lập</p>
-                </>
-              )}
-            </div>
-          </div>
-        </section>
-      ) : (
-        <input type="hidden" {...register('quotationId')} />
-      )}
-      <div className="grid w-full items-start gap-6 xl:grid-cols-12">
-        <div className="space-y-6 xl:col-span-8">
-          <FormSection
-            title="Thông tin dự án"
-          >
-            <div className="grid gap-4 md:grid-cols-2">
-              <TextField
-                fullWidth
-                placeholder="Mã dự án"
-                className="bg-slate-50"
-                slotProps={{
-                  htmlInput: { readOnly: true },
-                  inputLabel: { shrink: true },
-                }}
-                {...register('projectCode')}
-              />
-              <TextField
-                fullWidth
-                label="Tên dự án *"
-                error={Boolean(errors.projectName)}
-                helperText={errors.projectName?.message}
-                {...register('projectName', { required: 'Vui lòng nhập tên dự án' })}
-              />
-            </div>
-
-            <div className="grid gap-4 md:grid-cols-2">
-              <Controller
-                name="customerId"
-                control={control}
-                rules={{ required: 'Vui lòng chọn khách hàng' }}
-                render={({ field }) => (
-                  <TextField
-                    fullWidth
-                    select
-                    label="Khách hàng *"
-                    disabled={Boolean(selectedQuotation)}
-                    error={Boolean(errors.customerId)}
-                    helperText={errors.customerId?.message}
-                    {...field}
-                  >
-                    {customers.map((customer) => (
-                      <MenuItem key={customer.id} value={String(customer.id)}>
-                        {customerLabel(customer)}
-                      </MenuItem>
-                    ))}
-                  </TextField>
+              <div className="rounded-lg border border-sky-100 bg-sky-50 px-3 py-2.5">
+                {selectedQuotation ? (
+                  <>
+                    <div className="flex items-center justify-between gap-3">
+                      <p className="min-w-0 truncate text-sm font-bold text-slate-900">
+                        {selectedQuotation.quotationCode || `#${selectedQuotation.id}`}
+                      </p>
+                      <span className="shrink-0 text-sm font-extrabold tabular-nums text-slate-950">
+                        {formatCurrency(Number(selectedQuotation.totalAmount) || 0)}
+                      </span>
+                    </div>
+                    <p className="mt-1 truncate text-xs text-slate-500">
+                      {selectedQuotation.customer?.customerName || 'Chưa có khách hàng'}
+                      {' · '}
+                      {selectedQuotation.serviceName || 'Chưa chọn dịch vụ'}
+                    </p>
+                  </>
+                ) : (
+                  <p className="text-sm font-semibold text-slate-600">Tạo dự án độc lập</p>
                 )}
-              />
+              </div>
+            </FormSection>
+          ) : null}
 
-              <Controller
-                name="serviceId"
-                control={control}
-                rules={{ required: 'Vui lòng chọn dịch vụ' }}
-                render={({ field }) => {
-                  const selectedServiceOption =
-                    serviceOptions.find((service) => String(service.id) === field.value) || null;
-
-                  return (
-                    <Autocomplete
-                      options={serviceOptions}
-                      value={selectedServiceOption}
-                      onChange={(_, nextValue) =>
-                        field.onChange(nextValue?.id !== undefined ? String(nextValue.id) : '')
-                      }
-                      getOptionLabel={serviceLabel}
-                      isOptionEqualToValue={(option, value) => option.id === value.id}
-                      filterOptions={(options, state) => {
-                        const keyword = state.inputValue.trim().toLowerCase();
-                        if (!keyword) return options;
-
-                        return options.filter((service) =>
-                          [service.code, service.name, service.pathName]
-                            .join(' ')
-                            .toLowerCase()
-                            .includes(keyword),
-                        );
-                      }}
-                      renderInput={(params) => (
-                        <TextField
-                          {...params}
-                          fullWidth
-                          label="Dịch vụ *"
-                          disabled={Boolean(selectedQuotation)}
-                          placeholder="Tìm theo mã hoặc tên dịch vụ"
-                          error={Boolean(errors.serviceId)}
-                          helperText={errors.serviceId?.message}
-                        />
-                      )}
-                    />
-                  );
-                }}
-              />
+          <FormSection title="Trạng thái & phụ trách">
+            <div
+              className={`rounded-lg border px-3 py-2.5 text-sm ${
+                revenueGroup.group === '2.1'
+                  ? 'border-sky-200 bg-sky-50 text-sky-800'
+                  : 'border-amber-200 bg-amber-50 text-amber-800'
+              }`}
+            >
+              <span className="font-semibold">Nhóm dữ liệu: </span>
+              <strong>{revenueGroup.title}</strong>
             </div>
-
-            <TextField
-              fullWidth
-              label="Link plan"
-              placeholder="https://docs.google.com/..."
-              {...register('planLink')}
-            />
-
-            <TextField
-              fullWidth
-              label="Nhóm Zalo"
-              placeholder="Tên nhóm hoặc link nhóm"
-              {...register('zaloGroup')}
-            />
-
-            <div className="grid gap-4 md:grid-cols-2">
-              <Controller
-                name="startDate"
-                control={control}
-                render={({ field }) => (
-                  <ProjectDatePicker
-                    label="Ngày bắt đầu"
-                    value={field.value}
-                    onChange={field.onChange}
-                  />
-                )}
-              />
-              <Controller
-                name="endDate"
-                control={control}
-                render={({ field }) => (
-                  <ProjectDatePicker
-                    label="Ngày kết thúc"
-                    value={field.value}
-                    onChange={field.onChange}
-                  />
-                )}
-              />
-            </div>
-
-            <TextField
-              fullWidth
-              multiline
-              minRows={3}
-              label="Ghi chú"
-              placeholder="Thông tin triển khai, lưu ý chăm sóc, tình trạng hiện tại..."
-              {...register('note')}
-            />
-          </FormSection>
-
-        </div>
-
-        <div className="xl:col-span-4">
-          <FormSection
-            title="Trạng thái & phụ trách"
-          >
             <Controller
               name="statusOptionId"
               control={control}
               render={({ field }) => (
-                <TextField fullWidth select label="Trạng thái" {...field}>
+                <FormSelectField label="Trạng thái" {...field}>
                   <MenuItem value="">Chưa chọn</MenuItem>
                   {statuses.map((status) => (
                     <MenuItem key={status.id} value={String(status.id)}>
                       {status.label}
                     </MenuItem>
                   ))}
-                </TextField>
+                </FormSelectField>
               )}
             />
 
@@ -458,14 +467,14 @@ export function ProjectForm({
               name="managerUserId"
               control={control}
               render={({ field }) => (
-                <TextField fullWidth select label="Người quản lý" {...field}>
+                <FormSelectField label="Người quản lý" {...field}>
                   <MenuItem value="">Chưa chọn</MenuItem>
                   {users.map((user) => (
                     <MenuItem key={user.id} value={String(user.id)}>
                       {userLabel(user)}
                     </MenuItem>
                   ))}
-                </TextField>
+                </FormSelectField>
               )}
             />
 
@@ -473,38 +482,26 @@ export function ProjectForm({
               name="salesUserId"
               control={control}
               render={({ field }) => (
-                <TextField fullWidth select label="Sales phụ trách" {...field}>
+                <FormSelectField label="Sales phụ trách" {...field}>
                   <MenuItem value="">Chưa chọn</MenuItem>
                   {users.map((user) => (
                     <MenuItem key={user.id} value={String(user.id)}>
                       {userLabel(user)}
                     </MenuItem>
                   ))}
-                </TextField>
+                </FormSelectField>
               )}
             />
-
           </FormSection>
         </div>
       </div>
 
-      <div className="sticky bottom-0 z-10 flex justify-end gap-3 border-t border-slate-200 bg-white/90 px-1 py-4 backdrop-blur">
-        <Link
-          href="/projects"
-          className="inline-flex h-10 items-center justify-center rounded-lg border border-slate-200 px-4 text-sm font-bold text-slate-700 transition hover:bg-slate-50"
-        >
-          Hủy
-        </Link>
-        <Button
-          type="submit"
-          variant="contained"
-          disabled={isSubmitting}
-          startIcon={<SaveRoundedIcon />}
-          className="!bg-slate-900 hover:!bg-slate-800"
-        >
-          {isSubmitting ? 'Đang lưu...' : mode === 'create' ? 'Tạo dự án' : 'Lưu thay đổi'}
-        </Button>
-      </div>
+      <FormActionBar
+        cancelHref={cancelHref}
+        submitLabel={mode === 'create' ? 'Tạo dự án' : 'Lưu thay đổi'}
+        isSubmitting={isSubmitting}
+        submitIcon={<SaveRoundedIcon />}
+      />
     </form>
   );
 }

@@ -12,6 +12,7 @@
     --popover-foreground: 222.2 84% 4.9%;
     --primary: 160 100% 33%;
     --primary-foreground: 210 40% 98%;
+    --brand-blue: 206 90% 37%;
     --secondary: 142.1 76.2% 36.3%;
     --secondary-foreground: 0 0% 100%;
     --muted: 210 40% 96.1%;
@@ -35,6 +36,7 @@
     --popover-foreground: 210 40% 96%;
     --muted: 217 33% 17%;
     --muted-foreground: 215 20% 65%;
+    --brand-blue: 206 90% 50%;
     --accent: 217 33% 17%;
     --accent-foreground: 210 40% 96%;
     --border: 217 33% 20%;
@@ -53,6 +55,25 @@
 }
 
 @layer components {
+  .brand-blue-action {
+    background-color: hsl(var(--brand-blue)) !important;
+    color: #fff !important;
+  }
+
+  .brand-blue-action:hover {
+    background-color: #075b99 !important;
+  }
+
+  .brand-blue-text {
+    color: hsl(var(--brand-blue)) !important;
+  }
+
+  .brand-blue-marker {
+    border-color: hsl(var(--brand-blue)) !important;
+    background-color: hsl(var(--brand-blue)) !important;
+    color: #fff !important;
+  }
+
   .dark .bg-white,
   .dark .bg-slate-50,
   .dark .bg-slate-50\/60 {

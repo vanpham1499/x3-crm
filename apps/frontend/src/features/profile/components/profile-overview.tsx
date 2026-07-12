@@ -9,9 +9,15 @@ import WorkTwoToneIcon from '@mui/icons-material/WorkTwoTone';
 import { Avatar } from '@mui/material';
 import { useQuery } from '@tanstack/react-query';
 import profileCover from '@assets/images/background-3-blur.webp';
+import { PageHeader } from '@/components/shell/page-header';
 import { getMediaPreviewUrl } from '@/lib/media-url';
 import { formatDate } from '@/lib/utils';
-import { getUserRoleClass, getUserRoleLabel, getUserStatusClass, getUserStatusLabel } from '@/lib/user-utils';
+import {
+  getUserRoleClass,
+  getUserRoleLabel,
+  getUserStatusClass,
+  getUserStatusLabel,
+} from '@/lib/user-utils';
 import { api } from '@/services/api/client';
 import { useAuthStore } from '@/stores/auth-store';
 import type { User } from '@/types/user';
@@ -84,18 +90,18 @@ function PlaceholderPanel({ title }: { title: string }) {
 }
 
 export function ProfileOverview() {
-  const { user: cachedUser, token, setAuth } = useAuthStore();
+  const { user: cachedUser, status, setAuth } = useAuthStore();
   const [activeTab, setActiveTab] = useState<ProfileTab>('profile');
 
   const { data: profileUser = cachedUser, isFetching } = useQuery({
     queryKey: ['auth', 'profile'],
-    enabled: Boolean(token),
+    enabled: status === 'authenticated',
     queryFn: async () => {
       const response = await api.get<AuthProfileResponse>('/auth/me');
       const nextUser = normalizeProfile(response.data);
 
-      if (nextUser && token) {
-        setAuth(nextUser, token);
+      if (nextUser) {
+        setAuth(nextUser);
       }
 
       return nextUser;
@@ -115,7 +121,9 @@ export function ProfileOverview() {
       {
         label: 'Vai trò',
         value: (
-          <span className={`inline-flex rounded-md px-2 py-1 text-xs font-bold ${getUserRoleClass(profileUser?.role || '')}`}>
+          <span
+            className={`inline-flex rounded-md px-2 py-1 text-xs font-bold ${getUserRoleClass(profileUser?.role || '')}`}
+          >
             {roleLabel}
           </span>
         ),
@@ -123,7 +131,9 @@ export function ProfileOverview() {
       {
         label: 'Trạng thái',
         value: profileUser ? (
-          <span className={`inline-flex rounded-md px-2 py-1 text-xs font-bold ${getUserStatusClass(profileUser)}`}>
+          <span
+            className={`inline-flex rounded-md px-2 py-1 text-xs font-bold ${getUserStatusClass(profileUser)}`}
+          >
             {getUserStatusLabel(profileUser)}
           </span>
         ) : (
@@ -144,19 +154,17 @@ export function ProfileOverview() {
 
   return (
     <div className="min-h-[calc(100vh-72px)] bg-slate-50/60 p-6">
-      <div className="mx-auto w-full max-w-7xl space-y-6">
-        <div>
-          <h1 className="text-2xl font-bold text-slate-950">Hồ sơ cá nhân</h1>
-          <div className="mt-2 flex items-center gap-2 text-sm text-slate-500">
-            <span>Dashboard</span>
-            <span className="h-1 w-1 rounded-full bg-slate-300" />
-            <span>Tài khoản</span>
-            <span className="h-1 w-1 rounded-full bg-slate-300" />
-            <span className="text-slate-950">Hồ sơ</span>
-          </div>
-        </div>
+      <div className="mx-auto w-full max-w-7xl">
+        <PageHeader
+          title="Hồ sơ cá nhân"
+          breadcrumbs={[
+            { label: 'Dashboard', href: '/dashboard' },
+            { label: 'Tài khoản' },
+            { label: 'Hồ sơ' },
+          ]}
+        />
 
-        <section className="overflow-hidden rounded-2xl border border-slate-200 bg-white shadow-sm">
+        <section className="mb-6 overflow-hidden rounded-2xl border border-slate-200 bg-white shadow-sm">
           <div
             className="relative min-h-[240px] bg-cover bg-center"
             style={{
@@ -172,7 +180,7 @@ export function ProfileOverview() {
                 {getInitial(profileUser)}
               </Avatar>
               <div className="pb-2 text-white">
-                <h1 className="text-2xl font-bold">{displayName}</h1>
+                <h2 className="text-2xl font-bold">{displayName}</h2>
                 <p className="mt-1 text-sm font-semibold text-white/75">{roleLabel}</p>
               </div>
             </div>

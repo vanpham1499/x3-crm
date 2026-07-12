@@ -1,27 +1,28 @@
 'use client';
 
 import { useState } from 'react';
+import type { MouseEvent } from 'react';
 import Link from 'next/link';
 import AddRoundedIcon from '@mui/icons-material/AddRounded';
 import DeleteOutlineRoundedIcon from '@mui/icons-material/DeleteOutlineRounded';
 import EditOutlinedIcon from '@mui/icons-material/EditOutlined';
+import MoreVertRoundedIcon from '@mui/icons-material/MoreVertRounded';
 import SwapHorizRoundedIcon from '@mui/icons-material/SwapHorizRounded';
-import {
-  Button,
-  Dialog,
-  DialogActions,
-  DialogContent,
-  DialogTitle,
-  IconButton,
-  MenuItem,
-  TextField,
-} from '@mui/material';
+import { IconButton, Menu, MenuItem } from '@mui/material';
 import { useMutation, useQueryClient } from '@tanstack/react-query';
 import { Controller, useForm } from 'react-hook-form';
+import { DialogActionButton } from '@/components/actions/dialog-action-button';
+import { TabActionButton } from '@/components/actions/tab-action-button';
+import { AppFormDialog } from '@/components/dialog/app-form-dialog';
 import { ConfirmDialog } from '@/components/feedback/confirm-dialog';
 import { useAppNotification } from '@/components/feedback/notification-provider';
+import { compactFormFieldClassName } from '@/components/form/form-field-styles';
+import { FormInputField } from '@/components/form/form-input-field';
+import { FormSelectField } from '@/components/form/form-select-field';
 import { MoneyInput } from '@/components/form/money-input';
+import { AppDataTable } from '@/components/table/app-data-table';
 import { getApiErrorMessage } from '@/lib/api-error';
+import { getOptionColor } from '@/lib/option-utils';
 import { formatCurrency } from '@/lib/utils';
 import api from '@/services/api/client';
 import type { Contract, ContractFormValues, InvoiceRecipientType } from '@/types/contract';
@@ -57,7 +58,7 @@ function getContractDefaults({
   quotations: Quotation[];
 }): ContractFormValues {
   const customerSnapshot = customerInvoiceSnapshot(customer);
-  const recipientType: InvoiceRecipientType = contract?.invoiceRecipientType || 'customer';
+  const recipientType: InvoiceRecipientType = 'customer';
   const defaultQuotationId =
     contract?.quotationId ||
     (project.quotationId && quotations.some((item) => item.id === project.quotationId)
@@ -77,14 +78,12 @@ function getContractDefaults({
     fileUrl: contract?.fileUrl || '',
     note: contract?.note || '',
     invoiceRecipientType: recipientType,
-    invoiceRecipientName:
-      contract?.invoiceRecipientName || customerSnapshot.invoiceRecipientName,
-    invoiceRepresentativeName:
-      contract?.invoiceRepresentativeName || customerSnapshot.invoiceRepresentativeName,
-    invoiceTaxCode: contract?.invoiceTaxCode || customerSnapshot.invoiceTaxCode,
-    invoiceAddress: contract?.invoiceAddress || customerSnapshot.invoiceAddress,
-    invoiceEmail: contract?.invoiceEmail || customerSnapshot.invoiceEmail,
-    invoicePhone: contract?.invoicePhone || customerSnapshot.invoicePhone,
+    invoiceRecipientName: customerSnapshot.invoiceRecipientName,
+    invoiceRepresentativeName: customerSnapshot.invoiceRepresentativeName,
+    invoiceTaxCode: customerSnapshot.invoiceTaxCode,
+    invoiceAddress: customerSnapshot.invoiceAddress,
+    invoiceEmail: customerSnapshot.invoiceEmail,
+    invoicePhone: customerSnapshot.invoicePhone,
   };
 }
 
@@ -167,188 +166,160 @@ function ContractDialog({
   };
 
   return (
-    <Dialog open={open} onClose={isSubmitting ? undefined : closeDialog} maxWidth="lg" fullWidth>
-      <DialogTitle className="border-b border-slate-100 px-5 py-4">
-        <p className="text-base font-bold text-slate-950">
-          {contract ? 'Sửa hợp đồng' : 'Thêm hợp đồng'}
-        </p>
-      </DialogTitle>
-
-      <form
-        onSubmit={handleSubmit(async (values) => {
-          await onSubmit(values, contract);
-          closeDialog();
-        })}
-      >
-        <DialogContent className="space-y-5 px-5 py-4">
-          <section>
-            <h3 className="mb-3 text-sm font-bold text-slate-950">Thông tin hợp đồng</h3>
-            <div className="grid gap-3 md:grid-cols-2 lg:grid-cols-3">
-              <TextField
-                fullWidth
-                label="Số hợp đồng *"
-                error={Boolean(errors.contractNo)}
-                helperText={errors.contractNo?.message}
-                {...register('contractNo', { required: 'Bắt buộc' })}
-              />
-              <Controller
-                name="contractStatusOptionId"
-                control={control}
-                render={({ field }) => (
-                  <TextField select fullWidth label="Tình trạng hợp đồng" {...field}>
-                    <MenuItem value="">Chưa chọn</MenuItem>
-                    {statuses.map((status) => (
-                      <MenuItem key={status.id} value={String(status.id)}>
-                        {status.label}
-                      </MenuItem>
-                    ))}
-                  </TextField>
-                )}
-              />
-              <Controller
-                name="quotationId"
-                control={control}
-                render={({ field }) => (
-                  <TextField select fullWidth label="Báo phí liên quan" {...field}>
-                    <MenuItem value="">Không gắn báo phí</MenuItem>
-                    {quotations.map((quotation) => (
-                      <MenuItem key={quotation.id} value={String(quotation.id)}>
-                        {quotation.quotationCode || `Báo phí #${quotation.id}`}
-                      </MenuItem>
-                    ))}
-                  </TextField>
-                )}
-              />
-              <Controller
-                name="depositAmount"
-                control={control}
-                render={({ field }) => (
-                  <MoneyInput
-                    fullWidth
-                    label="Tiền đặt cọc"
-                    value={field.value}
-                    onValueChange={field.onChange}
-                  />
-                )}
-              />
-              <TextField
-                fullWidth
-                type="date"
-                label="Ngày ký"
-                slotProps={{ inputLabel: { shrink: true } }}
-                {...register('signedDate')}
-              />
-              <TextField
-                fullWidth
-                type="date"
-                label="Ngày hết hạn"
-                slotProps={{ inputLabel: { shrink: true } }}
-                {...register('expiredDate')}
-              />
-              <TextField fullWidth label="Thời hạn hợp đồng" {...register('contractMonth')} />
-              <TextField fullWidth label="File hợp đồng" {...register('fileUrl')} />
-              <TextField
-                fullWidth
-                multiline
-                minRows={2}
-                label="Ghi chú"
-                className="md:col-span-2 lg:col-span-3"
-                {...register('note')}
-              />
-            </div>
-          </section>
-
-          <section className="border-t border-slate-200 pt-5">
-            <div className="mb-3 flex flex-wrap items-center justify-between gap-3">
-              <div className="flex items-center gap-2">
-                <h3 className="text-sm font-bold text-slate-950">Chủ thể nhận hóa đơn</h3>
-                <span
-                  className={`rounded-full px-2 py-1 text-xs font-bold ${
-                    recipientType === 'customer'
-                      ? 'bg-emerald-50 text-emerald-700'
-                      : 'bg-amber-50 text-amber-700'
-                  }`}
-                >
-                  {recipientType === 'customer' ? 'Theo khách hàng' : 'Chủ thể khác'}
-                </span>
-              </div>
-              {recipientType === 'customer' ? (
-                <Button
-                  type="button"
-                  size="small"
-                  variant="outlined"
-                  startIcon={<SwapHorizRoundedIcon />}
-                  onClick={selectOtherRecipient}
-                >
-                  Xuất cho chủ thể khác
-                </Button>
-              ) : (
-                <Button
-                  type="button"
-                  size="small"
-                  variant="outlined"
-                  onClick={selectCustomerRecipient}
-                >
-                  Lấy theo khách hàng
-                </Button>
-              )}
-            </div>
-
-            <input type="hidden" {...register('invoiceRecipientType')} />
-
-            {recipientType === 'customer' ? (
-              <div className="grid overflow-hidden rounded-lg border border-slate-200 bg-slate-50 sm:grid-cols-2 lg:grid-cols-3">
-                <InfoCell label="Tên chủ thể" value={watch('invoiceRecipientName')} />
-                <InfoCell label="Người đại diện" value={watch('invoiceRepresentativeName')} />
-                <InfoCell label="Mã số thuế" value={watch('invoiceTaxCode')} />
-                <InfoCell label="Địa chỉ" value={watch('invoiceAddress')} />
-                <InfoCell label="Email nhận HĐ" value={watch('invoiceEmail')} />
-                <InfoCell label="Số điện thoại" value={watch('invoicePhone')} />
-              </div>
-            ) : (
-              <div className="grid gap-3 md:grid-cols-2 lg:grid-cols-3">
-                <TextField
-                  fullWidth
-                  label="Tên chủ thể *"
-                  error={Boolean(errors.invoiceRecipientName)}
-                  helperText={errors.invoiceRecipientName?.message}
-                  {...register('invoiceRecipientName', { required: 'Bắt buộc' })}
-                />
-                <TextField
-                  fullWidth
-                  label="Người đại diện"
-                  {...register('invoiceRepresentativeName')}
-                />
-                <TextField fullWidth label="Mã số thuế" {...register('invoiceTaxCode')} />
-                <TextField fullWidth label="Email nhận hóa đơn" {...register('invoiceEmail')} />
-                <TextField fullWidth label="Số điện thoại" {...register('invoicePhone')} />
-                <TextField
-                  fullWidth
-                  label="Địa chỉ xuất hóa đơn"
-                  className="md:col-span-2 lg:col-span-2"
-                  {...register('invoiceAddress')}
-                />
-              </div>
-            )}
-          </section>
-        </DialogContent>
-
-        <DialogActions className="border-t border-slate-100 px-5 py-3">
-          <Button size="small" variant="outlined" onClick={closeDialog} disabled={isSubmitting}>
+    <AppFormDialog
+      open={open}
+      title={contract ? 'Sửa hợp đồng' : 'Thêm hợp đồng'}
+      maxWidth="lg"
+      submitting={isSubmitting}
+      onClose={closeDialog}
+      onSubmit={handleSubmit(async (values) => {
+        await onSubmit(values, contract);
+        closeDialog();
+      })}
+      contentClassName="space-y-5"
+      actions={
+        <>
+          <DialogActionButton onClick={closeDialog} disabled={isSubmitting}>
             Hủy
-          </Button>
-          <Button
-            type="submit"
-            size="small"
-            variant="contained"
-            disabled={isSubmitting}
-            className="!bg-slate-900 hover:!bg-slate-800"
-          >
+          </DialogActionButton>
+          <DialogActionButton type="submit" tone="primary" disabled={isSubmitting}>
             {isSubmitting ? 'Đang lưu...' : 'Lưu hợp đồng'}
-          </Button>
-        </DialogActions>
-      </form>
-    </Dialog>
+          </DialogActionButton>
+        </>
+      }
+    >
+      <section>
+        <h3 className="mb-3 text-sm font-bold text-slate-950">Thông tin hợp đồng</h3>
+        <div className="grid gap-3 md:grid-cols-2 lg:grid-cols-3">
+          <FormInputField
+            label="Số hợp đồng *"
+            error={Boolean(errors.contractNo)}
+            helperText={errors.contractNo?.message}
+            {...register('contractNo', { required: 'Bắt buộc' })}
+          />
+          <Controller
+            name="contractStatusOptionId"
+            control={control}
+            render={({ field }) => (
+              <FormSelectField label="Tình trạng hợp đồng" {...field}>
+                <MenuItem value="">Chưa chọn</MenuItem>
+                {statuses.map((status) => (
+                  <MenuItem key={status.id} value={String(status.id)}>
+                    {status.label}
+                  </MenuItem>
+                ))}
+              </FormSelectField>
+            )}
+          />
+          <Controller
+            name="quotationId"
+            control={control}
+            render={({ field }) => (
+              <FormSelectField label="Báo phí liên quan" {...field}>
+                <MenuItem value="">Không gắn báo phí</MenuItem>
+                {quotations.map((quotation) => (
+                  <MenuItem key={quotation.id} value={String(quotation.id)}>
+                    {quotation.quotationCode || `Báo phí #${quotation.id}`}
+                  </MenuItem>
+                ))}
+              </FormSelectField>
+            )}
+          />
+          <Controller
+            name="depositAmount"
+            control={control}
+            render={({ field }) => (
+              <MoneyInput
+                fullWidth
+                size="small"
+                label="Tiền đặt cọc"
+                value={field.value}
+                onValueChange={field.onChange}
+                className={compactFormFieldClassName}
+              />
+            )}
+          />
+          <FormInputField
+            type="date"
+            label="Ngày ký"
+            slotProps={{ inputLabel: { shrink: true } }}
+            {...register('signedDate')}
+          />
+          <FormInputField
+            type="date"
+            label="Ngày hết hạn"
+            slotProps={{ inputLabel: { shrink: true } }}
+            {...register('expiredDate')}
+          />
+          <FormInputField label="Thời hạn hợp đồng" {...register('contractMonth')} />
+          <FormInputField label="File hợp đồng" {...register('fileUrl')} />
+          <FormInputField
+            multiline
+            minRows={2}
+            label="Ghi chú"
+            className="md:col-span-2 lg:col-span-3"
+            {...register('note')}
+          />
+        </div>
+      </section>
+
+      <section className="border-t border-slate-200 pt-5">
+        <div className="mb-3 flex flex-wrap items-center justify-between gap-3">
+          <div className="flex items-center gap-2">
+            <h3 className="text-sm font-bold text-slate-950">Chủ thể nhận hóa đơn</h3>
+            <span
+              className={`rounded-full px-2 py-1 text-xs font-bold ${
+                recipientType === 'customer'
+                  ? 'bg-emerald-50 text-emerald-700'
+                  : 'bg-amber-50 text-amber-700'
+              }`}
+            >
+              {recipientType === 'customer' ? 'Theo khách hàng' : 'Chủ thể khác'}
+            </span>
+          </div>
+          {recipientType === 'customer' ? (
+            <DialogActionButton startIcon={<SwapHorizRoundedIcon />} onClick={selectOtherRecipient}>
+              Xuất cho chủ thể khác
+            </DialogActionButton>
+          ) : (
+            <DialogActionButton onClick={selectCustomerRecipient}>
+              Lấy theo khách hàng
+            </DialogActionButton>
+          )}
+        </div>
+
+        <input type="hidden" {...register('invoiceRecipientType')} />
+
+        {recipientType === 'customer' ? (
+          <div className="grid overflow-hidden rounded-lg border border-slate-200 bg-slate-50 sm:grid-cols-2 lg:grid-cols-3">
+            <InfoCell label="Tên chủ thể" value={watch('invoiceRecipientName')} />
+            <InfoCell label="Người đại diện" value={watch('invoiceRepresentativeName')} />
+            <InfoCell label="Mã số thuế" value={watch('invoiceTaxCode')} />
+            <InfoCell label="Địa chỉ" value={watch('invoiceAddress')} />
+            <InfoCell label="Email nhận HĐ" value={watch('invoiceEmail')} />
+            <InfoCell label="Số điện thoại" value={watch('invoicePhone')} />
+          </div>
+        ) : (
+          <div className="grid gap-3 md:grid-cols-2 lg:grid-cols-3">
+            <FormInputField
+              label="Tên chủ thể *"
+              error={Boolean(errors.invoiceRecipientName)}
+              helperText={errors.invoiceRecipientName?.message}
+              {...register('invoiceRecipientName', { required: 'Bắt buộc' })}
+            />
+            <FormInputField label="Người đại diện" {...register('invoiceRepresentativeName')} />
+            <FormInputField label="Mã số thuế" {...register('invoiceTaxCode')} />
+            <FormInputField label="Email nhận hóa đơn" {...register('invoiceEmail')} />
+            <FormInputField label="Số điện thoại" {...register('invoicePhone')} />
+            <FormInputField
+              label="Địa chỉ xuất hóa đơn"
+              className="md:col-span-2 lg:col-span-2"
+              {...register('invoiceAddress')}
+            />
+          </div>
+        )}
+      </section>
+    </AppFormDialog>
   );
 }
 
@@ -370,10 +341,18 @@ export function ProjectContractPanel({
   const [dialogOpen, setDialogOpen] = useState(false);
   const [editingContract, setEditingContract] = useState<Contract | null>(null);
   const [deleteTarget, setDeleteTarget] = useState<Contract | null>(null);
+  const [menuAnchorEl, setMenuAnchorEl] = useState<HTMLElement | null>(null);
+  const [activeContract, setActiveContract] = useState<Contract | null>(null);
   const queryKey = ['contracts', 'by-project', String(project.id)];
 
   const saveMutation = useMutation({
-    mutationFn: ({ values, contract }: { values: ContractFormValues; contract?: Contract | null }) => {
+    mutationFn: ({
+      values,
+      contract,
+    }: {
+      values: ContractFormValues;
+      contract?: Contract | null;
+    }) => {
       const snapshot =
         values.invoiceRecipientType === 'customer'
           ? customerInvoiceSnapshot(customer)
@@ -439,116 +418,192 @@ export function ProjectContractPanel({
     setDialogOpen(true);
   };
 
+  const openActionMenu = (event: MouseEvent<HTMLButtonElement>, contract: Contract) => {
+    setMenuAnchorEl(event.currentTarget);
+    setActiveContract(contract);
+  };
+
+  const closeActionMenu = () => {
+    setMenuAnchorEl(null);
+    setActiveContract(null);
+  };
+
+  const editActiveContract = () => {
+    if (activeContract) openEdit(activeContract);
+    closeActionMenu();
+  };
+
+  const deleteActiveContract = () => {
+    if (activeContract) setDeleteTarget(activeContract);
+    closeActionMenu();
+  };
+
   return (
-    <section className="overflow-hidden rounded-xl border border-slate-200 bg-white">
+    <section className="overflow-hidden rounded-2xl border border-slate-200 bg-white shadow-sm">
       <div className="flex flex-wrap items-center justify-between gap-3 border-b border-slate-200 px-4 py-3">
         <div className="flex items-center gap-2">
-          <h2 className="font-bold text-slate-950">Hợp đồng</h2>
+          <h2 className="text-sm font-bold text-slate-950">Hợp đồng</h2>
           <span className="rounded-full bg-slate-100 px-2 py-1 text-xs font-bold text-slate-600">
             {contracts.length}
           </span>
         </div>
-        <Button
-          size="small"
-          variant="contained"
-          startIcon={<AddRoundedIcon />}
-          onClick={openCreate}
-          className="!bg-slate-900 hover:!bg-slate-800"
-        >
+        <TabActionButton startIcon={<AddRoundedIcon />} onClick={openCreate}>
           Thêm hợp đồng
-        </Button>
+        </TabActionButton>
       </div>
 
-      {contracts.length === 0 ? (
-        <div className="px-4 py-12 text-center">
-          <p className="text-sm font-semibold text-slate-500">Dự án chưa có hợp đồng</p>
-          <Button size="small" onClick={openCreate} className="!mt-2">
-            Tạo hợp đồng đầu tiên
-          </Button>
-        </div>
-      ) : (
-        <div className="overflow-x-auto">
-          <table className="w-full min-w-[900px] text-left text-sm">
-            <thead className="bg-slate-50 text-[11px] font-bold uppercase text-slate-500">
-              <tr>
-                <th className="px-4 py-3">Số hợp đồng</th>
-                <th className="px-3 py-3">Báo phí</th>
-                <th className="px-3 py-3">Tình trạng</th>
-                <th className="px-3 py-3">Ngày ký / hết hạn</th>
-                <th className="px-3 py-3">Chủ thể nhận hóa đơn</th>
-                <th className="px-3 py-3 text-right">Tiền đặt cọc</th>
-                <th className="px-3 py-3">File</th>
-                <th className="w-20 px-4 py-3" />
-              </tr>
-            </thead>
-            <tbody className="divide-y divide-slate-100">
-              {contracts.map((contract) => (
-                <tr key={contract.id} className="hover:bg-slate-50/70">
-                  <td className="px-4 py-3 font-bold text-slate-950">
-                    {contract.contractNo || `#${contract.id}`}
-                  </td>
-                  <td className="px-3 py-3 font-semibold text-blue-700">
-                    {contract.quotation?.quotationCode || '-'}
-                  </td>
-                  <td className="px-3 py-3">
-                    <span className="rounded-md bg-slate-100 px-2 py-1 text-xs font-bold text-slate-700">
-                      {contract.contractStatusOption?.label || 'Chưa chọn'}
-                    </span>
-                  </td>
-                  <td className="px-3 py-3 font-semibold text-slate-700">
-                    {formatDate(contract.signedDate)} → {formatDate(contract.expiredDate)}
-                  </td>
-                  <td className="px-3 py-3">
-                    <p className="font-bold text-slate-800">
-                      {contract.invoiceRecipientName || customer?.companyName || customer?.customerName || '-'}
-                    </p>
-                    <span
-                      className={`mt-1 inline-flex rounded-full px-2 py-0.5 text-[11px] font-bold ${
-                        contract.invoiceRecipientType === 'other'
-                          ? 'bg-amber-50 text-amber-700'
-                          : 'bg-emerald-50 text-emerald-700'
-                      }`}
-                    >
-                      {contract.invoiceRecipientType === 'other' ? 'Chủ thể khác' : 'Theo khách hàng'}
-                    </span>
-                  </td>
-                  <td className="px-3 py-3 text-right font-extrabold tabular-nums text-slate-950">
-                    {formatCurrency(Number(contract.depositAmount) || 0)}
-                  </td>
-                  <td className="px-3 py-3">
-                    {contract.fileUrl ? (
-                      <Link
-                        href={contract.fileUrl}
-                        target="_blank"
-                        rel="noreferrer"
-                        className="text-xs font-bold text-blue-700 hover:underline"
-                      >
-                        Mở file
-                      </Link>
-                    ) : (
-                      '-'
-                    )}
-                  </td>
-                  <td className="px-4 py-3">
-                    <div className="flex justify-end">
-                      <IconButton size="small" title="Sửa" onClick={() => openEdit(contract)}>
-                        <EditOutlinedIcon fontSize="small" />
-                      </IconButton>
-                      <IconButton
-                        size="small"
-                        title="Xóa"
-                        onClick={() => setDeleteTarget(contract)}
-                      >
-                        <DeleteOutlineRoundedIcon fontSize="small" />
-                      </IconButton>
-                    </div>
-                  </td>
-                </tr>
-              ))}
-            </tbody>
-          </table>
-        </div>
-      )}
+      <AppDataTable
+        columns={[
+          {
+            key: 'contract',
+            label: 'Hợp đồng',
+            className: 'sticky left-0 z-20 w-[220px] bg-slate-100',
+          },
+          { key: 'quotation', label: 'Báo phí', className: 'w-[150px]' },
+          { key: 'status', label: 'Tình trạng', className: 'w-[150px]' },
+          { key: 'signedDate', label: 'Ngày ký', className: 'w-[120px]' },
+          { key: 'expiredDate', label: 'Ngày hết hạn', className: 'w-[140px]' },
+          { key: 'recipient', label: 'Chủ thể nhận hóa đơn', className: 'w-[280px]' },
+          { key: 'deposit', label: 'Tiền đặt cọc', className: 'w-[160px] text-right' },
+          { key: 'file', label: 'File', className: 'w-[100px]' },
+          { key: 'actions', className: 'w-24' },
+        ]}
+        isEmpty={contracts.length === 0}
+        emptyText="Dự án chưa có hợp đồng"
+        minWidthClassName="min-w-[1320px]"
+      >
+        {contracts.map((contract) => (
+          <tr key={contract.id} className="group hover:bg-slate-50/80">
+            <td className="sticky left-0 z-10 bg-white px-3 py-4 group-hover:bg-slate-50">
+              <p className="truncate font-bold text-slate-950" title={contract.contractNo || ''}>
+                {contract.contractNo || `#${contract.id}`}
+              </p>
+              {contract.contractMonth ? (
+                <p className="mt-1 truncate text-xs font-semibold text-slate-500">
+                  Thời hạn: {contract.contractMonth}
+                </p>
+              ) : null}
+            </td>
+            <td className="px-3 py-4">
+              {contract.quotation ? (
+                <Link
+                  href={`/quotations/${contract.quotation.id}`}
+                  className="font-bold text-blue-700 hover:underline"
+                >
+                  {contract.quotation.quotationCode || `#${contract.quotation.id}`}
+                </Link>
+              ) : (
+                <span className="text-slate-500">-</span>
+              )}
+            </td>
+            <td className="px-3 py-4">
+              <span
+                className={`rounded-md border px-2 py-1 text-xs font-bold ${
+                  contract.contractStatusOption
+                    ? ''
+                    : 'border-slate-200 bg-slate-100 text-slate-700'
+                }`}
+                style={
+                  contract.contractStatusOption
+                    ? {
+                        color: getOptionColor(contract.contractStatusOption),
+                        borderColor: `${getOptionColor(contract.contractStatusOption)}40`,
+                        backgroundColor: `${getOptionColor(contract.contractStatusOption)}14`,
+                      }
+                    : undefined
+                }
+              >
+                {contract.contractStatusOption?.label || 'Chưa chọn'}
+              </span>
+            </td>
+            <td className="px-3 py-4 font-semibold text-slate-700">
+              {formatDate(contract.signedDate)}
+            </td>
+            <td className="px-3 py-4 font-semibold text-slate-700">
+              {formatDate(contract.expiredDate)}
+            </td>
+            <td className="px-3 py-4">
+              <p
+                className="truncate font-bold text-slate-800"
+                title={contract.invoiceRecipientName || ''}
+              >
+                {contract.invoiceRecipientName ||
+                  customer?.companyName ||
+                  customer?.customerName ||
+                  '-'}
+              </p>
+              <div className="mt-1 flex min-w-0 items-center gap-2">
+                <span
+                  className={`shrink-0 rounded-full px-2 py-0.5 text-[11px] font-bold ${
+                    contract.invoiceRecipientType === 'other'
+                      ? 'bg-amber-50 text-amber-700'
+                      : 'bg-emerald-50 text-emerald-700'
+                  }`}
+                >
+                  {contract.invoiceRecipientType === 'other' ? 'Chủ thể khác' : 'Theo khách hàng'}
+                </span>
+                {contract.invoiceTaxCode ? (
+                  <span className="truncate text-xs text-slate-500">
+                    MST: {contract.invoiceTaxCode}
+                  </span>
+                ) : null}
+              </div>
+            </td>
+            <td className="px-3 py-4 text-right font-extrabold tabular-nums text-slate-950">
+              {formatCurrency(Number(contract.depositAmount) || 0)}
+            </td>
+            <td className="px-3 py-4">
+              {contract.fileUrl ? (
+                <Link
+                  href={contract.fileUrl}
+                  target="_blank"
+                  rel="noreferrer"
+                  className="text-xs font-bold text-blue-700 hover:underline"
+                >
+                  Mở file
+                </Link>
+              ) : (
+                <span className="text-slate-500">-</span>
+              )}
+            </td>
+            <td className="py-4">
+              <div className="flex items-center justify-end gap-1 pr-3">
+                <IconButton
+                  size="small"
+                  title="Sửa hợp đồng"
+                  aria-label={`Sửa hợp đồng ${contract.contractNo || contract.id}`}
+                  onClick={() => openEdit(contract)}
+                >
+                  <EditOutlinedIcon fontSize="small" />
+                </IconButton>
+                <IconButton
+                  size="small"
+                  title="Tác vụ"
+                  aria-label={`Tác vụ hợp đồng ${contract.contractNo || contract.id}`}
+                  onClick={(event) => openActionMenu(event, contract)}
+                >
+                  <MoreVertRoundedIcon fontSize="small" />
+                </IconButton>
+              </div>
+            </td>
+          </tr>
+        ))}
+      </AppDataTable>
+
+      <Menu anchorEl={menuAnchorEl} open={Boolean(menuAnchorEl)} onClose={closeActionMenu}>
+        <MenuItem onClick={editActiveContract}>
+          <EditOutlinedIcon fontSize="small" className="mr-2 text-slate-500" />
+          Chỉnh sửa
+        </MenuItem>
+        <MenuItem
+          onClick={deleteActiveContract}
+          className="text-rose-600"
+          disabled={deleteMutation.isPending}
+        >
+          <DeleteOutlineRoundedIcon fontSize="small" className="mr-2" />
+          Xóa
+        </MenuItem>
+      </Menu>
 
       <ContractDialog
         open={dialogOpen}

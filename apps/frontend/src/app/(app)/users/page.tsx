@@ -22,7 +22,6 @@ export default function UsersPage() {
   const queryClient = useQueryClient();
   const notify = useAppNotification();
   const [deleteTarget, setDeleteTarget] = useState<User | null>(null);
-  const [bulkDeleteIds, setBulkDeleteIds] = useState<number[]>([]);
   const [filters, setFilters] = useState<UserFilters>({
     keyword: '',
     role_id: '',
@@ -34,9 +33,14 @@ export default function UsersPage() {
     queryFn: () => api.get('/roles').then((response) => response.data),
   });
 
-  const { data: users = [], isFetching, isLoading } = useQuery<User[]>({
+  const {
+    data: users = [],
+    isFetching,
+    isLoading,
+  } = useQuery<User[]>({
     queryKey: ['users', filters],
-    queryFn: () => api.get('/users', { params: getUsersParams(filters) }).then((response) => response.data),
+    queryFn: () =>
+      api.get('/users', { params: getUsersParams(filters) }).then((response) => response.data),
     placeholderData: keepPreviousData,
   });
 
@@ -52,23 +56,9 @@ export default function UsersPage() {
     },
   });
 
-  const bulkDeleteMutation = useMutation({
-    mutationFn: (userIds: number[]) => Promise.all(userIds.map((userId) => api.delete(`/users/${userId}`))),
-    onSuccess: (_, userIds) => {
-      queryClient.invalidateQueries({ queryKey: ['users'] });
-      notify.success(`Đã xóa ${userIds.length} nhân viên`);
-      setBulkDeleteIds([]);
-    },
-    onError: (error) => {
-      notify.error(getApiErrorMessage(error, 'Xóa nhân viên thất bại'));
-    },
-  });
-
   if (isLoading) {
     return <ContentLoading />;
   }
-
-  const isDeleting = deleteMutation.isPending || bulkDeleteMutation.isPending;
 
   return (
     <>
@@ -78,9 +68,8 @@ export default function UsersPage() {
         filters={filters}
         isFetching={isFetching}
         onFiltersChange={setFilters}
-        isDeleting={isDeleting}
+        isDeleting={deleteMutation.isPending}
         onDelete={setDeleteTarget}
-        onBulkDelete={setBulkDeleteIds}
       />
 
       <ConfirmDialog
@@ -93,16 +82,6 @@ export default function UsersPage() {
         onConfirm={() => {
           if (deleteTarget) deleteMutation.mutate(deleteTarget.id);
         }}
-      />
-
-      <ConfirmDialog
-        open={bulkDeleteIds.length > 0}
-        title="Xóa nhân viên đã chọn?"
-        description={`Bạn có chắc muốn xóa ${bulkDeleteIds.length} nhân viên đã chọn? Thao tác này sẽ đưa các nhân viên này ra khỏi danh sách.`}
-        confirmText="Xóa đã chọn"
-        loading={bulkDeleteMutation.isPending}
-        onClose={() => setBulkDeleteIds([])}
-        onConfirm={() => bulkDeleteMutation.mutate(bulkDeleteIds)}
       />
     </>
   );

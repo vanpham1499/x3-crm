@@ -4,10 +4,15 @@ import { useEffect, useState } from 'react';
 import Link from 'next/link';
 import AccountBalanceRoundedIcon from '@mui/icons-material/AccountBalanceRounded';
 import CategoryRoundedIcon from '@mui/icons-material/CategoryRounded';
+import ChevronRightRoundedIcon from '@mui/icons-material/ChevronRightRounded';
 import SaveRoundedIcon from '@mui/icons-material/SaveRounded';
-import { Button, LinearProgress, TextField } from '@mui/material';
+import { LinearProgress } from '@mui/material';
 import { keepPreviousData, useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
+import { PrimaryActionButton } from '@/components/actions/primary-action-button';
 import { useAppNotification } from '@/components/feedback/notification-provider';
+import { FormInputField } from '@/components/form/form-input-field';
+import { FormSection } from '@/components/form/form-section';
+import { PageHeader } from '@/components/shell/page-header';
 import { getApiErrorMessage } from '@/lib/api-error';
 import {
   DEFAULT_SITE_PROFILE,
@@ -77,85 +82,76 @@ export default function SettingsPage() {
 
   return (
     <div className="min-h-[calc(100vh-72px)] w-full bg-slate-50/60 p-6">
-      <div className="mb-6">
-        <h1 className="text-2xl font-bold text-slate-950">Cài đặt</h1>
-        <div className="mt-2 flex items-center gap-2 text-sm text-slate-500">
-          <span>Dashboard</span>
-          <span className="h-1 w-1 rounded-full bg-slate-300" />
-          <span className="text-slate-950">Cài đặt</span>
-        </div>
-      </div>
+      <PageHeader title="Cài đặt" />
 
-      <div className="grid gap-6 xl:grid-cols-[minmax(0,1fr)_360px]">
-        <section className="overflow-hidden rounded-2xl border border-slate-200 bg-white shadow-sm">
-          {(isFetching || saveMutation.isPending) && <LinearProgress />}
-          <div className="border-b border-slate-200 px-6 py-5">
-            <h2 className="text-lg font-bold text-slate-950">Tổng quan website</h2>
-            <p className="mt-1 text-sm text-slate-500">
-              Thông tin này được lưu vào option backend và dùng lại trên mẫu báo giá.
-            </p>
-          </div>
-
-          <div className="grid gap-4 p-6 md:grid-cols-2">
-            {SITE_PROFILE_FIELDS.map((field) => (
-              <TextField
-                key={field.key}
-                fullWidth
-                label={field.label}
-                value={formValues[field.key]}
-                multiline={field.multiline}
-                minRows={field.multiline ? 3 : undefined}
+      <div className="grid items-start gap-6 xl:grid-cols-12">
+        <form
+          className="xl:col-span-8"
+          onSubmit={(event) => {
+            event.preventDefault();
+            saveMutation.mutate(formValues);
+          }}
+        >
+          <FormSection
+            title="Thông tin website"
+            action={
+              <PrimaryActionButton
+                type="submit"
+                startIcon={<SaveRoundedIcon />}
                 disabled={isLoading || saveMutation.isPending}
-                onChange={(event) => updateField(field.key, event.target.value)}
-                className={field.multiline ? 'md:col-span-2' : undefined}
-              />
-            ))}
-          </div>
+              >
+                {saveMutation.isPending ? 'Đang lưu...' : 'Lưu thông tin'}
+              </PrimaryActionButton>
+            }
+          >
+            {(isFetching || saveMutation.isPending) && (
+              <LinearProgress className="!-mx-5 !-mt-5 !mb-1" color="primary" />
+            )}
+            <div className="!mt-0 grid gap-4 md:grid-cols-2">
+              {SITE_PROFILE_FIELDS.map((field) => (
+                <FormInputField
+                  key={field.key}
+                  label={field.label}
+                  value={formValues[field.key]}
+                  multiline={field.multiline}
+                  minRows={field.multiline ? 3 : undefined}
+                  disabled={isLoading || saveMutation.isPending}
+                  onChange={(event) => updateField(field.key, event.target.value)}
+                  className={field.multiline ? 'md:col-span-2' : undefined}
+                />
+              ))}
+            </div>
+          </FormSection>
+        </form>
 
-          <div className="flex justify-end border-t border-slate-200 px-6 py-4">
-            <Button
-              type="button"
-              variant="contained"
-              startIcon={<SaveRoundedIcon />}
-              disabled={isLoading || saveMutation.isPending}
-              onClick={() => saveMutation.mutate(formValues)}
-              className="!bg-slate-900 hover:!bg-slate-800"
+        <div className="xl:col-span-4">
+          <FormSection title="Thiết lập khác">
+            <Link
+              href="/settings/bank-accounts"
+              className="!mt-0 flex min-h-16 items-center gap-3 rounded-xl border border-slate-200 px-3.5 py-3 transition-colors hover:border-primary/30 hover:bg-emerald-50/40"
             >
-              {saveMutation.isPending ? 'Đang lưu...' : 'Lưu thông tin'}
-            </Button>
-          </div>
-        </section>
-
-        <div className="space-y-4 self-start">
-          <Link
-            href="/settings/bank-accounts"
-            className="inline-flex min-h-24 w-full items-center gap-4 rounded-2xl border border-slate-200 bg-white p-5 shadow-sm transition hover:border-primary/30 hover:shadow-md"
-          >
-            <span className="inline-flex h-11 w-11 items-center justify-center rounded-xl bg-emerald-50 text-emerald-600">
-              <AccountBalanceRoundedIcon />
-            </span>
-            <span>
-              <span className="block font-bold text-slate-950">Tài khoản nhận tiền</span>
-              <span className="mt-1 block text-sm text-slate-500">
-                Lưu số tài khoản dùng để tạo VietQR trên báo giá.
+              <span className="inline-flex h-10 w-10 shrink-0 items-center justify-center rounded-lg bg-emerald-50 text-emerald-600">
+                <AccountBalanceRoundedIcon fontSize="small" />
               </span>
-            </span>
-          </Link>
-
-          <Link
-            href="/settings/options"
-            className="inline-flex min-h-24 w-full items-center gap-4 rounded-2xl border border-slate-200 bg-white p-5 shadow-sm transition hover:border-primary/30 hover:shadow-md"
-          >
-            <span className="inline-flex h-11 w-11 items-center justify-center rounded-xl bg-primary/10 text-primary">
-              <CategoryRoundedIcon />
-            </span>
-            <span>
-              <span className="block font-bold text-slate-950">Tùy chọn</span>
-              <span className="mt-1 block text-sm text-slate-500">
-                Quản lý option dùng chung cho các page.
+              <span className="min-w-0 flex-1 truncate text-sm font-bold text-slate-900">
+                Tài khoản nhận tiền
               </span>
-            </span>
-          </Link>
+              <ChevronRightRoundedIcon className="text-slate-400" />
+            </Link>
+
+            <Link
+              href="/settings/options"
+              className="flex min-h-16 items-center gap-3 rounded-xl border border-slate-200 px-3.5 py-3 transition-colors hover:border-primary/30 hover:bg-emerald-50/40"
+            >
+              <span className="inline-flex h-10 w-10 shrink-0 items-center justify-center rounded-lg bg-primary/10 text-primary">
+                <CategoryRoundedIcon fontSize="small" />
+              </span>
+              <span className="min-w-0 flex-1 truncate text-sm font-bold text-slate-900">
+                Tùy chọn hệ thống
+              </span>
+              <ChevronRightRoundedIcon className="text-slate-400" />
+            </Link>
+          </FormSection>
         </div>
       </div>
     </div>

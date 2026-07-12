@@ -102,6 +102,11 @@ export type Lead = {
   note?: string | null;
   closedDate?: string | null;
   convertedCustomerId?: string | null;
+  convertedCustomer?: {
+    id: number;
+    customerCode?: string | null;
+    customerName?: string | null;
+  } | null;
   status?: LeadStatus | null;
   statusOption?: AppOption | null;
   assignedUser?: LeadRelationOption | null;
