@@ -11,6 +11,7 @@ import {
   getCompanyBankAccounts,
   getDefaultCompanyBankAccount,
 } from '@/lib/company-bank-account-options';
+import { getQuotationPaymentContent } from '@/lib/quotation-utils';
 import {
   SERVICE_QUOTE_CONFIG_GROUP,
   calculateManagementFee,
@@ -38,6 +39,7 @@ type QuotationFormProps = {
   quoteConfigs: AppOption[];
   bankAccountOptions: AppOption[];
   defaultLeadId?: string;
+  defaultProjectId?: string;
   isSubmitting: boolean;
   onSubmit: (payload: Record<string, unknown>) => void;
 };
@@ -92,14 +94,19 @@ export function QuotationForm({
   quoteConfigs,
   bankAccountOptions,
   defaultLeadId,
+  defaultProjectId,
   isSubmitting,
   onSubmit,
 }: QuotationFormProps) {
-  const [customerMode, setCustomerMode] = useState<QuoteCustomerMode>('new_customer');
-  const [projectMode, setProjectMode] = useState<QuoteProjectMode>('new_project');
+  const [customerMode, setCustomerMode] = useState<QuoteCustomerMode>(
+    defaultProjectId ? 'existing_customer' : 'new_customer',
+  );
+  const [projectMode, setProjectMode] = useState<QuoteProjectMode>(
+    defaultProjectId ? 'existing_project' : 'new_project',
+  );
   const [leadId, setLeadId] = useState(defaultLeadId || '');
   const [customerId, setCustomerId] = useState('');
-  const [projectId, setProjectId] = useState('');
+  const [projectId, setProjectId] = useState(defaultProjectId || '');
   const [customerName, setCustomerName] = useState('');
   const [projectName, setProjectName] = useState('');
   const [duration, setDuration] = useState('1 tháng');
@@ -133,7 +140,9 @@ export function QuotationForm({
     [selectedServiceId, services],
   );
   const rootConfigOption = getConfigForRoot(quoteConfigs, rootService);
-  const rootConfig = rootConfigOption ? getServiceQuoteConfigMeta(rootConfigOption, rootService) : null;
+  const rootConfig = rootConfigOption
+    ? getServiceQuoteConfigMeta(rootConfigOption, rootService)
+    : null;
   const canUseAutoQuote = Boolean(rootConfig?.enabled);
   const setupPackage =
     rootConfig?.setupPackages.find((item) => item.key === setupPackageKey) ||
@@ -149,7 +158,14 @@ export function QuotationForm({
 
   const autoLines: QuotationLineFormValue[] = canUseAutoQuote
     ? [
-        { id: -1, name: 'Ngân sách', unit: 'Tháng', quantity: '1', unitPrice: budget, locked: true },
+        {
+          id: -1,
+          name: 'Ngân sách',
+          unit: 'Tháng',
+          quantity: '1',
+          unitPrice: budget,
+          locked: true,
+        },
         {
           id: -2,
           name: `Phí quản lý (${managementFee?.percent || 0}%)`,
@@ -176,7 +192,7 @@ export function QuotationForm({
   const subtotal = quoteLines.reduce((sum, line) => sum + line.amount, 0);
   const vatAmount = Math.round((subtotal * toNumber(vatRate)) / 100);
   const total = subtotal + vatAmount;
-  const paymentContent = quotation?.quotationCode || '';
+  const paymentContent = getQuotationPaymentContent(quotation);
   const missingRequiredLead = mode === 'create' && !leadId;
 
   useEffect(() => {
@@ -203,7 +219,9 @@ export function QuotationForm({
         quotation.customer?.customerName ||
         '',
     );
-    setProjectName(getMetadataValue(metadata, 'projectName') || quotation.project?.projectName || '');
+    setProjectName(
+      getMetadataValue(metadata, 'projectName') || quotation.project?.projectName || '',
+    );
     setDuration(getMetadataValue(metadata, 'duration') || '1 tháng');
     setStatus((quotation.status as QuotationStatus) || 'draft');
     setVatRate(String(quotation.vatRate ?? '0'));
@@ -258,7 +276,13 @@ export function QuotationForm({
   }, [customerMode, mode, selectedCustomer]);
 
   useEffect(() => {
-    if (mode !== 'create' || customerMode !== 'existing_customer' || projectMode !== 'existing_project' || !selectedProject) return;
+    if (
+      mode !== 'create' ||
+      customerMode !== 'existing_customer' ||
+      projectMode !== 'existing_project' ||
+      !selectedProject
+    )
+      return;
 
     setProjectName(selectedProject.projectName || '');
     setCustomerId(idToString(selectedProject.customerId));
@@ -293,6 +317,20 @@ export function QuotationForm({
   };
 
   const submitForm = () => {
+    const existingRevenueGroup = getMetadataValue(quotation?.metadata, 'revenueGroup');
+    const existingPricingMode = getMetadataValue(quotation?.metadata, 'pricingMode');
+    const revenueGroup =
+      mode === 'edit' && ['2.1', '2.2'].includes(existingRevenueGroup)
+        ? existingRevenueGroup
+        : canUseAutoQuote
+          ? '2.1'
+          : '2.2';
+    const pricingMode =
+      mode === 'edit' && ['management_fee', 'quantity_price'].includes(existingPricingMode)
+        ? existingPricingMode
+        : canUseAutoQuote
+          ? 'management_fee'
+          : 'quantity_price';
     const payload: Record<string, unknown> = {
       quotationCode: quotation?.quotationCode || undefined,
       serviceId: selectedServiceId ? Number(selectedServiceId) : null,
@@ -322,6 +360,10 @@ export function QuotationForm({
         bankBranch: selectedBankAccount?.branch || null,
         paymentContent: paymentContent || null,
         serviceQuoteConfigGroup: SERVICE_QUOTE_CONFIG_GROUP,
+        serviceRootId: rootService?.id || null,
+        serviceRootCode: rootService?.code || null,
+        revenueGroup,
+        pricingMode,
       },
       items: quoteLines
         .filter((line) => line.name.trim())
@@ -443,7 +485,9 @@ export function QuotationForm({
                     setLeadId(idToString(value?.id));
                     setCustomerName(value?.customerName || '');
                   }}
-                  getOptionLabel={(option) => `${option.leadCode || ''} - ${option.customerName || ''}`}
+                  getOptionLabel={(option) =>
+                    `${option.leadCode || ''} - ${option.customerName || ''}`
+                  }
                   isOptionEqualToValue={(option, value) => option.id === value.id}
                   renderInput={(params) => <TextField {...params} required label="Lead" />}
                 />
@@ -476,7 +520,9 @@ export function QuotationForm({
                         setProjectId(idToString(value?.id));
                         setProjectName(value?.projectName || '');
                         setCustomerId(idToString(value?.customerId));
-                        setCustomerName(value?.customer?.customerName || value?.customer?.companyName || '');
+                        setCustomerName(
+                          value?.customer?.customerName || value?.customer?.companyName || '',
+                        );
                         setLeadId(idToString(value?.customer?.leadId));
                         setSelectedServiceId(idToString(value?.serviceId));
                       }}
@@ -497,9 +543,13 @@ export function QuotationForm({
                         setLeadId(idToString(value?.leadId));
                         setCustomerName(value?.customerName || value?.companyName || '');
                       }}
-                      getOptionLabel={(option) => `${option.customerCode || ''} - ${option.customerName || ''}`}
+                      getOptionLabel={(option) =>
+                        `${option.customerCode || ''} - ${option.customerName || ''}`
+                      }
                       isOptionEqualToValue={(option, value) => option.id === value.id}
-                      renderInput={(params) => <TextField {...params} required label="Khách hàng" />}
+                      renderInput={(params) => (
+                        <TextField {...params} required label="Khách hàng" />
+                      )}
                     />
                   )}
                 </>
@@ -516,21 +566,46 @@ export function QuotationForm({
                 fullWidth
                 label="Tên dự án"
                 value={projectName}
-                disabled={customerMode === 'existing_customer' && projectMode === 'existing_project'}
+                disabled={
+                  customerMode === 'existing_customer' && projectMode === 'existing_project'
+                }
                 onChange={(event) => setProjectName(event.target.value)}
               />
             </div>
 
             <div className="grid gap-4 md:grid-cols-2">
-              <TextField fullWidth label="Thời gian" value={duration} onChange={(event) => setDuration(event.target.value)} />
-              <TextField select fullWidth label="Trạng thái" value={status} onChange={(event) => setStatus(event.target.value as QuotationStatus)}>
+              <TextField
+                fullWidth
+                label="Thời gian"
+                value={duration}
+                onChange={(event) => setDuration(event.target.value)}
+              />
+              <TextField
+                select
+                fullWidth
+                label="Trạng thái"
+                value={status}
+                onChange={(event) => setStatus(event.target.value as QuotationStatus)}
+              >
                 <MenuItem value="draft">Nháp</MenuItem>
                 <MenuItem value="sent">Đã gửi</MenuItem>
-                <MenuItem value="won">Thắng</MenuItem>
-                <MenuItem value="lost">Thua</MenuItem>
+                <MenuItem value="won">Đã chốt</MenuItem>
+                <MenuItem value="lost">Đã hủy</MenuItem>
               </TextField>
-              <TextField fullWidth type="date" label="Hiệu lực đến" value={validUntil} onChange={(event) => setValidUntil(event.target.value)} slotProps={{ inputLabel: { shrink: true } }} />
-              <TextField fullWidth label="VAT (%)" value={vatRate} onChange={(event) => setVatRate(event.target.value)} />
+              <TextField
+                fullWidth
+                type="date"
+                label="Hiệu lực đến"
+                value={validUntil}
+                onChange={(event) => setValidUntil(event.target.value)}
+                slotProps={{ inputLabel: { shrink: true } }}
+              />
+              <TextField
+                fullWidth
+                label="VAT (%)"
+                value={vatRate}
+                onChange={(event) => setVatRate(event.target.value)}
+              />
             </div>
 
             <div className="grid gap-4 md:grid-cols-2">
@@ -545,8 +620,19 @@ export function QuotationForm({
               />
               {canUseAutoQuote && (
                 <>
-                  <MoneyInput fullWidth label="Ngân sách" value={budget} onValueChange={setBudget} />
-                  <TextField select fullWidth label="Gói setup" value={setupPackageKey} onChange={(event) => setSetupPackageKey(event.target.value)}>
+                  <MoneyInput
+                    fullWidth
+                    label="Ngân sách"
+                    value={budget}
+                    onValueChange={setBudget}
+                  />
+                  <TextField
+                    select
+                    fullWidth
+                    label="Gói setup"
+                    value={setupPackageKey}
+                    onChange={(event) => setSetupPackageKey(event.target.value)}
+                  >
                     {(rootConfig?.setupPackages || []).map((item) => (
                       <MenuItem key={item.key} value={item.key}>
                         {item.label} - {formatCurrency(item.price)}
@@ -557,7 +643,14 @@ export function QuotationForm({
               )}
             </div>
 
-            <TextField fullWidth multiline minRows={3} label="Ghi chú" value={note} onChange={(event) => setNote(event.target.value)} />
+            <TextField
+              fullWidth
+              multiline
+              minRows={3}
+              label="Ghi chú"
+              value={note}
+              onChange={(event) => setNote(event.target.value)}
+            />
 
             <Autocomplete
               options={bankAccounts}
@@ -570,6 +663,34 @@ export function QuotationForm({
               noOptionsText="Chưa có tài khoản nhận tiền"
               renderInput={(params) => <TextField {...params} label="Tài khoản nhận tiền" />}
             />
+
+            <div
+              className={`rounded-xl border px-4 py-3 ${
+                paymentContent
+                  ? 'border-emerald-200 bg-emerald-50/70'
+                  : 'border-slate-200 bg-slate-50'
+              }`}
+              role="status"
+            >
+              <p className="text-xs font-bold uppercase tracking-wide text-slate-500">
+                Nội dung chuyển khoản
+              </p>
+              {paymentContent ? (
+                <>
+                  <p className="mt-1 font-mono text-lg font-extrabold tracking-wide text-slate-950">
+                    {paymentContent}
+                  </p>
+                  <p className="mt-1 text-xs leading-5 text-slate-500">
+                    Webhook vẫn nhận diện được nếu ngân hàng bỏ dấu gạch nối hoặc thay bằng dấu
+                    chấm.
+                  </p>
+                </>
+              ) : (
+                <p className="mt-1 text-sm text-slate-500">
+                  Mã chuyển khoản sẽ được tạo tự động sau khi lưu báo phí.
+                </p>
+              )}
+            </div>
           </div>
         </section>
 
@@ -577,9 +698,16 @@ export function QuotationForm({
           <div className="flex items-center justify-between border-b border-slate-200 px-6 py-5">
             <div>
               <h2 className="text-lg font-bold text-slate-950">Dòng báo giá</h2>
-              <p className="mt-1 text-sm text-slate-500">Dòng tự động nằm trước, dòng thủ công nằm sau.</p>
+              <p className="mt-1 text-sm text-slate-500">
+                Dòng tự động nằm trước, dòng thủ công nằm sau.
+              </p>
             </div>
-            <Button variant="contained" startIcon={<AddRoundedIcon />} onClick={addLine} className="!bg-slate-900 hover:!bg-slate-800">
+            <Button
+              variant="contained"
+              startIcon={<AddRoundedIcon />}
+              onClick={addLine}
+              className="!bg-slate-900 hover:!bg-slate-800"
+            >
               Thêm dòng
             </Button>
           </div>
@@ -588,11 +716,42 @@ export function QuotationForm({
             {manualLines.map((line) => (
               <div key={line.id}>
                 <div className="grid items-start gap-3 xl:grid-cols-[minmax(0,1.7fr)_110px_90px_140px_38px]">
-                  <TextField fullWidth label="Nội dung" size="small" value={line.name} onChange={(event) => updateLine(line.id, { name: event.target.value })} />
-                  <TextField fullWidth label="ĐVT" size="small" value={line.unit} onChange={(event) => updateLine(line.id, { unit: event.target.value })} />
-                  <TextField fullWidth label="Số lần" size="small" value={line.quantity} onChange={(event) => updateLine(line.id, { quantity: event.target.value })} />
-                  <MoneyInput fullWidth label="Đơn giá" size="small" value={line.unitPrice} onValueChange={(value) => updateLine(line.id, { unitPrice: value })} />
-                  <IconButton size="small" color="error" disabled={manualLines.length === 1} onClick={() => deleteLine(line.id)} title="Xóa dòng" className="!mt-1">
+                  <TextField
+                    fullWidth
+                    label="Nội dung"
+                    size="small"
+                    value={line.name}
+                    onChange={(event) => updateLine(line.id, { name: event.target.value })}
+                  />
+                  <TextField
+                    fullWidth
+                    label="ĐVT"
+                    size="small"
+                    value={line.unit}
+                    onChange={(event) => updateLine(line.id, { unit: event.target.value })}
+                  />
+                  <TextField
+                    fullWidth
+                    label="Số lần"
+                    size="small"
+                    value={line.quantity}
+                    onChange={(event) => updateLine(line.id, { quantity: event.target.value })}
+                  />
+                  <MoneyInput
+                    fullWidth
+                    label="Đơn giá"
+                    size="small"
+                    value={line.unitPrice}
+                    onValueChange={(value) => updateLine(line.id, { unitPrice: value })}
+                  />
+                  <IconButton
+                    size="small"
+                    color="error"
+                    disabled={manualLines.length === 1}
+                    onClick={() => deleteLine(line.id)}
+                    title="Xóa dòng"
+                    className="!mt-1"
+                  >
                     <DeleteRoundedIcon fontSize="small" />
                   </IconButton>
                 </div>
@@ -617,24 +776,42 @@ export function QuotationForm({
                       <td className="px-4 py-3 font-bold text-slate-950">{line.no}</td>
                       <td className="px-4 py-3 text-slate-700">{line.name || '-'}</td>
                       <td className="px-4 py-3 text-slate-600">{line.unit || '-'}</td>
-                      <td className="px-4 py-3 text-right text-slate-600">{formatMoney(line.quantity)}</td>
-                      <td className="px-4 py-3 text-right text-slate-700">{formatCurrency(line.unitPrice)}</td>
-                      <td className="px-4 py-3 text-right font-bold text-slate-950">{formatCurrency(line.amount)}</td>
+                      <td className="px-4 py-3 text-right text-slate-600">
+                        {formatMoney(line.quantity)}
+                      </td>
+                      <td className="px-4 py-3 text-right text-slate-700">
+                        {formatCurrency(line.unitPrice)}
+                      </td>
+                      <td className="px-4 py-3 text-right font-bold text-slate-950">
+                        {formatCurrency(line.amount)}
+                      </td>
                     </tr>
                   ))}
                 </tbody>
                 <tfoot className="bg-slate-50 text-sm">
                   <tr>
-                    <td colSpan={5} className="px-4 py-3 text-right font-bold text-slate-700">Tổng trước thuế</td>
-                    <td className="px-4 py-3 text-right font-extrabold text-slate-950">{formatCurrency(subtotal)}</td>
+                    <td colSpan={5} className="px-4 py-3 text-right font-bold text-slate-700">
+                      Tổng trước thuế
+                    </td>
+                    <td className="px-4 py-3 text-right font-extrabold text-slate-950">
+                      {formatCurrency(subtotal)}
+                    </td>
                   </tr>
                   <tr>
-                    <td colSpan={5} className="px-4 py-3 text-right font-bold text-slate-700">VAT {toNumber(vatRate)}%</td>
-                    <td className="px-4 py-3 text-right font-extrabold text-slate-950">{formatCurrency(vatAmount)}</td>
+                    <td colSpan={5} className="px-4 py-3 text-right font-bold text-slate-700">
+                      VAT {toNumber(vatRate)}%
+                    </td>
+                    <td className="px-4 py-3 text-right font-extrabold text-slate-950">
+                      {formatCurrency(vatAmount)}
+                    </td>
                   </tr>
                   <tr>
-                    <td colSpan={5} className="px-4 py-4 text-right font-extrabold text-slate-950">Tổng thanh toán</td>
-                    <td className="px-4 py-4 text-right text-lg font-extrabold text-emerald-700">{formatCurrency(total)}</td>
+                    <td colSpan={5} className="px-4 py-4 text-right font-extrabold text-slate-950">
+                      Tổng thanh toán
+                    </td>
+                    <td className="px-4 py-4 text-right text-lg font-extrabold text-emerald-700">
+                      {formatCurrency(total)}
+                    </td>
                   </tr>
                 </tfoot>
               </table>

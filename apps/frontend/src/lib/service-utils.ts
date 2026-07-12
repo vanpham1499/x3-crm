@@ -5,15 +5,16 @@ export type FlatServiceItem = ServiceItem & {
   pathName: string;
 };
 
-export function flattenServices(services: ServiceItem[], depth = 0, parentPath = ''): FlatServiceItem[] {
+export function flattenServices(
+  services: ServiceItem[],
+  depth = 0,
+  parentPath = '',
+): FlatServiceItem[] {
   return services.flatMap((service) => {
     const pathName = parentPath ? `${parentPath} / ${service.name}` : service.name;
     const current: FlatServiceItem = { ...service, depth, pathName };
 
-    return [
-      current,
-      ...flattenServices(service.children || [], depth + 1, pathName),
-    ];
+    return [current, ...flattenServices(service.children || [], depth + 1, pathName)];
   });
 }
 
@@ -27,7 +28,10 @@ export function countServices(services: ServiceItem[]) {
   };
 }
 
-export function getServiceDefaults(service?: ServiceItem, parent?: ServiceItem | null): ServiceFormValues {
+export function getServiceDefaults(
+  service?: ServiceItem,
+  parent?: ServiceItem | null,
+): ServiceFormValues {
   return {
     parentId:
       service?.parentId !== undefined && service?.parentId !== null
@@ -40,14 +44,6 @@ export function getServiceDefaults(service?: ServiceItem, parent?: ServiceItem |
     content: service?.content || '',
     invoiceContent: service?.invoiceContent || '',
     invoiceTiming: service?.invoiceTiming || '',
-    description: service?.description || '',
-    sortOrder: service?.sortOrder ?? 0,
-    unit: service?.unit || '',
-    defaultPrice:
-      service?.defaultPrice !== undefined && service?.defaultPrice !== null
-        ? String(service.defaultPrice)
-        : '',
-    isActive: service?.isActive ?? true,
   };
 }
 
@@ -59,10 +55,5 @@ export function toServicePayload(values: ServiceFormValues) {
     content: values.content.trim() || null,
     invoiceContent: values.invoiceContent.trim() || null,
     invoiceTiming: values.invoiceTiming.trim() || null,
-    description: values.description.trim() || null,
-    sortOrder: Number(values.sortOrder) || 0,
-    unit: values.unit.trim() || null,
-    defaultPrice: values.defaultPrice ? Number(values.defaultPrice) : 0,
-    isActive: values.isActive,
   };
 }

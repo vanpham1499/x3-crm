@@ -26,6 +26,7 @@ export type QuotationItem = {
 export type Quotation = {
   id: number;
   quotationCode?: string | null;
+  paymentContent?: string | null;
   leadId?: number | null;
   customerId?: number | null;
   projectId?: number | null;
@@ -38,6 +39,9 @@ export type Quotation = {
   vatRate?: string | number | null;
   vatAmount?: string | number | null;
   totalAmount?: string | number | null;
+  paidAmount?: string | number | null;
+  outstandingAmount?: string | number | null;
+  paymentStatus?: 'unpaid' | 'partial' | 'paid' | 'overpaid' | string | null;
   depositAmount?: string | number | null;
   validUntil?: string | null;
   note?: string | null;

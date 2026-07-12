@@ -7,19 +7,23 @@ import { Autocomplete, Button, MenuItem, TextField } from '@mui/material';
 import { DatePicker } from '@mui/x-date-pickers/DatePicker';
 import dayjs from 'dayjs';
 import { Controller, useForm } from 'react-hook-form';
-import { MoneyInput } from '@/components/form/money-input';
 import {
   generateProjectCode,
   getProjectDefaults,
   getRootServiceCode,
   getRootServiceItem,
 } from '@/lib/project-utils';
-import { getConfigForRoot, getServiceQuoteConfigMeta } from '@/lib/service-quote-config';
+import {
+  getConfigForRoot,
+  getProjectRevenueGroupInfo,
+  getServiceQuoteConfigMeta,
+} from '@/lib/service-quote-config';
 import { flattenServices } from '@/lib/service-utils';
 import { formatCurrency } from '@/lib/utils';
 import type { Customer } from '@/types/customer';
 import type { AppOption } from '@/types/option';
 import type { ProjectFormValues, ProjectItem } from '@/types/project';
+import type { Quotation } from '@/types/quotation';
 import type { ServiceItem } from '@/types/service';
 import type { User } from '@/types/user';
 
@@ -30,8 +34,8 @@ type ProjectFormProps = {
   services: ServiceItem[];
   users: User[];
   statuses: AppOption[];
-  contractStatuses: AppOption[];
   quoteConfigs?: AppOption[];
+  quotations?: Quotation[];
   defaultValues?: Partial<ProjectFormValues>;
   isSubmitting: boolean;
   onSubmit: (values: ProjectFormValues) => void;
@@ -39,20 +43,17 @@ type ProjectFormProps = {
 
 function FormSection({
   title,
-  description,
   children,
 }: {
   title: string;
-  description: string;
   children: React.ReactNode;
 }) {
   return (
-    <section className="overflow-hidden rounded-2xl border border-slate-200 bg-white shadow-sm">
-      <div className="border-b border-slate-200 px-6 py-5">
-        <h2 className="text-lg font-bold text-slate-950">{title}</h2>
-        <p className="mt-1 text-sm text-slate-500">{description}</p>
+    <section className="overflow-hidden rounded-xl border border-slate-200 bg-white">
+      <div className="border-b border-slate-200 px-5 py-4">
+        <h2 className="text-base font-bold text-slate-950">{title}</h2>
       </div>
-      <div className="space-y-5 p-6">{children}</div>
+      <div className="space-y-4 p-5">{children}</div>
     </section>
   );
 }
@@ -90,6 +91,29 @@ function serviceLabel(service: ReturnType<typeof flattenServices>[number]) {
   return `${service.code} - ${service.pathName}`;
 }
 
+const QUOTATION_STATUS_LABELS: Record<string, string> = {
+  draft: 'Nháp',
+  sent: 'Đã gửi',
+  won: 'Đã chốt',
+  lost: 'Đã hủy',
+};
+
+function quotationLabel(quotation: Quotation) {
+  return [
+    quotation.quotationCode || `Báo phí #${quotation.id}`,
+    quotation.customer?.customerName,
+    quotation.serviceName,
+    formatCurrency(Number(quotation.totalAmount) || 0),
+  ]
+    .filter(Boolean)
+    .join(' · ');
+}
+
+function quotationMetadataText(quotation: Quotation, key: string) {
+  const value = quotation.metadata?.[key];
+  return typeof value === 'string' ? value.trim() : '';
+}
+
 export function ProjectForm({
   mode,
   project,
@@ -97,8 +121,8 @@ export function ProjectForm({
   services,
   users,
   statuses,
-  contractStatuses,
   quoteConfigs = [],
+  quotations = [],
   defaultValues,
   isSubmitting,
   onSubmit,
@@ -112,19 +136,19 @@ export function ProjectForm({
     watch,
     formState: { errors },
   } = useForm<ProjectFormValues>({
-    values: getProjectDefaults(project, defaultValues),
+    defaultValues: getProjectDefaults(project, defaultValues),
   });
+  const selectedQuotationId = watch('quotationId');
   const selectedCustomerId = watch('customerId');
   const selectedServiceId = watch('serviceId');
   const projectName = watch('projectName');
-  const signedDate = watch('signedDate');
-  const expiredDate = watch('expiredDate');
-  const computedContractMonths =
-    signedDate && expiredDate && dayjs(expiredDate).isAfter(dayjs(signedDate))
-      ? dayjs(expiredDate).diff(dayjs(signedDate), 'month')
-      : null;
-  const selectedCustomer = customers.find(
-    (customer) => String(customer.id) === selectedCustomerId,
+  const selectedCustomer = customers.find((customer) => String(customer.id) === selectedCustomerId);
+  const selectedQuotation = quotations.find(
+    (quotation) => String(quotation.id) === selectedQuotationId,
+  );
+  const originQuotationOptions = useMemo(
+    () => quotations.filter((quotation) => !quotation.projectId),
+    [quotations],
   );
   const selectedService = serviceOptions.find(
     (service) => String(service.id) === selectedServiceId,
@@ -141,7 +165,11 @@ export function ProjectForm({
   const quoteConfig = quoteConfigOption
     ? getServiceQuoteConfigMeta(quoteConfigOption, rootService)
     : null;
-  const hasManagementFeeConfig = Boolean(quoteConfig?.enabled && quoteConfig.managementFeeRates.length);
+  const usesAutomaticQuote = Boolean(quoteConfig?.enabled);
+  const revenueGroup = getProjectRevenueGroupInfo(usesAutomaticQuote);
+  const hasManagementFeeConfig = Boolean(
+    usesAutomaticQuote && quoteConfig?.managementFeeRates.length,
+  );
 
   useEffect(() => {
     const nextProjectCode = generateProjectCode({
@@ -151,17 +179,121 @@ export function ProjectForm({
     });
 
     setValue('projectCode', nextProjectCode, { shouldDirty: true });
-    setValue('contractNo', nextProjectCode, { shouldDirty: true });
   }, [projectName, rootServiceCode, selectedCustomer?.customerCode, setValue]);
 
+  const applyOriginQuotation = (quotation: Quotation | null) => {
+    setValue('quotationId', quotation ? String(quotation.id) : '', {
+      shouldDirty: true,
+      shouldValidate: true,
+    });
+
+    if (!quotation) return;
+
+    setValue('customerId', quotation.customerId ? String(quotation.customerId) : '', {
+      shouldDirty: true,
+      shouldValidate: true,
+    });
+    setValue('serviceId', quotation.serviceId ? String(quotation.serviceId) : '', {
+      shouldDirty: true,
+      shouldValidate: true,
+    });
+    setValue(
+      'projectName',
+      quotationMetadataText(quotation, 'projectName') || quotation.serviceName || '',
+      { shouldDirty: true, shouldValidate: true },
+    );
+  };
+
   return (
-    <form className="w-full space-y-8" onSubmit={handleSubmit(onSubmit)}>
-      <input type="hidden" {...register('quotationId')} />
+    <form className="w-full space-y-5" onSubmit={handleSubmit(onSubmit)}>
+      {mode === 'create' ? (
+        <section className="overflow-hidden rounded-2xl border border-sky-200 bg-white shadow-sm">
+          <div className="grid gap-5 p-5 lg:grid-cols-[minmax(0,1.35fr)_minmax(280px,0.65fr)] lg:items-center">
+            <div>
+              <div className="mb-3">
+                <h2 className="text-base font-bold text-slate-950">Bắt đầu từ báo phí có sẵn</h2>
+              </div>
+
+              <Controller
+                name="quotationId"
+                control={control}
+                render={({ field }) => (
+                  <Autocomplete
+                    options={originQuotationOptions}
+                    value={
+                      originQuotationOptions.find(
+                        (quotation) => String(quotation.id) === field.value,
+                      ) || null
+                    }
+                    onChange={(_, nextValue) => applyOriginQuotation(nextValue)}
+                    getOptionLabel={quotationLabel}
+                    isOptionEqualToValue={(option, value) => option.id === value.id}
+                    getOptionDisabled={(option) => !option.customerId || option.status === 'lost'}
+                    noOptionsText="Không có báo phí chưa gắn dự án"
+                    renderOption={(props, option) => (
+                      <li {...props} key={option.id}>
+                        <div className="min-w-0 py-1">
+                          <p className="truncate text-sm font-bold text-slate-900">
+                            {option.quotationCode || `Báo phí #${option.id}`}
+                            <span className="ml-2 font-medium text-slate-400">
+                              {QUOTATION_STATUS_LABELS[option.status || ''] || option.status}
+                            </span>
+                          </p>
+                          <p className="mt-0.5 truncate text-xs text-slate-500">
+                            {option.customer?.customerName ||
+                              'Chưa có khách hàng — cần chuyển Lead thành khách hàng'}
+                            {' · '}
+                            {option.serviceName || 'Chưa chọn dịch vụ'}
+                            {' · '}
+                            {formatCurrency(Number(option.totalAmount) || 0)}
+                          </p>
+                        </div>
+                      </li>
+                    )}
+                    renderInput={(params) => (
+                      <TextField
+                        {...params}
+                        fullWidth
+                        label="Báo phí khởi tạo"
+                        placeholder="Tìm theo mã, khách hàng hoặc dịch vụ"
+                      />
+                    )}
+                  />
+                )}
+              />
+            </div>
+
+            <div className="rounded-xl bg-sky-50 px-4 py-3 ring-1 ring-sky-100">
+              {selectedQuotation ? (
+                <>
+                  <p className="text-xs font-bold uppercase tracking-wide text-sky-700">
+                    Báo phí được chọn
+                  </p>
+                  <p className="mt-1 font-extrabold text-slate-950">
+                    {selectedQuotation.quotationCode || `#${selectedQuotation.id}`}
+                  </p>
+                  <div className="mt-2 flex items-end justify-between gap-3">
+                    <span className="text-xs text-slate-500">Tổng tiền báo phí</span>
+                    <span className="text-base font-extrabold tabular-nums text-slate-950">
+                      {formatCurrency(Number(selectedQuotation.totalAmount) || 0)}
+                    </span>
+                  </div>
+                </>
+              ) : (
+                <>
+                  <p className="text-sm font-bold text-slate-800">Tạo dự án độc lập</p>
+                </>
+              )}
+            </div>
+          </div>
+        </section>
+      ) : (
+        <input type="hidden" {...register('quotationId')} />
+      )}
       <div className="grid w-full items-start gap-6 xl:grid-cols-12">
         <div className="space-y-6 xl:col-span-8">
           <FormSection
             title="Thông tin dự án"
-            description="Thông tin định danh, khách hàng, dịch vụ và thời gian triển khai."
           >
             <div className="grid gap-4 md:grid-cols-2">
               <TextField
@@ -193,6 +325,7 @@ export function ProjectForm({
                     fullWidth
                     select
                     label="Khách hàng *"
+                    disabled={Boolean(selectedQuotation)}
                     error={Boolean(errors.customerId)}
                     helperText={errors.customerId?.message}
                     {...field}
@@ -239,6 +372,7 @@ export function ProjectForm({
                           {...params}
                           fullWidth
                           label="Dịch vụ *"
+                          disabled={Boolean(selectedQuotation)}
                           placeholder="Tìm theo mã hoặc tên dịch vụ"
                           error={Boolean(errors.serviceId)}
                           helperText={errors.serviceId?.message}
@@ -249,37 +383,6 @@ export function ProjectForm({
                 }}
               />
             </div>
-
-            {hasManagementFeeConfig && quoteConfig ? (
-              <div className="rounded-xl bg-slate-50 p-4 ring-1 ring-slate-100">
-                <p className="text-sm font-semibold text-slate-600">
-                  % phí quản lý theo ngân sách ({rootService?.code})
-                </p>
-                <p className="mt-1 text-xs text-slate-400">
-                  Doanh thu dự kiến = Ngân sách quảng cáo × % phí quản lý tương ứng bậc ngân sách.
-                </p>
-                <div className="mt-3 space-y-1">
-                  {quoteConfig.managementFeeRates.map((rate) => (
-                    <div key={rate.label} className="flex items-center justify-between text-sm">
-                      <span className="text-slate-600">{rate.label}</span>
-                      <span className="font-bold text-slate-950">{rate.single}%</span>
-                    </div>
-                  ))}
-                </div>
-              </div>
-            ) : selectedService?.defaultPrice ? (
-              <div className="flex items-center justify-between rounded-xl bg-slate-50 px-4 py-3 ring-1 ring-slate-100">
-                <span className="text-sm font-semibold text-slate-600">Đơn giá dịch vụ</span>
-                <span className="text-sm font-bold text-slate-950">
-                  {formatCurrency(selectedService.defaultPrice)}
-                  {selectedService.unit ? (
-                    <span className="ml-1 text-xs font-normal text-slate-400">
-                      / {selectedService.unit}
-                    </span>
-                  ) : null}
-                </span>
-              </div>
-            ) : null}
 
             <TextField
               fullWidth
@@ -330,99 +433,11 @@ export function ProjectForm({
             />
           </FormSection>
 
-          <FormSection
-            title="Hợp đồng"
-            description="Thông tin tình trạng, thời hạn, đặt cọc và file hợp đồng của dự án."
-          >
-            <input type="hidden" {...register('contractId')} />
-            <input type="hidden" {...register('contractNo')} />
-
-            <div className="grid gap-4 md:grid-cols-2 xl:grid-cols-3">
-              <Controller
-                name="contractStatusOptionId"
-                control={control}
-                render={({ field }) => (
-                  <TextField fullWidth select label="Tình trạng hợp đồng" {...field}>
-                    <MenuItem value="">Chưa chọn</MenuItem>
-                    {contractStatuses.map((status) => (
-                      <MenuItem key={status.id} value={String(status.id)}>
-                        {status.label}
-                      </MenuItem>
-                    ))}
-                  </TextField>
-                )}
-              />
-
-              <Controller
-                name="depositAmount"
-                control={control}
-                render={({ field }) => (
-                  <MoneyInput
-                    fullWidth
-                    label="Số tiền cọc"
-                    value={field.value}
-                    onValueChange={field.onChange}
-                  />
-                )}
-              />
-              <TextField
-                fullWidth
-                label="Thời hạn hợp đồng"
-                placeholder="Ví dụ: 6 tháng"
-                helperText={
-                  computedContractMonths !== null
-                    ? `Theo ngày ký/hết hạn: khoảng ${computedContractMonths} tháng`
-                    : undefined
-                }
-                {...register('contractMonth')}
-              />
-
-              <Controller
-                name="signedDate"
-                control={control}
-                render={({ field }) => (
-                  <ProjectDatePicker
-                    label="Ngày ký"
-                    value={field.value}
-                    onChange={field.onChange}
-                  />
-                )}
-              />
-              <Controller
-                name="expiredDate"
-                control={control}
-                render={({ field }) => (
-                  <ProjectDatePicker
-                    label="Ngày hết hạn"
-                    value={field.value}
-                    onChange={field.onChange}
-                  />
-                )}
-              />
-
-              <TextField
-                fullWidth
-                label="File hợp đồng"
-                placeholder="https://... hoặc /uploads/..."
-                {...register('fileUrl')}
-              />
-            </div>
-
-            <TextField
-              fullWidth
-              multiline
-              minRows={2}
-              label="Ghi chú hợp đồng"
-              placeholder="Điều khoản đặc biệt, ghi chú riêng cho hợp đồng..."
-              {...register('contractNote')}
-            />
-          </FormSection>
         </div>
 
         <div className="xl:col-span-4">
           <FormSection
             title="Trạng thái & phụ trách"
-            description="Trạng thái dự án và nhân sự phụ trách triển khai."
           >
             <Controller
               name="statusOptionId"
@@ -469,13 +484,6 @@ export function ProjectForm({
               )}
             />
 
-            {project ? (
-              <div className="rounded-xl bg-slate-50 p-4 text-sm text-slate-600 ring-1 ring-slate-100">
-                <p className="font-bold text-slate-950">{project.projectName}</p>
-                <p className="mt-1">Mã dự án: {project.projectCode || 'Hệ thống tự tạo'}</p>
-                <p className="mt-1">Khách hàng: {project.customer?.customerName || '-'}</p>
-              </div>
-            ) : null}
           </FormSection>
         </div>
       </div>

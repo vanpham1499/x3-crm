@@ -21,6 +21,10 @@ import {
 } from '@mui/material';
 import { useState, type MouseEvent } from 'react';
 import { ConfirmDialog } from '@/components/feedback/confirm-dialog';
+import {
+  getQuotationPaymentContent,
+  QUOTATION_PAYMENT_STATUS_LABELS,
+} from '@/lib/quotation-utils';
 import type { Quotation, QuotationFilters } from '@/types/quotation';
 
 type QuotationManagerProps = {
@@ -46,13 +50,15 @@ function getQuotationQrUrl(quotation: Quotation) {
   const accountNo = getMetadataValue(quotation, 'bankAccountNo');
   const accountName = getMetadataValue(quotation, 'bankAccountName');
 
-  if (!quotation.quotationCode || !bankCode || !accountNo || !accountName) {
+  const paymentContent = getQuotationPaymentContent(quotation);
+
+  if (!paymentContent || !bankCode || !accountNo || !accountName) {
     return '';
   }
 
   const params = new URLSearchParams({
     amount: String(Math.max(0, Math.round(Number(quotation.totalAmount) || 0))),
-    addInfo: quotation.quotationCode,
+    addInfo: paymentContent,
     accountName,
   });
 
@@ -62,9 +68,16 @@ function getQuotationQrUrl(quotation: Quotation) {
 const statusLabels: Record<string, string> = {
   draft: 'Nháp',
   sent: 'Đã gửi',
-  won: 'Thắng',
-  lost: 'Thua',
+  won: 'Đã chốt',
+  lost: 'Đã hủy',
 };
+
+function paymentStatusClass(status?: string | null) {
+  if (status === 'paid') return 'bg-emerald-50 text-emerald-700 ring-emerald-100';
+  if (status === 'partial') return 'bg-amber-50 text-amber-700 ring-amber-100';
+  if (status === 'overpaid') return 'bg-violet-50 text-violet-700 ring-violet-100';
+  return 'bg-slate-100 text-slate-600 ring-slate-200';
+}
 
 export function QuotationManager({
   quotations,
@@ -155,7 +168,7 @@ export function QuotationManager({
             </div>
           )}
 
-          <table className={`w-full min-w-[1180px] table-fixed text-left text-sm transition-opacity ${isFetching ? 'opacity-60' : 'opacity-100'}`}>
+          <table className={`w-full min-w-[1320px] table-fixed text-left text-sm transition-opacity ${isFetching ? 'opacity-60' : 'opacity-100'}`}>
             <thead className="bg-slate-50 text-xs font-bold uppercase text-slate-500">
               <tr>
                 <th className="w-44 px-5 py-4">Mã báo giá</th>
@@ -163,6 +176,7 @@ export function QuotationManager({
                 <th className="w-52 px-5 py-4">Dịch vụ</th>
                 <th className="w-32 px-5 py-4">Trạng thái</th>
                 <th className="w-40 px-5 py-4 text-right">Tổng tiền</th>
+                <th className="w-44 px-5 py-4">Thu tiền</th>
                 <th className="w-36 px-5 py-4">Hiệu lực</th>
                 <th className="w-20 px-5 py-4" />
               </tr>
@@ -170,7 +184,7 @@ export function QuotationManager({
             <tbody className="divide-y divide-slate-100">
               {quotations.length === 0 ? (
                 <tr>
-                  <td colSpan={7} className="px-5 py-12 text-center text-sm font-semibold text-slate-500">
+                  <td colSpan={8} className="px-5 py-12 text-center text-sm font-semibold text-slate-500">
                     Chưa có báo giá
                   </td>
                 </tr>
@@ -206,6 +220,18 @@ export function QuotationManager({
                     </td>
                     <td className="px-5 py-4 text-right font-bold text-slate-950">
                       {formatCurrency(quotation.totalAmount)}
+                    </td>
+                    <td className="px-5 py-4">
+                      <span
+                        className={`inline-flex rounded-md px-2 py-1 text-xs font-bold ring-1 ${paymentStatusClass(quotation.paymentStatus)}`}
+                      >
+                        {QUOTATION_PAYMENT_STATUS_LABELS[quotation.paymentStatus || ''] ||
+                          quotation.paymentStatus ||
+                          'Chưa thanh toán'}
+                      </span>
+                      <p className="mt-1.5 text-xs font-semibold tabular-nums text-slate-500">
+                        {formatCurrency(quotation.paidAmount)} / {formatCurrency(quotation.totalAmount)}
+                      </p>
                     </td>
                     <td className="px-5 py-4 text-slate-600">{quotation.validUntil || '-'}</td>
                     <td className="px-5 py-4">
@@ -264,7 +290,7 @@ export function QuotationManager({
             <div className="grid gap-5 sm:grid-cols-[180px,minmax(0,1fr)]">
               <img
                 src={getQuotationQrUrl(qrTarget)}
-                alt="Mã VietQR thanh toán báo giá"
+                alt="Mã VietQR thanh toán báo phí"
                 className="h-44 w-44 rounded-xl border border-slate-100 bg-white object-contain"
               />
               <div className="min-w-0 text-sm text-slate-600">
@@ -290,7 +316,9 @@ export function QuotationManager({
                   </p>
                   <p>
                     <span className="font-bold text-slate-950">Nội dung:</span>{' '}
-                    <span className="font-bold text-slate-950">{qrTarget.quotationCode}</span>
+                    <span className="font-mono font-extrabold text-slate-950">
+                      {getQuotationPaymentContent(qrTarget)}
+                    </span>
                   </p>
                 </div>
               </div>

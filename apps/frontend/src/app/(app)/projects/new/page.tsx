@@ -31,7 +31,8 @@ export default function NewProjectPage() {
 
   const { data: services = [], isLoading: isServicesLoading } = useQuery<ServiceItem[]>({
     queryKey: ['services', 'project-form-options'],
-    queryFn: () => api.get('/services', { params: { tree: true } }).then((response) => response.data),
+    queryFn: () =>
+      api.get('/services', { params: { tree: true } }).then((response) => response.data),
   });
 
   const { data: users = [], isLoading: isUsersLoading } = useQuery<User[]>({
@@ -40,14 +41,13 @@ export default function NewProjectPage() {
   });
 
   const { data: projectOptions = [], isLoading: isStatusesLoading } = useQuery<AppOption[]>({
-    queryKey: ['options', 'project-form'],
+    queryKey: ['options', 'project-create'],
     queryFn: () =>
       api
-        .get('/options', { params: { groups: 'project_status,contract_status' } })
+        .get('/options', { params: { groups: 'project_status' } })
         .then((response) => response.data),
   });
   const statuses = projectOptions.filter((option) => option.group === 'project_status');
-  const contractStatuses = projectOptions.filter((option) => option.group === 'contract_status');
 
   const { data: quoteConfigs = [] } = useQuery<AppOption[]>({
     queryKey: ['options', SERVICE_QUOTE_CONFIG_GROUP],
@@ -57,30 +57,35 @@ export default function NewProjectPage() {
         .then((response) => response.data),
   });
 
-  const { data: quotation, isLoading: isQuotationLoading } = useQuery<Quotation>({
-    queryKey: ['quotations', quotationId, 'project-create'],
-    queryFn: () => api.get(`/quotations/${quotationId}`).then((response) => response.data),
-    enabled: Boolean(quotationId),
+  const { data: quotations = [], isLoading: isQuotationsLoading } = useQuery<Quotation[]>({
+    queryKey: ['quotations', 'project-create-options'],
+    queryFn: () => api.get<Quotation[]>('/quotations').then((response) => response.data),
   });
+
+  const quotation = quotations.find(
+    (item) =>
+      String(item.id) === quotationId &&
+      !item.projectId &&
+      Boolean(item.customerId) &&
+      item.status !== 'lost',
+  );
 
   const quotationMetadata = quotation?.metadata || {};
   const defaultValues: Partial<ProjectFormValues> = {
-    customerId: customerId || (quotation?.customerId ? String(quotation.customerId) : ''),
-    quotationId,
+    customerId: quotation?.customerId ? String(quotation.customerId) : customerId,
+    quotationId: quotation ? String(quotation.id) : '',
     serviceId: quotation?.serviceId ? String(quotation.serviceId) : '',
     projectName:
       typeof quotationMetadata.projectName === 'string' && quotationMetadata.projectName
         ? quotationMetadata.projectName
         : quotation?.serviceName || '',
-    depositAmount:
-      quotation?.depositAmount !== undefined && quotation?.depositAmount !== null
-        ? String(quotation.depositAmount)
-        : '',
   };
 
   const createMutation = useMutation({
     mutationFn: (values: ProjectFormValues) =>
-      api.post<ProjectItem>('/projects', toProjectPayload(values)).then((response) => response.data),
+      api
+        .post<ProjectItem>('/projects', toProjectPayload(values))
+        .then((response) => response.data),
     onSuccess: (project) => {
       queryClient.invalidateQueries({ queryKey: ['projects'] });
       notify.success('Tạo dự án thành công');
@@ -91,7 +96,13 @@ export default function NewProjectPage() {
     },
   });
 
-  if (isCustomersLoading || isServicesLoading || isUsersLoading || isStatusesLoading || isQuotationLoading) {
+  if (
+    isCustomersLoading ||
+    isServicesLoading ||
+    isUsersLoading ||
+    isStatusesLoading ||
+    isQuotationsLoading
+  ) {
     return <ContentLoading />;
   }
 
@@ -114,8 +125,8 @@ export default function NewProjectPage() {
         services={services}
         users={users}
         statuses={statuses}
-        contractStatuses={contractStatuses}
         quoteConfigs={quoteConfigs}
+        quotations={quotations}
         defaultValues={defaultValues}
         isSubmitting={createMutation.isPending}
         onSubmit={(values) => createMutation.mutate(values)}

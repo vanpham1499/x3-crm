@@ -24,7 +24,6 @@ import {
 import { Controller, useForm } from 'react-hook-form';
 import { ConfirmDialog } from '@/components/feedback/confirm-dialog';
 import { MoneyInput } from '@/components/form/money-input';
-import { formatCurrency } from '@/lib/utils';
 import {
   DEFAULT_MANAGEMENT_FEE_RATES,
   DEFAULT_SETUP_PACKAGES,
@@ -206,36 +205,9 @@ function ServiceFormDialog({
 
           <TextField
             fullWidth
-            type="number"
-            label="Thứ tự"
-            {...register('sortOrder', { valueAsNumber: true })}
-          />
-
-          <TextField
-            fullWidth
-            label="Đơn vị tính"
-            placeholder="tháng, cái, lần..."
-            {...register('unit')}
-          />
-
-          <Controller
-            name="defaultPrice"
-            control={control}
-            render={({ field }) => (
-              <MoneyInput
-                fullWidth
-                label="Đơn giá"
-                value={field.value}
-                onValueChange={field.onChange}
-              />
-            )}
-          />
-
-          <TextField
-            fullWidth
             multiline
             minRows={3}
-            label="Nội dung dịch vụ"
+            label="Nội dung"
             className="md:col-span-2"
             {...register('content')}
           />
@@ -254,34 +226,6 @@ function ServiceFormDialog({
             minRows={2}
             label="Thời điểm xuất hóa đơn"
             {...register('invoiceTiming')}
-          />
-
-          <TextField
-            fullWidth
-            multiline
-            minRows={3}
-            label="Mô tả"
-            className="md:col-span-2"
-            {...register('description')}
-          />
-
-          <Controller
-            name="isActive"
-            control={control}
-            render={({ field }) => (
-              <div className="flex items-center justify-between rounded-xl border border-slate-200 px-4 py-3 md:col-span-2">
-                <div>
-                  <p className="font-bold text-slate-950">Hoạt động</p>
-                  <p className="mt-1 text-sm text-slate-500">
-                    Dịch vụ đang được dùng trong hệ thống
-                  </p>
-                </div>
-                <Switch
-                  checked={field.value}
-                  onChange={(event) => field.onChange(event.target.checked)}
-                />
-              </div>
-            )}
           />
         </DialogContent>
 
@@ -327,11 +271,7 @@ function QuoteConfigDialog({
     setConfig(getServiceQuoteConfigMeta(state.option, state.service));
   }, [state]);
 
-  const updateRate = (
-    index: number,
-    field: 'single' | 'multi',
-    value: string,
-  ) => {
+  const updateRate = (index: number, field: 'single' | 'multi', value: string) => {
     setConfig((current) => ({
       ...current,
       managementFeeRates: current.managementFeeRates.map((rate, rateIndex) =>
@@ -364,21 +304,21 @@ function QuoteConfigDialog({
     <Dialog
       open={Boolean(state)}
       onClose={isSubmitting ? undefined : onClose}
-      maxWidth="lg"
+      maxWidth="md"
       fullWidth
     >
-      <DialogTitle className="border-b border-slate-100 px-6 py-5">
-        <p className="text-lg font-bold text-slate-950">Cấu hình báo giá dịch vụ</p>
-        <p className="mt-1 text-sm text-slate-500">
+      <DialogTitle className="border-b border-slate-100 px-5 py-4">
+        <p className="text-base font-bold text-slate-950">Cấu hình báo giá dịch vụ</p>
+        <p className="mt-0.5 text-xs text-slate-500">
           {state?.service.code} - {state?.service.name}
         </p>
       </DialogTitle>
 
-      <DialogContent className="space-y-5 px-6 py-5">
-        <div className="flex items-center justify-between rounded-xl border border-slate-200 px-4 py-3">
+      <DialogContent className="space-y-4 px-5 py-4">
+        <div className="flex items-center justify-between gap-4 rounded-lg border border-slate-200 px-3.5 py-2.5">
           <div>
-            <p className="font-bold text-slate-950">Áp dụng tự động trong báo giá</p>
-            <p className="mt-1 text-sm text-slate-500">
+            <p className="text-sm font-bold text-slate-950">Áp dụng tự động trong báo giá</p>
+            <p className="mt-0.5 text-xs text-slate-500">
               Các dịch vụ con thuộc nhóm này sẽ dùng cùng bảng phí.
             </p>
           </div>
@@ -390,39 +330,31 @@ function QuoteConfigDialog({
           />
         </div>
 
-        <div className="overflow-hidden rounded-xl border border-slate-200">
-          <div className="border-b border-slate-200 bg-slate-50 px-4 py-3">
-            <p className="font-bold text-slate-950">% phí quản lý theo ngân sách</p>
+        <div className="overflow-hidden rounded-lg border border-slate-200">
+          <div className="border-b border-slate-200 bg-slate-50 px-3.5 py-2.5">
+            <p className="text-sm font-bold text-slate-950">% phí quản lý theo ngân sách</p>
           </div>
-          <div className="overflow-x-auto">
-            <table className="w-full min-w-[560px] text-left text-sm">
-              <thead className="bg-white text-xs font-bold uppercase text-slate-500">
-                <tr>
-                  <th className="px-4 py-3">Ngân sách</th>
-                  <th className="w-40 px-4 py-3">Đơn kênh (%)</th>
-                </tr>
-              </thead>
-              <tbody className="divide-y divide-slate-100">
-                {config.managementFeeRates.map((rate, index) => (
-                  <tr key={rate.label}>
-                    <td className="px-4 py-3 font-semibold text-slate-700">{rate.label}</td>
-                    <td className="px-4 py-3">
-                      <TextField
-                        fullWidth
-                        size="small"
-                        type="number"
-                        value={rate.single}
-                        onChange={(event) => updateRate(index, 'single', event.target.value)}
-                      />
-                    </td>
-                  </tr>
-                ))}
-              </tbody>
-            </table>
+          <div className="grid gap-px bg-slate-100 sm:grid-cols-2">
+            {config.managementFeeRates.map((rate, index) => (
+              <div
+                key={rate.label}
+                className="flex items-center justify-between gap-3 bg-white px-3.5 py-2"
+              >
+                <span className="text-xs font-semibold text-slate-700">{rate.label}</span>
+                <TextField
+                  size="small"
+                  type="number"
+                  value={rate.single}
+                  onChange={(event) => updateRate(index, 'single', event.target.value)}
+                  slotProps={{ htmlInput: { min: 0, className: 'py-1.5 text-right' } }}
+                  className="w-24"
+                />
+              </div>
+            ))}
           </div>
         </div>
 
-        <div className="grid gap-4 md:grid-cols-2">
+        <div className="grid gap-3 sm:grid-cols-2">
           {config.setupPackages.map((setupPackage, index) => (
             <MoneyInput
               key={setupPackage.key}
@@ -435,16 +367,17 @@ function QuoteConfigDialog({
         </div>
       </DialogContent>
 
-      <DialogActions className="border-t border-slate-100 px-6 py-4">
-        <Button variant="outlined" onClick={resetDefaults} disabled={isSubmitting}>
+      <DialogActions className="border-t border-slate-100 px-5 py-3">
+        <Button size="small" variant="text" onClick={resetDefaults} disabled={isSubmitting}>
           Mặc định
         </Button>
         <div className="flex-1" />
-        <Button variant="outlined" onClick={onClose} disabled={isSubmitting}>
+        <Button size="small" variant="outlined" onClick={onClose} disabled={isSubmitting}>
           Hủy
         </Button>
         <Button
           type="button"
+          size="small"
           variant="contained"
           disabled={isSubmitting || !state}
           onClick={async () => {
@@ -558,13 +491,12 @@ export function ServiceManager({
           )}
 
           <table
-            className={`w-full min-w-[1320px] table-fixed text-left text-sm transition-opacity ${isFetching ? 'opacity-60' : 'opacity-100'}`}
+            className={`w-full min-w-[1160px] table-fixed text-left text-sm transition-opacity ${isFetching ? 'opacity-60' : 'opacity-100'}`}
           >
             <thead className="bg-slate-50 text-xs font-bold uppercase text-slate-500">
               <tr>
                 <th className="w-[390px] px-5 py-4">Dịch vụ</th>
                 <th className="w-36 px-3 py-4">Trạng thái</th>
-                <th className="w-40 px-3 py-4">Đơn giá</th>
                 <th className="w-[260px] px-3 py-4">Nội dung</th>
                 <th className="w-[260px] px-3 py-4">Nội dung hóa đơn</th>
                 <th className="w-[220px] px-3 py-4">Thời điểm hóa đơn</th>
@@ -575,7 +507,7 @@ export function ServiceManager({
               {flatServices.length === 0 ? (
                 <tr>
                   <td
-                    colSpan={7}
+                    colSpan={6}
                     className="px-5 py-12 text-center text-sm font-semibold text-slate-500"
                   >
                     Chưa có dịch vụ nào
@@ -631,18 +563,6 @@ export function ServiceManager({
                         >
                           {service.isActive ? 'Hoạt động' : 'Tạm tắt'}
                         </span>
-                      </td>
-                      <td className="px-3 py-4">
-                        {service.defaultPrice ? (
-                          <p className="font-semibold text-slate-700">
-                            {formatCurrency(service.defaultPrice)}
-                            {service.unit ? (
-                              <span className="text-xs font-normal text-slate-400"> / {service.unit}</span>
-                            ) : null}
-                          </p>
-                        ) : (
-                          <p className="text-slate-400">-</p>
-                        )}
                       </td>
                       <td className="px-3 py-4">
                         <p className="line-clamp-2 text-slate-600" title={service.content || ''}>

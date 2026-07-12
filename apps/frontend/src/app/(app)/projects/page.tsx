@@ -7,6 +7,7 @@ import { ContentLoading } from '@/components/shell/content-loading';
 import { ProjectManager } from '@/features/projects/components/project-manager';
 import { getApiErrorMessage } from '@/lib/api-error';
 import { DEFAULT_PROJECT_FILTERS } from '@/lib/project-utils';
+import { SERVICE_QUOTE_CONFIG_GROUP } from '@/lib/service-quote-config';
 import api from '@/services/api/client';
 import type { Customer } from '@/types/customer';
 import type { AppOption } from '@/types/option';
@@ -37,7 +38,8 @@ export default function ProjectsPage() {
 
   const { data: services = [] } = useQuery<ServiceItem[]>({
     queryKey: ['services', 'project-options'],
-    queryFn: () => api.get('/services', { params: { tree: true } }).then((response) => response.data),
+    queryFn: () =>
+      api.get('/services', { params: { tree: true } }).then((response) => response.data),
   });
 
   const { data: users = [] } = useQuery<User[]>({
@@ -48,7 +50,17 @@ export default function ProjectsPage() {
   const { data: statuses = [] } = useQuery<AppOption[]>({
     queryKey: ['options', 'project_status'],
     queryFn: () =>
-      api.get('/options', { params: { groups: 'project_status' } }).then((response) => response.data),
+      api
+        .get('/options', { params: { groups: 'project_status' } })
+        .then((response) => response.data),
+  });
+
+  const { data: quoteConfigs = [] } = useQuery<AppOption[]>({
+    queryKey: ['options', SERVICE_QUOTE_CONFIG_GROUP],
+    queryFn: () =>
+      api
+        .get<AppOption[]>('/options', { params: { groups: SERVICE_QUOTE_CONFIG_GROUP } })
+        .then((response) => response.data),
   });
 
   const {
@@ -84,6 +96,7 @@ export default function ProjectsPage() {
       services={services}
       users={users}
       statuses={statuses}
+      quoteConfigs={quoteConfigs}
       filters={filters}
       isFetching={isFetching}
       isDeleting={deleteMutation.isPending}
