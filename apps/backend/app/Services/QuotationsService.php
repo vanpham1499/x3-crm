@@ -6,6 +6,7 @@ use App\Http\Resources\QuotationResource;
 use App\Models\Quotation;
 use App\Repositories\PaymentRepository;
 use App\Repositories\QuotationRepository;
+use App\Support\QuotationReference;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Str;
 
@@ -78,7 +79,7 @@ class QuotationsService extends BaseService
         });
     }
 
-    public function linkWonRecords(string $quotationId, string $customerId, string $projectId, string $contractId): Quotation
+    public function linkWonRecords(string $quotationId, string $customerId, string $projectId, ?string $contractId = null): Quotation
     {
         /** @var Quotation $quotation */
         $quotation = $this->quotations->update($quotationId, [
@@ -88,14 +89,24 @@ class QuotationsService extends BaseService
             'status' => Quotation::STATUS_WON,
         ]);
 
+        $receivedAmount = (float) DB::table('payments')
+            ->where('quotation_id', $quotationId)
+            ->whereNull('deleted_at')
+            ->sum('amount');
+        $paymentStatus = $this->paymentCollectionStatus(
+            $receivedAmount,
+            (float) $quotation->total_amount,
+            'matched_project',
+        );
+
         DB::table('payments')
             ->where('quotation_id', $quotationId)
-            ->whereNull('project_id')
+            ->whereNull('deleted_at')
             ->update([
                 'customer_id' => $customerId,
                 'project_id' => $projectId,
                 'contract_id' => $contractId,
-                'status' => 'matched_project',
+                'status' => $paymentStatus,
                 'reconciled_status' => 'matched_project',
                 'matched_at' => now(),
                 'updated_at' => now(),
@@ -122,7 +133,7 @@ class QuotationsService extends BaseService
             ->sortByDesc(fn (string $code): int => strlen($code));
 
         foreach ($codes as $code) {
-            if (Str::contains(Str::upper($text), Str::upper($code))) {
+            if (QuotationReference::appearsIn($text, $code)) {
                 return $this->quotations->findByCode($code);
             }
         }
@@ -360,5 +371,25 @@ class QuotationsService extends BaseService
         $value = preg_replace('/[^A-Za-z0-9._-]/', '', $value) ?: '';
 
         return Str::upper($value);
+    }
+
+    private function paymentCollectionStatus(
+        float $receivedAmount,
+        float $totalAmount,
+        string $matchStatus,
+    ): string {
+        if ($receivedAmount <= 0) {
+            return $matchStatus;
+        }
+
+        if ($receivedAmount < $totalAmount) {
+            return 'partial';
+        }
+
+        if ($receivedAmount > $totalAmount) {
+            return 'overpaid';
+        }
+
+        return 'paid';
     }
 }

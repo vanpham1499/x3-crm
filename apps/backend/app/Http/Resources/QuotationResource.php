@@ -2,6 +2,7 @@
 
 namespace App\Http\Resources;
 
+use App\Support\QuotationReference;
 use Illuminate\Http\Request;
 use Illuminate\Http\Resources\Json\JsonResource;
 
@@ -9,9 +10,15 @@ class QuotationResource extends JsonResource
 {
     public function toArray(Request $request): array
     {
+        $paidAmount = $this->relationLoaded('payments')
+            ? (float) $this->payments->sum('amount')
+            : 0.0;
+        $totalAmount = (float) $this->total_amount;
+
         return [
             'id' => $this->id,
             'quotationCode' => $this->quotation_code,
+            'paymentContent' => QuotationReference::canonical($this->quotation_code),
             'leadId' => $this->lead_id,
             'customerId' => $this->customer_id,
             'projectId' => $this->project_id,
@@ -24,6 +31,9 @@ class QuotationResource extends JsonResource
             'vatRate' => $this->vat_rate,
             'vatAmount' => $this->vat_amount,
             'totalAmount' => $this->total_amount,
+            'paidAmount' => round($paidAmount, 2),
+            'outstandingAmount' => round(max(0, $totalAmount - $paidAmount), 2),
+            'paymentStatus' => $this->paymentStatus($paidAmount, $totalAmount),
             'depositAmount' => $this->deposit_amount,
             'validUntil' => $this->valid_until?->toDateString(),
             'note' => $this->note,
@@ -52,5 +62,22 @@ class QuotationResource extends JsonResource
             'createdAt' => $this->created_at?->toISOString(),
             'updatedAt' => $this->updated_at?->toISOString(),
         ];
+    }
+
+    private function paymentStatus(float $paidAmount, float $totalAmount): string
+    {
+        if ($paidAmount <= 0) {
+            return 'unpaid';
+        }
+
+        if ($paidAmount < $totalAmount) {
+            return 'partial';
+        }
+
+        if ($paidAmount > $totalAmount) {
+            return 'overpaid';
+        }
+
+        return 'paid';
     }
 }

@@ -24,6 +24,13 @@ class ContractResource extends JsonResource
             'contractMonth' => $this->contract_month,
             'fileUrl' => $this->file_url,
             'note' => $this->note,
+            'invoiceRecipientType' => $this->invoice_recipient_type,
+            'invoiceRecipientName' => $this->invoice_recipient_name,
+            'invoiceRepresentativeName' => $this->invoice_representative_name,
+            'invoiceTaxCode' => $this->invoice_tax_code,
+            'invoiceAddress' => $this->invoice_address,
+            'invoiceEmail' => $this->invoice_email,
+            'invoicePhone' => $this->invoice_phone,
             'contractStatusOption' => $this->whenLoaded('contractStatusOption', fn () => $this->contractStatusOption ? new OptionResource($this->contractStatusOption) : null),
             'project' => $this->whenLoaded('project', fn () => $this->project ? [
                 'id' => $this->project->id,

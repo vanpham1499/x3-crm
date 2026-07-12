@@ -10,6 +10,7 @@ use App\Models\Project;
 use App\Models\User;
 use App\Repositories\ProjectRepository;
 use Illuminate\Support\Facades\DB;
+use Illuminate\Validation\ValidationException;
 
 class ProjectsService extends BaseService
 {
@@ -35,6 +36,7 @@ class ProjectsService extends BaseService
             unset($data['contract']);
 
             $data = $this->normalizePayload($data);
+            $this->validateQuotationLink($data);
             $data['project_code'] = $data['project_code'] ?? $this->projectCodeFromQuotation($data['quotation_id'] ?? null);
             $data['project_code'] = $data['project_code'] ?? $this->generateProjectCode();
             $data['project_code'] = $this->ensureUniqueProjectCode($data['project_code']);
@@ -46,8 +48,8 @@ class ProjectsService extends BaseService
             $this->recordTimeline($project, 'create', $this->buildCreatedTimelineContent($project));
             $contract = is_array($contractData) ? $this->syncProjectContract($project, $contractData) : null;
 
-            if ($project->quotation_id && $contract) {
-                $this->quotations->linkWonRecords($project->quotation_id, $project->customer_id, $project->id, $contract->id);
+            if ($project->quotation_id) {
+                $this->quotations->linkWonRecords($project->quotation_id, $project->customer_id, $project->id, $contract?->id);
             }
 
             return $this->apiResource($this->loadProjectRelations($project), ProjectResource::class);
@@ -63,6 +65,7 @@ class ProjectsService extends BaseService
 
             $data = $this->normalizePayload($data);
             $before = $this->loadProjectRelations($this->projects->findWithRelationsOrFail($id));
+            $this->validateQuotationLink($data, $before);
 
             /** @var Project $project */
             $project = $this->projects->update($id, $data);
@@ -75,8 +78,8 @@ class ProjectsService extends BaseService
 
             $contract = $hasContract && is_array($contractData) ? $this->syncProjectContract($project, $contractData) : $project->contracts()->first();
 
-            if ($project->quotation_id && $contract) {
-                $this->quotations->linkWonRecords($project->quotation_id, $project->customer_id, $project->id, $contract->id);
+            if ($project->quotation_id) {
+                $this->quotations->linkWonRecords($project->quotation_id, $project->customer_id, $project->id, $contract?->id);
             }
 
             return $this->apiResource($this->loadProjectRelations($project), ProjectResource::class);
@@ -135,6 +138,46 @@ class ProjectsService extends BaseService
         }
 
         return $data;
+    }
+
+    private function validateQuotationLink(array $data, ?Project $existingProject = null): void
+    {
+        $quotationId = array_key_exists('quotation_id', $data)
+            ? $data['quotation_id']
+            : $existingProject?->quotation_id;
+
+        if (! $quotationId) {
+            return;
+        }
+
+        $quotation = $this->quotations->findModel((string) $quotationId);
+        $projectId = $existingProject?->id;
+        $customerId = $data['customer_id'] ?? $existingProject?->customer_id;
+        $serviceId = $data['service_id'] ?? $existingProject?->service_id;
+
+        if ($quotation->project_id && (string) $quotation->project_id !== (string) $projectId) {
+            throw ValidationException::withMessages([
+                'quotationId' => ['Báo phí này đã được gắn với một dự án khác.'],
+            ]);
+        }
+
+        if ($quotation->status === 'lost') {
+            throw ValidationException::withMessages([
+                'quotationId' => ['Không thể tạo dự án từ báo phí đã hủy.'],
+            ]);
+        }
+
+        if ($quotation->customer_id && (string) $quotation->customer_id !== (string) $customerId) {
+            throw ValidationException::withMessages([
+                'customerId' => ['Khách hàng của dự án phải trùng với khách hàng trên báo phí.'],
+            ]);
+        }
+
+        if ($quotation->service_id && (string) $quotation->service_id !== (string) $serviceId) {
+            throw ValidationException::withMessages([
+                'serviceId' => ['Dịch vụ của dự án phải trùng với dịch vụ trên báo phí.'],
+            ]);
+        }
     }
 
     private function loadProjectRelations(Project $project): Project

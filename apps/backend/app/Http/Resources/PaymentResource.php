@@ -27,6 +27,7 @@ class PaymentResource extends JsonResource
             'status' => $this->status,
             'matchedAt' => $this->matched_at?->toISOString(),
             'note' => $this->note,
+            'reference' => $this->reference,
             'quotation' => $this->whenLoaded('quotation', fn () => $this->quotation ? [
                 'id' => $this->quotation->id,
                 'quotationCode' => $this->quotation->quotation_code,

@@ -10,6 +10,7 @@ use App\Http\Controllers\OptionsController;
 use App\Http\Controllers\PaymentsController;
 use App\Http\Controllers\PermissionsController;
 use App\Http\Controllers\ProjectsController;
+use App\Http\Controllers\ProjectCostsController;
 use App\Http\Controllers\QuotationsController;
 use App\Http\Controllers\RevenuesController;
 use App\Http\Controllers\RolesController;
@@ -82,6 +83,13 @@ Route::middleware('jwt')->group(function (): void {
     Route::put('/projects/{id}', [ProjectsController::class, 'update']);
     Route::patch('/projects/{id}', [ProjectsController::class, 'update']);
     Route::delete('/projects/{id}', [ProjectsController::class, 'destroy']);
+
+    Route::get('/project-costs', [ProjectCostsController::class, 'index']);
+    Route::post('/project-costs', [ProjectCostsController::class, 'store']);
+    Route::get('/project-costs/{id}', [ProjectCostsController::class, 'show']);
+    Route::put('/project-costs/{id}', [ProjectCostsController::class, 'update']);
+    Route::patch('/project-costs/{id}', [ProjectCostsController::class, 'update']);
+    Route::delete('/project-costs/{id}', [ProjectCostsController::class, 'destroy']);
 
     Route::get('/quotations', [QuotationsController::class, 'index']);
     Route::post('/quotations', [QuotationsController::class, 'store']);

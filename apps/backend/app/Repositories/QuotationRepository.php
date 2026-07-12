@@ -20,7 +20,7 @@ class QuotationRepository extends BaseRepository
         $keyword = trim((string) ($filters['keyword'] ?? $filters['search'] ?? ''));
 
         return $this->query()
-            ->with(['lead', 'customer', 'project', 'contract', 'service', 'items.service'])
+            ->with(['lead', 'customer', 'project', 'contract', 'service', 'items.service', 'payments'])
             ->when($keyword !== '', fn ($query) => $query->where(function ($query) use ($keyword): void {
                 $query
                     ->where('quotation_code', 'ilike', "%{$keyword}%")
@@ -59,6 +59,6 @@ class QuotationRepository extends BaseRepository
             return null;
         }
 
-        return $this->query()->with(['lead', 'customer', 'project', 'contract', 'service', 'items.service'])->where('quotation_code', $code)->first();
+        return $this->query()->with(['lead', 'customer', 'project', 'contract', 'service', 'items.service', 'payments'])->where('quotation_code', $code)->first();
     }
 }

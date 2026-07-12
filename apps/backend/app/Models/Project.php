@@ -86,6 +86,11 @@ class Project extends BaseModel
         return $this->hasMany(Payment::class);
     }
 
+    public function costs(): HasMany
+    {
+        return $this->hasMany(ProjectCost::class);
+    }
+
     public function googleAdAccount(): HasOne
     {
         return $this->hasOne(GoogleAdAccount::class);
