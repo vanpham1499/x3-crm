@@ -10,7 +10,7 @@ class EnsureUserRole
 {
     public function handle(Request $request, Closure $next, string ...$roles): Response
     {
-        $user = $request->attributes->get('auth_user');
+        $user = $request->user();
 
         if (! $user || ! in_array($user->role, $roles, true)) {
             return response()->json(['message' => 'Bạn không có quyền thực hiện thao tác này'], 403);

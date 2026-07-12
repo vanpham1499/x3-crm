@@ -6,6 +6,8 @@ use App\Http\Resources\PaymentResource;
 use App\Models\Payment;
 use App\Models\Quotation;
 use App\Repositories\PaymentRepository;
+use App\Support\QuotationReference;
+use Carbon\Carbon;
 use Illuminate\Support\Facades\DB;
 
 class PaymentsService extends BaseService
@@ -101,12 +103,23 @@ class PaymentsService extends BaseService
             $existingPayment = $this->findDuplicateWebhookPayment($data);
 
             if ($existingPayment) {
+                $webhookDetails = array_filter([
+                    'transaction_date' => $data['transaction_date'] ?? null,
+                    'transaction_at' => $data['transaction_at'] ?? null,
+                    'sender_name' => $data['sender_name'] ?? null,
+                    'bank_account' => $data['bank_account'] ?? null,
+                    'transaction_content' => $data['transaction_content'] ?? null,
+                    'webhook_payload' => $rawPayload,
+                ], fn ($value) => $value !== null && $value !== '');
+
                 if ($quotation && ! $existingPayment->quotation_id) {
                     $existingPayment = $this->payments->update($existingPayment->id, array_merge(
                         $this->matchedPayload($quotation),
-                        ['webhook_payload' => $rawPayload],
+                        $webhookDetails,
                     ));
                     $this->reconcileQuotationPayments($quotation->id);
+                } elseif ($webhookDetails !== []) {
+                    $existingPayment = $this->payments->update($existingPayment->id, $webhookDetails);
                 }
 
                 return $this->paymentResource($existingPayment);
@@ -181,6 +194,18 @@ class PaymentsService extends BaseService
     private function normalizePayload(array $data): array
     {
         $data = $this->normalizeKeys($data);
+        $transactionAt = $data['transaction_at'] ?? null;
+
+        if ($transactionAt) {
+            $parsedTransactionAt = Carbon::parse($transactionAt);
+            $data['transaction_at'] = $parsedTransactionAt->format('Y-m-d H:i:s');
+            $data['transaction_date'] = $data['transaction_date'] ?? $parsedTransactionAt->toDateString();
+        } elseif (! empty($data['transaction_date'])) {
+            $data['transaction_at'] = Carbon::parse($data['transaction_date'])
+                ->startOfDay()
+                ->format('Y-m-d H:i:s');
+        }
+
         $data['transaction_date'] = $data['transaction_date'] ?? now()->toDateString();
 
         foreach (['quotation_id', 'lead_id', 'customer_id', 'project_id', 'contract_id', 'revenue_id'] as $key) {
@@ -201,8 +226,10 @@ class PaymentsService extends BaseService
             'projectId' => 'project_id',
             'contractId' => 'contract_id',
             'revenueId' => 'revenue_id',
-            'transactionDate' => 'transaction_date',
+            'transactionDate' => 'transaction_at',
+            'transactionAt' => 'transaction_at',
             'bankAccount' => 'bank_account',
+            'senderName' => 'sender_name',
             'transactionContent' => 'transaction_content',
             'customerCodeText' => 'customer_code_text',
             'reconciledStatus' => 'reconciled_status',
@@ -233,6 +260,18 @@ class PaymentsService extends BaseService
                     $data[$target] = $data[$source];
                     break;
                 }
+            }
+        }
+
+        if (empty($data['sender_name'])) {
+            $description = trim((string) ($data['description'] ?? ''));
+            $content = trim((string) ($data['transaction_content'] ?? ''));
+
+            if (
+                $description !== ''
+                && QuotationReference::compact($description) !== QuotationReference::compact($content)
+            ) {
+                $data['sender_name'] = $description;
             }
         }
 

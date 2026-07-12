@@ -2,6 +2,7 @@
 
 namespace App\Http\Resources;
 
+use App\Support\QuotationReference;
 use Illuminate\Http\Request;
 use Illuminate\Http\Resources\Json\JsonResource;
 
@@ -18,7 +19,11 @@ class PaymentResource extends JsonResource
             'contractId' => $this->contract_id,
             'revenueId' => $this->revenue_id,
             'transactionDate' => $this->transaction_date?->toDateString(),
+            'transactionAt' => $this->transaction_at?->format('Y-m-d H:i:s')
+                ?? data_get($this->webhook_payload, 'transactionDate'),
             'bankAccount' => $this->bank_account,
+            'bankGateway' => data_get($this->webhook_payload, 'gateway'),
+            'senderName' => $this->senderName(),
             'transactionContent' => $this->transaction_content,
             'amount' => $this->amount,
             'customerCodeText' => $this->customer_code_text,
@@ -49,5 +54,25 @@ class PaymentResource extends JsonResource
             'createdAt' => $this->created_at?->toISOString(),
             'updatedAt' => $this->updated_at?->toISOString(),
         ];
+    }
+
+    private function senderName(): ?string
+    {
+        $senderName = $this->sender_name
+            ?? data_get($this->webhook_payload, 'senderName')
+            ?? data_get($this->webhook_payload, 'sender_name');
+
+        if (is_string($senderName) && trim($senderName) !== '') {
+            return trim($senderName);
+        }
+
+        $description = trim((string) data_get($this->webhook_payload, 'description', ''));
+        $content = trim((string) ($this->transaction_content ?? data_get($this->webhook_payload, 'content', '')));
+
+        if ($description === '' || QuotationReference::compact($description) === QuotationReference::compact($content)) {
+            return null;
+        }
+
+        return $description;
     }
 }
