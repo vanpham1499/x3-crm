@@ -35,6 +35,20 @@ class CreateContractRequest extends BaseRequest
             'file_url' => ['nullable', 'string'],
             'fileUrl' => ['nullable', 'string'],
             'note' => ['nullable', 'string'],
+            'invoice_recipient_type' => ['nullable', Rule::in(['customer', 'other'])],
+            'invoiceRecipientType' => ['nullable', Rule::in(['customer', 'other'])],
+            'invoice_recipient_name' => ['nullable', 'required_if:invoice_recipient_type,other', 'string', 'max:255'],
+            'invoiceRecipientName' => ['nullable', 'required_if:invoiceRecipientType,other', 'string', 'max:255'],
+            'invoice_representative_name' => ['nullable', 'string', 'max:255'],
+            'invoiceRepresentativeName' => ['nullable', 'string', 'max:255'],
+            'invoice_tax_code' => ['nullable', 'string', 'max:50'],
+            'invoiceTaxCode' => ['nullable', 'string', 'max:50'],
+            'invoice_address' => ['nullable', 'string'],
+            'invoiceAddress' => ['nullable', 'string'],
+            'invoice_email' => ['nullable', 'email', 'max:255'],
+            'invoiceEmail' => ['nullable', 'email', 'max:255'],
+            'invoice_phone' => ['nullable', 'string', 'max:50'],
+            'invoicePhone' => ['nullable', 'string', 'max:50'],
         ];
     }
 }

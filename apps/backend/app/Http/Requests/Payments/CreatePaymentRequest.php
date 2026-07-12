@@ -35,6 +35,7 @@ class CreatePaymentRequest extends BaseRequest
             'reconciled_status' => ['nullable', 'string', 'max:50'],
             'reconciledStatus' => ['nullable', 'string', 'max:50'],
             'note' => ['nullable', 'string'],
+            'reference' => ['nullable', 'string', 'max:255'],
         ];
     }
 }

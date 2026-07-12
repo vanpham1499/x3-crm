@@ -1,5 +1,5 @@
 @echo off
-setlocal
+setlocal EnableExtensions EnableDelayedExpansion
 
 set "ROOT=%~dp0.."
 set "PHP=%PHP_PATH%"
@@ -44,21 +44,21 @@ if not "%SKIP_DB_SETUP%"=="1" (
 
 if not "%START_NGROK%"=="0" (
   set "NGROK_EXE=%NGROK_PATH%"
-  if "%NGROK_EXE%"=="" set "NGROK_EXE=%ROOT%\.tools\ngrok\ngrok.exe"
+  if "!NGROK_EXE!"=="" set "NGROK_EXE=%ROOT%\.tools\ngrok\ngrok.exe"
 
-  if not exist "%NGROK_EXE%" (
+  if not exist "!NGROK_EXE!" (
     call "%~dp0ensure-ngrok.cmd"
     if errorlevel 1 exit /b %errorlevel%
   )
 
-  if not exist "%NGROK_EXE%" (
-    echo [dev:backend] ngrok not found: %NGROK_EXE%
+  if not exist "!NGROK_EXE!" (
+    echo [dev:backend] ngrok not found: !NGROK_EXE!
     exit /b 1
   )
 
   if not "%NGROK_AUTHTOKEN%"=="" (
     echo [dev:backend] Updating ngrok authtoken...
-    "%NGROK_EXE%" config add-authtoken "%NGROK_AUTHTOKEN%" >nul
+    "!NGROK_EXE!" config add-authtoken "%NGROK_AUTHTOKEN%" >nul
   )
 
   if "%NGROK_URL%"=="" (
@@ -71,7 +71,7 @@ if not "%START_NGROK%"=="0" (
   )
 
   echo [dev:backend] ngrok inspect: http://127.0.0.1:4040
-  start "x3sales-ngrok" /min cmd /k ""%NGROK_EXE%" %NGROK_ARGS%"
+  start "x3sales-ngrok" /min cmd /k ""!NGROK_EXE!" !NGROK_ARGS!"
 )
 
 echo [dev:backend] Starting API on http://127.0.0.1:%PORT%/api

@@ -5,6 +5,8 @@ namespace App\Services;
 use App\Http\Resources\ContractResource;
 use App\Models\Contract;
 use App\Repositories\ContractRepository;
+use Illuminate\Support\Facades\DB;
+use Illuminate\Validation\ValidationException;
 
 class ContractsService extends BaseService
 {
@@ -27,6 +29,7 @@ class ContractsService extends BaseService
 
             /** @var Contract $contract */
             $contract = $this->contracts->create($data);
+            $this->syncQuotationLinks($contract);
 
             return $this->apiResource($contract->load(['project', 'quotation', 'lead', 'customer', 'contractStatus', 'contractStatusOption']), ContractResource::class);
         });
@@ -35,8 +38,10 @@ class ContractsService extends BaseService
     public function update(string $id, array $data): array
     {
         return $this->transaction(function () use ($id, $data): array {
+            $existing = $this->contracts->findWithRelationsOrFail($id);
             /** @var Contract $contract */
-            $contract = $this->contracts->update($id, $this->normalizePayload($data));
+            $contract = $this->contracts->update($id, $this->normalizePayload($data, $existing));
+            $this->syncQuotationLinks($contract, $existing->quotation_id);
 
             return $this->apiResource($contract->load(['project', 'quotation', 'lead', 'customer', 'contractStatus', 'contractStatusOption']), ContractResource::class);
         });
@@ -45,15 +50,61 @@ class ContractsService extends BaseService
     public function remove(string $id): array
     {
         return $this->transaction(function () use ($id): array {
+            $contract = $this->contracts->findWithRelationsOrFail($id);
+            $this->clearQuotationLinks($contract);
             $this->contracts->delete($id);
 
             return ['message' => 'Xóa hợp đồng thành công'];
         });
     }
 
-    private function normalizePayload(array $data): array
+    private function normalizePayload(array $data, ?Contract $existing = null): array
     {
-        return $this->normalizeKeys($data);
+        $data = $this->normalizeKeys($data);
+        $projectId = $data['project_id'] ?? $existing?->project_id;
+
+        if ($projectId) {
+            $project = DB::table('projects')->where('id', $projectId)->whereNull('deleted_at')->first();
+            $data['customer_id'] = $data['customer_id'] ?? $existing?->customer_id ?? $project?->customer_id;
+            $data['contract_no'] = $data['contract_no'] ?? $existing?->contract_no ?? $project?->project_code;
+        }
+
+        if (! empty($data['quotation_id'])) {
+            $quotation = DB::table('quotations')->where('id', $data['quotation_id'])->whereNull('deleted_at')->first();
+
+            if ($quotation?->project_id && (string) $quotation->project_id !== (string) $projectId) {
+                throw ValidationException::withMessages([
+                    'quotationId' => ['Báo phí không thuộc dự án này.'],
+                ]);
+            }
+
+            $data['lead_id'] = $data['lead_id'] ?? $existing?->lead_id ?? $quotation?->lead_id;
+            $data['customer_id'] = $data['customer_id'] ?? $quotation?->customer_id;
+        }
+
+        $modeProvided = array_key_exists('invoice_recipient_type', $data);
+        $recipientType = $data['invoice_recipient_type'] ?? $existing?->invoice_recipient_type ?? 'customer';
+
+        if (! $existing || $modeProvided) {
+            $data['invoice_recipient_type'] = $recipientType;
+        }
+
+        if ($recipientType === 'customer' && (! $existing || $modeProvided || array_key_exists('customer_id', $data))) {
+            $customer = ! empty($data['customer_id'])
+                ? DB::table('customers')->where('id', $data['customer_id'])->whereNull('deleted_at')->first()
+                : null;
+
+            if ($customer) {
+                $data['invoice_recipient_name'] = $customer->company_name ?: $customer->customer_name;
+                $data['invoice_representative_name'] = $customer->representative_name;
+                $data['invoice_tax_code'] = $customer->tax_code;
+                $data['invoice_address'] = $customer->address;
+                $data['invoice_email'] = $customer->email;
+                $data['invoice_phone'] = $customer->phone;
+            }
+        }
+
+        return $data;
     }
 
     private function normalizeKeys(array $data): array
@@ -71,6 +122,13 @@ class ContractsService extends BaseService
             'expiredDate' => 'expired_date',
             'contractMonth' => 'contract_month',
             'fileUrl' => 'file_url',
+            'invoiceRecipientType' => 'invoice_recipient_type',
+            'invoiceRecipientName' => 'invoice_recipient_name',
+            'invoiceRepresentativeName' => 'invoice_representative_name',
+            'invoiceTaxCode' => 'invoice_tax_code',
+            'invoiceAddress' => 'invoice_address',
+            'invoiceEmail' => 'invoice_email',
+            'invoicePhone' => 'invoice_phone',
         ];
 
         foreach ($map as $from => $to) {
@@ -81,5 +139,47 @@ class ContractsService extends BaseService
         }
 
         return $data;
+    }
+
+    private function syncQuotationLinks(Contract $contract, ?int $previousQuotationId = null): void
+    {
+        if ($previousQuotationId && (string) $previousQuotationId !== (string) $contract->quotation_id) {
+            DB::table('quotations')
+                ->where('id', $previousQuotationId)
+                ->where('contract_id', $contract->id)
+                ->update(['contract_id' => null, 'updated_at' => now()]);
+            DB::table('payments')
+                ->where('quotation_id', $previousQuotationId)
+                ->where('contract_id', $contract->id)
+                ->whereNull('deleted_at')
+                ->update(['contract_id' => null, 'updated_at' => now()]);
+        }
+
+        if (! $contract->quotation_id) {
+            return;
+        }
+
+        DB::table('quotations')->where('id', $contract->quotation_id)->update([
+            'contract_id' => $contract->id,
+            'updated_at' => now(),
+        ]);
+        DB::table('payments')
+            ->where('quotation_id', $contract->quotation_id)
+            ->whereNull('deleted_at')
+            ->update([
+                'contract_id' => $contract->id,
+                'updated_at' => now(),
+            ]);
+    }
+
+    private function clearQuotationLinks(Contract $contract): void
+    {
+        DB::table('quotations')
+            ->where('contract_id', $contract->id)
+            ->update(['contract_id' => null, 'updated_at' => now()]);
+        DB::table('payments')
+            ->where('contract_id', $contract->id)
+            ->whereNull('deleted_at')
+            ->update(['contract_id' => null, 'updated_at' => now()]);
     }
 }

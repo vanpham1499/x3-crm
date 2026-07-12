@@ -24,6 +24,7 @@ class Payment extends BaseModel
         'matched_at',
         'note',
         'webhook_payload',
+        'reference',
         'created_by',
         'updated_by',
         'deleted_by',
