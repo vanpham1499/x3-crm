@@ -3,9 +3,12 @@
 namespace App\Services;
 
 use App\Http\Resources\LeadResource;
+use App\Http\Resources\QuotationResource;
+use App\Models\Customer;
 use App\Models\CustomerTimeline;
 use App\Models\Lead;
 use App\Models\Option;
+use App\Models\Quotation;
 use App\Models\User;
 use App\Repositories\LeadRepository;
 use Illuminate\Support\Collection;
@@ -114,7 +117,10 @@ class LeadsService extends BaseService
                 throw new NotFoundHttpException('Lead không tồn tại');
             }
 
-            if ($lockedLead->converted_customer_id) {
+            if (
+                $lockedLead->converted_customer_id ||
+                Customer::query()->where('lead_id', $lockedLead->id)->exists()
+            ) {
                 throw new ConflictHttpException('Lead đã được chuyển đổi');
             }
 
@@ -126,7 +132,7 @@ class LeadsService extends BaseService
                 throw new ConflictHttpException('Quotation không thuộc lead này');
             }
 
-            $customer = $this->customers->create($this->convertedCustomerPayload($lead, $data['customer'] ?? []));
+            $customer = $this->customers->create($this->convertedCustomerPayload($lead, $data['customer'] ?? []), false);
             $project = $this->projects->create($this->convertedProjectPayload($lead, $customer, $quotation, $data['project'] ?? []));
             $contract = $this->contracts->create($this->convertedContractPayload($lead, $customer, $project, $quotation, $data['contract'] ?? []));
 
@@ -148,7 +154,7 @@ class LeadsService extends BaseService
                 'customer' => $customer,
                 'project' => $project,
                 'contract' => $contract,
-                'quotation' => $quotation ? $this->apiResource($quotation, \App\Http\Resources\QuotationResource::class) : null,
+                'quotation' => $quotation ? $this->apiResource($quotation, QuotationResource::class) : null,
             ];
         });
     }
@@ -243,7 +249,7 @@ class LeadsService extends BaseService
         ]);
     }
 
-    private function convertedProjectPayload(Lead $lead, array $customer, ?\App\Models\Quotation $quotation, array $data): array
+    private function convertedProjectPayload(Lead $lead, array $customer, ?Quotation $quotation, array $data): array
     {
         $data = $this->normalizeProjectKeys($data);
         $serviceId = $data['service_id'] ?? $quotation?->service_id;
@@ -271,7 +277,7 @@ class LeadsService extends BaseService
         ]);
     }
 
-    private function convertedContractPayload(Lead $lead, array $customer, array $project, ?\App\Models\Quotation $quotation, array $data): array
+    private function convertedContractPayload(Lead $lead, array $customer, array $project, ?Quotation $quotation, array $data): array
     {
         $data = $this->normalizeContractKeys($data);
 
@@ -293,7 +299,7 @@ class LeadsService extends BaseService
         ]);
     }
 
-    private function quotationProjectCode(\App\Models\Quotation $quotation): ?string
+    private function quotationProjectCode(Quotation $quotation): ?string
     {
         if (! $quotation->quotation_code) {
             return null;
@@ -302,7 +308,7 @@ class LeadsService extends BaseService
         return preg_replace('/\.Q[0-9]+$/i', '', $quotation->quotation_code) ?: $quotation->quotation_code;
     }
 
-    private function quotationProjectName(?\App\Models\Quotation $quotation): ?string
+    private function quotationProjectName(?Quotation $quotation): ?string
     {
         $metadata = is_array($quotation?->metadata) ? $quotation->metadata : [];
         $projectName = $metadata['projectName'] ?? null;
@@ -543,7 +549,7 @@ class LeadsService extends BaseService
 
     private function currentUser(): ?User
     {
-        $user = request()->attributes->get('auth_user');
+        $user = request()->user();
 
         return $user instanceof User ? $user : null;
     }

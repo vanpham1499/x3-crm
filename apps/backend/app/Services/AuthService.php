@@ -4,15 +4,13 @@ namespace App\Services;
 
 use App\Http\Resources\UserResource;
 use App\Models\User;
-use Firebase\JWT\JWT;
+use Illuminate\Support\Facades\Auth;
 use Illuminate\Support\Facades\Hash;
 use Symfony\Component\HttpKernel\Exception\UnauthorizedHttpException;
 
 class AuthService extends BaseService
 {
-    public function __construct(private readonly UsersService $users)
-    {
-    }
+    public function __construct(private readonly UsersService $users) {}
 
     public function login(string $email, string $password): array
     {
@@ -26,17 +24,9 @@ class AuthService extends BaseService
             throw new UnauthorizedHttpException('', 'Sai mật khẩu');
         }
 
-        return [
-            'access_token' => $this->makeToken($user),
-            'user' => [
-                'id' => $user->id,
-                'code' => $user->code,
-                'name' => $user->name,
-                'email' => $user->email,
-                'role' => $user->role,
-                'phone' => $user->phone,
-            ],
-        ];
+        Auth::guard('web')->login($user);
+
+        return $this->getProfile($user);
     }
 
     public function getProfile(User $user): array
@@ -70,20 +60,5 @@ class AuthService extends BaseService
         $this->users->updatePassword($user->id, Hash::make($newPassword));
 
         return ['message' => 'Đổi mật khẩu thành công'];
-    }
-
-    private function makeToken(User $user): string
-    {
-        $now = time();
-
-        return JWT::encode([
-            'iat' => $now,
-            'exp' => $now + config('jwt.ttl'),
-            'sub' => $user->id,
-            'email' => $user->email,
-            'role' => $user->role,
-            'code' => $user->code,
-            'name' => $user->name,
-        ], config('jwt.secret'), 'HS256');
     }
 }

@@ -1,16 +1,16 @@
 <?php
 
 use App\Http\Controllers\AuthController;
-use App\Http\Controllers\CustomersController;
 use App\Http\Controllers\ContractsController;
+use App\Http\Controllers\CustomersController;
 use App\Http\Controllers\InvoicesController;
 use App\Http\Controllers\LeadsController;
 use App\Http\Controllers\MediaController;
 use App\Http\Controllers\OptionsController;
 use App\Http\Controllers\PaymentsController;
 use App\Http\Controllers\PermissionsController;
-use App\Http\Controllers\ProjectsController;
 use App\Http\Controllers\ProjectCostsController;
+use App\Http\Controllers\ProjectsController;
 use App\Http\Controllers\QuotationsController;
 use App\Http\Controllers\RevenuesController;
 use App\Http\Controllers\RolesController;
@@ -27,7 +27,7 @@ Route::get('/', fn () => [
 Route::post('/auth/login', [AuthController::class, 'login']);
 Route::post('/payments/webhook', [PaymentsController::class, 'webhook']);
 
-Route::middleware('jwt')->group(function (): void {
+Route::middleware(['auth:sanctum', 'active'])->group(function (): void {
     Route::get('/auth/profile', [AuthController::class, 'profile']);
     Route::get('/auth/me', [AuthController::class, 'profile']);
     Route::post('/auth/logout', [AuthController::class, 'logout']);

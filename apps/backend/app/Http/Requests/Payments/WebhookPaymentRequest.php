@@ -11,6 +11,8 @@ class WebhookPaymentRequest extends BaseRequest
         return [
             'transaction_date' => ['nullable', 'date'],
             'transactionDate' => ['nullable', 'date'],
+            'transaction_at' => ['nullable', 'date'],
+            'transactionAt' => ['nullable', 'date'],
             'bank_account' => ['nullable', 'string', 'max:100'],
             'bankAccount' => ['nullable', 'string', 'max:100'],
             'accountNumber' => ['nullable', 'string', 'max:100'],
@@ -18,6 +20,8 @@ class WebhookPaymentRequest extends BaseRequest
             'subAccount' => ['nullable', 'string', 'max:100'],
             'sub_account' => ['nullable', 'string', 'max:100'],
             'gateway' => ['nullable', 'string', 'max:100'],
+            'sender_name' => ['nullable', 'string', 'max:255'],
+            'senderName' => ['nullable', 'string', 'max:255'],
             'transaction_content' => ['required_without_all:transactionContent,content,description', 'string'],
             'transactionContent' => ['required_without_all:transaction_content,content,description', 'string'],
             'content' => ['nullable', 'string'],

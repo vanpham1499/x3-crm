@@ -25,6 +25,7 @@ class PaymentRepository extends BaseRepository
             ->when($filters['project_id'] ?? null, fn ($query, $value) => $query->where('project_id', $value))
             ->when($filters['contract_id'] ?? null, fn ($query, $value) => $query->where('contract_id', $value))
             ->when($filters['status'] ?? null, fn ($query, $value) => $query->where('status', $value))
+            ->orderByRaw('transaction_at DESC NULLS LAST')
             ->orderByDesc('transaction_date')
             ->orderByDesc('created_at')
             ->get();

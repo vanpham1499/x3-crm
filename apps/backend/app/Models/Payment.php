@@ -14,7 +14,9 @@ class Payment extends BaseModel
         'contract_id',
         'revenue_id',
         'transaction_date',
+        'transaction_at',
         'bank_account',
+        'sender_name',
         'transaction_content',
         'amount',
         'customer_code_text',
@@ -32,6 +34,7 @@ class Payment extends BaseModel
 
     protected $casts = [
         'transaction_date' => 'date',
+        'transaction_at' => 'datetime',
         'amount' => 'decimal:2',
         'is_notified' => 'boolean',
         'matched_at' => 'datetime',
