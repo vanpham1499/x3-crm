@@ -1,33 +1,27 @@
 'use client';
 
-import { useMemo, useState } from 'react';
-import type { MouseEvent } from 'react';
+import { useState, type MouseEvent, type ReactNode } from 'react';
 import Link from 'next/link';
-import { useRouter } from 'next/navigation';
 import AddRoundedIcon from '@mui/icons-material/AddRounded';
 import DeleteRoundedIcon from '@mui/icons-material/DeleteRounded';
 import EditRoundedIcon from '@mui/icons-material/EditRounded';
 import MoreVertRoundedIcon from '@mui/icons-material/MoreVertRounded';
-import SearchRoundedIcon from '@mui/icons-material/SearchRounded';
-import {
-  Avatar,
-  Checkbox,
-  IconButton,
-  InputAdornment,
-  LinearProgress,
-  Menu,
-  MenuItem,
-  TextField,
-} from '@mui/material';
+import VisibilityRoundedIcon from '@mui/icons-material/VisibilityRounded';
+import { Avatar, IconButton, Menu, MenuItem } from '@mui/material';
+import { DialogActionButton } from '@/components/actions/dialog-action-button';
+import { AppDetailDialog } from '@/components/dialog/app-detail-dialog';
+import { CompactSearchField } from '@/components/form/compact-search-field';
+import { CompactSelectField } from '@/components/form/compact-select-field';
+import { PageHeader } from '@/components/shell/page-header';
+import { AppDataTable } from '@/components/table/app-data-table';
+import { getMediaPreviewUrl } from '@/lib/media-url';
 import { formatDate } from '@/lib/utils';
 import {
-  USER_ALL_FILTER,
   getUserRoleClass,
   getUserRoleLabel,
   getUserStatusClass,
   getUserStatusLabel,
 } from '@/lib/user-utils';
-import { getMediaPreviewUrl } from '@/lib/media-url';
 import type { RoleOption, User, UserFilters } from '@/types/user';
 
 type UserListProps = {
@@ -37,13 +31,88 @@ type UserListProps = {
   isFetching: boolean;
   onFiltersChange: (filters: UserFilters) => void;
   onDelete: (user: User) => void;
-  onBulkDelete: (userIds: number[]) => void;
   isDeleting?: boolean;
 };
 
 function getUserInitial(user: User) {
-  const source = user.name || user.email || user.code || 'X';
-  return source.trim().charAt(0).toUpperCase();
+  return (user.name || user.email || user.code || 'X').trim().charAt(0).toUpperCase();
+}
+
+function DetailRow({ label, value }: { label: string; value?: ReactNode }) {
+  return (
+    <div className="grid grid-cols-[128px,minmax(0,1fr)] gap-4 border-b border-slate-100 py-3 last:border-b-0">
+      <dt className="text-sm font-medium text-slate-500">{label}</dt>
+      <dd className="min-w-0 break-words text-sm font-semibold text-slate-900">{value || '-'}</dd>
+    </div>
+  );
+}
+
+function UserDetailDialog({ user, onClose }: { user: User | null; onClose: () => void }) {
+  if (!user) return null;
+
+  return (
+    <AppDetailDialog
+      open
+      title={user.name || user.email || user.code || 'Nhân viên'}
+      eyebrow={user.code || `User #${user.id}`}
+      subtitle={user.email}
+      onClose={onClose}
+      actions={
+        <DialogActionButton
+          href={`/users/${user.id}`}
+          tone="primary"
+          startIcon={<EditRoundedIcon />}
+        >
+          Chỉnh sửa
+        </DialogActionButton>
+      }
+    >
+      <div className="bg-slate-50/60 p-4">
+        <section className="rounded-xl border border-slate-200 bg-white p-5">
+          <div className="mb-5 flex items-center gap-3 border-b border-slate-100 pb-5">
+            <Avatar
+              src={getMediaPreviewUrl(user.avatar) || undefined}
+              alt={user.name || user.email || user.code}
+              className="!h-12 !w-12 !bg-primary/10 !font-bold !text-primary"
+            >
+              {getUserInitial(user)}
+            </Avatar>
+            <div className="min-w-0">
+              <p className="truncate font-bold text-slate-950">{user.name || '-'}</p>
+              <p className="mt-1 truncate text-sm text-slate-500">{user.email || '-'}</p>
+            </div>
+          </div>
+
+          <dl>
+            <DetailRow label="Mã nhân viên" value={user.code} />
+            <DetailRow label="Số điện thoại" value={user.phone} />
+            <DetailRow
+              label="Vai trò"
+              value={
+                <span
+                  className={`inline-flex rounded-md px-2 py-1 text-xs font-bold ${getUserRoleClass(user.role)}`}
+                >
+                  {getUserRoleLabel(user.role)}
+                </span>
+              }
+            />
+            <DetailRow
+              label="Trạng thái"
+              value={
+                <span
+                  className={`inline-flex rounded-md px-2 py-1 text-xs font-bold ${getUserStatusClass(user)}`}
+                >
+                  {getUserStatusLabel(user)}
+                </span>
+              }
+            />
+            <DetailRow label="Ngày tạo" value={formatDate(user.createdAt || '')} />
+            <DetailRow label="Cập nhật" value={formatDate(user.updatedAt || '')} />
+          </dl>
+        </section>
+      </div>
+    </AppDetailDialog>
+  );
 }
 
 export function UserList({
@@ -53,35 +122,14 @@ export function UserList({
   isFetching,
   onFiltersChange,
   onDelete,
-  onBulkDelete,
   isDeleting = false,
 }: UserListProps) {
-  const router = useRouter();
-  const [selectedUserIds, setSelectedUserIds] = useState<number[]>([]);
+  const [viewTarget, setViewTarget] = useState<User | null>(null);
   const [menuAnchorEl, setMenuAnchorEl] = useState<HTMLElement | null>(null);
   const [activeUser, setActiveUser] = useState<User | null>(null);
 
-  const visibleUserIds = useMemo(() => users.map((user) => user.id), [users]);
-  const selectedVisibleCount = visibleUserIds.filter((id) => selectedUserIds.includes(id)).length;
-  const hasSelectedRows = selectedUserIds.length > 0;
-  const isAllVisibleSelected =
-    visibleUserIds.length > 0 && selectedVisibleCount === visibleUserIds.length;
-  const isSomeVisibleSelected = selectedVisibleCount > 0 && !isAllVisibleSelected;
-
-  const toggleAllVisibleRows = (checked: boolean) => {
-    if (checked) {
-      setSelectedUserIds((current) => Array.from(new Set([...current, ...visibleUserIds])));
-      return;
-    }
-
-    setSelectedUserIds((current) => current.filter((id) => !visibleUserIds.includes(id)));
-  };
-
-  const toggleUserRow = (userId: number, checked: boolean) => {
-    setSelectedUserIds((current) => {
-      if (checked) return Array.from(new Set([...current, userId]));
-      return current.filter((id) => id !== userId);
-    });
+  const updateFilters = (nextFilters: Partial<UserFilters>) => {
+    onFiltersChange({ ...filters, ...nextFilters });
   };
 
   const openActionMenu = (event: MouseEvent<HTMLButtonElement>, user: User) => {
@@ -94,286 +142,174 @@ export function UserList({
     setActiveUser(null);
   };
 
-  const goToEditUser = () => {
-    if (!activeUser) return;
-    router.push(`/users/${activeUser.id}`);
-    closeActionMenu();
-  };
-
-  const deleteActiveUser = () => {
-    if (!activeUser) return;
-    onDelete(activeUser);
-    setSelectedUserIds((current) => current.filter((id) => id !== activeUser.id));
-    closeActionMenu();
-  };
-
-  const deleteSelectedUsers = () => {
-    if (selectedUserIds.length === 0) return;
-    onBulkDelete(selectedUserIds);
-    setSelectedUserIds([]);
-  };
-
-  const updateFilters = (nextFilters: Partial<UserFilters>) => {
-    onFiltersChange({ ...filters, ...nextFilters });
-    setSelectedUserIds([]);
-  };
-
   return (
     <div className="min-h-[calc(100vh-72px)] w-full bg-slate-50/60 p-6">
-      <div className="mb-6 flex flex-col gap-4 sm:flex-row sm:items-center sm:justify-between">
-        <div>
-          <h1 className="text-2xl font-bold text-slate-950">Nhân viên</h1>
-          <div className="mt-2 flex items-center gap-2 text-sm text-slate-500">
-            <span>Dashboard</span>
-            <span className="h-1 w-1 rounded-full bg-slate-300" />
-            <span>Nhân viên</span>
-            <span className="h-1 w-1 rounded-full bg-slate-300" />
-            <span className="text-slate-950">Danh sách</span>
-          </div>
-        </div>
-
-        <Link
-          href="/users/new"
-          className="inline-flex h-9 items-center justify-center gap-2 rounded-lg bg-slate-900 px-4 text-sm font-bold text-white transition hover:bg-slate-800"
-        >
-          <AddRoundedIcon className="text-lg" />
-          Thêm nhân viên
-        </Link>
-      </div>
+      <PageHeader
+        title="Nhân viên"
+        action={{ label: 'Thêm nhân viên', href: '/users/new', icon: <AddRoundedIcon /> }}
+      />
 
       <section className="w-full overflow-hidden rounded-2xl border border-slate-200 bg-white shadow-sm">
-        <div className="flex flex-col gap-3 border-b border-slate-200 p-5 lg:flex-row lg:items-center">
-          <TextField
-            fullWidth
+        <div className="grid gap-3 p-4 lg:grid-cols-[minmax(280px,1fr)_176px_176px]">
+          <CompactSearchField
             label="Từ khóa"
             placeholder="Tìm mã, tên, email, số điện thoại..."
             value={filters.keyword}
-            onChange={(event) => updateFilters({ keyword: event.target.value })}
-            slotProps={{
-              input: {
-                startAdornment: (
-                  <InputAdornment position="start">
-                    <SearchRoundedIcon fontSize="small" />
-                  </InputAdornment>
-                ),
-              },
-            }}
+            onChange={(keyword) => updateFilters({ keyword })}
           />
-
-          <div className="grid gap-3 sm:grid-cols-2 lg:w-[420px]">
-            <TextField
-              select
-              label="Vai trò"
-              value={filters.role_id}
-              onChange={(event) => updateFilters({ role_id: event.target.value })}
-            >
-              <MenuItem value="">{USER_ALL_FILTER}</MenuItem>
-              {roles.map((item) => (
-                <MenuItem key={item.id} value={String(item.id)}>
-                  {getUserRoleLabel(item.name)}
-                </MenuItem>
-              ))}
-            </TextField>
-
-            <TextField
-              select
-              label="Trạng thái"
-              value={filters.is_active}
-              onChange={(event) => updateFilters({ is_active: event.target.value })}
-            >
-              <MenuItem value="">{USER_ALL_FILTER}</MenuItem>
-              <MenuItem value="true">Hoạt động</MenuItem>
-              <MenuItem value="false">Vô hiệu</MenuItem>
-            </TextField>
-          </div>
-
+          <CompactSelectField
+            label="Vai trò"
+            value={filters.role_id}
+            options={roles.map((role) => ({
+              value: String(role.id),
+              label: getUserRoleLabel(role.name),
+            }))}
+            onChange={(role_id) => updateFilters({ role_id })}
+          />
+          <CompactSelectField
+            label="Trạng thái"
+            value={filters.is_active}
+            options={[
+              { value: 'true', label: 'Hoạt động' },
+              { value: 'false', label: 'Vô hiệu' },
+            ]}
+            onChange={(is_active) => updateFilters({ is_active })}
+          />
         </div>
 
-        {hasSelectedRows && (
-          <div className="flex h-14 items-center justify-between bg-emerald-100 px-5 text-sm font-bold text-emerald-700">
-            <div className="flex items-center gap-4">
-              <Checkbox
-                color="success"
-                size="small"
-                checked
-                onChange={(event) => toggleAllVisibleRows(event.target.checked)}
-              />
-              <span>{selectedUserIds.length} selected</span>
-            </div>
-            <IconButton
-              size="small"
-              color="success"
-              disabled={isDeleting}
-              onClick={deleteSelectedUsers}
-              title="Xóa nhân viên đã chọn"
-            >
-              <DeleteRoundedIcon fontSize="small" />
-            </IconButton>
-          </div>
-        )}
-
-        <div className="relative w-full overflow-x-auto">
-          {isFetching && (
-            <div className="absolute left-0 right-0 top-0 z-30">
-              <LinearProgress color="primary" />
-            </div>
-          )}
-
-          <table
-            className={`w-full min-w-[1160px] table-fixed text-left text-sm transition-opacity ${
-              isFetching ? 'opacity-60' : 'opacity-100'
-            }`}
-          >
-            <thead className="bg-slate-50 text-xs font-bold uppercase text-slate-500">
-              <tr>
-                <th className="sticky left-0 z-20 w-12 bg-slate-50 px-5 py-4">
-                  <Checkbox
-                    color="success"
+        <AppDataTable
+          columns={[
+            {
+              key: 'code',
+              label: 'Mã NV',
+              className: 'sticky left-0 z-20 w-32 bg-slate-100',
+            },
+            { key: 'user', label: 'Nhân viên', className: 'w-64' },
+            { key: 'contact', label: 'Liên hệ', className: 'w-64' },
+            { key: 'role', label: 'Vai trò', className: 'w-40' },
+            { key: 'status', label: 'Trạng thái', className: 'w-36' },
+            { key: 'created', label: 'Ngày tạo', className: 'w-36' },
+            { key: 'updated', label: 'Cập nhật', className: 'w-36' },
+            { key: 'actions', className: 'w-32' },
+          ]}
+          isLoading={isFetching}
+          isEmpty={users.length === 0}
+          emptyText="Không có dữ liệu nhân viên"
+          minWidthClassName="min-w-[1320px]"
+        >
+          {users.map((user) => (
+            <tr key={user.id} className="group hover:bg-slate-50/80">
+              <td className="sticky left-0 z-10 bg-white px-3 py-4 font-bold text-slate-900 group-hover:bg-slate-50">
+                <span className="block truncate" title={user.code || ''}>
+                  {user.code || '-'}
+                </span>
+              </td>
+              <td className="px-3 py-4">
+                <div className="flex min-w-0 items-center gap-3">
+                  <Avatar
+                    src={getMediaPreviewUrl(user.avatar) || undefined}
+                    alt={user.name || user.email || user.code}
+                    className="!h-9 !w-9 !shrink-0 !bg-primary/10 !text-sm !font-bold !text-primary"
+                  >
+                    {getUserInitial(user)}
+                  </Avatar>
+                  <p className="truncate font-semibold text-slate-950" title={user.name || ''}>
+                    {user.name || '-'}
+                  </p>
+                </div>
+              </td>
+              <td className="px-3 py-4">
+                <p className="truncate font-medium text-slate-700" title={user.email || ''}>
+                  {user.email || '-'}
+                </p>
+                <p className="mt-1 truncate text-xs text-slate-500">{user.phone || '-'}</p>
+              </td>
+              <td className="px-3 py-4">
+                <span
+                  className={`inline-flex rounded-md px-2 py-1 text-xs font-bold ${getUserRoleClass(user.role)}`}
+                >
+                  {getUserRoleLabel(user.role)}
+                </span>
+              </td>
+              <td className="px-3 py-4">
+                <span
+                  className={`inline-flex rounded-md px-2 py-1 text-xs font-bold ${getUserStatusClass(user)}`}
+                >
+                  {getUserStatusLabel(user)}
+                </span>
+              </td>
+              <td className="px-3 py-4 text-slate-700">{formatDate(user.createdAt || '')}</td>
+              <td className="px-3 py-4 text-slate-500">{formatDate(user.updatedAt || '')}</td>
+              <td className="py-4">
+                <div className="flex items-center justify-end gap-1 pr-3">
+                  <IconButton
                     size="small"
-                    checked={isAllVisibleSelected}
-                    indeterminate={isSomeVisibleSelected}
-                    onChange={(event) => toggleAllVisibleRows(event.target.checked)}
-                  />
-                </th>
-                <th className="sticky left-12 z-20 w-28 bg-slate-50 px-3 py-4">Mã NV</th>
-                <th className="w-56 px-3 py-4">Tên nhân viên</th>
-                <th className="w-64 px-3 py-4">Email</th>
-                <th className="w-36 px-3 py-4">Số điện thoại</th>
-                <th className="w-36 px-3 py-4">Vai trò</th>
-                <th className="w-32 px-3 py-4">Trạng thái</th>
-                <th className="w-32 px-3 py-4">Ngày tạo</th>
-                <th className="w-32 px-3 py-4">Cập nhật</th>
-                <th className="w-24 px-5 py-4" />
-              </tr>
-            </thead>
-            <tbody className="divide-y divide-slate-100">
-              {users.length === 0 ? (
-                <tr>
-                  <td colSpan={10} className="px-5 py-12 text-center text-sm font-semibold text-slate-500">
-                    Không có dữ liệu
-                  </td>
-                </tr>
-              ) : (
-                users.map((user) => {
-                  const isSelected = selectedUserIds.includes(user.id);
+                    aria-label="Xem chi tiết nhân viên"
+                    title="Xem chi tiết nhân viên"
+                    onClick={() => setViewTarget(user)}
+                  >
+                    <VisibilityRoundedIcon fontSize="small" />
+                  </IconButton>
+                  <IconButton
+                    component={Link}
+                    href={`/users/${user.id}`}
+                    size="small"
+                    aria-label="Chỉnh sửa nhân viên"
+                    title="Chỉnh sửa nhân viên"
+                  >
+                    <EditRoundedIcon fontSize="small" />
+                  </IconButton>
+                  <IconButton
+                    size="small"
+                    aria-label="Mở tác vụ nhân viên"
+                    title="Tác vụ"
+                    onClick={(event) => openActionMenu(event, user)}
+                  >
+                    <MoreVertRoundedIcon fontSize="small" />
+                  </IconButton>
+                </div>
+              </td>
+            </tr>
+          ))}
+        </AppDataTable>
 
-                  return (
-                    <tr
-                      key={user.id}
-                      className={`group ${isSelected ? 'bg-emerald-50/60' : 'hover:bg-slate-50/80'}`}
-                    >
-                      <td
-                        className={`sticky left-0 z-10 px-5 py-3 ${
-                          isSelected ? 'bg-emerald-50/60' : 'bg-white group-hover:bg-slate-50'
-                        }`}
-                      >
-                        <Checkbox
-                          color="success"
-                          size="small"
-                          checked={isSelected}
-                          onChange={(event) => toggleUserRow(user.id, event.target.checked)}
-                        />
-                      </td>
-                      <td
-                        className={`sticky left-12 z-10 px-3 py-3 ${
-                          isSelected ? 'bg-emerald-50/60' : 'bg-white group-hover:bg-slate-50'
-                        }`}
-                      >
-                        <span className="font-bold text-slate-950">{user.code || '-'}</span>
-                      </td>
-                      <td className="px-3 py-4">
-                        <div className="flex min-w-0 items-center gap-3">
-                          <Avatar
-                            src={getMediaPreviewUrl(user.avatar) || undefined}
-                            alt={user.name || user.email || user.code}
-                            className="h-9 w-9 shrink-0 bg-primary/10 text-sm font-bold text-primary"
-                          >
-                            {getUserInitial(user)}
-                          </Avatar>
-                          <p className="truncate font-semibold text-slate-950" title={user.name}>
-                            {user.name || '-'}
-                          </p>
-                        </div>
-                      </td>
-                      <td className="px-3 py-4">
-                        <p className="truncate text-slate-600" title={user.email}>
-                          {user.email || '-'}
-                        </p>
-                      </td>
-                      <td className="px-3 py-4 text-slate-700">{user.phone || '-'}</td>
-                      <td className="px-3 py-4">
-                        <span className={`rounded-md px-2 py-1 text-xs font-bold ${getUserRoleClass(user.role)}`}>
-                          {getUserRoleLabel(user.role)}
-                        </span>
-                      </td>
-                      <td className="px-3 py-4">
-                        <span className={`rounded-md px-2 py-1 text-xs font-bold ${getUserStatusClass(user)}`}>
-                          {getUserStatusLabel(user)}
-                        </span>
-                      </td>
-                      <td className="px-3 py-4 text-slate-700">{formatDate(user.createdAt || '')}</td>
-                      <td className="px-3 py-4 text-slate-500">{formatDate(user.updatedAt || '')}</td>
-                      <td className="py-4">
-                        <div className="flex items-center justify-end gap-1 pr-3">
-                          <IconButton
-                            component={Link}
-                            href={`/users/${user.id}`}
-                            size="small"
-                            className="text-slate-500 hover:bg-slate-100 hover:text-slate-800"
-                            title="Chỉnh sửa nhân viên"
-                          >
-                            <EditRoundedIcon fontSize="small" />
-                          </IconButton>
-                          <IconButton
-                            size="small"
-                            className="text-slate-500 hover:bg-slate-100 hover:text-slate-800"
-                            title="Tác vụ"
-                            onClick={(event) => openActionMenu(event, user)}
-                          >
-                            <MoreVertRoundedIcon fontSize="small" />
-                          </IconButton>
-                        </div>
-                      </td>
-                    </tr>
-                  );
-                })
-              )}
-            </tbody>
-          </table>
-        </div>
-
-        <Menu anchorEl={menuAnchorEl} open={Boolean(menuAnchorEl)} onClose={closeActionMenu}>
-          <MenuItem onClick={goToEditUser}>
-            <EditRoundedIcon fontSize="small" className="mr-2 text-slate-500" />
-            Chỉnh sửa
-          </MenuItem>
-          <MenuItem onClick={deleteActiveUser} className="text-rose-600" disabled={isDeleting}>
-            <DeleteRoundedIcon fontSize="small" className="mr-2" />
-            Xóa
-          </MenuItem>
-        </Menu>
-
-        <div className="flex flex-col gap-3 border-t border-slate-200 px-5 py-4 text-sm text-slate-500 sm:flex-row sm:items-center sm:justify-between">
-          <span>
-            Hiển thị <strong className="text-slate-950">{users.length}</strong> /{' '}
-            {users.length} nhân viên
-          </span>
-          <div className="flex items-center gap-2">
-            <button type="button" className="rounded-lg px-3 py-2 font-semibold text-slate-400">
-              Trước
-            </button>
-            <button
-              type="button"
-              className="rounded-lg bg-slate-900 px-3 py-2 font-bold text-white"
-            >
-              1
-            </button>
-            <button type="button" className="rounded-lg px-3 py-2 font-semibold text-slate-400">
-              Sau
-            </button>
-          </div>
+        <div className="border-t border-slate-200 px-5 py-4 text-sm text-slate-500">
+          Hiển thị <strong className="text-slate-950">{users.length}</strong> nhân viên
         </div>
       </section>
+
+      <Menu anchorEl={menuAnchorEl} open={Boolean(menuAnchorEl)} onClose={closeActionMenu}>
+        <MenuItem
+          onClick={() => {
+            setViewTarget(activeUser);
+            closeActionMenu();
+          }}
+        >
+          <VisibilityRoundedIcon fontSize="small" className="mr-2 text-slate-500" />
+          Xem chi tiết
+        </MenuItem>
+        <MenuItem
+          component={Link}
+          href={activeUser ? `/users/${activeUser.id}` : '/users'}
+          onClick={closeActionMenu}
+        >
+          <EditRoundedIcon fontSize="small" className="mr-2 text-slate-500" />
+          Chỉnh sửa
+        </MenuItem>
+        <MenuItem
+          className="text-rose-600"
+          disabled={isDeleting}
+          onClick={() => {
+            if (activeUser) onDelete(activeUser);
+            closeActionMenu();
+          }}
+        >
+          <DeleteRoundedIcon fontSize="small" className="mr-2" />
+          Xóa
+        </MenuItem>
+      </Menu>
+
+      <UserDetailDialog user={viewTarget} onClose={() => setViewTarget(null)} />
     </div>
   );
 }

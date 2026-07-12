@@ -23,6 +23,7 @@ import dayjs from 'dayjs';
 import { Controller, useForm } from 'react-hook-form';
 import { ConfirmDialog } from '@/components/feedback/confirm-dialog';
 import { MoneyInput } from '@/components/form/money-input';
+import { PageHeader } from '@/components/shell/page-header';
 import { INVOICE_STATUS_LABELS, getInvoiceDefaults } from '@/lib/invoice-utils';
 import { formatCurrency } from '@/lib/utils';
 import type { Invoice, InvoiceFilters, InvoiceFormValues } from '@/types/invoice';
@@ -69,7 +70,8 @@ function InvoiceFormDialog({
   const presetRevenue = state?.mode === 'create' ? state.revenue : null;
   const invoicedRevenueIds = new Set(invoices.map((invoice) => invoice.revenueId).filter(Boolean));
   const availableRevenues = revenues.filter(
-    (revenue) => !invoicedRevenueIds.has(revenue.id) || String(revenue.id) === String(presetRevenue?.id),
+    (revenue) =>
+      !invoicedRevenueIds.has(revenue.id) || String(revenue.id) === String(presetRevenue?.id),
   );
 
   const {
@@ -92,12 +94,19 @@ function InvoiceFormDialog({
   };
 
   return (
-    <Dialog open={Boolean(state)} onClose={isSubmitting ? undefined : closeDialog} maxWidth="md" fullWidth>
+    <Dialog
+      open={Boolean(state)}
+      onClose={isSubmitting ? undefined : closeDialog}
+      maxWidth="md"
+      fullWidth
+    >
       <DialogTitle className="border-b border-slate-100 px-6 py-5">
         <p className="text-lg font-bold text-slate-950">
           {state?.mode === 'edit' ? 'Chỉnh sửa hóa đơn' : 'Xuất hóa đơn'}
         </p>
-        <p className="mt-1 text-sm text-slate-500">Thông tin xuất hóa đơn gắn với 1 khoản doanh thu.</p>
+        <p className="mt-1 text-sm text-slate-500">
+          Thông tin xuất hóa đơn gắn với 1 khoản doanh thu.
+        </p>
       </DialogTitle>
 
       <form
@@ -189,26 +198,48 @@ function InvoiceFormDialog({
             name="amountBeforeVat"
             control={control}
             render={({ field }) => (
-              <MoneyInput fullWidth label="Tiền trước VAT" value={field.value} onValueChange={field.onChange} />
+              <MoneyInput
+                fullWidth
+                label="Tiền trước VAT"
+                value={field.value}
+                onValueChange={field.onChange}
+              />
             )}
           />
           <Controller
             name="vatAmount"
             control={control}
             render={({ field }) => (
-              <MoneyInput fullWidth label="Tiền VAT" value={field.value} onValueChange={field.onChange} />
+              <MoneyInput
+                fullWidth
+                label="Tiền VAT"
+                value={field.value}
+                onValueChange={field.onChange}
+              />
             )}
           />
           <Controller
             name="amountAfterVat"
             control={control}
             render={({ field }) => (
-              <MoneyInput fullWidth label="Tổng tiền hóa đơn" value={field.value} onValueChange={field.onChange} />
+              <MoneyInput
+                fullWidth
+                label="Tổng tiền hóa đơn"
+                value={field.value}
+                onValueChange={field.onChange}
+              />
             )}
           />
 
           <TextField fullWidth label="Link file hóa đơn" {...register('fileUrl')} />
-          <TextField fullWidth multiline minRows={2} label="Ghi chú" className="md:col-span-2" {...register('note')} />
+          <TextField
+            fullWidth
+            multiline
+            minRows={2}
+            label="Ghi chú"
+            className="md:col-span-2"
+            {...register('note')}
+          />
         </DialogContent>
 
         <DialogActions className="border-t border-slate-100 px-6 py-4">
@@ -221,7 +252,11 @@ function InvoiceFormDialog({
             disabled={isSubmitting}
             className="!bg-slate-900 hover:!bg-slate-800"
           >
-            {isSubmitting ? 'Đang lưu...' : state?.mode === 'edit' ? 'Lưu thay đổi' : 'Xuất hóa đơn'}
+            {isSubmitting
+              ? 'Đang lưu...'
+              : state?.mode === 'edit'
+                ? 'Lưu thay đổi'
+                : 'Xuất hóa đơn'}
           </Button>
         </DialogActions>
       </form>
@@ -255,27 +290,16 @@ export function InvoiceManager({
 
   return (
     <div className="min-h-[calc(100vh-72px)] w-full bg-slate-50/60 p-6">
-      <div className="mb-6 flex flex-col gap-4 sm:flex-row sm:items-center sm:justify-between">
-        <div>
-          <h1 className="text-2xl font-bold text-slate-950">Hóa đơn</h1>
-          <div className="mt-2 flex items-center gap-2 text-sm text-slate-500">
-            <span>Dashboard</span>
-            <span className="h-1 w-1 rounded-full bg-slate-300" />
-            <span className="text-slate-950">Hóa đơn</span>
-          </div>
-        </div>
-
-        <Button
-          variant="contained"
-          startIcon={<AddRoundedIcon />}
-          disabled={!hasUninvoicedRevenue}
-          title={hasUninvoicedRevenue ? '' : 'Tất cả doanh thu hiện có đã được xuất hóa đơn'}
-          onClick={() => setDialogState({ mode: 'create', revenue: null })}
-          className="!bg-slate-900 hover:!bg-slate-800"
-        >
-          Xuất hóa đơn
-        </Button>
-      </div>
+      <PageHeader
+        title="Hóa đơn"
+        action={{
+          label: 'Xuất hóa đơn',
+          icon: <AddRoundedIcon />,
+          disabled: !hasUninvoicedRevenue,
+          title: hasUninvoicedRevenue ? '' : 'Tất cả doanh thu hiện có đã được xuất hóa đơn',
+          onClick: () => setDialogState({ mode: 'create', revenue: null }),
+        }}
+      />
 
       <section className="w-full overflow-hidden rounded-2xl border border-slate-200 bg-white shadow-sm">
         <div className="grid gap-3 border-b border-slate-200 p-5 lg:grid-cols-[minmax(260px,1fr)_200px]">
@@ -318,7 +342,9 @@ export function InvoiceManager({
             </div>
           )}
 
-          <table className={`w-full min-w-[1200px] table-fixed text-left text-sm transition-opacity ${isFetching ? 'opacity-60' : 'opacity-100'}`}>
+          <table
+            className={`w-full min-w-[1200px] table-fixed text-left text-sm transition-opacity ${isFetching ? 'opacity-60' : 'opacity-100'}`}
+          >
             <thead className="bg-slate-50 text-xs font-bold uppercase text-slate-500">
               <tr>
                 <th className="w-40 px-5 py-4">Số hóa đơn</th>
@@ -332,7 +358,10 @@ export function InvoiceManager({
             <tbody className="divide-y divide-slate-100">
               {invoices.length === 0 ? (
                 <tr>
-                  <td colSpan={6} className="px-5 py-12 text-center text-sm font-semibold text-slate-500">
+                  <td
+                    colSpan={6}
+                    className="px-5 py-12 text-center text-sm font-semibold text-slate-500"
+                  >
                     Chưa có hóa đơn nào
                   </td>
                 </tr>
@@ -351,7 +380,9 @@ export function InvoiceManager({
                       ) : null}
                     </td>
                     <td className="px-5 py-4">
-                      <p className="truncate font-semibold text-slate-900">{invoice.companyName || '-'}</p>
+                      <p className="truncate font-semibold text-slate-900">
+                        {invoice.companyName || '-'}
+                      </p>
                       {invoice.revenue?.project ? (
                         <Link
                           href={`/projects/${invoice.revenue.project.id}`}
@@ -368,7 +399,9 @@ export function InvoiceManager({
                       {formatCurrency(Number(invoice.amountAfterVat) || 0)}
                     </td>
                     <td className="px-5 py-4">
-                      <span className={`rounded-md px-2 py-1 text-xs font-bold ring-1 ${statusClass(invoice.status)}`}>
+                      <span
+                        className={`rounded-md px-2 py-1 text-xs font-bold ring-1 ${statusClass(invoice.status)}`}
+                      >
                         {INVOICE_STATUS_LABELS[invoice.status || ''] || invoice.status || '-'}
                       </span>
                     </td>

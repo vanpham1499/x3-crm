@@ -1,23 +1,26 @@
 ﻿'use client';
 
-import { useMemo, useState } from 'react';
+import { useState } from 'react';
 import type { MouseEvent } from 'react';
 import Link from 'next/link';
 import { useRouter } from 'next/navigation';
+import { useQuery } from '@tanstack/react-query';
 import DeleteRoundedIcon from '@mui/icons-material/DeleteRounded';
 import EditRoundedIcon from '@mui/icons-material/EditRounded';
+import InfoRoundedIcon from '@mui/icons-material/InfoRounded';
+import LinkRoundedIcon from '@mui/icons-material/LinkRounded';
 import MoreVertRoundedIcon from '@mui/icons-material/MoreVertRounded';
-import SearchRoundedIcon from '@mui/icons-material/SearchRounded';
+import VisibilityRoundedIcon from '@mui/icons-material/VisibilityRounded';
 import WorkRoundedIcon from '@mui/icons-material/WorkRounded';
-import {
-  Checkbox,
-  IconButton,
-  InputAdornment,
-  LinearProgress,
-  Menu,
-  MenuItem,
-  TextField,
-} from '@mui/material';
+import { IconButton, Menu, MenuItem } from '@mui/material';
+import { DialogActionButton } from '@/components/actions/dialog-action-button';
+import { AppDetailDialog } from '@/components/dialog/app-detail-dialog';
+import { CompactSearchField } from '@/components/form/compact-search-field';
+import { CompactSelectField } from '@/components/form/compact-select-field';
+import { IconTabs } from '@/components/navigation/icon-tabs';
+import { PageHeader } from '@/components/shell/page-header';
+import { AppDataTable } from '@/components/table/app-data-table';
+import api from '@/services/api/client';
 import type { Customer, CustomerFilters } from '@/types/customer';
 import type { AppOption } from '@/types/option';
 import type { User } from '@/types/user';
@@ -46,6 +49,131 @@ function InfoPill({ value, className }: { value?: string | null; className: stri
   );
 }
 
+function CustomerDetailRow({ label, value }: { label: string; value?: string | number | null }) {
+  const displayValue = value === null || value === undefined || value === '' ? '-' : value;
+
+  return (
+    <div className="grid grid-cols-[128px_minmax(0,1fr)] gap-3 text-sm">
+      <dt className="font-semibold text-slate-500">{label}</dt>
+      <dd className="min-w-0 break-words font-semibold text-slate-800">{displayValue}</dd>
+    </div>
+  );
+}
+
+function CustomerViewDialog({
+  customer,
+  tab,
+  isLoading,
+  onTabChange,
+  onClose,
+}: {
+  customer: Customer | null;
+  tab: number;
+  isLoading: boolean;
+  onTabChange: (tab: number) => void;
+  onClose: () => void;
+}) {
+  if (!customer) return null;
+
+  return (
+    <AppDetailDialog
+      open
+      title={customer.customerName || customer.companyName || 'Khách hàng'}
+      eyebrow={customer.customerCode || `Customer #${customer.id}`}
+      loading={isLoading}
+      onClose={onClose}
+      actions={
+        <>
+          <DialogActionButton
+            href={`/projects/new?customerId=${customer.id}`}
+            startIcon={<WorkRoundedIcon />}
+          >
+            Tạo dự án
+          </DialogActionButton>
+          <DialogActionButton
+            href={`/customers/${customer.id}`}
+            tone="primary"
+            startIcon={<EditRoundedIcon />}
+          >
+            Chỉnh sửa
+          </DialogActionButton>
+        </>
+      }
+    >
+      <IconTabs
+        value={tab}
+        onChange={onTabChange}
+        ariaLabel="Nội dung chi tiết khách hàng"
+        items={[
+          { label: 'Thông tin', icon: <InfoRoundedIcon className="!text-[18px]" /> },
+          { label: 'Liên kết CRM', icon: <LinkRoundedIcon className="!text-[18px]" /> },
+        ]}
+      />
+
+      <div className="bg-slate-50/60">
+        {tab === 0 && (
+          <div role="tabpanel" aria-label="Thông tin khách hàng" className="p-4">
+            <section className="rounded-xl border border-slate-200 bg-white p-5">
+              <dl className="grid gap-x-8 gap-y-4 md:grid-cols-2">
+                <CustomerDetailRow label="Tên khách hàng" value={customer.customerName} />
+                <CustomerDetailRow label="Tên công ty" value={customer.companyName} />
+                <CustomerDetailRow label="Số điện thoại" value={customer.phone} />
+                <CustomerDetailRow label="Email" value={customer.email} />
+                <CustomerDetailRow label="Người đại diện" value={customer.representativeName} />
+                <CustomerDetailRow
+                  label="Loại khách"
+                  value={customer.customerTypeOption?.label || customer.customerType}
+                />
+                <CustomerDetailRow label="Mã số thuế" value={customer.taxCode} />
+                <CustomerDetailRow label="CCCD/CMND" value={customer.identityNo} />
+                <CustomerDetailRow label="Website" value={customer.website} />
+                <CustomerDetailRow label="Ngày sinh" value={customer.birthday} />
+              </dl>
+
+              <div className="mt-5 grid gap-4 border-t border-slate-100 pt-5 md:grid-cols-2">
+                <CustomerDetailRow label="Địa chỉ" value={customer.address} />
+                <CustomerDetailRow label="Ghi chú" value={customer.note} />
+              </div>
+            </section>
+          </div>
+        )}
+
+        {tab === 1 && (
+          <div role="tabpanel" aria-label="Liên kết CRM" className="p-4">
+            <section className="rounded-xl border border-slate-200 bg-white p-5">
+              <dl className="grid gap-x-8 gap-y-4 md:grid-cols-2">
+                <CustomerDetailRow
+                  label="Lead nguồn"
+                  value={customer.lead?.leadCode || customer.leadId}
+                />
+                <CustomerDetailRow
+                  label="Nguồn phát sinh"
+                  value={customer.sourceOption?.label || customer.source}
+                />
+                <CustomerDetailRow
+                  label="Ngành"
+                  value={customer.industryOption?.label || customer.industry}
+                />
+                <CustomerDetailRow label="Sales" value={customer.salesUser?.name} />
+                <CustomerDetailRow label="Số dự án" value={customer.projectsCount} />
+                <CustomerDetailRow label="Số hóa đơn" value={customer.invoicesCount} />
+              </dl>
+
+              {customer.leadId && (
+                <div className="mt-5 border-t border-slate-100 pt-4">
+                  <DialogActionButton href={`/leads/${customer.leadId}`}>
+                    Mở Lead nguồn
+                  </DialogActionButton>
+                </div>
+              )}
+            </section>
+          </div>
+        )}
+      </div>
+    </AppDetailDialog>
+  );
+}
+
 export function CustomerManager({
   customers,
   users,
@@ -59,38 +187,19 @@ export function CustomerManager({
   onDelete,
 }: CustomerManagerProps) {
   const router = useRouter();
-  const [selectedCustomerIds, setSelectedCustomerIds] = useState<number[]>([]);
+  const [viewTarget, setViewTarget] = useState<Customer | null>(null);
+  const [viewTab, setViewTab] = useState(0);
   const [menuAnchorEl, setMenuAnchorEl] = useState<HTMLElement | null>(null);
   const [activeCustomer, setActiveCustomer] = useState<Customer | null>(null);
-
-  const visibleCustomerIds = useMemo(() => customers.map((customer) => customer.id), [customers]);
-  const selectedVisibleCount = visibleCustomerIds.filter((id) =>
-    selectedCustomerIds.includes(id),
-  ).length;
-  const isAllVisibleSelected =
-    visibleCustomerIds.length > 0 && selectedVisibleCount === visibleCustomerIds.length;
-  const isSomeVisibleSelected = selectedVisibleCount > 0 && !isAllVisibleSelected;
-  const hasSelectedRows = selectedCustomerIds.length > 0;
+  const viewCustomerId = viewTarget?.id || '';
+  const { data: viewCustomerDetail, isFetching: isFetchingViewCustomer } = useQuery<Customer>({
+    queryKey: ['customers', viewCustomerId, 'quick-view'],
+    queryFn: () => api.get(`/customers/${viewCustomerId}`).then((response) => response.data),
+    enabled: Boolean(viewCustomerId),
+  });
 
   const updateFilters = (nextFilters: Partial<CustomerFilters>) => {
     onFiltersChange({ ...filters, ...nextFilters });
-    setSelectedCustomerIds([]);
-  };
-
-  const toggleAllVisibleRows = (checked: boolean) => {
-    if (checked) {
-      setSelectedCustomerIds((current) => Array.from(new Set([...current, ...visibleCustomerIds])));
-      return;
-    }
-
-    setSelectedCustomerIds((current) => current.filter((id) => !visibleCustomerIds.includes(id)));
-  };
-
-  const toggleCustomerRow = (customerId: number, checked: boolean) => {
-    setSelectedCustomerIds((current) => {
-      if (checked) return Array.from(new Set([...current, customerId]));
-      return current.filter((id) => id !== customerId);
-    });
   };
 
   const openActionMenu = (event: MouseEvent<HTMLButtonElement>, customer: Customer) => {
@@ -108,6 +217,16 @@ export function CustomerManager({
     closeActionMenu();
   };
 
+  const viewCustomer = (customer: Customer) => {
+    setViewTarget(customer);
+    setViewTab(0);
+  };
+
+  const viewActiveCustomer = () => {
+    if (activeCustomer) viewCustomer(activeCustomer);
+    closeActionMenu();
+  };
+
   const createProjectForActiveCustomer = () => {
     if (activeCustomer) router.push(`/projects/new?customerId=${activeCustomer.id}`);
     closeActionMenu();
@@ -120,260 +239,163 @@ export function CustomerManager({
 
   return (
     <div className="min-h-[calc(100vh-72px)] w-full bg-slate-50/60 p-6">
-      <div className="mb-6 flex flex-col gap-4 sm:flex-row sm:items-center sm:justify-between">
-        <div>
-          <h1 className="text-2xl font-bold text-slate-950">Khách hàng</h1>
-          <div className="mt-2 flex items-center gap-2 text-sm text-slate-500">
-            <span>Dashboard</span>
-            <span className="h-1 w-1 rounded-full bg-slate-300" />
-            <span>Khách hàng</span>
-            <span className="h-1 w-1 rounded-full bg-slate-300" />
-            <span className="text-slate-950">Danh sách</span>
-          </div>
-        </div>
-
-      </div>
+      <PageHeader title="Khách hàng" />
 
       <section className="w-full overflow-hidden rounded-2xl border border-slate-200 bg-white shadow-sm">
-        <div className="grid gap-3 border-b border-slate-200 p-5 lg:grid-cols-[minmax(280px,1fr)_repeat(2,190px)]">
-          <TextField
-            fullWidth
+        <div className="grid gap-3  border-slate-200 p-4 lg:grid-cols-[minmax(260px,1fr)_repeat(4,176px)]">
+          <CompactSearchField
             label="Từ khóa"
             placeholder="Tìm mã, khách hàng, công ty, điện thoại, email..."
             value={filters.keyword}
-            onChange={(event) => updateFilters({ keyword: event.target.value })}
-            slotProps={{
-              input: {
-                startAdornment: (
-                  <InputAdornment position="start">
-                    <SearchRoundedIcon fontSize="small" />
-                  </InputAdornment>
-                ),
-              },
-            }}
+            onChange={(value) => updateFilters({ keyword: value })}
           />
 
-          <TextField
-            select
+          <CompactSelectField
             label="Loại khách"
-            value={filters.customer_type_option_id || ''}
-            onChange={(event) =>
-              updateFilters({ customer_type_option_id: Number(event.target.value) || 0 })
-            }
-          >
-            <MenuItem value="">Tất cả</MenuItem>
-            {customerTypes.map((option) => (
-              <MenuItem key={option.id} value={option.id}>
-                {option.label}
-              </MenuItem>
-            ))}
-          </TextField>
+            value={filters.customer_type_option_id ? String(filters.customer_type_option_id) : ''}
+            options={customerTypes.map((option) => ({
+              value: String(option.id),
+              label: option.label,
+            }))}
+            onChange={(value) => updateFilters({ customer_type_option_id: Number(value) || 0 })}
+          />
 
-          {/* <TextField
-            select
+          <CompactSelectField
             label="Nguồn"
-            value={filters.source_option_id}
-            onChange={(event) => updateFilters({ source_option_id: event.target.value })}
-          >
-            <MenuItem value="">Tất cả</MenuItem>
-            {sources.map((option) => (
-              <MenuItem key={option.id} value={option.id}>
-                {option.label}
-              </MenuItem>
-            ))}
-          </TextField> */}
+            value={filters.source_option_id ? String(filters.source_option_id) : ''}
+            options={sources.map((option) => ({
+              value: String(option.id),
+              label: option.label,
+            }))}
+            onChange={(value) => updateFilters({ source_option_id: Number(value) || 0 })}
+          />
 
-          {/* <TextField
-            select
+          <CompactSelectField
             label="Ngành"
-            value={filters.industry_option_id}
-            onChange={(event) => updateFilters({ industry_option_id: event.target.value })}
-          >
-            <MenuItem value="">Tất cả</MenuItem>
-            {industries.map((option) => (
-              <MenuItem key={option.id} value={option.id}>
-                {option.label}
-              </MenuItem>
-            ))}
-          </TextField> */}
+            value={filters.industry_option_id ? String(filters.industry_option_id) : ''}
+            options={industries.map((option) => ({
+              value: String(option.id),
+              label: option.label,
+            }))}
+            onChange={(value) => updateFilters({ industry_option_id: Number(value) || 0 })}
+          />
 
-          <TextField
-            select
+          <CompactSelectField
             label="Sales"
-            value={filters.sales_user_id || ''}
-            onChange={(event) =>
-              updateFilters({ sales_user_id: Number(event.target.value) || 0 })
-            }
-          >
-            <MenuItem value="">Tất cả</MenuItem>
-            {users.map((user) => (
-              <MenuItem key={user.id} value={user.id}>
-                {user.name || user.email || user.code}
-              </MenuItem>
-            ))}
-          </TextField>
+            value={filters.sales_user_id ? String(filters.sales_user_id) : ''}
+            options={users.map((user) => ({
+              value: String(user.id),
+              label: user.name || user.email || user.code || '-',
+            }))}
+            onChange={(value) => updateFilters({ sales_user_id: Number(value) || 0 })}
+          />
         </div>
 
-        {hasSelectedRows && (
-          <div className="flex h-14 items-center justify-between bg-emerald-100 px-5 text-sm font-bold text-emerald-700">
-            <div className="flex items-center gap-4">
-              <Checkbox
-                color="success"
-                size="small"
-                checked
-                onChange={(event) => toggleAllVisibleRows(event.target.checked)}
-              />
-              <span>{selectedCustomerIds.length} selected</span>
-            </div>
-            <IconButton
-              size="small"
-              color="success"
-              onClick={() => setSelectedCustomerIds([])}
-              title="Xóa lựa chọn"
-            >
-              <DeleteRoundedIcon fontSize="small" />
-            </IconButton>
-          </div>
-        )}
-
-        <div className="relative w-full overflow-x-auto">
-          {isFetching && (
-            <div className="absolute left-0 right-0 top-0 z-30">
-              <LinearProgress color="primary" />
-            </div>
-          )}
-
-          <table
-            className={`w-full min-w-[1180px] table-fixed text-left text-sm transition-opacity ${isFetching ? 'opacity-60' : 'opacity-100'}`}
-          >
-            <thead className="bg-slate-50 text-xs font-bold uppercase text-slate-500">
-              <tr>
-                <th className="sticky left-0 z-20 w-12 bg-slate-50 px-5 py-4">
-                  <Checkbox
-                    color="success"
+        <AppDataTable
+          columns={[
+            {
+              key: 'code',
+              label: 'Mã KH',
+              className: 'sticky left-0 z-20 w-36 bg-slate-100',
+            },
+            { key: 'name', label: 'Tên khách hàng', className: 'w-[260px]' },
+            { key: 'type', label: 'Loại khách', className: 'w-36' },
+            { key: 'phone', label: 'SĐT', className: 'w-36' },
+            { key: 'email', label: 'Email', className: 'w-56' },
+            { key: 'representative', label: 'Người đại diện', className: 'w-48' },
+            { key: 'sales', label: 'Người phụ trách', className: 'w-44' },
+            { key: 'actions', className: 'w-36' },
+          ]}
+          isLoading={isFetching}
+          isEmpty={customers.length === 0}
+          emptyText="Không có dữ liệu khách hàng"
+          minWidthClassName="min-w-[1430px]"
+        >
+          {customers.map((customer) => (
+            <tr key={customer.id} className="group hover:bg-slate-50/80">
+              <td className="sticky left-0 z-10 bg-white px-3 py-4 font-bold text-slate-800 group-hover:bg-slate-50">
+                <span className="block truncate" title={customer.customerCode || ''}>
+                  {customer.customerCode || '-'}
+                </span>
+              </td>
+              <td className="px-3 py-4">
+                <p
+                  className="truncate font-semibold text-slate-950"
+                  title={customer.customerName || ''}
+                >
+                  {customer.customerName || '-'}
+                </p>
+              </td>
+              <td className="px-3 py-4">
+                <InfoPill
+                  value={customer.customerTypeOption?.label || customer.customerType}
+                  className="bg-emerald-50 text-emerald-700 ring-emerald-100"
+                />
+              </td>
+              <td className="px-3 py-4 text-slate-700">
+                <span className="block truncate" title={customer.phone || ''}>
+                  {customer.phone || '-'}
+                </span>
+              </td>
+              <td className="px-3 py-4 text-slate-700">
+                <span className="block truncate" title={customer.email || ''}>
+                  {customer.email || '-'}
+                </span>
+              </td>
+              <td className="px-3 py-4 text-slate-700">
+                <span className="block truncate" title={customer.representativeName || ''}>
+                  {customer.representativeName || '-'}
+                </span>
+              </td>
+              <td className="px-3 py-4">
+                <InfoPill
+                  value={customer.salesUser?.name}
+                  className="bg-sky-50 text-sky-700 ring-sky-100"
+                />
+              </td>
+              <td className="py-4">
+                <div className="flex items-center justify-end gap-1 pr-3">
+                  <IconButton
                     size="small"
-                    checked={isAllVisibleSelected}
-                    indeterminate={isSomeVisibleSelected}
-                    onChange={(event) => toggleAllVisibleRows(event.target.checked)}
-                  />
-                </th>
-                <th className="sticky left-12 z-20 w-36 bg-slate-50 px-3 py-4">Mã KH</th>
-                <th className="w-[260px] px-3 py-4">Tên khách hàng</th>
-                <th className="w-36 px-3 py-4">Loại KH</th>
-                <th className="w-36 px-3 py-4">SĐT</th>
-                <th className="w-56 px-3 py-4">Email</th>
-                <th className="w-48 px-3 py-4">Người đại diện</th>
-                <th className="w-44 px-3 py-4">Người phụ trách</th>
-                <th className="w-32 px-5 py-4" />
-              </tr>
-            </thead>
-            <tbody className="divide-y divide-slate-100">
-              {customers.length === 0 ? (
-                <tr>
-                  <td
-                    colSpan={9}
-                    className="px-5 py-12 text-center text-sm font-semibold text-slate-500"
+                    title="Xem chi tiết khách hàng"
+                    onClick={() => viewCustomer(customer)}
                   >
-                    Không có dữ liệu khách hàng
-                  </td>
-                </tr>
-              ) : (
-                customers.map((customer) => {
-                  const isSelected = selectedCustomerIds.includes(customer.id);
-
-                  return (
-                    <tr
-                      key={customer.id}
-                      className={`group ${isSelected ? 'bg-emerald-50/60' : 'hover:bg-slate-50/80'}`}
-                    >
-                      <td
-                        className={`sticky left-0 z-10 px-5 py-3 ${isSelected ? 'bg-emerald-50/60' : 'bg-white group-hover:bg-slate-50'}`}
-                      >
-                        <Checkbox
-                          color="success"
-                          size="small"
-                          checked={isSelected}
-                          onChange={(event) => toggleCustomerRow(customer.id, event.target.checked)}
-                        />
-                      </td>
-                      <td
-                        className={`sticky left-12 z-10 px-3 py-4 font-bold text-slate-800 ${isSelected ? 'bg-emerald-50/60' : 'bg-white group-hover:bg-slate-50'}`}
-                      >
-                        <span className="block truncate" title={customer.customerCode}>
-                          {customer.customerCode || '-'}
-                        </span>
-                      </td>
-                      <td className="px-3 py-4">
-                        <p
-                          className="truncate font-semibold text-slate-950"
-                          title={customer.customerName}
-                        >
-                          {customer.customerName || '-'}
-                        </p>
-                      </td>
-                      <td className="px-3 py-4">
-                        <InfoPill
-                          value={customer.customerTypeOption?.label || customer.customerType}
-                          className="bg-emerald-50 text-emerald-700 ring-emerald-100"
-                        />
-                      </td>
-                      <td className="px-3 py-4 text-slate-700">
-                        <span className="block truncate" title={customer.phone || ''}>
-                          {customer.phone || '-'}
-                        </span>
-                      </td>
-                      <td className="px-3 py-4 text-slate-700">
-                        <span className="block truncate" title={customer.email || ''}>
-                          {customer.email || '-'}
-                        </span>
-                      </td>
-                      <td className="px-3 py-4 text-slate-700">
-                        <span className="block truncate" title={customer.representativeName || ''}>
-                          {customer.representativeName || '-'}
-                        </span>
-                      </td>
-                      <td className="px-3 py-4">
-                        <InfoPill
-                          value={customer.salesUser?.name}
-                          className="bg-sky-50 text-sky-700 ring-sky-100"
-                        />
-                      </td>
-                      <td className="py-4">
-                        <div className="flex items-center justify-end gap-1 pr-3">
-                          <IconButton
-                            component={Link}
-                            href={`/customers/${customer.id}`}
-                            size="small"
-                            title="Chỉnh sửa khách hàng"
-                          >
-                            <EditRoundedIcon fontSize="small" />
-                          </IconButton>
-                          <IconButton
-                            component={Link}
-                            href={`/projects/new?customerId=${customer.id}`}
-                            size="small"
-                            title="Tạo dự án"
-                          >
-                            <WorkRoundedIcon fontSize="small" />
-                          </IconButton>
-                          <IconButton
-                            size="small"
-                            title="Tác vụ"
-                            onClick={(event) => openActionMenu(event, customer)}
-                          >
-                            <MoreVertRoundedIcon fontSize="small" />
-                          </IconButton>
-                        </div>
-                      </td>
-                    </tr>
-                  );
-                })
-              )}
-            </tbody>
-          </table>
-        </div>
+                    <VisibilityRoundedIcon fontSize="small" />
+                  </IconButton>
+                  <IconButton
+                    component={Link}
+                    href={`/customers/${customer.id}`}
+                    size="small"
+                    title="Chỉnh sửa khách hàng"
+                  >
+                    <EditRoundedIcon fontSize="small" />
+                  </IconButton>
+                  <IconButton
+                    component={Link}
+                    href={`/projects/new?customerId=${customer.id}`}
+                    size="small"
+                    title="Tạo dự án"
+                  >
+                    <WorkRoundedIcon fontSize="small" />
+                  </IconButton>
+                  <IconButton
+                    size="small"
+                    title="Tác vụ"
+                    onClick={(event) => openActionMenu(event, customer)}
+                  >
+                    <MoreVertRoundedIcon fontSize="small" />
+                  </IconButton>
+                </div>
+              </td>
+            </tr>
+          ))}
+        </AppDataTable>
 
         <Menu anchorEl={menuAnchorEl} open={Boolean(menuAnchorEl)} onClose={closeActionMenu}>
+          <MenuItem onClick={viewActiveCustomer}>
+            <VisibilityRoundedIcon fontSize="small" className="mr-2 text-slate-500" />
+            Xem chi tiết
+          </MenuItem>
           <MenuItem onClick={editActiveCustomer}>
             <EditRoundedIcon fontSize="small" className="mr-2 text-slate-500" />
             Chỉnh sửa
@@ -394,6 +416,14 @@ export function CustomerManager({
           </span>
         </div>
       </section>
+
+      <CustomerViewDialog
+        customer={viewCustomerDetail || viewTarget}
+        tab={viewTab}
+        isLoading={isFetchingViewCustomer}
+        onTabChange={setViewTab}
+        onClose={() => setViewTarget(null)}
+      />
     </div>
   );
 }

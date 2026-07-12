@@ -2,8 +2,10 @@
 
 import { useRouter, useSearchParams } from 'next/navigation';
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
+import { CrmFlowBar } from '@/components/crm/crm-flow-bar';
 import { useAppNotification } from '@/components/feedback/notification-provider';
 import { ContentLoading } from '@/components/shell/content-loading';
+import { PageHeader } from '@/components/shell/page-header';
 import { ProjectForm } from '@/features/projects/components/project-form';
 import { getApiErrorMessage } from '@/lib/api-error';
 import { toProjectPayload } from '@/lib/project-utils';
@@ -62,7 +64,18 @@ export default function NewProjectPage() {
     queryFn: () => api.get<Quotation[]>('/quotations').then((response) => response.data),
   });
 
-  const quotation = quotations.find(
+  const selectedCustomer = customers.find((customer) => String(customer.id) === customerId);
+  const contextualQuotations = customerId
+    ? quotations.filter(
+        (item) =>
+          String(item.customerId || '') === customerId ||
+          (!item.customerId &&
+            selectedCustomer?.leadId &&
+            String(item.leadId || '') === String(selectedCustomer.leadId)),
+      )
+    : quotations;
+
+  const quotation = contextualQuotations.find(
     (item) =>
       String(item.id) === quotationId &&
       !item.projectId &&
@@ -107,17 +120,26 @@ export default function NewProjectPage() {
   }
 
   return (
-    <div className="min-h-[calc(100vh-72px)] bg-slate-50/60 p-6">
-      <div className="mb-8 w-full">
-        <h1 className="text-2xl font-bold text-slate-950">Thêm dự án</h1>
-        <div className="mt-2 flex items-center gap-2 text-sm text-slate-500">
-          <span>Dashboard</span>
-          <span className="h-1 w-1 rounded-full bg-slate-300" />
-          <span>Dự án</span>
-          <span className="h-1 w-1 rounded-full bg-slate-300" />
-          <span className="text-slate-950">Thêm mới</span>
-        </div>
-      </div>
+    <div className="flex min-h-[calc(100vh-72px)] flex-col bg-slate-50/60 px-6 pt-6">
+      <PageHeader title="Thêm dự án" />
+
+      {customerId && selectedCustomer && (
+        <CrmFlowBar
+          steps={[
+            {
+              label: 'Lead',
+              state: selectedCustomer.leadId ? 'done' : 'pending',
+              href: selectedCustomer.leadId ? `/leads/${selectedCustomer.leadId}` : undefined,
+            },
+            {
+              label: 'Customer',
+              state: 'done',
+              href: `/customers/${selectedCustomer.id}`,
+            },
+            { label: 'Dự án', state: 'active' },
+          ]}
+        />
+      )}
 
       <ProjectForm
         mode="create"
@@ -126,8 +148,9 @@ export default function NewProjectPage() {
         users={users}
         statuses={statuses}
         quoteConfigs={quoteConfigs}
-        quotations={quotations}
+        quotations={contextualQuotations}
         defaultValues={defaultValues}
+        cancelHref={customerId ? `/customers/${customerId}` : '/projects'}
         isSubmitting={createMutation.isPending}
         onSubmit={(values) => createMutation.mutate(values)}
       />

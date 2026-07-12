@@ -21,7 +21,7 @@ export function Providers({ children }: { children: React.ReactNode }) {
   );
 
   useEffect(() => {
-    initAuth();
+    void initAuth();
   }, [initAuth]);
 
   return (

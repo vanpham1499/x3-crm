@@ -1,30 +1,21 @@
 'use client';
 
 import Link from 'next/link';
+import AddRoundedIcon from '@mui/icons-material/AddRounded';
 import DeleteRoundedIcon from '@mui/icons-material/DeleteRounded';
 import EditRoundedIcon from '@mui/icons-material/EditRounded';
 import MoreVertRoundedIcon from '@mui/icons-material/MoreVertRounded';
 import QrCode2RoundedIcon from '@mui/icons-material/QrCode2Rounded';
-import SearchRoundedIcon from '@mui/icons-material/SearchRounded';
-import {
-  Button,
-  Dialog,
-  DialogActions,
-  DialogContent,
-  DialogTitle,
-  IconButton,
-  InputAdornment,
-  LinearProgress,
-  Menu,
-  MenuItem,
-  TextField,
-} from '@mui/material';
+import { IconButton, Menu, MenuItem } from '@mui/material';
 import { useState, type MouseEvent } from 'react';
+import { DialogActionButton } from '@/components/actions/dialog-action-button';
+import { AppDetailDialog } from '@/components/dialog/app-detail-dialog';
 import { ConfirmDialog } from '@/components/feedback/confirm-dialog';
-import {
-  getQuotationPaymentContent,
-  QUOTATION_PAYMENT_STATUS_LABELS,
-} from '@/lib/quotation-utils';
+import { CompactSearchField } from '@/components/form/compact-search-field';
+import { CompactSelectField } from '@/components/form/compact-select-field';
+import { PageHeader } from '@/components/shell/page-header';
+import { AppDataTable } from '@/components/table/app-data-table';
+import { getQuotationPaymentContent, QUOTATION_PAYMENT_STATUS_LABELS } from '@/lib/quotation-utils';
 import type { Quotation, QuotationFilters } from '@/types/quotation';
 
 type QuotationManagerProps = {
@@ -72,6 +63,19 @@ const statusLabels: Record<string, string> = {
   lost: 'Đã hủy',
 };
 
+function quotationStatusClass(status?: string | null) {
+  if (status === 'won') return 'bg-emerald-50 text-emerald-700 ring-emerald-100';
+  if (status === 'sent') return 'bg-sky-50 text-sky-700 ring-sky-100';
+  if (status === 'lost') return 'bg-rose-50 text-rose-700 ring-rose-100';
+  return 'bg-slate-100 text-slate-600 ring-slate-200';
+}
+
+function formatDate(value?: string | null) {
+  if (!value) return '-';
+  const match = value.match(/^(\d{4})-(\d{2})-(\d{2})/);
+  return match ? `${match[3]}/${match[2]}/${match[1]}` : value;
+}
+
 function paymentStatusClass(status?: string | null) {
   if (status === 'paid') return 'bg-emerald-50 text-emerald-700 ring-emerald-100';
   if (status === 'partial') return 'bg-amber-50 text-amber-700 ring-amber-100';
@@ -108,144 +112,201 @@ export function QuotationManager({
 
   return (
     <div className="min-h-[calc(100vh-72px)] w-full bg-slate-50/60 p-6">
-      <div className="mb-6 flex flex-col gap-4 sm:flex-row sm:items-center sm:justify-between">
-        <div>
-          <h1 className="text-2xl font-bold text-slate-950">Báo giá</h1>
-          <div className="mt-2 flex items-center gap-2 text-sm text-slate-500">
-            <span>Dashboard</span>
-            <span className="h-1 w-1 rounded-full bg-slate-300" />
-            <span className="text-slate-950">Báo giá</span>
-          </div>
-        </div>
-
-        <Button
-          component={Link}
-          href="/quotations/new"
-          variant="contained"
-          className="!bg-slate-900 hover:!bg-slate-800"
-        >
-          Thêm báo giá
-        </Button>
-      </div>
+      <PageHeader
+        title="Báo giá"
+        action={{ label: 'Thêm báo giá', href: '/quotations/new', icon: <AddRoundedIcon /> }}
+      />
 
       <section className="w-full overflow-hidden rounded-2xl border border-slate-200 bg-white shadow-sm">
-        <div className="grid gap-3 border-b border-slate-200 p-5 lg:grid-cols-[minmax(280px,1fr)_180px]">
-          <TextField
-            fullWidth
+        <div className="grid gap-3 p-4 lg:grid-cols-[minmax(280px,1fr)_176px]">
+          <CompactSearchField
             label="Từ khóa"
             placeholder="Tìm mã báo giá, lead, dịch vụ, ghi chú..."
             value={filters.keyword}
-            onChange={(event) => updateFilters({ keyword: event.target.value })}
-            slotProps={{
-              input: {
-                startAdornment: (
-                  <InputAdornment position="start">
-                    <SearchRoundedIcon fontSize="small" />
-                  </InputAdornment>
-                ),
-              },
-            }}
+            onChange={(value) => updateFilters({ keyword: value })}
           />
 
-          <TextField
-            select
+          <CompactSelectField
             label="Trạng thái"
             value={filters.status}
-            onChange={(event) => updateFilters({ status: event.target.value })}
-          >
-            <MenuItem value="">Tất cả</MenuItem>
-            <MenuItem value="draft">Nháp</MenuItem>
-            <MenuItem value="sent">Đã gửi</MenuItem>
-            <MenuItem value="won">Thắng</MenuItem>
-            <MenuItem value="lost">Thua</MenuItem>
-          </TextField>
+            options={[
+              { value: 'draft', label: 'Nháp' },
+              { value: 'sent', label: 'Đã gửi' },
+              { value: 'won', label: 'Đã chốt' },
+              { value: 'lost', label: 'Đã hủy' },
+            ]}
+            onChange={(value) => updateFilters({ status: value })}
+          />
         </div>
 
-        <div className="relative w-full overflow-x-auto">
-          {isFetching && (
-            <div className="absolute left-0 right-0 top-0 z-30">
-              <LinearProgress color="primary" />
-            </div>
-          )}
+        <AppDataTable
+          columns={[
+            {
+              key: 'quotation',
+              label: 'Báo giá',
+              className: 'sticky left-0 z-20 w-48 bg-slate-100',
+            },
+            { key: 'customer', label: 'Khách hàng', className: 'w-[250px]' },
+            { key: 'project', label: 'Dự án', className: 'w-[230px]' },
+            { key: 'service', label: 'Dịch vụ', className: 'w-[230px]' },
+            { key: 'total', label: 'Tổng báo', className: 'w-40 text-right' },
+            { key: 'paid', label: 'Đã thu', className: 'w-40 text-right' },
+            { key: 'status', label: 'Trạng thái', className: 'w-44' },
+            { key: 'actions', className: 'w-36' },
+          ]}
+          isLoading={isFetching}
+          isEmpty={quotations.length === 0}
+          emptyText="Chưa có báo giá"
+          minWidthClassName="min-w-[1420px]"
+        >
+          {quotations.map((quotation) => {
+            const partyCode = quotation.lead?.leadCode || quotation.customer?.customerCode || '';
+            const partyName =
+              quotation.lead?.customerName || quotation.customer?.customerName || '-';
+            const partyHref = quotation.lead
+              ? `/leads/${quotation.lead.id}`
+              : quotation.customer
+                ? `/customers/${quotation.customer.id}`
+                : '';
+            const totalAmount = Number(quotation.totalAmount) || 0;
+            const paidAmount = Number(quotation.paidAmount) || 0;
+            const outstandingAmount =
+              quotation.outstandingAmount === null || quotation.outstandingAmount === undefined
+                ? Math.max(0, totalAmount - paidAmount)
+                : Math.max(0, Number(quotation.outstandingAmount) || 0);
 
-          <table className={`w-full min-w-[1320px] table-fixed text-left text-sm transition-opacity ${isFetching ? 'opacity-60' : 'opacity-100'}`}>
-            <thead className="bg-slate-50 text-xs font-bold uppercase text-slate-500">
-              <tr>
-                <th className="w-44 px-5 py-4">Mã báo giá</th>
-                <th className="w-[260px] px-5 py-4">Lead / Khách hàng</th>
-                <th className="w-52 px-5 py-4">Dịch vụ</th>
-                <th className="w-32 px-5 py-4">Trạng thái</th>
-                <th className="w-40 px-5 py-4 text-right">Tổng tiền</th>
-                <th className="w-44 px-5 py-4">Thu tiền</th>
-                <th className="w-36 px-5 py-4">Hiệu lực</th>
-                <th className="w-20 px-5 py-4" />
-              </tr>
-            </thead>
-            <tbody className="divide-y divide-slate-100">
-              {quotations.length === 0 ? (
-                <tr>
-                  <td colSpan={8} className="px-5 py-12 text-center text-sm font-semibold text-slate-500">
-                    Chưa có báo giá
-                  </td>
-                </tr>
-              ) : (
-                quotations.map((quotation) => (
-                  <tr key={quotation.id} className="hover:bg-slate-50/80">
-                    <td className="px-5 py-4 font-bold text-slate-950">{quotation.quotationCode || '-'}</td>
-                    <td className="px-5 py-4">
-                      {quotation.lead ? (
-                        <Link href={`/leads/${quotation.lead.id}`} className="block truncate font-semibold text-slate-900 hover:underline">
-                          {quotation.lead.customerName || '-'}
-                        </Link>
-                      ) : quotation.customer ? (
-                        <Link href={`/customers/${quotation.customer.id}`} className="block truncate font-semibold text-slate-900 hover:underline">
-                          {quotation.customer.customerName || '-'}
-                        </Link>
-                      ) : (
-                        <p className="truncate font-semibold text-slate-900">-</p>
-                      )}
-                      <p className="mt-1 truncate text-xs font-semibold text-slate-500">
-                        {quotation.lead?.leadCode || quotation.customer?.customerCode || '-'}
-                      </p>
-                    </td>
-                    <td className="px-5 py-4 text-slate-700">
-                      <span className="block truncate" title={quotation.serviceName || ''}>
-                        {quotation.serviceCode ? `${quotation.serviceCode} - ${quotation.serviceName || ''}` : quotation.serviceName || '-'}
+            return (
+              <tr key={quotation.id} className="group hover:bg-slate-50/80">
+                <td className="sticky left-0 z-10 bg-white px-3 py-4 group-hover:bg-slate-50">
+                  <Link
+                    href={`/quotations/${quotation.id}`}
+                    className="block truncate font-bold text-primary hover:underline"
+                    title={quotation.quotationCode || ''}
+                  >
+                    {quotation.quotationCode || '-'}
+                  </Link>
+                  <p className="mt-1 text-xs font-medium text-slate-500">
+                    {quotation.validUntil
+                      ? `Hiệu lực ${formatDate(quotation.validUntil)}`
+                      : 'Không giới hạn'}
+                  </p>
+                </td>
+                <td className="px-3 py-4">
+                  <div className="flex min-w-0 items-center gap-2">
+                    {partyCode ? (
+                      <span className="shrink-0 rounded-md bg-slate-100 px-2 py-1 text-xs font-bold text-slate-600 ring-1 ring-slate-200">
+                        {partyCode}
                       </span>
-                    </td>
-                    <td className="px-5 py-4">
-                      <span className="rounded-md bg-slate-100 px-2 py-1 text-xs font-bold text-slate-700">
-                        {statusLabels[quotation.status || ''] || quotation.status || '-'}
-                      </span>
-                    </td>
-                    <td className="px-5 py-4 text-right font-bold text-slate-950">
-                      {formatCurrency(quotation.totalAmount)}
-                    </td>
-                    <td className="px-5 py-4">
-                      <span
-                        className={`inline-flex rounded-md px-2 py-1 text-xs font-bold ring-1 ${paymentStatusClass(quotation.paymentStatus)}`}
+                    ) : null}
+                    {partyHref ? (
+                      <Link
+                        href={partyHref}
+                        className="min-w-0 truncate font-semibold text-slate-950 hover:text-primary hover:underline"
+                        title={partyName}
                       >
-                        {QUOTATION_PAYMENT_STATUS_LABELS[quotation.paymentStatus || ''] ||
-                          quotation.paymentStatus ||
-                          'Chưa thanh toán'}
-                      </span>
-                      <p className="mt-1.5 text-xs font-semibold tabular-nums text-slate-500">
-                        {formatCurrency(quotation.paidAmount)} / {formatCurrency(quotation.totalAmount)}
+                        {partyName}
+                      </Link>
+                    ) : (
+                      <span className="truncate font-semibold text-slate-950">{partyName}</span>
+                    )}
+                  </div>
+                </td>
+                <td className="px-3 py-4">
+                  {quotation.project ? (
+                    <div className="min-w-0">
+                      <Link
+                        href={`/projects/${quotation.project.id}`}
+                        className="block truncate font-bold text-sky-700 hover:underline"
+                        title={quotation.project.projectCode || ''}
+                      >
+                        {quotation.project.projectCode || '-'}
+                      </Link>
+                      <p
+                        className="mt-1 truncate text-xs font-medium text-slate-500"
+                        title={quotation.project.projectName || ''}
+                      >
+                        {quotation.project.projectName || '-'}
                       </p>
-                    </td>
-                    <td className="px-5 py-4 text-slate-600">{quotation.validUntil || '-'}</td>
-                    <td className="px-5 py-4">
-                      <div className="flex justify-end">
-                        <IconButton size="small" title="Tác vụ" onClick={(event) => openActionMenu(event, quotation)}>
-                          <MoreVertRoundedIcon fontSize="small" />
-                        </IconButton>
-                      </div>
-                    </td>
-                  </tr>
-                ))
-              )}
-            </tbody>
-          </table>
+                    </div>
+                  ) : (
+                    <span className="text-slate-400">Chưa gắn dự án</span>
+                  )}
+                </td>
+                <td className="px-3 py-4">
+                  <div className="flex min-w-0 items-center gap-2">
+                    {quotation.serviceCode ? (
+                      <span className="shrink-0 rounded-md bg-sky-50 px-2 py-1 text-xs font-bold text-sky-700 ring-1 ring-sky-100">
+                        {quotation.serviceCode}
+                      </span>
+                    ) : null}
+                    <span
+                      className="min-w-0 truncate font-medium text-slate-700"
+                      title={quotation.serviceName || ''}
+                    >
+                      {quotation.serviceName || '-'}
+                    </span>
+                  </div>
+                </td>
+                <td className="px-3 py-4 text-right font-extrabold tabular-nums text-slate-950">
+                  {formatCurrency(totalAmount)}
+                </td>
+                <td className="px-3 py-4 text-right">
+                  <p className="font-extrabold tabular-nums text-emerald-700">
+                    {formatCurrency(paidAmount)}
+                  </p>
+                  <p className="mt-1 text-xs font-medium tabular-nums text-slate-500">
+                    Còn {formatCurrency(outstandingAmount)}
+                  </p>
+                </td>
+                <td className="px-3 py-4">
+                  <div className="flex flex-col items-start gap-1.5">
+                    <span
+                      className={`inline-flex rounded-md px-2 py-1 text-xs font-bold ring-1 ${quotationStatusClass(quotation.status)}`}
+                    >
+                      {statusLabels[quotation.status || ''] || quotation.status || '-'}
+                    </span>
+                    <span
+                      className={`inline-flex rounded-md px-2 py-1 text-xs font-bold ring-1 ${paymentStatusClass(quotation.paymentStatus)}`}
+                    >
+                      {QUOTATION_PAYMENT_STATUS_LABELS[quotation.paymentStatus || ''] ||
+                        quotation.paymentStatus ||
+                        'Chưa thanh toán'}
+                    </span>
+                  </div>
+                </td>
+                <td className="py-4">
+                  <div className="flex items-center justify-end gap-1 pr-3">
+                    <IconButton
+                      size="small"
+                      title="Xem QR thanh toán"
+                      onClick={() => setQrTarget(quotation)}
+                    >
+                      <QrCode2RoundedIcon fontSize="small" />
+                    </IconButton>
+                    <IconButton
+                      component={Link}
+                      href={`/quotations/${quotation.id}`}
+                      size="small"
+                      title="Chỉnh sửa báo giá"
+                    >
+                      <EditRoundedIcon fontSize="small" />
+                    </IconButton>
+                    <IconButton
+                      size="small"
+                      title="Tác vụ"
+                      onClick={(event) => openActionMenu(event, quotation)}
+                    >
+                      <MoreVertRoundedIcon fontSize="small" />
+                    </IconButton>
+                  </div>
+                </td>
+              </tr>
+            );
+          })}
+        </AppDataTable>
+
+        <div className="border-t border-slate-200 px-5 py-4 text-sm text-slate-500">
+          Hiển thị <strong className="text-slate-950">{quotations.length}</strong> báo giá
         </div>
       </section>
 
@@ -280,61 +341,87 @@ export function QuotationManager({
         </MenuItem>
       </Menu>
 
-      <Dialog open={Boolean(qrTarget)} onClose={() => setQrTarget(null)} maxWidth="sm" fullWidth>
-        <DialogTitle className="border-b border-slate-100 px-6 py-5">
-          <p className="text-lg font-bold text-slate-950">QR thanh toán</p>
-          <p className="mt-1 text-sm text-slate-500">{qrTarget?.quotationCode || '-'}</p>
-        </DialogTitle>
-        <DialogContent className="px-6 py-5">
+      <AppDetailDialog
+        open={Boolean(qrTarget)}
+        title="QR thanh toán"
+        eyebrow={qrTarget?.quotationCode || undefined}
+        subtitle={
+          qrTarget?.customer?.customerName ||
+          qrTarget?.lead?.customerName ||
+          'Thông tin chuyển khoản'
+        }
+        maxWidth="sm"
+        onClose={() => setQrTarget(null)}
+        actions={
+          qrTarget ? (
+            <DialogActionButton href={`/quotations/${qrTarget.id}`} startIcon={<EditRoundedIcon />}>
+              Chỉnh sửa
+            </DialogActionButton>
+          ) : null
+        }
+      >
+        <div className="p-5">
           {qrTarget && getQuotationQrUrl(qrTarget) ? (
-            <div className="grid gap-5 sm:grid-cols-[180px,minmax(0,1fr)]">
-              <img
-                src={getQuotationQrUrl(qrTarget)}
-                alt="Mã VietQR thanh toán báo phí"
-                className="h-44 w-44 rounded-xl border border-slate-100 bg-white object-contain"
-              />
-              <div className="min-w-0 text-sm text-slate-600">
-                <p className="font-bold text-slate-950">Thông tin chuyển khoản</p>
-                <div className="mt-3 space-y-2">
-                  <p>
-                    <span className="font-bold text-slate-950">Ngân hàng:</span>{' '}
-                    {getMetadataValue(qrTarget, 'bankName') || getMetadataValue(qrTarget, 'bankCode')}
+            <div className="grid gap-5 sm:grid-cols-[208px,minmax(0,1fr)] sm:items-start">
+              <div className="flex items-center justify-center rounded-xl border border-slate-200 bg-slate-50 p-3">
+                <img
+                  src={getQuotationQrUrl(qrTarget)}
+                  alt="Mã VietQR thanh toán báo phí"
+                  className="h-48 w-48 rounded-lg bg-white object-contain"
+                />
+              </div>
+
+              <div className="min-w-0 space-y-3">
+                <div className="rounded-lg border border-emerald-100 bg-emerald-50 px-3.5 py-3">
+                  <p className="text-xs font-bold uppercase tracking-wide text-emerald-700">
+                    Số tiền thanh toán
                   </p>
-                  <p>
-                    <span className="font-bold text-slate-950">Số tài khoản:</span>{' '}
-                    <span className="tabular-nums">{getMetadataValue(qrTarget, 'bankAccountNo')}</span>
+                  <p className="mt-1 text-xl font-extrabold tabular-nums text-emerald-800">
+                    {formatCurrency(qrTarget.totalAmount)}
                   </p>
-                  <p>
-                    <span className="font-bold text-slate-950">Chủ tài khoản:</span>{' '}
-                    {getMetadataValue(qrTarget, 'bankAccountName')}
+                </div>
+
+                <dl className="overflow-hidden rounded-lg border border-slate-200 bg-white text-sm">
+                  <div className="grid grid-cols-[96px,minmax(0,1fr)] gap-3 border-b border-slate-100 px-3 py-2.5">
+                    <dt className="font-medium text-slate-500">Ngân hàng</dt>
+                    <dd className="truncate text-right font-bold text-slate-900">
+                      {getMetadataValue(qrTarget, 'bankName') ||
+                        getMetadataValue(qrTarget, 'bankCode')}
+                    </dd>
+                  </div>
+                  <div className="grid grid-cols-[96px,minmax(0,1fr)] gap-3 border-b border-slate-100 px-3 py-2.5">
+                    <dt className="font-medium text-slate-500">Số tài khoản</dt>
+                    <dd className="truncate text-right font-bold tabular-nums text-slate-900">
+                      {getMetadataValue(qrTarget, 'bankAccountNo')}
+                    </dd>
+                  </div>
+                  <div className="grid grid-cols-[96px,minmax(0,1fr)] gap-3 px-3 py-2.5">
+                    <dt className="font-medium text-slate-500">Chủ tài khoản</dt>
+                    <dd className="truncate text-right font-bold text-slate-900">
+                      {getMetadataValue(qrTarget, 'bankAccountName')}
+                    </dd>
+                  </div>
+                </dl>
+
+                <div className="rounded-lg border border-primary/20 bg-emerald-50/60 px-3.5 py-3">
+                  <p className="text-xs font-bold uppercase tracking-wide text-slate-500">
+                    Nội dung chuyển khoản
                   </p>
-                  <p>
-                    <span className="font-bold text-slate-950">Số tiền:</span>{' '}
-                    <span className="font-extrabold text-emerald-700">
-                      {formatCurrency(qrTarget.totalAmount)}
-                    </span>
-                  </p>
-                  <p>
-                    <span className="font-bold text-slate-950">Nội dung:</span>{' '}
-                    <span className="font-mono font-extrabold text-slate-950">
-                      {getQuotationPaymentContent(qrTarget)}
-                    </span>
+                  <p className="mt-1.5 select-all break-all font-mono text-base font-extrabold text-primary">
+                    {getQuotationPaymentContent(qrTarget)}
                   </p>
                 </div>
               </div>
             </div>
           ) : (
-            <p className="text-sm font-semibold text-slate-500">
-              Báo giá này chưa có đủ thông tin tài khoản nhận tiền để tạo QR.
-            </p>
+            <div className="rounded-lg border border-dashed border-slate-300 bg-slate-50 px-4 py-8 text-center">
+              <p className="text-sm font-semibold text-slate-600">
+                Báo giá này chưa có đủ thông tin tài khoản nhận tiền để tạo QR.
+              </p>
+            </div>
           )}
-        </DialogContent>
-        <DialogActions className="border-t border-slate-100 px-6 py-4">
-          <Button variant="outlined" onClick={() => setQrTarget(null)}>
-            Đóng
-          </Button>
-        </DialogActions>
-      </Dialog>
+        </div>
+      </AppDetailDialog>
 
       <ConfirmDialog
         open={Boolean(deleteTarget)}

@@ -39,9 +39,10 @@ This file is the first place Codex should read before changing the project.
 - `src/types`: shared TypeScript types. Customer type lives in `src/types/customer.ts`.
 - `src/hooks`: shared React hooks.
 - `src/assets`: source-imported images, icons, and logos. Use `@assets/...` for IDE autocomplete.
-- `src/styles`: global/shared CSS. Root layout imports `@/styles/globals.css`; use `@styles/...` for shared CSS imports.
-- `src/theme`: MUI theme configuration. App providers wrap the app with
-  `AppRouterCacheProvider`, `ThemeProvider`, and `CssBaseline`.
+- `src/styles`: global/shared CSS. Root layout imports `@/styles/globals.css`; use `@styles/...` for
+  shared CSS imports.
+- `src/theme`: MUI theme configuration. App providers wrap the app with `AppRouterCacheProvider`,
+  `ThemeProvider`, and `CssBaseline`.
 - `docs`: project notes and implementation context.
 
 ## Current Routes
@@ -66,15 +67,16 @@ This file is the first place Codex should read before changing the project.
   content shows loading after the first page load.
 - `/leads/new` and `/leads/[id]`: full-page create/edit forms using
   `src/features/leads/components/lead-form.tsx`, laid out like the customer form with an 8/4 split:
-  left for lead/contact/timing information, right for assignment/source/service classification.
-  Lead status/source/industry now use the backend `/options` API groups `lead_status`,
-  `lead_source`, and `industry`. The source field is an MUI free-solo autocomplete: users can select
-  an existing `lead_source` option or type a new source name. On submit, the page creates the source
-  via `POST /options` first, then saves the lead with the returned `sourceOptionId`.
-- `/customers/new`: create customer form. Submit currently builds/logs a payload and is ready to
-  swap TODO comments for API calls.
-- `/customers/[id]`: edit customer form using `leadCode` from the extracted Excel data as the route
-  id. Submit currently builds/logs a payload and is ready to swap TODO comments for API calls.
+  left for lead/contact/timing information, right for assignment/source/service classification. Lead
+  status/source/industry now use the backend `/options` API groups `lead_status`, `lead_source`, and
+  `industry`. The source field is an MUI free-solo autocomplete: users can select an existing
+  `lead_source` option or type a new source name. On submit, the page creates the source via
+  `POST /options` first, then saves the lead with the returned `sourceOptionId`.
+- `/customers/new`: chỉ mở từ một Lead hợp lệ. Form được điền trước từ Lead và gọi
+  `POST /customers`; backend tạo Customer và liên kết Lead trong cùng transaction. Thành công mở hồ
+  sơ Customer, không tự nhảy sang tạo Project.
+- `/customers/[id]`: hồ sơ Customer dùng ID backend, hiển thị thanh luồng `Lead → Customer → Dự án`,
+  danh sách dự án và form chỉnh sửa. CTA chính là `Tạo dự án`.
 - Customer list UI lives in `src/features/customers/components/customer-list.tsx`. It uses MUI
   checkboxes for row selection. Selecting rows shows a green selected action bar; each row has a
   separate edit icon and a three-dot MUI menu with edit/delete placeholders.
@@ -95,8 +97,8 @@ This file is the first place Codex should read before changing the project.
   `project_partner`. Visible fields are Mã đối tác, Tên đối tác, STK, Ngân hàng, and Dịch vụ.
   Mapping: `key` stores partner code, `label` stores partner name, `value` stores service, and
   `meta.accountNo` / `meta.bankName` store bank details.
-- `/projects/services`: service management screen using backend `GET/POST/PUT/DELETE /services`.
-  It renders services as a tree table, supports keyword/status filters, and uses MUI dialogs for
+- `/projects/services`: service management screen using backend `GET/POST/PUT/DELETE /services`. It
+  renders services as a tree table, supports keyword/status filters, and uses MUI dialogs for
   create/edit plus shared confirmation dialog for delete. Keep service list logic in
   `src/features/services/components/service-manager.tsx`.
 - `/settings/options`: system option management screen using backend `GET/POST/PUT/DELETE /options`.
@@ -136,9 +138,9 @@ This file is the first place Codex should read before changing the project.
 
 ## Auth And API
 
-- Auth token key: `access_token`.
-- User localStorage key: `user`.
-- API base URL: `NEXT_PUBLIC_API_URL`, fallback `http://127.0.0.1:4000/api`.
+- Auth dùng Laravel Sanctum session cookie `x3_crm_session` dạng HttpOnly; không lưu access token
+  hoặc user auth trong localStorage.
+- API base URL: `NEXT_PUBLIC_API_URL`, fallback `http://localhost:4000/api`.
 - Media/public upload base URL: `NEXT_PUBLIC_MEDIA_URL`, fallback to the current frontend origin in
   the browser. Keep database values relative, for example `/uploads/2026/07/file.jpg`, and use
   `src/lib/media-url.ts` to render them.
@@ -150,11 +152,12 @@ This file is the first place Codex should read before changing the project.
 - Confirmation popups should use `src/components/feedback/confirm-dialog.tsx` instead of
   `window.confirm`, especially for destructive actions such as delete.
 - Auth store: `src/stores/auth-store.ts`.
-- Login calls `POST /auth/login` through the shared API client. A successful login stores
-  `access_token` and optional `user`, then redirects to `/users`.
-- Auth state is restored from localStorage in `src/app/providers.tsx`. Authenticated app routes in
-  `src/app/(app)` require a token and redirect unauthenticated users to `/login`.
-- API 401 responses clear `access_token`/`user` and redirect the browser to `/login`.
+- Login initializes CSRF through `/sanctum/csrf-cookie`, then calls `POST /auth/login`. A successful
+  login stores only the current user in Zustand memory and redirects to `/users`.
+- Auth state is restored by calling `GET /auth/me` in `src/app/providers.tsx`. Authenticated app
+  routes require a verified session; unauthenticated users go to `/login`, while backend connection
+  failures render a retryable `503` state.
+- API requests use `withCredentials`; API 401 responses redirect the browser to `/login`.
 - Backend media library API lives at `GET /media` and `POST /media/upload`. The backend stores files
   physically under frontend `public/uploads/YYYY/MM` like WordPress, while metadata stays in the
   backend `attachments` table with `entity_type = media_library`. `MEDIA_PUBLIC_PATH` can override
@@ -175,9 +178,9 @@ This file is the first place Codex should read before changing the project.
 - Keep CRM screens quiet, operational, and scan-friendly. Prefer dense tables/forms, clear actions,
   and restrained decoration.
 - Login UI currently follows the Minimal UI sign-in reference at
-  `https://minimals.cc/auth/amplify/sign-in`: 480px left illustration rail, wider right form
-  area, X3Sales logo, imported Minimal background/illustration/platform icons, floating-label inputs,
-  and dark navy submit button. Left platform icons stay grayscale and reveal color on hover. The demo
+  `https://minimals.cc/auth/amplify/sign-in`: 480px left illustration rail, wider right form area,
+  X3Sales logo, imported Minimal background/illustration/platform icons, floating-label inputs, and
+  dark navy submit button. Left platform icons stay grayscale and reveal color on hover. The demo
   credential alert is intentionally removed.
 - Auth layout is shared by login and forgot-password screens.
 - Full-page loading/auth transition UI uses `src/components/shell/app-splash-screen.tsx`: a clean
@@ -190,19 +193,18 @@ This file is the first place Codex should read before changing the project.
   errors at `src/app/(app)/error.tsx`, and fatal root errors at `src/app/global-error.tsx`.
 - Auth MUI text fields force `inputLabel.shrink` because Chrome autofill can otherwise leave labels
   overlapping typed values on the login form.
-- Current app shell, auth shell, login/forgot-password pages, dashboard placeholder, and users screens
-  use Tailwind `className` for layout and visual styling. Avoid adding `sx`/inline `style` in
-  `src/app` and `src/components` unless a MUI component API makes it genuinely unavoidable.
+- Current app shell, auth shell, login/forgot-password pages, dashboard placeholder, and users
+  screens use Tailwind `className` for layout and visual styling. Avoid adding `sx`/inline `style`
+  in `src/app` and `src/components` unless a MUI component API makes it genuinely unavoidable.
 - Logged-in app shell follows the Minimal dashboard reference: 300px expanded sidebar, 88px
   collapsed icon-only sidebar, 72px sticky translucent header, grouped menu items, and active item
   tint.
 - Header account area shows a theme toggle and user avatar menu only. If the user has an avatar, the
-  header must render the avatar image instead of initials. Header refreshes the current user through
-  `GET /auth/me` so updated avatar/profile data is not stuck on the login-time localStorage user.
-  Backend auth profile returns the user under `response.user`, not always as the root response body.
-  The temporary theme toggle stores `light`/`dark` in `localStorage` under `x3_theme` and toggles the
-  `dark` class on `document.documentElement`; later this value can be moved to the user
-  profile/database.
+  header must render the avatar image instead of initials. The verified current user comes from the
+  in-memory auth store; profile/user mutations update that store immediately. Backend auth profile
+  returns the user under `response.user`, not always as the root response body. The temporary theme
+  toggle stores `light`/`dark` in `localStorage` under `x3_theme` and toggles the `dark` class on
+  `document.documentElement`; later this value can be moved to the user profile/database.
 - Global app font is `Public Sans Variable` loaded from `@fontsource-variable/public-sans` with the
   same fallback stack used by Minimal UI.
 
@@ -213,29 +215,31 @@ This file is the first place Codex should read before changing the project.
 - Radix/shadcn legacy UI primitives were removed after migrating the active app screens to MUI.
 - User instruction from 2026-06-30: do not run `npm run build` unless the user explicitly asks for
   build. Use dev server checks instead.
-- Auth guard is enabled for authenticated app routes. `/` redirects to `/login`; app routes redirect
-  unauthenticated users to `/login`, and API 401 responses clear local auth before redirecting.
+- Auth guard is enabled for authenticated app routes. `/` redirects to `/login`; app routes verify
+  `/auth/me` before rendering, API 401 responses redirect to login, and backend outages show `503`.
 
 ## Conversation Snapshot - Read This First
 
-This section summarizes the decisions from the full Codex conversation. If old sections above conflict
-with this snapshot, prefer this snapshot because it reflects the latest user preferences.
+This section summarizes the decisions from the full Codex conversation. If old sections above
+conflict with this snapshot, prefer this snapshot because it reflects the latest user preferences.
 
 ### Working Rules
 
 - Do not run `npm run build` unless the user explicitly asks to run build.
-- Use dev checks and TypeScript checks instead. Preferred TypeScript check: `npm exec tsc -- --noEmit`.
+- Use dev checks and TypeScript checks instead. Preferred TypeScript check:
+  `npm exec tsc -- --noEmit`.
 - The user prefers Tailwind CSS for layout and visual styling, with MUI for form/table primitives,
   inputs, selects, checkboxes, dialogs, date pickers, menus, icons, and interaction behavior.
 - Money/price inputs should use `src/components/form/money-input.tsx`. It displays Vietnamese
   thousands separators such as `1.000.000` while keeping the controlled value as raw digits for
   calculations and API payloads.
-- Avoid `sx`/inline style in route/component layout code unless MUI or dynamic color behavior makes it
-  genuinely useful.
-- Do not use native `alert` or `confirm`. Use shared toast notifications and MUI/custom confirm dialogs.
+- Avoid `sx`/inline style in route/component layout code unless MUI or dynamic color behavior makes
+  it genuinely useful.
+- Do not use native `alert` or `confirm`. Use shared toast notifications and MUI/custom confirm
+  dialogs.
 - Keep large UI in `src/features/<domain>/components`; keep route pages thin.
-- For CRUD create/edit flows, use full-page forms like customers and leads by default. Only implement
-  create/edit as a popup/dialog when the user explicitly requests a popup.
+- For CRUD create/edit flows, use full-page forms like customers and leads by default. Only
+  implement create/edit as a popup/dialog when the user explicitly requests a popup.
 - Keep this file updated whenever project structure, API contracts, or product decisions change.
 
 ### Stack And Libraries
@@ -247,8 +251,10 @@ with this snapshot, prefer this snapshot because it reflects the latest user pre
 - Axios API client in `src/services/api/client.ts`.
 - Zustand auth store in `src/stores/auth-store.ts`.
 - React Hook Form and Zod for forms.
-- `@dnd-kit/core`, `@dnd-kit/sortable`, and `@dnd-kit/utilities` are used for drag-and-drop option ordering.
-- Font is `Public Sans Variable` from `@fontsource-variable/public-sans` with Minimal UI-style fallback stack.
+- `@dnd-kit/core`, `@dnd-kit/sortable`, and `@dnd-kit/utilities` are used for drag-and-drop option
+  ordering.
+- Font is `Public Sans Variable` from `@fontsource-variable/public-sans` with Minimal UI-style
+  fallback stack.
 
 ### Brand And Visual Direction
 
@@ -267,12 +273,12 @@ with this snapshot, prefer this snapshot because it reflects the latest user pre
 
 ### Auth, API, Media
 
-- API base env: `NEXT_PUBLIC_API_URL`; fallback `http://127.0.0.1:4000/api`.
-- Auth token key: `access_token`.
-- User localStorage key: `user`.
-- Login calls `POST /auth/login`.
-- Successful login stores token/user and redirects to `/users`.
-- API 401 clears auth and redirects to `/login`.
+- API base env: `NEXT_PUBLIC_API_URL`; fallback `http://localhost:4000/api`.
+- Auth uses Laravel Sanctum HttpOnly session cookie plus CSRF protection.
+- Login calls `/sanctum/csrf-cookie`, then `POST /auth/login`.
+- Successful login stores the current user in memory and redirects to `/users`.
+- API 401 redirects to `/login`; connection failures block the authenticated shell with a retry
+  state.
 - Media/public env: `NEXT_PUBLIC_MEDIA_URL`.
 - Saved media URLs should remain relative, for example `/uploads/2026/07/file.jpg`.
 - Do not save full domains in database for uploaded images.
@@ -282,7 +288,8 @@ with this snapshot, prefer this snapshot because it reflects the latest user pre
 - Media API:
   - `GET /media`.
   - `POST /media/upload`.
-- Default media behavior: users choose their own uploaded images; later permission logic can broaden access.
+- Default media behavior: users choose their own uploaded images; later permission logic can broaden
+  access.
 
 ### Feedback And Loading
 
@@ -295,7 +302,8 @@ with this snapshot, prefer this snapshot because it reflects the latest user pre
 - For list/filter pages, use two loading modes:
   - First page load can show content loading.
   - Filter/refetch should only show table/content loading, not reload the entire shell/layout.
-- Use TanStack Query `keepPreviousData` for filters so existing table content stays while refetching.
+- Use TanStack Query `keepPreviousData` for filters so existing table content stays while
+  refetching.
 - Loading color should follow the X3Sales primary color.
 
 ### Layout And Sidebar
@@ -305,13 +313,15 @@ with this snapshot, prefer this snapshot because it reflects the latest user pre
   - Collapsed sidebar around 88px.
   - Header around 72px.
   - Active item uses subtle primary tint.
-- Sidebar collapse button must sit centered on the sidebar edge, high z-index, not clipped or hidden under header.
+- Sidebar collapse button must sit centered on the sidebar edge, high z-index, not clipped or hidden
+  under header.
 - Header account area:
   - Show theme toggle.
   - Show avatar/account button with the right logged-in user name.
   - Account menu options: Profile and Đăng xuất.
   - Logout must clear auth and redirect to login.
-- Theme toggle currently stores `light`/`dark` in localStorage under `x3_theme` and toggles the `dark` class on `document.documentElement`.
+- Theme toggle currently stores `light`/`dark` in localStorage under `x3_theme` and toggles the
+  `dark` class on `document.documentElement`.
 - Sidebar menu should include:
   - Dashboard.
   - Lead.
@@ -335,8 +345,8 @@ with this snapshot, prefer this snapshot because it reflects the latest user pre
 - Settings submenu:
   - `/settings/options`: Tùy chọn.
 - Menu items with children should collapse/expand, not display every child all the time.
-- Sidebar child menu items should not render icons. Expanded children use a compact tree style with a
-  subtle vertical line, short branch line, rounded neutral gray active background, and relaxed
+- Sidebar child menu items should not render icons. Expanded children use a compact tree style with
+  a subtle vertical line, short branch line, rounded neutral gray active background, and relaxed
   spacing. Active parent items use a soft emerald background with a small filled icon block.
 - Sidebar parent icons use the softer MUI `TwoTone` icon variants already available in
   `@mui/icons-material`. If the project later needs icons closer to the Minimal UI/Solar reference,
@@ -346,7 +356,8 @@ with this snapshot, prefer this snapshot because it reflects the latest user pre
   sidebar and page content. It is not a popup or click-away overlay, so users can keep interacting
   with the current page while the calculator stays open. Calculator display numbers should be
   formatted with Vietnamese thousands separators such as `20.000.000` for money readability.
-- Active states must not overlap: Người dùng, Vai trò, and Phân quyền should not all be active together.
+- Active states must not overlap: Người dùng, Vai trò, and Phân quyền should not all be active
+  together.
 
 ### Current Routes
 
@@ -407,8 +418,8 @@ with this snapshot, prefer this snapshot because it reflects the latest user pre
   - Hide the free "Thêm khách hàng" create button on `/customers`; customers should be created from
     a lead conversion flow only.
   - Use a flat table, not a boxed/card layout inside cells.
-  - Visible columns should be: Mã KH, Tên khách hàng, Loại KH, SĐT, Email, Người đại diện, and
-    Người phụ trách.
+  - Visible columns should be: Mã KH, Tên khách hàng, Loại KH, SĐT, Email, Người đại diện, and Người
+    phụ trách.
   - Do not show Lead, Website, Source, Service, Created date, or Note columns in the default
     customer list unless requested later.
   - MUI checkbox for row selection.
@@ -426,14 +437,14 @@ with this snapshot, prefer this snapshot because it reflects the latest user pre
   - Left column: customer identity/contact/legal/note information.
   - Right column: customer type option, source option, and sales owner.
   - Inputs/selects/date fields use MUI.
-- `/customers/new?leadId=<lead id>` preloads the lead and service tree, prefills customer data
-    from lead, and creates the customer through `POST /customers`.
+- `/customers/new?leadId=<lead id>` preloads the lead and service tree, prefills customer data from
+  lead, and creates the customer through `POST /customers`.
   - `/customers/new` is not a free-create page. It must require a valid `leadId`; if `leadId` is
     missing or the lead cannot be loaded, show an error toast and redirect to `/leads`.
   - Before creating a customer from lead, check `GET /customers?lead_id=<lead id>`. If a customer
     already exists for that lead, show an error toast and redirect back to `/leads/<lead id>`.
 - Lead-to-customer conversion should update the source lead with `convertedCustomerId` after the
-    customer is created.
+  customer is created.
 - After creating a customer from `/customers/new?leadId=<lead id>`, redirect directly to
   `/projects/new?customerId=<created customer id>` so the user can immediately create a project
   attached to that customer.
@@ -486,7 +497,8 @@ with this snapshot, prefer this snapshot because it reflects the latest user pre
   - `lead_source` for source.
   - `industry` for industry.
 - Lead source field should allow selecting an existing source or typing a new source name.
-- If a new source is typed, create it with `POST /options` first, then save the lead with the returned option id.
+- If a new source is typed, create it with `POST /options` first, then save the lead with the
+  returned option id.
 - Newer backend lead resource may include:
   - `statusOptionId`, `sourceOptionId`, `industryOptionId`.
   - `statusOption`, `sourceOption`, `industryOption`.
@@ -522,7 +534,7 @@ with this snapshot, prefer this snapshot because it reflects the latest user pre
   - Edit payload includes `name`, `phone`, `avatar`, `role`, `isActive`.
   - Code/email are read-only on edit if backend update request does not accept them.
   - Avatar uses shared media picker/upload.
-  - When editing the currently logged-in user, update the auth store/localStorage with the mutation
+  - When editing the currently logged-in user, update the in-memory auth store with the mutation
     response so the header avatar/name refreshes immediately after save.
 
 ### Roles And Permissions
@@ -545,7 +557,8 @@ with this snapshot, prefer this snapshot because it reflects the latest user pre
   - `POST /roles/{id}/permissions` for syncing selected permissions when available.
 - Role list should not show id or avatar; show role name as the main field.
 - Role delete/update should use the same confirm dialog and toast pattern as users.
-- Permission screen should list/filter permissions. Do not invent create/edit permission flows unless backend routes exist.
+- Permission screen should list/filter permissions. Do not invent create/edit permission flows
+  unless backend routes exist.
 - Menu labels should be Vietnamese: Vai trò and Phân quyền.
 
 ### Projects And Services
@@ -553,22 +566,23 @@ with this snapshot, prefer this snapshot because it reflects the latest user pre
 - `/projects` is the project CRUD screen using backend `GET/POST/PUT/DELETE /projects`.
 - Project list route fetches supporting data from `GET /customers`, `GET /services?tree=true`,
   `GET /users`, and `GET /options?groups=project_status`.
-- Project list UI lives in `src/features/projects/components/project-manager.tsx`; project create/edit
-  form lives in `src/features/projects/components/project-form.tsx`; types live in `src/types/project.ts`;
-  helper/default/payload logic lives in `src/lib/project-utils.ts`.
+- Project list UI lives in `src/features/projects/components/project-manager.tsx`; project
+  create/edit form lives in `src/features/projects/components/project-form.tsx`; types live in
+  `src/types/project.ts`; helper/default/payload logic lives in `src/lib/project-utils.ts`.
 - Project backend filters used by the frontend: `keyword`, `customer_id`, `service_id`,
   `status_option_id`, `manager_user_id`, and `sales_user_id`.
 - Project list should display project code as the primary project column. Do not show a separate
-  project-name column because the project name is already included inside the generated project code.
-  Customer column should show only the customer name/company name, not customer code.
+  project-name column because the project name is already included inside the generated project
+  code. Customer column should show only the customer name/company name, not customer code.
 - Project create/edit uses full-page routes `/projects/new` and `/projects/[id]`, matching customer
-  and lead form format. Do not make project create/edit a popup unless the user explicitly asks for a
-  popup. Required fields are customer, service, and project name. Optional fields include project code,
-  project status option, manager, sales user, Zalo group, plan link, start date, end date, and note.
+  and lead form format. Do not make project create/edit a popup unless the user explicitly asks for
+  a popup. Required fields are customer, service, and project name. Optional fields include project
+  code, project status option, manager, sales user, Zalo group, plan link, start date, end date, and
+  note.
 - The Project create form must not contain or automatically create a Contract. Contract work starts
   only after the Project exists, inside the `Hợp đồng` tab on `/projects/[id]`.
-- `/projects/new?customerId=<customer id>` should preselect that customer in the project form; this is
-  used by the lead-to-customer-to-project flow.
+- `/projects/new?customerId=<customer id>` should preselect that customer in the project form; this
+  is used by the lead-to-customer-to-project flow.
 - In the project form, customer and service fields live in the right `xl:col-span-4` column with
   status/owner fields. Service must use a searchable autocomplete because the service tree can be
   long; search should match service code, name, and tree path.
@@ -607,20 +621,20 @@ with this snapshot, prefer this snapshot because it reflects the latest user pre
 - `/quotations` is the active quotation module and has its own top-level sidebar menu. It uses
   backend `/quotations` for list/create/edit/delete instead of the old frontend-only builder. Quote
   rows must remain dynamic: users can add/remove their own rows with `Nội dung`, `Đơn vị tính`,
-  `Số lần`, and `Đơn giá`; do not hard-code rows as the only available structure. The form calculates
-  each row as `Số lần * Đơn giá`, sums the subtotal, and applies optional VAT before sending totals
-  and `items` to the API. Keep `/projects/quotes` only as a redirect for old links.
+  `Số lần`, and `Đơn giá`; do not hard-code rows as the only available structure. The form
+  calculates each row as `Số lần * Đơn giá`, sums the subtotal, and applies optional VAT before
+  sending totals and `items` to the API. Keep `/projects/quotes` only as a redirect for old links.
 - Quotation item payloads currently send both camelCase and snake_case item keys, especially
   `itemName` and `item_name`, because the backend quotation request validates both forms on nested
-  `items.*`. Do not remove the duplicate nested item keys unless the backend validator is simplified.
+  `items.*`. Do not remove the duplicate nested item keys unless the backend validator is
+  simplified.
 - Quotation is the financial anchor between sales/project/payment. `quotation_code` is the VietQR
   transfer code and should identify a single billing period or quote round, not the long-lived
   project. The backend generates codes as `<project-code-base>.Q001`, `<project-code-base>.Q002`,
-  etc. The project code uses the base part without `.Qxxx`; for example project
-  `001.DV1.M.X3SALES` can have quotations `001.DV1.M.X3SALES.Q001` and
-  `001.DV1.M.X3SALES.Q002`.
-- Payment webhook auto-matches only when the transfer content contains an exact `quotation_code`.
-  If the quotation already has project/contract, the payment is linked to quotation, lead, customer,
+  etc. The project code uses the base part without `.Qxxx`; for example project `001.DV1.M.X3SALES`
+  can have quotations `001.DV1.M.X3SALES.Q001` and `001.DV1.M.X3SALES.Q002`.
+- Payment webhook auto-matches only when the transfer content contains an exact `quotation_code`. If
+  the quotation already has project/contract, the payment is linked to quotation, lead, customer,
   project, and contract. If project/contract do not exist yet, payment stays linked to quotation and
   lead with `matched_quotation`; once project/contract are created, backend sync updates those
   payments to project/contract via the quotation. Transfers with wrong/manual content should remain
@@ -631,17 +645,17 @@ with this snapshot, prefer this snapshot because it reflects the latest user pre
   downloads it if missing. By default the script uses a random ngrok URL because the current ngrok
   account is on the Free plan. `npm run dev:backend:x3sales` sets
   `NGROK_URL=despitefully-ahungered-anh.ngrok-free.dev`, the fixed ngrok dev domain currently
-  reserved in the account. SePay webhook URL is
-  `https://<ngrok-domain>/api/payments/webhook`.
+  reserved in the account. SePay webhook URL is `https://<ngrok-domain>/api/payments/webhook`.
 - `apps/frontend/package.json` also exposes `dev:backend` and `dev:backend:x3sales` as aliases to
   the backend scripts, so running those commands while the terminal is in `apps/frontend` still
   works.
 - `apps/backend/scripts/dev-backend.cmd` uses delayed expansion for ngrok variables inside the
   `if not "%START_NGROK%"=="0" (...)` block. Keep `!NGROK_EXE!`/`!NGROK_ARGS!` there; using
   `%NGROK_EXE%` inside that block expands too early and makes the script print `ngrok not found:`.
-- Backend Project create/update still accepts a nested `contract` payload for backward compatibility,
-  but the current frontend does not send it. Contract CRUD is separate. When a Contract is linked to
-  a quotation, backend syncs `contract_id` to the quotation and all payments of that quotation.
+- Backend Project create/update still accepts a nested `contract` payload for backward
+  compatibility, but the current frontend does not send it. Contract CRUD is separate. When a
+  Contract is linked to a quotation, backend syncs `contract_id` to the quotation and all payments
+  of that quotation.
 - Quote company/website information should come from backend options group `site_profile`. If the
   backend has no saved values yet, use the default profile from `src/lib/site-profile-options.ts`.
 - Quote payment QR should use company bank account options from group `company_bank_account`.
@@ -652,8 +666,8 @@ with this snapshot, prefer this snapshot because it reflects the latest user pre
   `bankAccountName`, `bankName`, and `bankBranch`.
 - `/settings/bank-accounts` must select the bank from VietQR data instead of manually typing bank
   code/name. Frontend proxy route `/api/vietqr/banks` fetches `https://api.vietqr.io/v2/banks`;
-  helper `src/lib/vietqr-banks.ts` loads this list for the dialog. Selecting a bank stores its VietQR
-  `code` in option `key` and full bank name in `meta.bankName`.
+  helper `src/lib/vietqr-banks.ts` loads this list for the dialog. Selecting a bank stores its
+  VietQR `code` in option `key` and full bank name in `meta.bankName`.
 - VietQR on quotation forms is generated with the selected account, the quotation total, and the
   exact `quotation_code` as transfer content. On create, QR appears after saving because the backend
   generates `quotation_code` and the page redirects to edit.
@@ -708,7 +722,8 @@ with this snapshot, prefer this snapshot because it reflects the latest user pre
   - Khách hàng: `customer_type`.
   - Dự án: `project_status`, `contract_status`.
 - Backend option resource may include:
-  - `id`, `group`, `key`, `value`, `label`, `meta`, `sortOrder`, `isActive`, `createdAt`, `updatedAt`.
+  - `id`, `group`, `key`, `value`, `label`, `meta`, `sortOrder`, `isActive`, `createdAt`,
+    `updatedAt`.
 - Latest UI decision for option create/edit:
   - Only show Tên hiển thị, Màu, and Status/Hoạt động.
   - Remove key and value from the form because id already exists.
@@ -719,7 +734,8 @@ with this snapshot, prefer this snapshot because it reflects the latest user pre
 - Latest data-fetching expectation:
   - Editing/saving/deleting/reordering one group should only update or refetch that group.
   - Avoid refetching every group when only one group changed.
-  - Preferred query keys are per group, for example `['options', group]`, or equivalent cache handling.
+  - Preferred query keys are per group, for example `['options', group]`, or equivalent cache
+    handling.
   - If backend has `/options/reorder`, use it with group + ordered option ids.
   - If backend lacks reorder endpoint, fallback to patching `sortOrder` for items in that group.
 - Loading expectation:
@@ -744,10 +760,17 @@ with this snapshot, prefer this snapshot because it reflects the latest user pre
   `https://despitefully-ahungered-anh.ngrok-free.dev/api/payments/webhook`.
 - SePay payload fields are provider-specific and should be normalized before creating `payments`:
   - `content` or `description` -> `transaction_content`.
+  - `transactionDate` -> `transaction_at` (keep `Y-m-d H:i:s`) and derive `transaction_date` for
+    backward compatibility. Do not save it only in the old `date` column, because that drops the
+    bank transfer time.
   - `transferAmount` or `transfer_amount` -> `amount`.
   - `accountNumber` -> `bank_account`.
   - `subAccount` -> `customer_code_text`.
   - `referenceCode` -> `reference`.
+- SePay's standard webhook has no guaranteed sender-name field. Use `senderName`/`sender_name` when
+  a provider sends one. `description` may be used only when it differs from `content`; if both are
+  the same transfer code (for example `001DV3PHAMVANQ001`), the UI must show that SePay did not
+  provide the sender instead of treating the transfer code as a person's name.
 - Raw validated webhook data should be preserved in `payments.webhook_payload` for later manual
   reconciliation.
 - If the transfer content has no quotation code, create the payment as `unmatched`; this is expected
@@ -775,7 +798,8 @@ with this snapshot, prefer this snapshot because it reflects the latest user pre
 
 ### Current Latest User Intent
 
-- The user wants the project context to be complete enough that the chat history can be deleted and a future Codex run can simply read this file.
+- The user wants the project context to be complete enough that the chat history can be deleted and
+  a future Codex run can simply read this file.
 - The most recent feature direction before this context update was the Options page:
   - Form option: only name, color, status.
   - No key/value in UI.

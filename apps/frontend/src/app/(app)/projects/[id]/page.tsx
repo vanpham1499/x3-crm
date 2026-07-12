@@ -1,17 +1,17 @@
 'use client';
 
 import { useState } from 'react';
-import Link from 'next/link';
 import { useParams } from 'next/navigation';
-import ArrowBackRoundedIcon from '@mui/icons-material/ArrowBackRounded';
 import DescriptionOutlinedIcon from '@mui/icons-material/DescriptionOutlined';
 import InfoOutlinedIcon from '@mui/icons-material/InfoOutlined';
 import PaymentsOutlinedIcon from '@mui/icons-material/PaymentsOutlined';
 import PersonOutlineRoundedIcon from '@mui/icons-material/PersonOutlineRounded';
-import { Alert, Tab, Tabs } from '@mui/material';
+import { Alert } from '@mui/material';
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import { useAppNotification } from '@/components/feedback/notification-provider';
+import { IconTabs } from '@/components/navigation/icon-tabs';
 import { ContentLoading } from '@/components/shell/content-loading';
+import { PageHeader } from '@/components/shell/page-header';
 import { ProjectContractPanel } from '@/features/projects/components/project-contract-panel';
 import { ProjectCostPanel } from '@/features/projects/components/project-cost-panel';
 import { ProjectCustomerPanel } from '@/features/projects/components/project-customer-panel';
@@ -38,6 +38,8 @@ import type { ServiceItem } from '@/types/service';
 import type { User } from '@/types/user';
 
 type ProjectTab = 'info' | 'contract' | 'finance' | 'customer';
+
+const PROJECT_TABS: ProjectTab[] = ['info', 'contract', 'finance', 'customer'];
 
 export default function EditProjectPage() {
   const params = useParams();
@@ -68,8 +70,7 @@ export default function EditProjectPage() {
       api
         .get('/options', {
           params: {
-            groups:
-              'project_status,contract_status,company_bank_account,project_partner',
+            groups: 'project_status,contract_status,company_bank_account,project_partner',
           },
         })
         .then((response) => response.data),
@@ -225,59 +226,45 @@ export default function EditProjectPage() {
       className: profit >= 0 ? 'text-emerald-700' : 'text-rose-700',
     },
   ];
+  const activeTabIndex = PROJECT_TABS.indexOf(activeTab);
 
   return (
-    <div className="min-h-[calc(100vh-72px)] bg-slate-50/60 p-6">
-      <div className="mb-4">
-        <Link
-          href="/projects"
-          className="inline-flex items-center gap-1.5 text-sm font-semibold text-slate-500 transition hover:text-slate-900"
-        >
-          <ArrowBackRoundedIcon fontSize="small" />
-          Danh sách dự án
-        </Link>
-      </div>
+    <div className="flex min-h-[calc(100vh-72px)] flex-col bg-slate-50/60 px-6 pt-6">
+      <PageHeader title={project.projectName} currentLabel="Hồ sơ" />
 
-      <section className="overflow-hidden rounded-xl border border-slate-200 bg-white">
+      <section className="overflow-hidden rounded-2xl border border-slate-200 bg-white shadow-sm">
         <div className="px-5 py-4">
-          <div className="flex flex-col gap-3 lg:flex-row lg:items-start lg:justify-between">
-            <div className="min-w-0">
-              <div className="flex flex-wrap items-center gap-2">
-                <span className="rounded-md bg-slate-100 px-2.5 py-1 text-xs font-bold text-slate-600">
-                  {project.projectCode || `Dự án #${project.id}`}
-                </span>
-                <span
-                  className={`rounded-md px-2.5 py-1 text-xs font-bold ${
-                    project.statusOption ? 'text-white' : 'bg-slate-100 text-slate-600'
-                  }`}
-                  style={
-                    project.statusOption
-                      ? { backgroundColor: getProjectStatusColor(project) }
-                      : undefined
-                  }
-                >
-                  {project.statusOption?.label || 'Chưa chọn trạng thái'}
-                </span>
-                <span
-                  className={`rounded-md px-2.5 py-1 text-xs font-bold ring-1 ${
-                    revenueGroup === '2.1'
-                      ? 'bg-sky-50 text-sky-700 ring-sky-200'
-                      : 'bg-amber-50 text-amber-700 ring-amber-200'
-                  }`}
-                >
-                  {revenueGroupInfo.title}
-                </span>
-              </div>
-              <h1 className="mt-2 truncate text-2xl font-extrabold text-slate-950">
-                {project.projectName}
-              </h1>
-              <div className="mt-1 flex flex-wrap gap-x-4 gap-y-1 text-sm font-semibold text-slate-500">
-                <span>{project.customer?.customerName || project.customer?.companyName || '-'}</span>
-                <span>
-                  {[project.service?.code, project.service?.name].filter(Boolean).join(' · ') || '-'}
-                </span>
-              </div>
-            </div>
+          <div className="flex flex-wrap items-center gap-2">
+            <span className="rounded-md bg-slate-100 px-2.5 py-1 text-xs font-bold text-slate-600">
+              {project.projectCode || `Dự án #${project.id}`}
+            </span>
+            <span
+              className={`rounded-md px-2.5 py-1 text-xs font-bold ${
+                project.statusOption ? 'text-white' : 'bg-slate-100 text-slate-600'
+              }`}
+              style={
+                project.statusOption
+                  ? { backgroundColor: getProjectStatusColor(project) }
+                  : undefined
+              }
+            >
+              {project.statusOption?.label || 'Chưa chọn trạng thái'}
+            </span>
+            <span
+              className={`rounded-md px-2.5 py-1 text-xs font-bold ring-1 ${
+                revenueGroup === '2.1'
+                  ? 'bg-sky-50 text-sky-700 ring-sky-200'
+                  : 'bg-amber-50 text-amber-700 ring-amber-200'
+              }`}
+            >
+              {revenueGroupInfo.title}
+            </span>
+          </div>
+          <div className="mt-3 flex flex-wrap gap-x-5 gap-y-1 text-sm font-semibold text-slate-600">
+            <span>{project.customer?.customerName || project.customer?.companyName || '-'}</span>
+            <span>
+              {[project.service?.code, project.service?.name].filter(Boolean).join(' · ') || '-'}
+            </span>
           </div>
 
           <div className="mt-4 grid gap-px overflow-hidden rounded-lg bg-slate-200 ring-1 ring-slate-200 sm:grid-cols-2 lg:grid-cols-5">
@@ -294,41 +281,34 @@ export default function EditProjectPage() {
           </div>
         </div>
 
-        <div className="border-t border-slate-200 px-3">
-          <Tabs
-            value={activeTab}
-            onChange={(_, value: ProjectTab) => setActiveTab(value)}
-            aria-label="Nội dung hồ sơ dự án"
-          >
-            <Tab
-              value="info"
-              icon={<InfoOutlinedIcon fontSize="small" />}
-              iconPosition="start"
-              label="Thông tin dự án"
-            />
-            <Tab
-              value="contract"
-              icon={<DescriptionOutlinedIcon fontSize="small" />}
-              iconPosition="start"
-              label="Hợp đồng"
-            />
-            <Tab
-              value="finance"
-              icon={<PaymentsOutlinedIcon fontSize="small" />}
-              iconPosition="start"
-              label="Tài chính"
-            />
-            <Tab
-              value="customer"
-              icon={<PersonOutlineRoundedIcon fontSize="small" />}
-              iconPosition="start"
-              label="Khách hàng"
-            />
-          </Tabs>
+        <div className="border-t border-slate-200">
+          <IconTabs
+            value={activeTabIndex}
+            onChange={(index) => setActiveTab(PROJECT_TABS[index] || 'info')}
+            ariaLabel="Nội dung hồ sơ dự án"
+            items={[
+              {
+                label: 'Thông tin dự án',
+                icon: <InfoOutlinedIcon className="!text-[18px]" />,
+              },
+              {
+                label: 'Hợp đồng',
+                icon: <DescriptionOutlinedIcon className="!text-[18px]" />,
+              },
+              {
+                label: 'Tài chính',
+                icon: <PaymentsOutlinedIcon className="!text-[18px]" />,
+              },
+              {
+                label: 'Khách hàng',
+                icon: <PersonOutlineRoundedIcon className="!text-[18px]" />,
+              },
+            ]}
+          />
         </div>
       </section>
 
-      <div className="mt-4">
+      <div className="mt-4 flex flex-1 flex-col">
         {activeTab === 'info' ? (
           <ProjectForm
             mode="edit"

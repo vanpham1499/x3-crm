@@ -13,6 +13,7 @@ import {
   XAxis,
   YAxis,
 } from 'recharts';
+import { PageHeader } from '@/components/shell/page-header';
 import dashboardData from '../data/dashboard.json';
 
 const currencyFormatter = new Intl.NumberFormat('vi-VN');
@@ -33,14 +34,10 @@ export function DashboardOverview() {
 
   return (
     <div className="min-h-[calc(100vh-72px)] w-full bg-slate-50/60 p-6">
-      <div className="mb-6">
-        <h1 className="text-2xl font-bold text-slate-950">Dashboard</h1>
-        <div className="mt-2 flex items-center gap-2 text-sm text-slate-500">
-          <span>Dashboard</span>
-          <span className="h-1 w-1 rounded-full bg-slate-300" />
-          <span className="text-slate-950">Tổng quan</span>
-        </div>
-      </div>
+      <PageHeader
+        title="Dashboard"
+        breadcrumbs={[{ label: 'Dashboard', href: '/dashboard' }, { label: 'Tổng quan' }]}
+      />
 
       <div className="space-y-5">
         <div className="grid gap-4 sm:grid-cols-2 xl:grid-cols-4">
@@ -91,7 +88,12 @@ export function DashboardOverview() {
                   />
                   <Bar dataKey="lastYear" name="2023" fill="#9bbcff" radius={[6, 6, 0, 0]} />
                   <Bar dataKey="currentYear" name="2024" fill="#2f73df" radius={[6, 6, 0, 0]} />
-                  <Bar dataKey="serviceA" name="Dịch vụ khác" fill="#f6b044" radius={[6, 6, 0, 0]} />
+                  <Bar
+                    dataKey="serviceA"
+                    name="Dịch vụ khác"
+                    fill="#f6b044"
+                    radius={[6, 6, 0, 0]}
+                  />
                 </BarChart>
               </ResponsiveContainer>
             </div>
@@ -108,7 +110,9 @@ export function DashboardOverview() {
           </section>
 
           <section className="rounded-lg border border-slate-200 bg-white p-5 shadow-sm shadow-slate-200/60">
-            <h2 className="text-base font-extrabold text-slate-950">Tỷ lệ doanh thu theo dịch vụ</h2>
+            <h2 className="text-base font-extrabold text-slate-950">
+              Tỷ lệ doanh thu theo dịch vụ
+            </h2>
             <div className="mt-4 grid min-h-[330px] items-center gap-6 md:grid-cols-[1fr_180px] xl:grid-cols-[1fr_170px]">
               <div className="relative h-[270px]">
                 <ResponsiveContainer width="100%" height="100%">
@@ -145,11 +149,11 @@ export function DashboardOverview() {
 
               <div className="space-y-3">
                 {dashboardData.serviceRevenue.map((item) => (
-                  <div key={item.name} className="flex items-center gap-3 text-sm font-bold text-slate-600">
-                    <span
-                      className="h-3 w-3 rounded-sm"
-                      style={{ backgroundColor: item.color }}
-                    />
+                  <div
+                    key={item.name}
+                    className="flex items-center gap-3 text-sm font-bold text-slate-600"
+                  >
+                    <span className="h-3 w-3 rounded-sm" style={{ backgroundColor: item.color }} />
                     <span>{item.label}</span>
                   </div>
                 ))}

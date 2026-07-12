@@ -12,6 +12,7 @@ import OpenInNewRoundedIcon from '@mui/icons-material/OpenInNewRounded';
 import PhoneRoundedIcon from '@mui/icons-material/PhoneRounded';
 import SearchRoundedIcon from '@mui/icons-material/SearchRounded';
 import { Checkbox, IconButton, InputAdornment, Menu, MenuItem, TextField } from '@mui/material';
+import { PageHeader } from '@/components/shell/page-header';
 import {
   CUSTOMER_ALL_STATUS,
   CUSTOMER_STATUS_TABS,
@@ -157,26 +158,15 @@ export function CustomerList({
 
   return (
     <div className="min-h-[calc(100vh-72px)] w-full bg-slate-50/60 p-6">
-      <div className="mb-6 flex flex-col gap-4 sm:flex-row sm:items-center sm:justify-between">
-        <div>
-          <h1 className="text-2xl font-bold text-slate-950">{title}</h1>
-          <div className="mt-2 flex items-center gap-2 text-sm text-slate-500">
-            <span>Dashboard</span>
-            <span className="h-1 w-1 rounded-full bg-slate-300" />
-            <span>{breadcrumbLabel}</span>
-            <span className="h-1 w-1 rounded-full bg-slate-300" />
-            <span className="text-slate-950">Danh sách</span>
-          </div>
-        </div>
-
-        <Link
-          href={createHref}
-          className="inline-flex h-9 items-center justify-center gap-2 rounded-lg bg-slate-900 px-4 text-sm font-bold text-white transition hover:bg-slate-800"
-        >
-          <AddRoundedIcon className="text-lg" />
-          {createLabel}
-        </Link>
-      </div>
+      <PageHeader
+        title={title}
+        breadcrumbs={[
+          { label: 'Dashboard', href: '/dashboard' },
+          { label: breadcrumbLabel, href: editBasePath },
+          { label: 'Danh sách' },
+        ]}
+        action={{ label: createLabel, href: createHref, icon: <AddRoundedIcon /> }}
+      />
 
       <section className="w-full overflow-hidden rounded-2xl border border-slate-200 bg-white shadow-sm">
         <div className="flex flex-col gap-3 border-b border-slate-200 p-5 lg:flex-row lg:items-center">
@@ -261,7 +251,9 @@ export function CustomerList({
                     onChange={(event) => toggleAllVisibleRows(event.target.checked)}
                   />
                 </th>
-                <th className="sticky left-12 z-20 w-[340px] bg-slate-50 px-3 py-4">{primaryColumnLabel}</th>
+                <th className="sticky left-12 z-20 w-[340px] bg-slate-50 px-3 py-4">
+                  {primaryColumnLabel}
+                </th>
                 <th className="w-28 px-3 py-4">Trạng thái</th>
                 <th className="w-36 px-3 py-4">Nhân sự</th>
                 <th className="w-36 px-3 py-4">Nguồn</th>
