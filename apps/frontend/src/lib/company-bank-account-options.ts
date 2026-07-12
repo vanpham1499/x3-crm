@@ -24,10 +24,14 @@ export type CompanyBankAccountFormValues = {
 
 export function getBankAccountMetaValue(
   option: AppOption,
-  key: 'bankName' | 'branch',
+  key: 'bankCode' | 'bankName' | 'branch',
 ) {
   const value = option.meta?.[key];
   return typeof value === 'string' ? value : '';
+}
+
+export function getBankAccountBankCode(option: AppOption) {
+  return getBankAccountMetaValue(option, 'bankCode') || option.key?.split('_')[0] || '';
 }
 
 export function getBankAccountMetaBoolean(option: AppOption, key: 'isDefault') {
@@ -38,7 +42,7 @@ export function getCompanyBankAccountDefaults(
   option?: AppOption | null,
 ): CompanyBankAccountFormValues {
   return {
-    bankCode: option?.key || '',
+    bankCode: option ? getBankAccountBankCode(option) : '',
     accountNo: option?.value || '',
     accountName: option?.label || '',
     bankName: option ? getBankAccountMetaValue(option, 'bankName') : '',
@@ -51,13 +55,17 @@ export function toCompanyBankAccountPayload(
   values: CompanyBankAccountFormValues,
   sortOrder?: number | null,
 ) {
+  const bankCode = values.bankCode.trim().toUpperCase();
+  const accountNo = values.accountNo.trim();
+
   return {
     group: COMPANY_BANK_ACCOUNT_OPTION_GROUP,
-    key: values.bankCode.trim().toUpperCase(),
+    key: `${bankCode}_${accountNo}`.replace(/[^A-Z0-9_]/g, ''),
     label: values.accountName.trim(),
-    value: values.accountNo.trim(),
+    value: accountNo,
     sortOrder: sortOrder ?? undefined,
     meta: {
+      bankCode,
       bankName: values.bankName.trim(),
       branch: values.branch.trim(),
       isDefault: values.isDefault,
@@ -69,7 +77,7 @@ export function toCompanyBankAccountPayload(
 export function companyBankAccountFromOption(option: AppOption): CompanyBankAccount {
   return {
     id: String(option.id),
-    bankCode: option.key || '',
+    bankCode: getBankAccountBankCode(option),
     accountNo: option.value || '',
     accountName: option.label || '',
     bankName: getBankAccountMetaValue(option, 'bankName'),

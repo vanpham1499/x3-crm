@@ -34,9 +34,4 @@ export type ServiceFormValues = {
   content: string;
   invoiceContent: string;
   invoiceTiming: string;
-  description: string;
-  sortOrder: number;
-  unit: string;
-  defaultPrice: string;
-  isActive: boolean;
 };

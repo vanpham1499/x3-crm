@@ -565,20 +565,20 @@ with this snapshot, prefer this snapshot because it reflects the latest user pre
   and lead form format. Do not make project create/edit a popup unless the user explicitly asks for a
   popup. Required fields are customer, service, and project name. Optional fields include project code,
   project status option, manager, sales user, Zalo group, plan link, start date, end date, and note.
+- The Project create form must not contain or automatically create a Contract. Contract work starts
+  only after the Project exists, inside the `Hợp đồng` tab on `/projects/[id]`.
 - `/projects/new?customerId=<customer id>` should preselect that customer in the project form; this is
   used by the lead-to-customer-to-project flow.
 - In the project form, customer and service fields live in the right `xl:col-span-4` column with
   status/owner fields. Service must use a searchable autocomplete because the service tree can be
   long; search should match service code, name, and tree path.
-- Project create/edit also has a separate contract box inside the left `xl:col-span-8` column. Edit
-  mode reads the first backend contract from `contracts[0]`. Submit sends a nested `contract` object
-  only when an existing contract id is present or the user fills a contract field. Contract fields are
-  `contractNo`, `contractStatusOptionId`, `depositAmount`, `signedDate`, `expiredDate`,
-  `contractMonth`, `fileUrl`, and `note`.
-- In the project contract box, `contractNo` follows the generated project code but stays hidden in
-  the UI. The status label should be `Tình trạng hợp đồng`. The visible contract layout is a compact
-  three-column grid with six inputs: contract condition, deposit amount, contract duration, signed
-  date, expired date, and contract file URL. Contract note is hidden for now.
+- `/projects/[id]` has four tabs: `Thông tin dự án`, `Hợp đồng`, `Tài chính`, and `Khách hàng`.
+  `src/features/projects/components/project-contract-panel.tsx` manages multiple contracts through
+  backend `/contracts?project_id=<id>` and contract CRUD routes.
+- Contract invoice recipient defaults to a legal snapshot of the Project Customer. Each Contract has
+  a `Xuất cho chủ thể khác` action that switches to independent recipient fields: name,
+  representative, tax code, address, invoice email, and phone. Backend stores these in
+  `invoice_recipient_*` columns so later Customer edits do not rewrite contract history.
 - Project code is read-only in the form and auto-generated as
   `<customer_code>.<root_service_code>.<project_name>`, for example `001.DV1.M.X3SALES`. The root
   service code is the highest-level parent service code of the selected service, so selecting
@@ -633,9 +633,15 @@ with this snapshot, prefer this snapshot because it reflects the latest user pre
   `NGROK_URL=despitefully-ahungered-anh.ngrok-free.dev`, the fixed ngrok dev domain currently
   reserved in the account. SePay webhook URL is
   `https://<ngrok-domain>/api/payments/webhook`.
-- Project create/update accepts a nested `contract` payload. When a project is created with
-  `quotation_id` and contract data, backend creates/updates the contract and calls quotation sync so
-  earlier payments on the same quotation receive `customer_id`, `project_id`, and `contract_id`.
+- `apps/frontend/package.json` also exposes `dev:backend` and `dev:backend:x3sales` as aliases to
+  the backend scripts, so running those commands while the terminal is in `apps/frontend` still
+  works.
+- `apps/backend/scripts/dev-backend.cmd` uses delayed expansion for ngrok variables inside the
+  `if not "%START_NGROK%"=="0" (...)` block. Keep `!NGROK_EXE!`/`!NGROK_ARGS!` there; using
+  `%NGROK_EXE%` inside that block expands too early and makes the script print `ngrok not found:`.
+- Backend Project create/update still accepts a nested `contract` payload for backward compatibility,
+  but the current frontend does not send it. Contract CRUD is separate. When a Contract is linked to
+  a quotation, backend syncs `contract_id` to the quotation and all payments of that quotation.
 - Quote company/website information should come from backend options group `site_profile`. If the
   backend has no saved values yet, use the default profile from `src/lib/site-profile-options.ts`.
 - Quote payment QR should use company bank account options from group `company_bank_account`.

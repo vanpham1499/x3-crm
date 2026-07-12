@@ -10,7 +10,21 @@ type MoneyInputProps = Omit<TextFieldProps, 'value' | 'onChange'> & {
 function normalizeMoneyValue(value: string | number | null | undefined) {
   if (value === null || value === undefined) return '';
 
-  return String(value).replace(/[^\d]/g, '');
+  if (typeof value === 'number') {
+    return Number.isFinite(value) ? String(Math.round(value)) : '';
+  }
+
+  const rawValue = value.trim();
+  if (!rawValue) return '';
+
+  // PostgreSQL decimal values are returned as strings such as "2122222.00".
+  // Treat one dot followed by 1-2 digits as a decimal separator, while values
+  // such as "2.122.222" remain Vietnamese thousand-separated input.
+  if (/^-?\d+\.\d{1,2}$/.test(rawValue)) {
+    return String(Math.round(Number(rawValue)));
+  }
+
+  return rawValue.replace(/[^\d]/g, '');
 }
 
 export function formatMoneyInputValue(value: string | number | null | undefined) {

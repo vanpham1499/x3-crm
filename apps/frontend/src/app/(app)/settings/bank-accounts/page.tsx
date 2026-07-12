@@ -8,6 +8,7 @@ import { CompanyBankAccountManager } from '@/features/settings/components/compan
 import { getApiErrorMessage } from '@/lib/api-error';
 import {
   COMPANY_BANK_ACCOUNT_OPTION_GROUP,
+  getBankAccountBankCode,
   getBankAccountMetaValue,
   toCompanyBankAccountPayload,
   type CompanyBankAccountFormValues,
@@ -22,6 +23,7 @@ function matchesKeyword(account: AppOption, keyword: string) {
 
   return [
     account.key,
+    getBankAccountBankCode(account),
     account.label,
     account.value,
     getBankAccountMetaValue(account, 'bankName'),
@@ -68,7 +70,9 @@ export default function CompanyBankAccountsPage() {
       );
 
       const savedAccount = account
-        ? await api.put<AppOption>(`/options/${account.id}`, payload).then((response) => response.data)
+        ? await api
+            .put<AppOption>(`/options/${account.id}`, payload)
+            .then((response) => response.data)
         : await api.post<AppOption>('/options', payload).then((response) => response.data);
 
       if (values.isDefault) {
@@ -80,7 +84,7 @@ export default function CompanyBankAccountsPage() {
                 `/options/${item.id}`,
                 toCompanyBankAccountPayload(
                   {
-                    bankCode: item.key || '',
+                    bankCode: getBankAccountBankCode(item),
                     accountNo: item.value || '',
                     accountName: item.label || '',
                     bankName: getBankAccountMetaValue(item, 'bankName'),
@@ -115,7 +119,9 @@ export default function CompanyBankAccountsPage() {
           }
 
           return normalizedCurrent.some((account) => account.id === savedAccount.id)
-            ? normalizedCurrent.map((account) => (account.id === savedAccount.id ? savedAccount : account))
+            ? normalizedCurrent.map((account) =>
+                account.id === savedAccount.id ? savedAccount : account,
+              )
             : [...normalizedCurrent, savedAccount];
         },
       );

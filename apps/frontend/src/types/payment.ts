@@ -27,6 +27,7 @@ export type Payment = {
   status?: PaymentStatus | null;
   matchedAt?: string | null;
   note?: string | null;
+  reference?: string | null;
   quotation?: Pick<Quotation, 'id' | 'quotationCode'> | null;
   project?: {
     id: number;

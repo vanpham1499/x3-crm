@@ -29,6 +29,7 @@ import { ConfirmDialog } from '@/components/feedback/confirm-dialog';
 import {
   getBankAccountMetaBoolean,
   getBankAccountMetaValue,
+  getBankAccountBankCode,
   getCompanyBankAccountDefaults,
   type CompanyBankAccountFormValues,
 } from '@/lib/company-bank-account-options';
@@ -46,9 +47,7 @@ type BankAccountManagerProps = {
   onDelete: (account: AppOption) => void;
 };
 
-type DialogState =
-  | { mode: 'create'; account?: null }
-  | { mode: 'edit'; account: AppOption };
+type DialogState = { mode: 'create'; account?: null } | { mode: 'edit'; account: AppOption };
 
 function BankAccountDialog({
   state,
@@ -87,12 +86,17 @@ function BankAccountDialog({
   };
 
   return (
-    <Dialog open={Boolean(state)} onClose={isSubmitting ? undefined : closeDialog} maxWidth="md" fullWidth>
-      <DialogTitle className="border-b border-slate-100 px-6 py-5">
-        <p className="text-lg font-bold text-slate-950">
+    <Dialog
+      open={Boolean(state)}
+      onClose={isSubmitting ? undefined : closeDialog}
+      maxWidth="sm"
+      fullWidth
+    >
+      <DialogTitle className="border-b border-slate-100 px-5 py-4">
+        <p className="text-base font-bold text-slate-950">
           {state?.mode === 'edit' ? 'Chỉnh sửa tài khoản' : 'Thêm tài khoản nhận tiền'}
         </p>
-        <p className="mt-1 text-sm text-slate-500">
+        <p className="mt-0.5 text-xs text-slate-500">
           Danh sách ngân hàng được tải trực tiếp từ VietQR để tránh sai mã khi tạo QR.
         </p>
       </DialogTitle>
@@ -103,11 +107,10 @@ function BankAccountDialog({
           closeDialog();
         })}
       >
-        <DialogContent className="grid gap-4 px-6 py-5 md:grid-cols-2">
+        <DialogContent className="grid gap-3 px-5 py-4">
           <input type="hidden" {...register('bankCode', { required: 'Bắt buộc' })} />
           <input type="hidden" {...register('bankName')} />
           <Autocomplete
-            className="md:col-span-2"
             options={vietQrBanks}
             value={selectedBank}
             loading={isBanksFetching}
@@ -146,7 +149,9 @@ function BankAccountDialog({
                 required
                 label="Ngân hàng"
                 error={Boolean(errors.bankCode)}
-                helperText={errors.bankCode?.message || 'Mã VietQR sẽ được tự lấy từ ngân hàng đã chọn.'}
+                helperText={
+                  errors.bankCode?.message || 'Mã VietQR sẽ được tự lấy từ ngân hàng đã chọn.'
+                }
               />
             )}
           />
@@ -160,14 +165,12 @@ function BankAccountDialog({
           <TextField
             fullWidth
             label="Tên chủ tài khoản *"
-            className="md:col-span-2"
             error={Boolean(errors.accountName)}
             helperText={errors.accountName?.message}
             {...register('accountName', { required: 'Bắt buộc' })}
           />
-          <TextField fullWidth className="md:col-span-2" label="Chi nhánh" {...register('branch')} />
+          <TextField fullWidth label="Chi nhánh" {...register('branch')} />
           <FormControlLabel
-            className="md:col-span-2"
             control={
               <Checkbox
                 checked={Boolean(isDefault)}
@@ -178,17 +181,22 @@ function BankAccountDialog({
           />
         </DialogContent>
 
-        <DialogActions className="border-t border-slate-100 px-6 py-4">
-          <Button variant="outlined" onClick={closeDialog} disabled={isSubmitting}>
+        <DialogActions className="border-t border-slate-100 px-5 py-3">
+          <Button size="small" variant="outlined" onClick={closeDialog} disabled={isSubmitting}>
             Hủy
           </Button>
           <Button
             type="submit"
+            size="small"
             variant="contained"
             disabled={isSubmitting}
             className="!bg-slate-900 hover:!bg-slate-800"
           >
-            {isSubmitting ? 'Đang lưu...' : state?.mode === 'edit' ? 'Lưu thay đổi' : 'Tạo tài khoản'}
+            {isSubmitting
+              ? 'Đang lưu...'
+              : state?.mode === 'edit'
+                ? 'Lưu thay đổi'
+                : 'Tạo tài khoản'}
           </Button>
         </DialogActions>
       </form>
@@ -300,27 +308,40 @@ export function CompanyBankAccountManager({
             <tbody className="divide-y divide-slate-100">
               {accounts.length === 0 ? (
                 <tr>
-                  <td colSpan={7} className="px-5 py-12 text-center text-sm font-semibold text-slate-500">
+                  <td
+                    colSpan={7}
+                    className="px-5 py-12 text-center text-sm font-semibold text-slate-500"
+                  >
                     Chưa có tài khoản nhận tiền
                   </td>
                 </tr>
               ) : (
                 accounts.map((account) => (
                   <tr key={account.id} className="hover:bg-slate-50/80">
-                    <td className="px-5 py-4 font-bold text-slate-950">{account.key || '-'}</td>
-                    <td className="px-5 py-4 font-semibold tabular-nums text-slate-800">{account.value || '-'}</td>
+                    <td className="px-5 py-4 font-bold text-slate-950">
+                      {getBankAccountBankCode(account) || '-'}
+                    </td>
+                    <td className="px-5 py-4 font-semibold tabular-nums text-slate-800">
+                      {account.value || '-'}
+                    </td>
                     <td className="px-5 py-4 font-semibold text-slate-800">
                       <span className="block truncate" title={account.label}>
                         {account.label || '-'}
                       </span>
                     </td>
                     <td className="px-5 py-4 text-slate-700">
-                      <span className="block truncate" title={getBankAccountMetaValue(account, 'bankName')}>
+                      <span
+                        className="block truncate"
+                        title={getBankAccountMetaValue(account, 'bankName')}
+                      >
                         {getBankAccountMetaValue(account, 'bankName') || '-'}
                       </span>
                     </td>
                     <td className="px-5 py-4 text-slate-700">
-                      <span className="block truncate" title={getBankAccountMetaValue(account, 'branch')}>
+                      <span
+                        className="block truncate"
+                        title={getBankAccountMetaValue(account, 'branch')}
+                      >
                         {getBankAccountMetaValue(account, 'branch') || '-'}
                       </span>
                     </td>
@@ -335,7 +356,11 @@ export function CompanyBankAccountManager({
                     </td>
                     <td className="px-5 py-4">
                       <div className="flex justify-end">
-                        <IconButton size="small" title="Tác vụ" onClick={(event) => openActionMenu(event, account)}>
+                        <IconButton
+                          size="small"
+                          title="Tác vụ"
+                          onClick={(event) => openActionMenu(event, account)}
+                        >
                           <MoreVertRoundedIcon fontSize="small" />
                         </IconButton>
                       </div>

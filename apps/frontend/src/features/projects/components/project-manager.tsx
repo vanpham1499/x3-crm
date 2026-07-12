@@ -20,7 +20,13 @@ import {
   formatProjectDate,
   getProjectExternalUrl,
   getProjectStatusColor,
+  getRootServiceItem,
 } from '@/lib/project-utils';
+import {
+  getConfigForRoot,
+  getProjectRevenueGroupInfo,
+  getServiceQuoteConfigMeta,
+} from '@/lib/service-quote-config';
 import { flattenServices } from '@/lib/service-utils';
 import type { Customer } from '@/types/customer';
 import type { AppOption } from '@/types/option';
@@ -34,6 +40,7 @@ type ProjectManagerProps = {
   services: ServiceItem[];
   users: User[];
   statuses: AppOption[];
+  quoteConfigs: AppOption[];
   filters: ProjectFilters;
   isFetching: boolean;
   isDeleting: boolean;
@@ -53,9 +60,7 @@ function userLabel(user?: User | null) {
 }
 
 function projectStatusClass(project: ProjectItem) {
-  return project.statusOption
-    ? 'text-white'
-    : 'bg-slate-100 text-slate-600 ring-1 ring-slate-200';
+  return project.statusOption ? 'text-white' : 'bg-slate-100 text-slate-600 ring-1 ring-slate-200';
 }
 
 export function ProjectManager({
@@ -64,6 +69,7 @@ export function ProjectManager({
   services,
   users,
   statuses,
+  quoteConfigs,
   filters,
   isFetching,
   isDeleting,
@@ -75,6 +81,14 @@ export function ProjectManager({
 
   const updateFilters = (nextFilters: Partial<ProjectFilters>) => {
     onFiltersChange({ ...filters, ...nextFilters });
+  };
+
+  const getRevenueGroup = (project: ProjectItem) => {
+    const rootService = getRootServiceItem(services, String(project.serviceId));
+    const configOption = getConfigForRoot(quoteConfigs, rootService);
+    const config = configOption ? getServiceQuoteConfigMeta(configOption, rootService) : null;
+
+    return getProjectRevenueGroupInfo(Boolean(config?.enabled));
   };
 
   return (
@@ -186,13 +200,14 @@ export function ProjectManager({
           )}
 
           <table
-            className={`w-full min-w-[1220px] table-fixed text-left text-sm transition-opacity ${isFetching ? 'opacity-60' : 'opacity-100'}`}
+            className={`w-full min-w-[1380px] table-fixed text-left text-sm transition-opacity ${isFetching ? 'opacity-60' : 'opacity-100'}`}
           >
             <thead className="bg-slate-50 text-xs font-bold uppercase text-slate-500">
               <tr>
                 <th className="w-[320px] px-5 py-4">Mã dự án</th>
                 <th className="w-[240px] px-3 py-4">Khách hàng</th>
                 <th className="w-[220px] px-3 py-4">Dịch vụ</th>
+                <th className="w-[190px] px-3 py-4">Nhóm doanh thu</th>
                 <th className="w-40 px-3 py-4">Trạng thái</th>
                 <th className="w-[180px] px-3 py-4">Người quản lý</th>
                 <th className="w-[180px] px-3 py-4">Sales</th>
@@ -205,96 +220,134 @@ export function ProjectManager({
               {projects.length === 0 ? (
                 <tr>
                   <td
-                    colSpan={9}
+                    colSpan={10}
                     className="px-5 py-12 text-center text-sm font-semibold text-slate-500"
                   >
                     Chưa có dự án nào
                   </td>
                 </tr>
               ) : (
-                projects.map((project) => (
-                  <tr key={project.id} className="hover:bg-slate-50/80">
-                    <td className="px-5 py-4">
-                      <div className="min-w-0">
-                        <p
-                          className="truncate font-bold text-blue-700"
-                          title={project.projectCode || project.projectName}
-                        >
-                          {project.projectCode || '-'}
-                        </p>
-                        {project.planLink ? (
-                          <a
-                            href={getProjectExternalUrl(project.planLink)}
-                            target="_blank"
-                            rel="noreferrer"
-                            className="mt-1 inline-flex max-w-full items-center gap-1 truncate text-xs font-semibold text-blue-600 hover:text-blue-700"
+                projects.map((project) => {
+                  const revenueGroup = getRevenueGroup(project);
+                  const isManagementFee = revenueGroup.group === '2.1';
+
+                  return (
+                    <tr key={project.id} className="hover:bg-slate-50/80">
+                      <td className="px-5 py-4">
+                        <div className="min-w-0">
+                          <p
+                            className="truncate font-bold text-blue-700"
+                            title={project.projectCode || project.projectName}
                           >
-                            <LinkRoundedIcon fontSize="inherit" />
-                            <span className="truncate">Plan</span>
-                          </a>
-                        ) : null}
-                      </div>
-                    </td>
-                    <td className="px-3 py-4">
-                      <p
-                        className="truncate font-semibold text-slate-800"
-                        title={project.customer?.customerName || project.customer?.companyName || ''}
-                      >
-                        {project.customer?.customerName || project.customer?.companyName || '-'}
-                      </p>
-                    </td>
-                    <td className="px-3 py-4">
-                      <p className="truncate text-slate-700" title={project.service?.name || ''}>
-                        {project.service?.code ? `${project.service.code} - ` : ''}
-                        {project.service?.name || '-'}
-                      </p>
-                    </td>
-                    <td className="px-3 py-4">
-                      <span
-                        className={`rounded-md px-2 py-1 text-xs font-bold ${projectStatusClass(project)}`}
-                        style={
-                          project.statusOption
-                            ? { backgroundColor: getProjectStatusColor(project) }
-                            : undefined
-                        }
-                      >
-                        {project.statusOption?.label || 'Chưa chọn'}
-                      </span>
-                    </td>
-                    <td className="px-3 py-4">
-                      <p className="truncate text-slate-700" title={project.managerUser?.name || ''}>
-                        {project.managerUser?.name || '-'}
-                      </p>
-                    </td>
-                    <td className="px-3 py-4">
-                      <p className="truncate text-slate-700" title={project.salesUser?.name || ''}>
-                        {project.salesUser?.name || '-'}
-                      </p>
-                    </td>
-                    <td className="px-3 py-4 text-slate-600">{formatProjectDate(project.startDate)}</td>
-                    <td className="px-3 py-4 text-slate-600">{formatProjectDate(project.endDate)}</td>
-                    <td className="px-5 py-4">
-                      <div className="flex items-center justify-end gap-1">
-                        <IconButton
-                          component={Link}
-                          href={`/projects/${project.id}`}
-                          size="small"
-                          title="Chỉnh sửa"
+                            {project.projectCode || '-'}
+                          </p>
+                          <p
+                            className="mt-1 truncate text-xs text-slate-500"
+                            title={project.projectName}
+                          >
+                            {project.projectName}
+                          </p>
+                          {project.planLink ? (
+                            <a
+                              href={getProjectExternalUrl(project.planLink)}
+                              target="_blank"
+                              rel="noreferrer"
+                              className="mt-1 inline-flex max-w-full items-center gap-1 truncate text-xs font-semibold text-blue-600 hover:text-blue-700"
+                            >
+                              <LinkRoundedIcon fontSize="inherit" />
+                              <span className="truncate">Plan</span>
+                            </a>
+                          ) : null}
+                        </div>
+                      </td>
+                      <td className="px-3 py-4">
+                        <p
+                          className="truncate font-semibold text-slate-800"
+                          title={
+                            project.customer?.customerName || project.customer?.companyName || ''
+                          }
                         >
-                          <EditRoundedIcon fontSize="small" />
-                        </IconButton>
-                        <IconButton
-                          size="small"
-                          title="Xóa"
-                          className="hover:text-rose-600"
-                          onClick={() => setDeleteTarget(project)}
+                          {project.customer?.customerName || project.customer?.companyName || '-'}
+                        </p>
+                      </td>
+                      <td className="px-3 py-4">
+                        <p className="truncate text-slate-700" title={project.service?.name || ''}>
+                          {project.service?.code ? `${project.service.code} - ` : ''}
+                          {project.service?.name || '-'}
+                        </p>
+                      </td>
+                      <td className="px-3 py-4">
+                        <span
+                          className={`inline-flex rounded-full px-2.5 py-1 text-xs font-bold ring-1 ${
+                            isManagementFee
+                              ? 'bg-sky-50 text-sky-800 ring-sky-200'
+                              : 'bg-amber-50 text-amber-800 ring-amber-200'
+                          }`}
+                          title={revenueGroup.description}
                         >
-                          <DeleteRoundedIcon fontSize="small" />
-                        </IconButton>
-                      </div>
-                    </td>
-                  </tr>
-                ))
+                          {revenueGroup.title}
+                        </span>
+                        <p className="mt-1.5 text-xs leading-4 text-slate-500">
+                          {isManagementFee ? 'Theo ngân sách' : 'SL × đơn giá'}
+                        </p>
+                      </td>
+                      <td className="px-3 py-4">
+                        <span
+                          className={`rounded-md px-2 py-1 text-xs font-bold ${projectStatusClass(project)}`}
+                          style={
+                            project.statusOption
+                              ? { backgroundColor: getProjectStatusColor(project) }
+                              : undefined
+                          }
+                        >
+                          {project.statusOption?.label || 'Chưa chọn'}
+                        </span>
+                      </td>
+                      <td className="px-3 py-4">
+                        <p
+                          className="truncate text-slate-700"
+                          title={project.managerUser?.name || ''}
+                        >
+                          {project.managerUser?.name || '-'}
+                        </p>
+                      </td>
+                      <td className="px-3 py-4">
+                        <p
+                          className="truncate text-slate-700"
+                          title={project.salesUser?.name || ''}
+                        >
+                          {project.salesUser?.name || '-'}
+                        </p>
+                      </td>
+                      <td className="px-3 py-4 text-slate-600">
+                        {formatProjectDate(project.startDate)}
+                      </td>
+                      <td className="px-3 py-4 text-slate-600">
+                        {formatProjectDate(project.endDate)}
+                      </td>
+                      <td className="px-5 py-4">
+                        <div className="flex items-center justify-end gap-1">
+                          <IconButton
+                            component={Link}
+                            href={`/projects/${project.id}`}
+                            size="small"
+                            title="Chỉnh sửa"
+                          >
+                            <EditRoundedIcon fontSize="small" />
+                          </IconButton>
+                          <IconButton
+                            size="small"
+                            title="Xóa"
+                            className="hover:text-rose-600"
+                            onClick={() => setDeleteTarget(project)}
+                          >
+                            <DeleteRoundedIcon fontSize="small" />
+                          </IconButton>
+                        </div>
+                      </td>
+                    </tr>
+                  );
+                })
               )}
             </tbody>
           </table>

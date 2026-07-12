@@ -22,6 +22,7 @@ export default function NewQuotationPage() {
   const queryClient = useQueryClient();
   const notify = useAppNotification();
   const leadId = searchParams.get('leadId') || '';
+  const projectId = searchParams.get('projectId') || '';
 
   const { data: leads = [], isLoading: isLeadsLoading } = useQuery<Lead[]>({
     queryKey: ['leads', 'quotation-form-options'],
@@ -40,7 +41,8 @@ export default function NewQuotationPage() {
 
   const { data: services = [], isLoading: isServicesLoading } = useQuery<ServiceItem[]>({
     queryKey: ['services', 'quotation-form-options'],
-    queryFn: () => api.get('/services', { params: { tree: true } }).then((response) => response.data),
+    queryFn: () =>
+      api.get('/services', { params: { tree: true } }).then((response) => response.data),
   });
 
   const { data: quoteConfigs = [], isLoading: isQuoteConfigsLoading } = useQuery<AppOption[]>({
@@ -51,13 +53,15 @@ export default function NewQuotationPage() {
         .then((response) => response.data),
   });
 
-  const { data: bankAccountOptions = [], isLoading: isBankAccountsLoading } = useQuery<AppOption[]>({
-    queryKey: ['options', COMPANY_BANK_ACCOUNT_OPTION_GROUP],
-    queryFn: () =>
-      api
-        .get('/options', { params: { groups: COMPANY_BANK_ACCOUNT_OPTION_GROUP } })
-        .then((response) => response.data),
-  });
+  const { data: bankAccountOptions = [], isLoading: isBankAccountsLoading } = useQuery<AppOption[]>(
+    {
+      queryKey: ['options', COMPANY_BANK_ACCOUNT_OPTION_GROUP],
+      queryFn: () =>
+        api
+          .get('/options', { params: { groups: COMPANY_BANK_ACCOUNT_OPTION_GROUP } })
+          .then((response) => response.data),
+    },
+  );
 
   const createMutation = useMutation({
     mutationFn: (payload: Record<string, unknown>) =>
@@ -93,6 +97,7 @@ export default function NewQuotationPage() {
       quoteConfigs={quoteConfigs}
       bankAccountOptions={bankAccountOptions}
       defaultLeadId={leadId}
+      defaultProjectId={projectId}
       isSubmitting={createMutation.isPending}
       onSubmit={(payload) => createMutation.mutate(payload)}
     />
