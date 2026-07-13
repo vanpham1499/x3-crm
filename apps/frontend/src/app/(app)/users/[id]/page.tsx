@@ -90,7 +90,7 @@ export default function UserDetailPage() {
         defaultValues={getUserFormDefaults(user)}
         isSubmitting={updateMutation.isPending}
         isDeleting={deleteMutation.isPending}
-        onSubmit={(values) => updateMutation.mutate(values)}
+        onSubmit={(values) => updateMutation.mutateAsync(values)}
         onDelete={() => setDeleteDialogOpen(true)}
       />
 

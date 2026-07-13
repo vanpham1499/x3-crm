@@ -7,6 +7,7 @@ import { Autocomplete, Button, MenuItem, TextField } from '@mui/material';
 import { DatePicker } from '@mui/x-date-pickers/DatePicker';
 import dayjs from 'dayjs';
 import { Controller, useForm } from 'react-hook-form';
+import { applyApiErrorsToForm } from '@/lib/api-error';
 import {
   generateProjectCode,
   getProjectDefaults,
@@ -38,7 +39,7 @@ type ProjectFormProps = {
   quotations?: Quotation[];
   defaultValues?: Partial<ProjectFormValues>;
   isSubmitting: boolean;
-  onSubmit: (values: ProjectFormValues) => void;
+  onSubmit: (values: ProjectFormValues) => Promise<unknown>;
 };
 
 function FormSection({
@@ -133,6 +134,7 @@ export function ProjectForm({
     register,
     handleSubmit,
     setValue,
+    setError,
     watch,
     formState: { errors },
   } = useForm<ProjectFormValues>({
@@ -204,8 +206,16 @@ export function ProjectForm({
     );
   };
 
+  const submitForm = handleSubmit(async (values) => {
+    try {
+      await onSubmit(values);
+    } catch (error) {
+      applyApiErrorsToForm(error, setError);
+    }
+  });
+
   return (
-    <form className="w-full space-y-5" onSubmit={handleSubmit(onSubmit)}>
+    <form className="w-full space-y-5" onSubmit={submitForm}>
       {mode === 'create' ? (
         <section className="overflow-hidden rounded-2xl border border-sky-200 bg-white shadow-sm">
           <div className="grid gap-5 p-5 lg:grid-cols-[minmax(0,1.35fr)_minmax(280px,0.65fr)] lg:items-center">

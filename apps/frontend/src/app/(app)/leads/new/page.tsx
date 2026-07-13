@@ -106,7 +106,7 @@ export default function NewLeadPage() {
           ...getUniqueLeadStatuses(leads),
         ]}
         isSubmitting={createMutation.isPending}
-        onSubmit={(values) => createMutation.mutate(values)}
+        onSubmit={(values) => createMutation.mutateAsync(values)}
       />
     </div>
   );

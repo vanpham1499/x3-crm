@@ -21,7 +21,7 @@ import { Controller, useForm } from 'react-hook-form';
 import { ConfirmDialog } from '@/components/feedback/confirm-dialog';
 import { useAppNotification } from '@/components/feedback/notification-provider';
 import { MoneyInput } from '@/components/form/money-input';
-import { getApiErrorMessage } from '@/lib/api-error';
+import { applyApiErrorsToForm, getApiErrorMessage } from '@/lib/api-error';
 import { formatCurrency } from '@/lib/utils';
 import api from '@/services/api/client';
 import type { Contract, ContractFormValues, InvoiceRecipientType } from '@/types/contract';
@@ -130,6 +130,7 @@ function ContractDialog({
     handleSubmit,
     reset,
     setValue,
+    setError,
     watch,
     formState: { errors },
   } = useForm<ContractFormValues>({
@@ -176,8 +177,12 @@ function ContractDialog({
 
       <form
         onSubmit={handleSubmit(async (values) => {
-          await onSubmit(values, contract);
-          closeDialog();
+          try {
+            await onSubmit(values, contract);
+            closeDialog();
+          } catch (error) {
+            applyApiErrorsToForm(error, setError);
+          }
         })}
       >
         <DialogContent className="space-y-5 px-5 py-4">
@@ -228,6 +233,8 @@ function ContractDialog({
                     label="Tiền đặt cọc"
                     value={field.value}
                     onValueChange={field.onChange}
+                    error={Boolean(errors.depositAmount)}
+                    helperText={errors.depositAmount?.message}
                   />
                 )}
               />
@@ -320,7 +327,13 @@ function ContractDialog({
                   {...register('invoiceRepresentativeName')}
                 />
                 <TextField fullWidth label="Mã số thuế" {...register('invoiceTaxCode')} />
-                <TextField fullWidth label="Email nhận hóa đơn" {...register('invoiceEmail')} />
+                <TextField
+                  fullWidth
+                  label="Email nhận hóa đơn"
+                  error={Boolean(errors.invoiceEmail)}
+                  helperText={errors.invoiceEmail?.message}
+                  {...register('invoiceEmail')}
+                />
                 <TextField fullWidth label="Số điện thoại" {...register('invoicePhone')} />
                 <TextField
                   fullWidth

@@ -2,6 +2,8 @@
 
 import NextLink from 'next/link';
 import { LinearProgress, MenuItem, TextField } from '@mui/material';
+import { TablePaginationBar } from '@/components/table/table-pagination-bar';
+import { usePagination } from '@/hooks/use-pagination';
 import { formatQuotationPaymentContent } from '@/lib/quotation-utils';
 import type { Payment, PaymentFilters } from '@/types/payment';
 
@@ -47,6 +49,11 @@ export function PaymentManager({
   isFetching,
   onFiltersChange,
 }: PaymentManagerProps) {
+  const { pageItems, page, setPage, totalPages, totalItems, pageSize } = usePagination(
+    payments,
+    { resetKey: filters },
+  );
+
   return (
     <div className="min-h-[calc(100vh-72px)] w-full bg-slate-50/60 p-6">
       <div className="mb-6">
@@ -112,7 +119,7 @@ export function PaymentManager({
                   </td>
                 </tr>
               ) : (
-                payments.map((payment) => {
+                pageItems.map((payment) => {
                   const paymentContent = formatQuotationPaymentContent(
                     payment.quotation?.quotationCode,
                   );
@@ -187,6 +194,14 @@ export function PaymentManager({
             </tbody>
           </table>
         </div>
+
+        <TablePaginationBar
+          page={page}
+          totalPages={totalPages}
+          totalItems={totalItems}
+          pageSize={pageSize}
+          onPageChange={setPage}
+        />
       </section>
     </div>
   );

@@ -129,7 +129,7 @@ export default function NewProjectPage() {
         quotations={quotations}
         defaultValues={defaultValues}
         isSubmitting={createMutation.isPending}
-        onSubmit={(values) => createMutation.mutate(values)}
+        onSubmit={(values) => createMutation.mutateAsync(values)}
       />
     </div>
   );

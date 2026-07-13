@@ -183,7 +183,7 @@ class PaymentsService extends BaseService
         $data = $this->normalizeKeys($data);
         $data['transaction_date'] = $data['transaction_date'] ?? now()->toDateString();
 
-        foreach (['quotation_id', 'lead_id', 'customer_id', 'project_id', 'contract_id', 'revenue_id'] as $key) {
+        foreach (['quotation_id', 'lead_id', 'customer_id', 'project_id', 'contract_id'] as $key) {
             if (array_key_exists($key, $data) && $data[$key] === '') {
                 $data[$key] = null;
             }
@@ -200,7 +200,6 @@ class PaymentsService extends BaseService
             'customerId' => 'customer_id',
             'projectId' => 'project_id',
             'contractId' => 'contract_id',
-            'revenueId' => 'revenue_id',
             'transactionDate' => 'transaction_date',
             'bankAccount' => 'bank_account',
             'transactionContent' => 'transaction_content',
@@ -323,7 +322,7 @@ class PaymentsService extends BaseService
     private function paymentResource(Payment $payment): array
     {
         return $this->apiResource(
-            $payment->refresh()->load(['quotation', 'lead', 'customer', 'project', 'contract', 'revenue']),
+            $payment->refresh()->load(['quotation', 'lead', 'customer', 'project', 'contract']),
             PaymentResource::class,
         );
     }

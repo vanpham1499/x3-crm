@@ -159,7 +159,7 @@ export default function NewCustomerPage() {
         customerTypes={customerTypes}
         sources={sources}
         isSubmitting={createMutation.isPending}
-        onSubmit={(values) => createMutation.mutate(values)}
+        onSubmit={(values) => createMutation.mutateAsync(values)}
       />
     </div>
   );

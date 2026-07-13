@@ -9,14 +9,13 @@ import BadgeTwoToneIcon from '@mui/icons-material/BadgeTwoTone';
 import CategoryTwoToneIcon from '@mui/icons-material/CategoryTwoTone';
 import DashboardTwoToneIcon from '@mui/icons-material/DashboardTwoTone';
 import EventNoteTwoToneIcon from '@mui/icons-material/EventNoteTwoTone';
+import EmojiEventsTwoToneIcon from '@mui/icons-material/EmojiEventsTwoTone';
 import KeyboardArrowDownRoundedIcon from '@mui/icons-material/KeyboardArrowDownRounded';
 import KeyboardArrowLeftRoundedIcon from '@mui/icons-material/KeyboardArrowLeftRounded';
 import KeyboardArrowRightRoundedIcon from '@mui/icons-material/KeyboardArrowRightRounded';
-import PaidTwoToneIcon from '@mui/icons-material/PaidTwoTone';
 import PaymentsTwoToneIcon from '@mui/icons-material/PaymentsTwoTone';
 import PeopleAltTwoToneIcon from '@mui/icons-material/PeopleAltTwoTone';
 import PersonSearchTwoToneIcon from '@mui/icons-material/PersonSearchTwoTone';
-import ReceiptLongTwoToneIcon from '@mui/icons-material/ReceiptLongTwoTone';
 import RequestQuoteTwoToneIcon from '@mui/icons-material/RequestQuoteTwoTone';
 import SettingsTwoToneIcon from '@mui/icons-material/SettingsTwoTone';
 import WorkTwoToneIcon from '@mui/icons-material/WorkTwoTone';
@@ -39,10 +38,9 @@ const navGroups = [
         ],
       },
       { href: '/quotations', label: 'Báo giá', icon: RequestQuoteTwoToneIcon },
-      // { href: '/revenues', label: 'Doanh thu', icon: PaidTwoToneIcon },
       { href: '/payments', label: 'Thanh toán', icon: PaymentsTwoToneIcon },
-      // { href: '/invoices', label: 'Hóa đơn', icon: ReceiptLongTwoToneIcon },
       { href: '/weekly-reports', label: 'Báo cáo tuần', icon: EventNoteTwoToneIcon },
+      { href: '/kpi', label: 'KPI', icon: EmojiEventsTwoToneIcon },
       // { href: '/reports', label: 'Báo cáo', icon: AnalyticsTwoToneIcon },
       // { href: '/categories', label: 'Danh mục', icon: CategoryTwoToneIcon },
       {
@@ -61,6 +59,7 @@ const navGroups = [
         icon: SettingsTwoToneIcon,
         children: [
           { href: '/settings/bank-accounts', label: 'Tài khoản nhận tiền' },
+          { href: '/settings/kpi-categories', label: 'Lỗi / Thành tích KPI' },
           { href: '/settings/options', label: 'Tùy chọn' },
         ],
       },

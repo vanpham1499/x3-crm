@@ -7,6 +7,7 @@ import DeleteRoundedIcon from '@mui/icons-material/DeleteRounded';
 import SaveRoundedIcon from '@mui/icons-material/SaveRounded';
 import { Autocomplete, Button, IconButton, MenuItem, TextField } from '@mui/material';
 import { MoneyInput } from '@/components/form/money-input';
+import { getApiFieldErrors } from '@/lib/api-error';
 import {
   getCompanyBankAccounts,
   getDefaultCompanyBankAccount,
@@ -41,7 +42,7 @@ type QuotationFormProps = {
   defaultLeadId?: string;
   defaultProjectId?: string;
   isSubmitting: boolean;
-  onSubmit: (payload: Record<string, unknown>) => void;
+  onSubmit: (payload: Record<string, unknown>) => Promise<unknown>;
 };
 
 function formatMoney(value: string | number | null | undefined) {
@@ -121,6 +122,7 @@ export function QuotationForm({
   const [manualLines, setManualLines] = useState<QuotationLineFormValue[]>([
     { id: 1, name: '', unit: 'Dịch vụ', quantity: '1', unitPrice: '0' },
   ]);
+  const [fieldErrors, setFieldErrors] = useState<Record<string, string>>({});
 
   const serviceOptions = useMemo(() => flattenServices(services), [services]);
   const bankAccounts = useMemo(
@@ -316,7 +318,7 @@ export function QuotationForm({
     });
   };
 
-  const submitForm = () => {
+  const submitForm = async () => {
     const existingRevenueGroup = getMetadataValue(quotation?.metadata, 'revenueGroup');
     const existingPricingMode = getMetadataValue(quotation?.metadata, 'pricingMode');
     const revenueGroup =
@@ -411,7 +413,12 @@ export function QuotationForm({
       payload.project_id = projectIdValue;
     }
 
-    onSubmit(payload);
+    try {
+      setFieldErrors({});
+      await onSubmit(payload);
+    } catch (error) {
+      setFieldErrors(getApiFieldErrors(error));
+    }
   };
 
   return (
@@ -489,7 +496,15 @@ export function QuotationForm({
                     `${option.leadCode || ''} - ${option.customerName || ''}`
                   }
                   isOptionEqualToValue={(option, value) => option.id === value.id}
-                  renderInput={(params) => <TextField {...params} required label="Lead" />}
+                  renderInput={(params) => (
+                    <TextField
+                      {...params}
+                      required
+                      label="Lead"
+                      error={Boolean(fieldErrors.leadId)}
+                      helperText={fieldErrors.leadId}
+                    />
+                  )}
                 />
               ) : (
                 <>

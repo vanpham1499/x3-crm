@@ -36,7 +36,9 @@ class ProjectCostsService extends BaseService
     public function update(string $id, array $data): array
     {
         return $this->transaction(function () use ($id, $data): array {
-            $data = $this->preparePayload($data);
+            /** @var ProjectCost $existing */
+            $existing = $this->costs->findOrFail($id);
+            $data = $this->preparePayload($data, $existing);
             $this->costs->update($id, $data);
 
             return $this->apiResource($this->costs->findWithRelationsOrFail($id), ProjectCostResource::class);
@@ -52,7 +54,12 @@ class ProjectCostsService extends BaseService
         });
     }
 
-    private function preparePayload(array $data): array
+    /**
+     * Merges submitted fields onto the record's current values (when updating) before
+     * recalculating derived amounts, so a partial PATCH cannot silently reset fields that
+     * were not part of the request (status, VAT/total amounts, acceptance/invoice status).
+     */
+    private function preparePayload(array $data, ?ProjectCost $existing = null): array
     {
         $data = $this->normalizeKeys($data);
 
@@ -61,6 +68,22 @@ class ProjectCostsService extends BaseService
                 $data[$key] = null;
             }
         }
+
+        $mergeableFields = [
+            'project_id', 'quotation_id', 'entry_type', 'transaction_date', 'cid', 'ad_account',
+            'bank_account_option_id', 'partner_option_id', 'amount_before_vat', 'vat_rate',
+            'discount_amount', 'status', 'acceptance_status', 'input_invoice_status', 'note',
+        ];
+
+        $base = [];
+
+        if ($existing) {
+            foreach ($mergeableFields as $field) {
+                $base[$field] = $existing->{$field};
+            }
+        }
+
+        $data = array_merge($base, $data);
 
         $data['status'] = $data['status'] ?? ProjectCost::STATUS_PENDING;
         $amountBeforeVat = (float) ($data['amount_before_vat'] ?? 0);

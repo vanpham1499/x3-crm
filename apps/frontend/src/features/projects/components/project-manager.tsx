@@ -16,6 +16,8 @@ import {
   TextField,
 } from '@mui/material';
 import { ConfirmDialog } from '@/components/feedback/confirm-dialog';
+import { TablePaginationBar } from '@/components/table/table-pagination-bar';
+import { usePagination } from '@/hooks/use-pagination';
 import {
   formatProjectDate,
   getProjectExternalUrl,
@@ -78,6 +80,9 @@ export function ProjectManager({
 }: ProjectManagerProps) {
   const [deleteTarget, setDeleteTarget] = useState<ProjectItem | null>(null);
   const serviceOptions = useMemo(() => flattenServices(services), [services]);
+  const { pageItems, page, setPage, totalPages, totalItems, pageSize } = usePagination(projects, {
+    resetKey: filters,
+  });
 
   const updateFilters = (nextFilters: Partial<ProjectFilters>) => {
     onFiltersChange({ ...filters, ...nextFilters });
@@ -227,7 +232,7 @@ export function ProjectManager({
                   </td>
                 </tr>
               ) : (
-                projects.map((project) => {
+                pageItems.map((project) => {
                   const revenueGroup = getRevenueGroup(project);
                   const isManagementFee = revenueGroup.group === '2.1';
 
@@ -352,6 +357,14 @@ export function ProjectManager({
             </tbody>
           </table>
         </div>
+
+        <TablePaginationBar
+          page={page}
+          totalPages={totalPages}
+          totalItems={totalItems}
+          pageSize={pageSize}
+          onPageChange={setPage}
+        />
       </section>
 
       <ConfirmDialog

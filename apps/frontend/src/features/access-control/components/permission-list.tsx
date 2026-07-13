@@ -4,6 +4,8 @@ import { useMemo } from 'react';
 import SearchRoundedIcon from '@mui/icons-material/SearchRounded';
 import SecurityRoundedIcon from '@mui/icons-material/SecurityRounded';
 import { InputAdornment, LinearProgress, MenuItem, TextField } from '@mui/material';
+import { TablePaginationBar } from '@/components/table/table-pagination-bar';
+import { usePagination } from '@/hooks/use-pagination';
 import { getPermissionModuleLabel, getPermissionModules } from '@/lib/access-control-utils';
 import { formatDate } from '@/lib/utils';
 import type { Permission, PermissionFilters } from '@/types/access-control';
@@ -24,6 +26,9 @@ export function PermissionList({
   onFiltersChange,
 }: PermissionListProps) {
   const modules = useMemo(() => getPermissionModules(moduleOptions), [moduleOptions]);
+  const { pageItems, page, setPage, totalPages, totalItems, pageSize } = usePagination(permissions, {
+    resetKey: filters,
+  });
 
   const updateFilters = (nextFilters: Partial<PermissionFilters>) => {
     onFiltersChange({ ...filters, ...nextFilters });
@@ -106,7 +111,7 @@ export function PermissionList({
                   </td>
                 </tr>
               ) : (
-                permissions.map((permission) => (
+                pageItems.map((permission) => (
                   <tr key={permission.id} className="hover:bg-slate-50/80">
                     <td className="px-5 py-4">
                       <div className="flex min-w-0 items-center gap-3">
@@ -143,13 +148,17 @@ export function PermissionList({
           </table>
         </div>
 
-        <div className="flex flex-col gap-3 border-t border-slate-200 px-5 py-4 text-sm text-slate-500 sm:flex-row sm:items-center sm:justify-between">
-          <span>
-            Hiển thị <strong className="text-slate-950">{permissions.length}</strong> /{' '}
-            {permissions.length} quyền
-          </span>
-          <span>Backend hiện chỉ hỗ trợ xem danh sách quyền.</span>
+        <div className="border-t border-slate-200 px-5 py-4 text-sm text-slate-500">
+          Backend hiện chỉ hỗ trợ xem danh sách quyền.
         </div>
+
+        <TablePaginationBar
+          page={page}
+          totalPages={totalPages}
+          totalItems={totalItems}
+          pageSize={pageSize}
+          onPageChange={setPage}
+        />
       </section>
     </div>
   );

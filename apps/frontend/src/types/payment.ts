@@ -16,7 +16,6 @@ export type Payment = {
   customerId?: number | null;
   projectId?: number | null;
   contractId?: number | null;
-  revenueId?: number | null;
   transactionDate?: string | null;
   bankAccount?: string | null;
   transactionContent?: string | null;
@@ -37,11 +36,6 @@ export type Payment = {
   contract?: {
     id: number;
     contractNo?: string | null;
-  } | null;
-  revenue?: {
-    id: number;
-    revenueCode?: string | null;
-    amountAfterVat?: string | number | null;
   } | null;
   createdAt?: string;
   updatedAt?: string;

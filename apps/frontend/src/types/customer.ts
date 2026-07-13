@@ -42,7 +42,6 @@ export type Customer = {
   industryOption?: AppOption | null;
   salesUser?: Pick<User, 'id' | 'code' | 'name' | 'email'> | null;
   projectsCount?: number;
-  invoicesCount?: number;
   createdAt?: string;
   updatedAt?: string;
 };

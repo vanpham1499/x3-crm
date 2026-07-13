@@ -10,6 +10,7 @@ import {
   getRoleInitial,
   groupPermissionsByModule,
 } from '@/lib/access-control-utils';
+import { applyApiErrorsToForm } from '@/lib/api-error';
 import { formatDate } from '@/lib/utils';
 import type { Permission, Role } from '@/types/access-control';
 
@@ -26,7 +27,7 @@ type RoleFormProps = {
   role?: Role;
   isSubmitting: boolean;
   isDeleting?: boolean;
-  onSubmit: (values: RoleFormValues) => void;
+  onSubmit: (values: RoleFormValues) => Promise<unknown>;
   onDelete?: () => void;
 };
 
@@ -52,6 +53,7 @@ export function RoleForm({
     control,
     register,
     handleSubmit,
+    setError,
     watch,
     formState: { errors, isDirty },
   } = useForm<RoleFormValues>({ defaultValues });
@@ -60,6 +62,14 @@ export function RoleForm({
   const pageTitle = mode === 'create' ? 'Thêm vai trò' : 'Chỉnh sửa vai trò';
   const selectedPermissionIds = watch('permissionIds');
   const permissionGroups = groupPermissionsByModule(permissions);
+
+  const submitForm = handleSubmit(async (values) => {
+    try {
+      await onSubmit(values);
+    } catch (error) {
+      applyApiErrorsToForm(error, setError);
+    }
+  });
 
   return (
     <div className="min-h-[calc(100vh-72px)] w-full bg-slate-50/60 p-6">
@@ -78,7 +88,7 @@ export function RoleForm({
 
       <form
         className="grid w-full items-start gap-6 xl:grid-cols-[minmax(0,0.8fr)_minmax(0,1.2fr)]"
-        onSubmit={handleSubmit(onSubmit)}
+        onSubmit={submitForm}
       >
         <section className="rounded-2xl border border-slate-200 bg-white p-6 shadow-sm">
           <div className="flex items-center gap-4">
@@ -144,7 +154,7 @@ export function RoleForm({
         </section>
 
         <section className="rounded-2xl border border-slate-200 bg-white p-6 shadow-sm">
-          <div className="mb-5">
+          <div className="border-b border-slate-200 pb-4">
             <h2 className="text-lg font-bold text-slate-950">Phân quyền</h2>
             <p className="mt-1 text-sm text-slate-500">
               Chọn các quyền mà vai trò này được phép sử dụng trong hệ thống.
@@ -172,8 +182,8 @@ export function RoleForm({
                   };
 
                   return (
-                    <div key={module} className="rounded-2xl border border-slate-200 p-4">
-                      <div className="mb-3 flex items-center justify-between gap-3">
+                    <div key={module} className="border-b border-slate-200 p-4 !mt-0">
+                      <div className="flex items-center justify-between gap-3">
                         <FormControlLabel
                           control={
                             <Checkbox
@@ -194,11 +204,11 @@ export function RoleForm({
                         </span>
                       </div>
 
-                      <div className="grid gap-2 md:grid-cols-2">
+                      <div className="grid gap-x-6 gap-y-4 md:grid-cols-2">
                         {modulePermissions.map((permission) => (
                           <FormControlLabel
                             key={permission.id}
-                            className="m-0 rounded-xl border border-slate-100 px-3 py-2 hover:bg-slate-50"
+                            className="m-0 !mr-0 rounded-xl border border-slate-100 px-3 py-2 hover:bg-slate-50"
                             control={
                               <Checkbox
                                 color="success"
@@ -231,7 +241,7 @@ export function RoleForm({
                 })}
 
                 {permissions.length === 0 && (
-                  <div className="rounded-2xl border border-dashed border-slate-200 px-4 py-10 text-center text-sm font-semibold text-slate-500">
+                  <div className="rounded-2xl border border-dashed border-slate-200 mt-4 px-4 py-10 text-center text-sm font-semibold text-slate-500">
                     Chưa có dữ liệu quyền
                   </div>
                 )}

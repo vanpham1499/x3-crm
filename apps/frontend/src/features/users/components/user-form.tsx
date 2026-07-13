@@ -7,6 +7,7 @@ import SaveRoundedIcon from '@mui/icons-material/SaveRounded';
 import { Button, MenuItem, Switch, TextField } from '@mui/material';
 import { Controller, useForm } from 'react-hook-form';
 import { ImageUpload } from '@/components/upload/image-upload';
+import { applyApiErrorsToForm } from '@/lib/api-error';
 import { formatDate } from '@/lib/utils';
 import { getUserRoleLabel, getUserStatusClass, getUserStatusLabel } from '@/lib/user-utils';
 import type { RoleOption, User } from '@/types/user';
@@ -29,7 +30,7 @@ type UserFormProps = {
   user?: User;
   isSubmitting: boolean;
   isDeleting?: boolean;
-  onSubmit: (values: UserFormValues) => void;
+  onSubmit: (values: UserFormValues) => Promise<unknown>;
   onDelete?: () => void;
 };
 
@@ -84,9 +85,18 @@ export function UserForm({
     control,
     register,
     handleSubmit,
+    setError,
     watch,
     formState: { errors, isDirty },
   } = useForm<UserFormValues>({ defaultValues });
+
+  const submitForm = handleSubmit(async (values) => {
+    try {
+      await onSubmit(values);
+    } catch (error) {
+      applyApiErrorsToForm(error, setError);
+    }
+  });
 
   const displayName = defaultValues.name || defaultValues.code || 'Nhân viên mới';
   const pageTitle = mode === 'create' ? 'Thêm nhân viên' : 'Chỉnh sửa nhân viên';
@@ -120,7 +130,7 @@ export function UserForm({
             ? 'w-full'
             : 'grid w-full items-start gap-6 xl:grid-cols-[360px_minmax(0,1fr)]'
         }
-        onSubmit={handleSubmit(onSubmit)}
+        onSubmit={submitForm}
       >
         {mode === 'edit' && (
         <aside className="rounded-2xl border border-slate-200 bg-white p-6 shadow-sm">

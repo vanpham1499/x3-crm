@@ -10,6 +10,8 @@ import EditRoundedIcon from '@mui/icons-material/EditRounded';
 import MoreVertRoundedIcon from '@mui/icons-material/MoreVertRounded';
 import SearchRoundedIcon from '@mui/icons-material/SearchRounded';
 import { Checkbox, IconButton, InputAdornment, LinearProgress, Menu, MenuItem, TextField } from '@mui/material';
+import { TablePaginationBar } from '@/components/table/table-pagination-bar';
+import { usePagination } from '@/hooks/use-pagination';
 import { formatDate } from '@/lib/utils';
 import type { Role, RoleFilters } from '@/types/access-control';
 
@@ -36,6 +38,9 @@ export function RoleList({
   const [selectedRoleIds, setSelectedRoleIds] = useState<number[]>([]);
   const [menuAnchorEl, setMenuAnchorEl] = useState<HTMLElement | null>(null);
   const [activeRole, setActiveRole] = useState<Role | null>(null);
+  const { pageItems, page, setPage, totalPages, totalItems, pageSize } = usePagination(roles, {
+    resetKey: filters,
+  });
 
   const visibleRoleIds = useMemo(() => roles.map((role) => role.id), [roles]);
   const selectedVisibleCount = visibleRoleIds.filter((id) => selectedRoleIds.includes(id)).length;
@@ -198,7 +203,7 @@ export function RoleList({
                   </td>
                 </tr>
               ) : (
-                roles.map((role) => {
+                pageItems.map((role) => {
                   const isSelected = selectedRoleIds.includes(role.id);
 
                   return (
@@ -278,22 +283,13 @@ export function RoleList({
           </MenuItem>
         </Menu>
 
-        <div className="flex flex-col gap-3 border-t border-slate-200 px-5 py-4 text-sm text-slate-500 sm:flex-row sm:items-center sm:justify-between">
-          <span>
-            Hiển thị <strong className="text-slate-950">{roles.length}</strong> / {roles.length} vai trò
-          </span>
-          <div className="flex items-center gap-2">
-            <button type="button" className="rounded-lg px-3 py-2 font-semibold text-slate-400">
-              Trước
-            </button>
-            <button type="button" className="rounded-lg bg-slate-900 px-3 py-2 font-bold text-white">
-              1
-            </button>
-            <button type="button" className="rounded-lg px-3 py-2 font-semibold text-slate-400">
-              Sau
-            </button>
-          </div>
-        </div>
+        <TablePaginationBar
+          page={page}
+          totalPages={totalPages}
+          totalItems={totalItems}
+          pageSize={pageSize}
+          onPageChange={setPage}
+        />
       </section>
     </div>
   );

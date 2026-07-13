@@ -18,6 +18,8 @@ import {
   MenuItem,
   TextField,
 } from '@mui/material';
+import { TablePaginationBar } from '@/components/table/table-pagination-bar';
+import { usePagination } from '@/hooks/use-pagination';
 import type { Customer, CustomerFilters } from '@/types/customer';
 import type { AppOption } from '@/types/option';
 import type { User } from '@/types/user';
@@ -62,6 +64,9 @@ export function CustomerManager({
   const [selectedCustomerIds, setSelectedCustomerIds] = useState<number[]>([]);
   const [menuAnchorEl, setMenuAnchorEl] = useState<HTMLElement | null>(null);
   const [activeCustomer, setActiveCustomer] = useState<Customer | null>(null);
+  const { pageItems, page, setPage, totalPages, totalItems, pageSize } = usePagination(customers, {
+    resetKey: filters,
+  });
 
   const visibleCustomerIds = useMemo(() => customers.map((customer) => customer.id), [customers]);
   const selectedVisibleCount = visibleCustomerIds.filter((id) =>
@@ -278,7 +283,7 @@ export function CustomerManager({
                   </td>
                 </tr>
               ) : (
-                customers.map((customer) => {
+                pageItems.map((customer) => {
                   const isSelected = selectedCustomerIds.includes(customer.id);
 
                   return (
@@ -388,11 +393,13 @@ export function CustomerManager({
           </MenuItem>
         </Menu>
 
-        <div className="flex flex-col gap-3 border-t border-slate-200 px-5 py-4 text-sm text-slate-500 sm:flex-row sm:items-center sm:justify-between">
-          <span>
-            Hiển thị <strong className="text-slate-950">{customers.length}</strong> khách hàng
-          </span>
-        </div>
+        <TablePaginationBar
+          page={page}
+          totalPages={totalPages}
+          totalItems={totalItems}
+          pageSize={pageSize}
+          onPageChange={setPage}
+        />
       </section>
     </div>
   );

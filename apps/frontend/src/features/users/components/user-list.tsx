@@ -19,6 +19,8 @@ import {
   MenuItem,
   TextField,
 } from '@mui/material';
+import { TablePaginationBar } from '@/components/table/table-pagination-bar';
+import { usePagination } from '@/hooks/use-pagination';
 import { formatDate } from '@/lib/utils';
 import {
   USER_ALL_FILTER,
@@ -60,6 +62,9 @@ export function UserList({
   const [selectedUserIds, setSelectedUserIds] = useState<number[]>([]);
   const [menuAnchorEl, setMenuAnchorEl] = useState<HTMLElement | null>(null);
   const [activeUser, setActiveUser] = useState<User | null>(null);
+  const { pageItems, page, setPage, totalPages, totalItems, pageSize } = usePagination(users, {
+    resetKey: filters,
+  });
 
   const visibleUserIds = useMemo(() => users.map((user) => user.id), [users]);
   const selectedVisibleCount = visibleUserIds.filter((id) => selectedUserIds.includes(id)).length;
@@ -254,7 +259,7 @@ export function UserList({
                   </td>
                 </tr>
               ) : (
-                users.map((user) => {
+                pageItems.map((user) => {
                   const isSelected = selectedUserIds.includes(user.id);
 
                   return (
@@ -353,26 +358,13 @@ export function UserList({
           </MenuItem>
         </Menu>
 
-        <div className="flex flex-col gap-3 border-t border-slate-200 px-5 py-4 text-sm text-slate-500 sm:flex-row sm:items-center sm:justify-between">
-          <span>
-            Hiển thị <strong className="text-slate-950">{users.length}</strong> /{' '}
-            {users.length} nhân viên
-          </span>
-          <div className="flex items-center gap-2">
-            <button type="button" className="rounded-lg px-3 py-2 font-semibold text-slate-400">
-              Trước
-            </button>
-            <button
-              type="button"
-              className="rounded-lg bg-slate-900 px-3 py-2 font-bold text-white"
-            >
-              1
-            </button>
-            <button type="button" className="rounded-lg px-3 py-2 font-semibold text-slate-400">
-              Sau
-            </button>
-          </div>
-        </div>
+        <TablePaginationBar
+          page={page}
+          totalPages={totalPages}
+          totalItems={totalItems}
+          pageSize={pageSize}
+          onPageChange={setPage}
+        />
       </section>
     </div>
   );

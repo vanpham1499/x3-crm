@@ -26,6 +26,9 @@ import {
 import { useQuery } from '@tanstack/react-query';
 import { useForm } from 'react-hook-form';
 import { ConfirmDialog } from '@/components/feedback/confirm-dialog';
+import { TablePaginationBar } from '@/components/table/table-pagination-bar';
+import { usePagination } from '@/hooks/use-pagination';
+import { applyApiErrorsToForm } from '@/lib/api-error';
 import {
   getBankAccountMetaBoolean,
   getBankAccountMetaValue,
@@ -67,6 +70,7 @@ function BankAccountDialog({
     reset,
     watch,
     setValue,
+    setError,
     formState: { errors },
   } = useForm<CompanyBankAccountFormValues>({
     values: getCompanyBankAccountDefaults(account),
@@ -103,8 +107,12 @@ function BankAccountDialog({
 
       <form
         onSubmit={handleSubmit(async (values) => {
-          await onSubmit(values, account);
-          closeDialog();
+          try {
+            await onSubmit(values, account);
+            closeDialog();
+          } catch (error) {
+            applyApiErrorsToForm(error, setError);
+          }
         })}
       >
         <DialogContent className="grid gap-3 px-5 py-4">
@@ -218,6 +226,9 @@ export function CompanyBankAccountManager({
   const [deleteTarget, setDeleteTarget] = useState<AppOption | null>(null);
   const [menuAnchorEl, setMenuAnchorEl] = useState<HTMLElement | null>(null);
   const [activeAccount, setActiveAccount] = useState<AppOption | null>(null);
+  const { pageItems, page, setPage, totalPages, totalItems, pageSize } = usePagination(accounts, {
+    resetKey: keyword,
+  });
 
   const openActionMenu = (event: MouseEvent<HTMLButtonElement>, account: AppOption) => {
     setMenuAnchorEl(event.currentTarget);
@@ -316,7 +327,7 @@ export function CompanyBankAccountManager({
                   </td>
                 </tr>
               ) : (
-                accounts.map((account) => (
+                pageItems.map((account) => (
                   <tr key={account.id} className="hover:bg-slate-50/80">
                     <td className="px-5 py-4 font-bold text-slate-950">
                       {getBankAccountBankCode(account) || '-'}
@@ -372,9 +383,13 @@ export function CompanyBankAccountManager({
           </table>
         </div>
 
-        <div className="border-t border-slate-200 px-5 py-4 text-sm text-slate-500">
-          Hiển thị <strong className="text-slate-950">{accounts.length}</strong> tài khoản
-        </div>
+        <TablePaginationBar
+          page={page}
+          totalPages={totalPages}
+          totalItems={totalItems}
+          pageSize={pageSize}
+          onPageChange={setPage}
+        />
       </section>
 
       <Menu anchorEl={menuAnchorEl} open={Boolean(menuAnchorEl)} onClose={closeActionMenu}>

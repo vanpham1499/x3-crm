@@ -140,7 +140,7 @@ export default function EditCustomerPage() {
         customerTypes={customerTypes}
         sources={sources}
         isSubmitting={updateMutation.isPending}
-        onSubmit={(values) => updateMutation.mutate(values)}
+        onSubmit={(values) => updateMutation.mutateAsync(values)}
       />
     </div>
   );

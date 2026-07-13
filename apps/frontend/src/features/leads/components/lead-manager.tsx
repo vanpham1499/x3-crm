@@ -34,6 +34,8 @@ import {
   TextField,
 } from '@mui/material';
 import { ConfirmDialog } from '@/components/feedback/confirm-dialog';
+import { TablePaginationBar } from '@/components/table/table-pagination-bar';
+import { usePagination } from '@/hooks/use-pagination';
 import { getLeadStatusClass, getUniqueLeadStatuses } from '@/lib/lead-utils';
 import { getOptionColor } from '@/lib/option-utils';
 import { formatDate, formatDateTime } from '@/lib/utils';
@@ -605,6 +607,9 @@ export function LeadManager({
   const [viewTab, setViewTab] = useState(0);
   const [menuAnchorEl, setMenuAnchorEl] = useState<HTMLElement | null>(null);
   const [activeLead, setActiveLead] = useState<Lead | null>(null);
+  const { pageItems, page, setPage, totalPages, totalItems, pageSize } = usePagination(leads, {
+    resetKey: filters,
+  });
   const viewLeadId = viewTarget?.id || '';
   const { data: viewLeadDetail, isFetching: isFetchingViewLead } = useQuery<Lead>({
     queryKey: ['leads', viewLeadId, 'quick-view'],
@@ -854,7 +859,7 @@ export function LeadManager({
                   </td>
                 </tr>
               ) : (
-                leads.map((lead) => {
+                pageItems.map((lead) => {
                   const isSelected = selectedLeadIds.includes(lead.id);
                   const link = lead.website || lead.planLink;
                   const serviceOptions = lead.interestedServiceOptions?.length
@@ -1047,11 +1052,13 @@ export function LeadManager({
           </MenuItem>
         </Menu>
 
-        <div className="flex flex-col gap-3 border-t border-slate-200 px-5 py-4 text-sm text-slate-500 sm:flex-row sm:items-center sm:justify-between">
-          <span>
-            Hiển thị <strong className="text-slate-950">{leads.length}</strong> lead
-          </span>
-        </div>
+        <TablePaginationBar
+          page={page}
+          totalPages={totalPages}
+          totalItems={totalItems}
+          pageSize={pageSize}
+          onPageChange={setPage}
+        />
       </section>
 
       <LeadViewDialog

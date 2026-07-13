@@ -35,6 +35,7 @@ import {
 } from '@mui/material';
 import { Controller, useForm } from 'react-hook-form';
 import { ConfirmDialog } from '@/components/feedback/confirm-dialog';
+import { applyApiErrorsToForm } from '@/lib/api-error';
 import {
   OPTION_SECTIONS,
   getOptionColor,
@@ -77,6 +78,7 @@ function OptionDialog({
     register,
     handleSubmit,
     reset,
+    setError,
     formState: { errors },
   } = useForm<OptionFormValues>({
     values: getOptionDefaults(group?.group || 'lead_status', option),
@@ -103,8 +105,12 @@ function OptionDialog({
 
       <form
         onSubmit={handleSubmit(async (values) => {
-          await onSubmit(values, option);
-          closeDialog();
+          try {
+            await onSubmit(values, option);
+            closeDialog();
+          } catch (error) {
+            applyApiErrorsToForm(error, setError);
+          }
         })}
       >
         <DialogContent className="grid gap-4 px-6 py-5">

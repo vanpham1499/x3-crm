@@ -75,11 +75,6 @@ class Customer extends BaseModel
         return $this->hasMany(Project::class);
     }
 
-    public function invoices(): HasMany
-    {
-        return $this->hasMany(Invoice::class);
-    }
-
     public function timelines(): HasMany
     {
         return $this->hasMany(CustomerTimeline::class)->orderByDesc('created_at');

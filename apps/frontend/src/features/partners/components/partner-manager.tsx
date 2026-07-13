@@ -22,6 +22,9 @@ import {
 } from '@mui/material';
 import { useForm } from 'react-hook-form';
 import { ConfirmDialog } from '@/components/feedback/confirm-dialog';
+import { TablePaginationBar } from '@/components/table/table-pagination-bar';
+import { usePagination } from '@/hooks/use-pagination';
+import { applyApiErrorsToForm } from '@/lib/api-error';
 import {
   getPartnerMetaValue,
   getProjectPartnerDefaults,
@@ -60,6 +63,7 @@ function PartnerDialog({
     register,
     handleSubmit,
     reset,
+    setError,
     formState: { errors },
   } = useForm<ProjectPartnerFormValues>({
     values: getProjectPartnerDefaults(partner),
@@ -81,8 +85,12 @@ function PartnerDialog({
 
       <form
         onSubmit={handleSubmit(async (values) => {
-          await onSubmit(values, partner);
-          closeDialog();
+          try {
+            await onSubmit(values, partner);
+            closeDialog();
+          } catch (error) {
+            applyApiErrorsToForm(error, setError);
+          }
         })}
       >
         <DialogContent className="grid gap-4 px-6 py-5 md:grid-cols-2">
@@ -137,6 +145,9 @@ export function PartnerManager({
   const [deleteTarget, setDeleteTarget] = useState<AppOption | null>(null);
   const [menuAnchorEl, setMenuAnchorEl] = useState<HTMLElement | null>(null);
   const [activePartner, setActivePartner] = useState<AppOption | null>(null);
+  const { pageItems, page, setPage, totalPages, totalItems, pageSize } = usePagination(partners, {
+    resetKey: keyword,
+  });
 
   const openActionMenu = (event: MouseEvent<HTMLButtonElement>, partner: AppOption) => {
     setMenuAnchorEl(event.currentTarget);
@@ -231,7 +242,7 @@ export function PartnerManager({
                   </td>
                 </tr>
               ) : (
-                partners.map((partner) => (
+                pageItems.map((partner) => (
                   <tr key={partner.id} className="hover:bg-slate-50/80">
                     <td className="px-5 py-4 font-bold text-slate-950">
                       <span className="block truncate" title={partner.key || ''}>
@@ -272,9 +283,13 @@ export function PartnerManager({
           </table>
         </div>
 
-        <div className="border-t border-slate-200 px-5 py-4 text-sm text-slate-500">
-          Hiển thị <strong className="text-slate-950">{partners.length}</strong> đối tác
-        </div>
+        <TablePaginationBar
+          page={page}
+          totalPages={totalPages}
+          totalItems={totalItems}
+          pageSize={pageSize}
+          onPageChange={setPage}
+        />
       </section>
 
       <Menu anchorEl={menuAnchorEl} open={Boolean(menuAnchorEl)} onClose={closeActionMenu}>

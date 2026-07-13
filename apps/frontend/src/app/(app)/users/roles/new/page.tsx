@@ -49,7 +49,7 @@ export default function CreateRolePage() {
       defaultValues={getRoleFormDefaults()}
       permissions={permissions}
       isSubmitting={createMutation.isPending}
-      onSubmit={(values) => createMutation.mutate(values)}
+      onSubmit={(values) => createMutation.mutateAsync(values)}
     />
   );
 }

@@ -43,7 +43,7 @@ export default function NewUserPage() {
       roles={roles}
       defaultValues={getUserFormDefaults()}
       isSubmitting={mutation.isPending}
-      onSubmit={(values) => mutation.mutate(values)}
+      onSubmit={(values) => mutation.mutateAsync(values)}
     />
   );
 }

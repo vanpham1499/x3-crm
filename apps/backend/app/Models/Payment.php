@@ -12,7 +12,6 @@ class Payment extends BaseModel
         'customer_id',
         'project_id',
         'contract_id',
-        'revenue_id',
         'transaction_date',
         'bank_account',
         'transaction_content',
@@ -64,10 +63,5 @@ class Payment extends BaseModel
     public function contract(): BelongsTo
     {
         return $this->belongsTo(Contract::class);
-    }
-
-    public function revenue(): BelongsTo
-    {
-        return $this->belongsTo(Revenue::class);
     }
 }

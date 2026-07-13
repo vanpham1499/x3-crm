@@ -6,6 +6,7 @@ import { Button, MenuItem, TextField } from '@mui/material';
 import { DatePicker } from '@mui/x-date-pickers/DatePicker';
 import dayjs from 'dayjs';
 import { Controller, useForm } from 'react-hook-form';
+import { applyApiErrorsToForm } from '@/lib/api-error';
 import type { Customer, CustomerFormValues } from '@/types/customer';
 import type { AppOption } from '@/types/option';
 import type { User } from '@/types/user';
@@ -18,7 +19,7 @@ type CustomerApiFormProps = {
   customerTypes: AppOption[];
   sources: AppOption[];
   isSubmitting: boolean;
-  onSubmit: (values: CustomerFormValues) => void;
+  onSubmit: (values: CustomerFormValues) => Promise<unknown>;
 };
 
 function FormSection({
@@ -74,11 +75,20 @@ export function CustomerApiForm({
     control,
     register,
     handleSubmit,
+    setError,
     formState: { errors },
   } = useForm<CustomerFormValues>({ values: defaultValues });
 
+  const submitForm = handleSubmit(async (values) => {
+    try {
+      await onSubmit(values);
+    } catch (error) {
+      applyApiErrorsToForm(error, setError);
+    }
+  });
+
   return (
-    <form className="w-full space-y-8" onSubmit={handleSubmit(onSubmit)}>
+    <form className="w-full space-y-8" onSubmit={submitForm}>
       <div className="grid w-full items-start gap-6 xl:grid-cols-12">
         <div className="xl:col-span-8">
           <FormSection

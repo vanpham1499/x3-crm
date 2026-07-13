@@ -6,6 +6,7 @@ import { Autocomplete, Button, Checkbox, ListItemText, MenuItem, TextField } fro
 import { DatePicker } from '@mui/x-date-pickers/DatePicker';
 import dayjs from 'dayjs';
 import { Controller, useForm } from 'react-hook-form';
+import { applyApiErrorsToForm } from '@/lib/api-error';
 import { getLeadDefaults } from '@/lib/lead-utils';
 import type { Lead, LeadFormValues, LeadStatus } from '@/types/lead';
 import type { AppOption } from '@/types/option';
@@ -19,7 +20,7 @@ type LeadFormProps = {
   services: AppOption[];
   statuses: LeadStatus[];
   isSubmitting: boolean;
-  onSubmit: (values: LeadFormValues) => void;
+  onSubmit: (values: LeadFormValues) => Promise<unknown>;
 };
 
 function FormSection({
@@ -77,6 +78,7 @@ export function LeadForm({
     register,
     handleSubmit,
     setValue,
+    setError,
     watch,
     formState: { errors },
   } = useForm<LeadFormValues>({ defaultValues: defaults });
@@ -84,8 +86,16 @@ export function LeadForm({
   const typedSourceName = watch('sourceName');
   const selectedSource = sources.find((source) => String(source.id) === selectedSourceId) || null;
 
+  const submitForm = handleSubmit(async (values) => {
+    try {
+      await onSubmit(values);
+    } catch (error) {
+      applyApiErrorsToForm(error, setError);
+    }
+  });
+
   return (
-    <form className="w-full space-y-8" onSubmit={handleSubmit(onSubmit)}>
+    <form className="w-full space-y-8" onSubmit={submitForm}>
       <div className="grid w-full items-start gap-6 xl:grid-cols-12">
         <div className="xl:col-span-8">
           <FormSection

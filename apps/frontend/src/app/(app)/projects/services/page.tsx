@@ -129,7 +129,7 @@ export default function ServicesPage() {
       isSavingQuoteConfig={quoteConfigMutation.isPending}
       quoteConfigs={quoteConfigs}
       onFiltersChange={setFilters}
-      onSubmit={(values, service) => saveMutation.mutate({ values, service })}
+      onSubmit={(values, service) => saveMutation.mutateAsync({ values, service })}
       onDelete={(service) => deleteMutation.mutate(service)}
       onSaveQuoteConfig={(service, values, option) =>
         quoteConfigMutation.mutateAsync({ service, values, option })

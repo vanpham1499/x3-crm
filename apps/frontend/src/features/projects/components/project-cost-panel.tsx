@@ -19,7 +19,7 @@ import { Controller, useForm } from 'react-hook-form';
 import { ConfirmDialog } from '@/components/feedback/confirm-dialog';
 import { useAppNotification } from '@/components/feedback/notification-provider';
 import { MoneyInput } from '@/components/form/money-input';
-import { getApiErrorMessage } from '@/lib/api-error';
+import { applyApiErrorsToForm, getApiErrorMessage } from '@/lib/api-error';
 import { getBankAccountBankCode } from '@/lib/company-bank-account-options';
 import { getPartnerMetaValue } from '@/lib/project-partner-options';
 import { formatCurrency } from '@/lib/utils';
@@ -117,6 +117,7 @@ function CostDialog({
     register,
     handleSubmit,
     reset,
+    setError,
     watch,
     formState: { errors },
   } = useForm<ProjectCostFormValues>({ values: getCostDefaults(cost) });
@@ -141,8 +142,12 @@ function CostDialog({
 
       <form
         onSubmit={handleSubmit(async (values) => {
-          await onSubmit(values, cost);
-          closeDialog();
+          try {
+            await onSubmit(values, cost);
+            closeDialog();
+          } catch (error) {
+            applyApiErrorsToForm(error, setError);
+          }
         })}
       >
         <DialogContent className="grid gap-3 px-5 py-4 md:grid-cols-2">
@@ -248,6 +253,8 @@ function CostDialog({
             fullWidth
             type="number"
             label="Thuế suất VAT (%)"
+            error={Boolean(errors.vatRate)}
+            helperText={errors.vatRate?.message}
             slotProps={{ htmlInput: { min: 0, step: 0.01 } }}
             {...register('vatRate')}
           />
@@ -262,6 +269,8 @@ function CostDialog({
                   label="Voucher / khuyến mại / chiết khấu"
                   value={field.value}
                   onValueChange={field.onChange}
+                  error={Boolean(errors.discountAmount)}
+                  helperText={errors.discountAmount?.message}
                 />
               )}
             />
