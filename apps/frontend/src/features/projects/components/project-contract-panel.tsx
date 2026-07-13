@@ -21,7 +21,7 @@ import { FormInputField } from '@/components/form/form-input-field';
 import { FormSelectField } from '@/components/form/form-select-field';
 import { MoneyInput } from '@/components/form/money-input';
 import { AppDataTable } from '@/components/table/app-data-table';
-import { getApiErrorMessage } from '@/lib/api-error';
+import { applyApiErrorsToForm, getApiErrorMessage } from '@/lib/api-error';
 import { getOptionColor } from '@/lib/option-utils';
 import { formatCurrency } from '@/lib/utils';
 import api from '@/services/api/client';
@@ -129,6 +129,7 @@ function ContractDialog({
     handleSubmit,
     reset,
     setValue,
+    setError,
     watch,
     formState: { errors },
   } = useForm<ContractFormValues>({
@@ -173,8 +174,12 @@ function ContractDialog({
       submitting={isSubmitting}
       onClose={closeDialog}
       onSubmit={handleSubmit(async (values) => {
-        await onSubmit(values, contract);
-        closeDialog();
+        try {
+          await onSubmit(values, contract);
+          closeDialog();
+        } catch (error) {
+          applyApiErrorsToForm(error, setError);
+        }
       })}
       contentClassName="space-y-5"
       actions={

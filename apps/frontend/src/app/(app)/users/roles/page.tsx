@@ -20,6 +20,7 @@ export default function RolesPage() {
   const queryClient = useQueryClient();
   const notify = useAppNotification();
   const [deleteTarget, setDeleteTarget] = useState<Role | null>(null);
+  const [bulkDeleteIds, setBulkDeleteIds] = useState<number[]>([]);
   const [filters, setFilters] = useState<RoleFilters>({ keyword: '' });
 
   const {
@@ -45,7 +46,22 @@ export default function RolesPage() {
     },
   });
 
+  const bulkDeleteMutation = useMutation({
+    mutationFn: (roleIds: number[]) =>
+      Promise.all(roleIds.map((roleId) => api.delete(`/roles/${roleId}`))),
+    onSuccess: (_, roleIds) => {
+      queryClient.invalidateQueries({ queryKey: ['roles'] });
+      notify.success(`Đã xóa ${roleIds.length} vai trò`);
+      setBulkDeleteIds([]);
+    },
+    onError: (error) => {
+      notify.error(getApiErrorMessage(error, 'Xóa vai trò thất bại'));
+    },
+  });
+
   if (isLoading) return <ContentLoading label="Đang tải vai trò..." />;
+
+  const isDeleting = deleteMutation.isPending || bulkDeleteMutation.isPending;
 
   return (
     <>
@@ -54,8 +70,9 @@ export default function RolesPage() {
         filters={filters}
         isFetching={isFetching}
         onFiltersChange={setFilters}
-        isDeleting={deleteMutation.isPending}
+        isDeleting={isDeleting}
         onDelete={setDeleteTarget}
+        onBulkDelete={setBulkDeleteIds}
       />
 
       <ConfirmDialog
@@ -68,6 +85,16 @@ export default function RolesPage() {
         onConfirm={() => {
           if (deleteTarget) deleteMutation.mutate(deleteTarget);
         }}
+      />
+
+      <ConfirmDialog
+        open={bulkDeleteIds.length > 0}
+        title="Xóa vai trò đã chọn?"
+        description={`Bạn có chắc muốn xóa ${bulkDeleteIds.length} vai trò đã chọn? Người dùng đang gắn các vai trò này có thể bị ảnh hưởng.`}
+        confirmText="Xóa đã chọn"
+        loading={bulkDeleteMutation.isPending}
+        onClose={() => setBulkDeleteIds([])}
+        onConfirm={() => bulkDeleteMutation.mutate(bulkDeleteIds)}
       />
     </>
   );

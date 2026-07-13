@@ -9,6 +9,7 @@ import { FormInputField } from '@/components/form/form-input-field';
 import { FormSection } from '@/components/form/form-section';
 import { PageHeader } from '@/components/shell/page-header';
 import { getPermissionModuleLabel, groupPermissionsByModule } from '@/lib/access-control-utils';
+import { applyApiErrorsToForm } from '@/lib/api-error';
 import { formatDate } from '@/lib/utils';
 import type { Permission, Role } from '@/types/access-control';
 
@@ -25,7 +26,7 @@ type RoleFormProps = {
   role?: Role;
   isSubmitting: boolean;
   isDeleting?: boolean;
-  onSubmit: (values: RoleFormValues) => void;
+  onSubmit: (values: RoleFormValues) => Promise<unknown>;
   onDelete?: () => void;
 };
 
@@ -51,6 +52,7 @@ export function RoleForm({
     control,
     register,
     handleSubmit,
+    setError,
     watch,
     formState: { errors, isDirty },
   } = useForm<RoleFormValues>({ defaultValues });
@@ -59,6 +61,14 @@ export function RoleForm({
   const selectedPermissionIds = watch('permissionIds');
   const permissionGroups = groupPermissionsByModule(permissions);
 
+  const submitForm = handleSubmit(async (values) => {
+    try {
+      await onSubmit(values);
+    } catch (error) {
+      applyApiErrorsToForm(error, setError);
+    }
+  });
+
   return (
     <div className="flex min-h-[calc(100vh-72px)] flex-col bg-slate-50/60 px-6 pt-6">
       <PageHeader
@@ -66,7 +76,7 @@ export function RoleForm({
         currentLabel={mode === 'edit' ? 'Chỉnh sửa' : undefined}
       />
 
-      <form className="flex w-full flex-1 flex-col" onSubmit={handleSubmit(onSubmit)}>
+      <form className="flex w-full flex-1 flex-col" onSubmit={submitForm}>
         <div className="grid w-full items-start gap-6 xl:grid-cols-12">
           <div className="xl:col-span-4">
             <FormSection title="Thông tin vai trò">

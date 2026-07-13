@@ -319,7 +319,7 @@ export default function EditProjectPage() {
             statuses={statuses}
             quoteConfigs={quoteConfigs}
             isSubmitting={updateMutation.isPending}
-            onSubmit={(values) => updateMutation.mutate(values)}
+            onSubmit={(values) => updateMutation.mutateAsync(values)}
           />
         ) : null}
 

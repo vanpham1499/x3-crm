@@ -16,6 +16,9 @@ import { FormInputField } from '@/components/form/form-input-field';
 import { VietQrBankSelect } from '@/components/form/vietqr-bank-select';
 import { PageHeader } from '@/components/shell/page-header';
 import { AppDataTable } from '@/components/table/app-data-table';
+import { TablePaginationBar } from '@/components/table/table-pagination-bar';
+import { usePagination } from '@/hooks/use-pagination';
+import { applyApiErrorsToForm } from '@/lib/api-error';
 import {
   getPartnerMetaValue,
   getProjectPartnerDefaults,
@@ -52,6 +55,7 @@ function PartnerDialog({
     register,
     handleSubmit,
     reset,
+    setError,
     watch,
     setValue,
     formState: { errors },
@@ -74,8 +78,12 @@ function PartnerDialog({
       submitting={isSubmitting}
       onClose={closeDialog}
       onSubmit={handleSubmit(async (values) => {
-        await onSubmit(values, partner);
-        closeDialog();
+        try {
+          await onSubmit(values, partner);
+          closeDialog();
+        } catch (error) {
+          applyApiErrorsToForm(error, setError);
+        }
       })}
       contentClassName="grid gap-3 sm:grid-cols-2"
       actions={
@@ -131,6 +139,9 @@ export function PartnerManager({
   const [deleteTarget, setDeleteTarget] = useState<AppOption | null>(null);
   const [menuAnchorEl, setMenuAnchorEl] = useState<HTMLElement | null>(null);
   const [activePartner, setActivePartner] = useState<AppOption | null>(null);
+  const { pageItems, page, setPage, totalPages, totalItems, pageSize } = usePagination(partners, {
+    resetKey: keyword,
+  });
 
   const openActionMenu = (event: MouseEvent<HTMLButtonElement>, partner: AppOption) => {
     setMenuAnchorEl(event.currentTarget);
@@ -182,11 +193,11 @@ export function PartnerManager({
             { key: 'actions', className: 'w-28' },
           ]}
           isLoading={isFetching}
-          isEmpty={partners.length === 0}
+          isEmpty={pageItems.length === 0}
           emptyText="Chưa có dữ liệu đối tác"
           minWidthClassName="min-w-[980px]"
         >
-          {partners.map((partner) => (
+          {pageItems.map((partner) => (
             <tr key={partner.id} className="group hover:bg-slate-50/80">
               <td className="sticky left-0 z-10 bg-white px-3 py-4 font-bold text-slate-950 group-hover:bg-slate-50">
                 <span className="block truncate" title={partner.key || ''}>
@@ -242,9 +253,13 @@ export function PartnerManager({
           </MenuItem>
         </Menu>
 
-        <div className="border-t border-slate-200 px-5 py-4 text-sm text-slate-500">
-          Hiển thị <strong className="text-slate-950">{partners.length}</strong> đối tác
-        </div>
+        <TablePaginationBar
+          page={page}
+          totalPages={totalPages}
+          totalItems={totalItems}
+          pageSize={pageSize}
+          onPageChange={setPage}
+        />
       </section>
 
       <PartnerDialog

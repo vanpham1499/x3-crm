@@ -10,6 +10,7 @@ import { compactFormFieldClassName } from '@/components/form/form-field-styles';
 import { FormInputField } from '@/components/form/form-input-field';
 import { FormSection } from '@/components/form/form-section';
 import { FormSelectField } from '@/components/form/form-select-field';
+import { applyApiErrorsToForm } from '@/lib/api-error';
 import type { Customer, CustomerFormValues } from '@/types/customer';
 import type { AppOption } from '@/types/option';
 import type { User } from '@/types/user';
@@ -23,7 +24,7 @@ type CustomerApiFormProps = {
   sources: AppOption[];
   cancelHref?: string;
   isSubmitting: boolean;
-  onSubmit: (values: CustomerFormValues) => void;
+  onSubmit: (values: CustomerFormValues) => Promise<unknown>;
 };
 
 function CustomerDatePicker({
@@ -66,11 +67,20 @@ export function CustomerApiForm({
     control,
     register,
     handleSubmit,
+    setError,
     formState: { errors },
   } = useForm<CustomerFormValues>({ values: defaultValues });
 
+  const submitForm = handleSubmit(async (values) => {
+    try {
+      await onSubmit(values);
+    } catch (error) {
+      applyApiErrorsToForm(error, setError);
+    }
+  });
+
   return (
-    <form className="flex w-full flex-1 flex-col" onSubmit={handleSubmit(onSubmit)}>
+    <form className="flex w-full flex-1 flex-col" onSubmit={submitForm}>
       <div className="grid w-full items-start gap-6 xl:grid-cols-12">
         <div className="xl:col-span-8">
           <FormSection title="Thông tin khách hàng">

@@ -14,6 +14,8 @@ import { CompactSearchField } from '@/components/form/compact-search-field';
 import { CompactSelectField } from '@/components/form/compact-select-field';
 import { PageHeader } from '@/components/shell/page-header';
 import { AppDataTable } from '@/components/table/app-data-table';
+import { TablePaginationBar } from '@/components/table/table-pagination-bar';
+import { usePagination } from '@/hooks/use-pagination';
 import {
   formatProjectDate,
   getProjectExternalUrl,
@@ -78,6 +80,9 @@ export function ProjectManager({
   const [menuAnchorEl, setMenuAnchorEl] = useState<HTMLElement | null>(null);
   const [activeProject, setActiveProject] = useState<ProjectItem | null>(null);
   const serviceOptions = useMemo(() => flattenServices(services), [services]);
+  const { pageItems, page, setPage, totalPages, totalItems, pageSize } = usePagination(projects, {
+    resetKey: filters,
+  });
 
   const updateFilters = (nextFilters: Partial<ProjectFilters>) => {
     onFiltersChange({ ...filters, ...nextFilters });
@@ -195,11 +200,11 @@ export function ProjectManager({
             { key: 'actions', className: 'w-24' },
           ]}
           isLoading={isFetching}
-          isEmpty={projects.length === 0}
+          isEmpty={pageItems.length === 0}
           emptyText="Không có dữ liệu dự án"
           minWidthClassName="min-w-[1780px]"
         >
-          {projects.map((project) => {
+          {pageItems.map((project) => {
             const revenueGroup = getRevenueGroup(project);
             const isManagementFee = revenueGroup.group === '2.1';
 
@@ -317,6 +322,14 @@ export function ProjectManager({
             );
           })}
         </AppDataTable>
+
+        <TablePaginationBar
+          page={page}
+          totalPages={totalPages}
+          totalItems={totalItems}
+          pageSize={pageSize}
+          onPageChange={setPage}
+        />
 
         <Menu anchorEl={menuAnchorEl} open={Boolean(menuAnchorEl)} onClose={closeActionMenu}>
           <MenuItem

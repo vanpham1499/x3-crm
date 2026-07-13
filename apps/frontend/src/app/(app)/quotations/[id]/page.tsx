@@ -109,7 +109,7 @@ export default function EditQuotationPage() {
       quoteConfigs={quoteConfigs}
       bankAccountOptions={bankAccountOptions}
       isSubmitting={updateMutation.isPending}
-      onSubmit={(payload) => updateMutation.mutate(payload)}
+      onSubmit={(payload) => updateMutation.mutateAsync(payload)}
     />
   );
 }

@@ -18,7 +18,7 @@ class PaymentRepository extends BaseRepository
     public function findAll(array $filters = []): Collection
     {
         return $this->query()
-            ->with(['quotation', 'lead', 'customer', 'project', 'contract', 'revenue'])
+            ->with(['quotation', 'lead', 'customer', 'project', 'contract'])
             ->when($filters['quotation_id'] ?? null, fn ($query, $value) => $query->where('quotation_id', $value))
             ->when($filters['lead_id'] ?? null, fn ($query, $value) => $query->where('lead_id', $value))
             ->when($filters['customer_id'] ?? null, fn ($query, $value) => $query->where('customer_id', $value))
@@ -35,7 +35,7 @@ class PaymentRepository extends BaseRepository
     {
         /** @var Payment|null $payment */
         $payment = $this->query()
-            ->with(['quotation', 'lead', 'customer', 'project', 'contract', 'revenue'])
+            ->with(['quotation', 'lead', 'customer', 'project', 'contract'])
             ->whereKey($id)
             ->first();
 

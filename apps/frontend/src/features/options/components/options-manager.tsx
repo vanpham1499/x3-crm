@@ -33,6 +33,7 @@ import { ConfirmDialog } from '@/components/feedback/confirm-dialog';
 import { FormInputField } from '@/components/form/form-input-field';
 import { IconTabs } from '@/components/navigation/icon-tabs';
 import { PageHeader } from '@/components/shell/page-header';
+import { applyApiErrorsToForm } from '@/lib/api-error';
 import {
   OPTION_SECTIONS,
   getOptionColor,
@@ -75,6 +76,7 @@ function OptionDialog({
     register,
     handleSubmit,
     reset,
+    setError,
     formState: { errors },
   } = useForm<OptionFormValues>({
     values: getOptionDefaults(group?.group || 'lead_status', option),
@@ -94,8 +96,12 @@ function OptionDialog({
       contentClassName="space-y-4"
       onClose={closeDialog}
       onSubmit={handleSubmit(async (values) => {
-        await onSubmit(values, option);
-        closeDialog();
+        try {
+          await onSubmit(values, option);
+          closeDialog();
+        } catch (error) {
+          applyApiErrorsToForm(error, setError);
+        }
       })}
       actions={
         <>

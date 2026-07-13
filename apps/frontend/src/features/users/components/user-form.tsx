@@ -11,6 +11,7 @@ import { FormSection } from '@/components/form/form-section';
 import { FormSelectField } from '@/components/form/form-select-field';
 import { PageHeader } from '@/components/shell/page-header';
 import { ImageUpload } from '@/components/upload/image-upload';
+import { applyApiErrorsToForm } from '@/lib/api-error';
 import { formatDate } from '@/lib/utils';
 import { getUserRoleLabel, getUserStatusClass, getUserStatusLabel } from '@/lib/user-utils';
 import type { RoleOption, User } from '@/types/user';
@@ -33,7 +34,7 @@ type UserFormProps = {
   user?: User;
   isSubmitting: boolean;
   isDeleting?: boolean;
-  onSubmit: (values: UserFormValues) => void;
+  onSubmit: (values: UserFormValues) => Promise<unknown>;
   onDelete?: () => void;
 };
 
@@ -68,9 +69,18 @@ export function UserForm({
     control,
     register,
     handleSubmit,
+    setError,
     watch,
     formState: { errors, isDirty },
   } = useForm<UserFormValues>({ defaultValues });
+
+  const submitForm = handleSubmit(async (values) => {
+    try {
+      await onSubmit(values);
+    } catch (error) {
+      applyApiErrorsToForm(error, setError);
+    }
+  });
 
   const displayName = watch('name') || defaultValues.name || defaultValues.code || 'Nhân viên mới';
   const watchedIsActive = watch('isActive');
@@ -90,7 +100,7 @@ export function UserForm({
         currentLabel={mode === 'edit' ? 'Chỉnh sửa' : undefined}
       />
 
-      <form className="flex w-full flex-1 flex-col" onSubmit={handleSubmit(onSubmit)}>
+      <form className="flex w-full flex-1 flex-col" onSubmit={submitForm}>
         <div className="grid w-full items-start gap-6 xl:grid-cols-12">
           <div className="xl:col-span-8">
             <FormSection title="Thông tin nhân viên">

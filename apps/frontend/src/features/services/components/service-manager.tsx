@@ -21,6 +21,9 @@ import { FormSelectField } from '@/components/form/form-select-field';
 import { MoneyInput } from '@/components/form/money-input';
 import { PageHeader } from '@/components/shell/page-header';
 import { AppDataTable } from '@/components/table/app-data-table';
+import { TablePaginationBar } from '@/components/table/table-pagination-bar';
+import { usePagination } from '@/hooks/use-pagination';
+import { applyApiErrorsToForm } from '@/lib/api-error';
 import {
   DEFAULT_MANAGEMENT_FEE_RATES,
   DEFAULT_SETUP_PACKAGES,
@@ -42,7 +45,7 @@ type ServiceManagerProps = {
   isSavingQuoteConfig: boolean;
   quoteConfigs: AppOption[];
   onFiltersChange: (filters: ServiceFilters) => void;
-  onSubmit: (values: ServiceFormValues, service?: ServiceItem | null) => void;
+  onSubmit: (values: ServiceFormValues, service?: ServiceItem | null) => Promise<unknown>;
   onDelete: (service: ServiceItem) => void;
   onSaveQuoteConfig: (
     service: ServiceItem,
@@ -115,7 +118,7 @@ function ServiceFormDialog({
   services: ServiceItem[];
   isSubmitting: boolean;
   onClose: () => void;
-  onSubmit: (values: ServiceFormValues, service?: ServiceItem | null) => void;
+  onSubmit: (values: ServiceFormValues, service?: ServiceItem | null) => Promise<unknown>;
 }) {
   const currentService = state?.mode === 'edit' ? state.service : null;
   const parentService = state?.mode === 'create' ? state.parent : null;
@@ -125,6 +128,7 @@ function ServiceFormDialog({
     register,
     handleSubmit,
     reset,
+    setError,
     formState: { errors },
   } = useForm<ServiceFormValues>({
     values: getServiceDefaults(currentService || undefined, parentService || undefined),
@@ -143,9 +147,13 @@ function ServiceFormDialog({
       submitting={isSubmitting}
       contentClassName="space-y-4"
       onClose={closeDialog}
-      onSubmit={handleSubmit((values) => {
-        onSubmit(values, currentService);
-        closeDialog();
+      onSubmit={handleSubmit(async (values) => {
+        try {
+          await onSubmit(values, currentService);
+          closeDialog();
+        } catch (error) {
+          applyApiErrorsToForm(error, setError);
+        }
       })}
       actions={
         <>
@@ -380,6 +388,10 @@ export function ServiceManager({
   const [menuAnchorEl, setMenuAnchorEl] = useState<HTMLElement | null>(null);
   const [activeService, setActiveService] = useState<FlatServiceItem | null>(null);
   const flatServices = useMemo(() => flattenServices(services), [services]);
+  const { pageItems, page, setPage, totalPages, totalItems, pageSize } = usePagination(
+    flatServices,
+    { resetKey: filters },
+  );
   const rootColorMap = useMemo(() => {
     const roots = flatServices.filter((service) => service.depth === 0);
 
@@ -435,11 +447,11 @@ export function ServiceManager({
             { key: 'actions', className: 'w-40' },
           ]}
           isLoading={isFetching}
-          isEmpty={flatServices.length === 0}
+          isEmpty={pageItems.length === 0}
           emptyText="Chưa có dịch vụ nào"
           minWidthClassName="min-w-[1080px]"
         >
-          {flatServices.map((service) => {
+          {pageItems.map((service) => {
             const color = rootColorMap.get(getRootServiceId(service)) || ROOT_COLOR_CLASSES[0];
 
             return (
@@ -583,11 +595,13 @@ export function ServiceManager({
           </MenuItem>
         </Menu>
 
-        <div className="flex flex-col gap-3 border-t border-slate-200 px-5 py-4 text-sm text-slate-500 sm:flex-row sm:items-center sm:justify-between">
-          <span>
-            Hiển thị <strong className="text-slate-950">{flatServices.length}</strong> dịch vụ
-          </span>
-        </div>
+        <TablePaginationBar
+          page={page}
+          totalPages={totalPages}
+          totalItems={totalItems}
+          pageSize={pageSize}
+          onPageChange={setPage}
+        />
       </section>
 
       <ServiceFormDialog

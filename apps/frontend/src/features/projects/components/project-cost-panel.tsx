@@ -16,7 +16,7 @@ import { compactFormFieldClassName } from '@/components/form/form-field-styles';
 import { FormInputField } from '@/components/form/form-input-field';
 import { FormSelectField } from '@/components/form/form-select-field';
 import { MoneyInput } from '@/components/form/money-input';
-import { getApiErrorMessage } from '@/lib/api-error';
+import { applyApiErrorsToForm, getApiErrorMessage } from '@/lib/api-error';
 import { getBankAccountBankCode } from '@/lib/company-bank-account-options';
 import { getPartnerMetaValue } from '@/lib/project-partner-options';
 import { formatCurrency } from '@/lib/utils';
@@ -114,6 +114,7 @@ function CostDialog({
     register,
     handleSubmit,
     reset,
+    setError,
     watch,
     formState: { errors },
   } = useForm<ProjectCostFormValues>({ values: getCostDefaults(cost) });
@@ -136,8 +137,12 @@ function CostDialog({
       submitting={isSubmitting}
       onClose={closeDialog}
       onSubmit={handleSubmit(async (values) => {
-        await onSubmit(values, cost);
-        closeDialog();
+        try {
+          await onSubmit(values, cost);
+          closeDialog();
+        } catch (error) {
+          applyApiErrorsToForm(error, setError);
+        }
       })}
       contentClassName="grid gap-3 md:grid-cols-2"
       actions={

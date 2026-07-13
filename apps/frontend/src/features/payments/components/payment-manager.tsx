@@ -13,6 +13,8 @@ import { AppDetailDialog } from '@/components/dialog/app-detail-dialog';
 import { CompactSelectField } from '@/components/form/compact-select-field';
 import { PageHeader } from '@/components/shell/page-header';
 import { AppDataTable } from '@/components/table/app-data-table';
+import { TablePaginationBar } from '@/components/table/table-pagination-bar';
+import { usePagination } from '@/hooks/use-pagination';
 import { formatQuotationPaymentContent } from '@/lib/quotation-utils';
 import type { Payment, PaymentFilters } from '@/types/payment';
 
@@ -220,6 +222,9 @@ export function PaymentManager({
   isFetching,
   onFiltersChange,
 }: PaymentManagerProps) {
+  const { pageItems, page, setPage, totalPages, totalItems, pageSize } = usePagination(payments, {
+    resetKey: filters,
+  });
   const [viewTarget, setViewTarget] = useState<Payment | null>(null);
   const [menuAnchorEl, setMenuAnchorEl] = useState<HTMLElement | null>(null);
   const [activePayment, setActivePayment] = useState<Payment | null>(null);
@@ -271,11 +276,11 @@ export function PaymentManager({
             { key: 'actions', className: 'w-24' },
           ]}
           isLoading={isFetching}
-          isEmpty={payments.length === 0}
+          isEmpty={pageItems.length === 0}
           emptyText="Chưa có giao dịch thanh toán"
           minWidthClassName="min-w-[1500px]"
         >
-          {payments.map((payment) => {
+          {pageItems.map((payment) => {
             const transferMoment = getTransferMoment(payment);
             const paymentContent = formatQuotationPaymentContent(payment.quotation?.quotationCode);
 
@@ -383,9 +388,13 @@ export function PaymentManager({
           })}
         </AppDataTable>
 
-        <div className="border-t border-slate-200 px-5 py-4 text-sm text-slate-500">
-          Hiển thị <strong className="text-slate-950">{payments.length}</strong> giao dịch
-        </div>
+        <TablePaginationBar
+          page={page}
+          totalPages={totalPages}
+          totalItems={totalItems}
+          pageSize={pageSize}
+          onPageChange={setPage}
+        />
       </section>
 
       <Menu anchorEl={menuAnchorEl} open={Boolean(menuAnchorEl)} onClose={closeActionMenu}>

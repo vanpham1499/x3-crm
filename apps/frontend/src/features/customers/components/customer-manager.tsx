@@ -20,6 +20,8 @@ import { CompactSelectField } from '@/components/form/compact-select-field';
 import { IconTabs } from '@/components/navigation/icon-tabs';
 import { PageHeader } from '@/components/shell/page-header';
 import { AppDataTable } from '@/components/table/app-data-table';
+import { TablePaginationBar } from '@/components/table/table-pagination-bar';
+import { usePagination } from '@/hooks/use-pagination';
 import api from '@/services/api/client';
 import type { Customer, CustomerFilters } from '@/types/customer';
 import type { AppOption } from '@/types/option';
@@ -156,7 +158,6 @@ function CustomerViewDialog({
                 />
                 <CustomerDetailRow label="Sales" value={customer.salesUser?.name} />
                 <CustomerDetailRow label="Số dự án" value={customer.projectsCount} />
-                <CustomerDetailRow label="Số hóa đơn" value={customer.invoicesCount} />
               </dl>
 
               {customer.leadId && (
@@ -196,6 +197,9 @@ export function CustomerManager({
     queryKey: ['customers', viewCustomerId, 'quick-view'],
     queryFn: () => api.get(`/customers/${viewCustomerId}`).then((response) => response.data),
     enabled: Boolean(viewCustomerId),
+  });
+  const { pageItems, page, setPage, totalPages, totalItems, pageSize } = usePagination(customers, {
+    resetKey: filters,
   });
 
   const updateFilters = (nextFilters: Partial<CustomerFilters>) => {
@@ -307,11 +311,11 @@ export function CustomerManager({
             { key: 'actions', className: 'w-36' },
           ]}
           isLoading={isFetching}
-          isEmpty={customers.length === 0}
+          isEmpty={pageItems.length === 0}
           emptyText="Không có dữ liệu khách hàng"
           minWidthClassName="min-w-[1430px]"
         >
-          {customers.map((customer) => (
+          {pageItems.map((customer) => (
             <tr key={customer.id} className="group hover:bg-slate-50/80">
               <td className="sticky left-0 z-10 bg-white px-3 py-4 font-bold text-slate-800 group-hover:bg-slate-50">
                 <span className="block truncate" title={customer.customerCode || ''}>
@@ -410,11 +414,13 @@ export function CustomerManager({
           </MenuItem>
         </Menu>
 
-        <div className="flex flex-col gap-3 border-t border-slate-200 px-5 py-4 text-sm text-slate-500 sm:flex-row sm:items-center sm:justify-between">
-          <span>
-            Hiển thị <strong className="text-slate-950">{customers.length}</strong> khách hàng
-          </span>
-        </div>
+        <TablePaginationBar
+          page={page}
+          totalPages={totalPages}
+          totalItems={totalItems}
+          pageSize={pageSize}
+          onPageChange={setPage}
+        />
       </section>
 
       <CustomerViewDialog

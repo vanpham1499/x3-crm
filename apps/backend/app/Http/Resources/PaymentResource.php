@@ -17,7 +17,6 @@ class PaymentResource extends JsonResource
             'customerId' => $this->customer_id,
             'projectId' => $this->project_id,
             'contractId' => $this->contract_id,
-            'revenueId' => $this->revenue_id,
             'transactionDate' => $this->transaction_date?->toDateString(),
             'transactionAt' => $this->transaction_at?->format('Y-m-d H:i:s')
                 ?? data_get($this->webhook_payload, 'transactionDate'),
@@ -45,11 +44,6 @@ class PaymentResource extends JsonResource
             'contract' => $this->whenLoaded('contract', fn () => $this->contract ? [
                 'id' => $this->contract->id,
                 'contractNo' => $this->contract->contract_no,
-            ] : null),
-            'revenue' => $this->whenLoaded('revenue', fn () => $this->revenue ? [
-                'id' => $this->revenue->id,
-                'revenueCode' => $this->revenue->revenue_code,
-                'amountAfterVat' => $this->revenue->amount_after_vat,
             ] : null),
             'createdAt' => $this->created_at?->toISOString(),
             'updatedAt' => $this->updated_at?->toISOString(),

@@ -76,11 +76,6 @@ class Project extends BaseModel
         return $this->hasMany(Contract::class);
     }
 
-    public function revenues(): HasMany
-    {
-        return $this->hasMany(Revenue::class);
-    }
-
     public function payments(): HasMany
     {
         return $this->hasMany(Payment::class);

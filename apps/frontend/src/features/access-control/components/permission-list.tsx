@@ -6,6 +6,8 @@ import { CompactSearchField } from '@/components/form/compact-search-field';
 import { CompactSelectField } from '@/components/form/compact-select-field';
 import { PageHeader } from '@/components/shell/page-header';
 import { AppDataTable } from '@/components/table/app-data-table';
+import { TablePaginationBar } from '@/components/table/table-pagination-bar';
+import { usePagination } from '@/hooks/use-pagination';
 import { getPermissionModuleLabel, getPermissionModules } from '@/lib/access-control-utils';
 import { formatDate } from '@/lib/utils';
 import type { Permission, PermissionFilters } from '@/types/access-control';
@@ -26,6 +28,9 @@ export function PermissionList({
   onFiltersChange,
 }: PermissionListProps) {
   const modules = useMemo(() => getPermissionModules(moduleOptions), [moduleOptions]);
+  const { pageItems, page, setPage, totalPages, totalItems, pageSize } = usePagination(permissions, {
+    resetKey: filters,
+  });
 
   const updateFilters = (nextFilters: Partial<PermissionFilters>) => {
     onFiltersChange({ ...filters, ...nextFilters });
@@ -71,7 +76,7 @@ export function PermissionList({
           emptyText="Không có dữ liệu phân quyền"
           minWidthClassName="min-w-[1180px]"
         >
-          {permissions.map((permission) => (
+          {pageItems.map((permission) => (
             <tr key={permission.id} className="group hover:bg-slate-50/80">
               <td className="sticky left-0 z-10 bg-white px-3 py-4 group-hover:bg-slate-50">
                 <div className="flex min-w-0 items-center gap-3">
@@ -107,8 +112,16 @@ export function PermissionList({
         </AppDataTable>
 
         <div className="border-t border-slate-200 px-5 py-4 text-sm text-slate-500">
-          Hiển thị <strong className="text-slate-950">{permissions.length}</strong> quyền
+          Backend hiện chỉ hỗ trợ xem danh sách quyền.
         </div>
+
+        <TablePaginationBar
+          page={page}
+          totalPages={totalPages}
+          totalItems={totalItems}
+          pageSize={pageSize}
+          onPageChange={setPage}
+        />
       </section>
     </div>
   );

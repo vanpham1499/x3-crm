@@ -157,7 +157,7 @@ export default function NewCustomerPage() {
         sources={sources}
         cancelHref={`/leads/${leadId}`}
         isSubmitting={createMutation.isPending}
-        onSubmit={(values) => createMutation.mutate(values)}
+        onSubmit={(values) => createMutation.mutateAsync(values)}
       />
     </div>
   );

@@ -99,7 +99,7 @@ export default function NewQuotationPage() {
       defaultLeadId={leadId}
       defaultProjectId={projectId}
       isSubmitting={createMutation.isPending}
-      onSubmit={(payload) => createMutation.mutate(payload)}
+      onSubmit={(payload) => createMutation.mutateAsync(payload)}
     />
   );
 }

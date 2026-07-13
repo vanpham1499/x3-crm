@@ -18,6 +18,8 @@ class Option extends BaseModel
 
     public const GROUP_PROJECT_STATUS = 'project_status';
 
+    public const GROUP_KPI_CATEGORY = 'kpi_category';
+
     protected $fillable = [
         'group',
         'key',

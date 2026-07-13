@@ -11,6 +11,7 @@ import { compactFormFieldClassName } from '@/components/form/form-field-styles';
 import { FormInputField } from '@/components/form/form-input-field';
 import { FormSection } from '@/components/form/form-section';
 import { FormSelectField } from '@/components/form/form-select-field';
+import { applyApiErrorsToForm } from '@/lib/api-error';
 import {
   generateProjectCode,
   getProjectDefaults,
@@ -43,7 +44,7 @@ type ProjectFormProps = {
   defaultValues?: Partial<ProjectFormValues>;
   cancelHref?: string;
   isSubmitting: boolean;
-  onSubmit: (values: ProjectFormValues) => void;
+  onSubmit: (values: ProjectFormValues) => Promise<unknown>;
 };
 
 function ProjectDatePicker({
@@ -128,6 +129,7 @@ export function ProjectForm({
     register,
     handleSubmit,
     setValue,
+    setError,
     formState: { errors },
   } = useForm<ProjectFormValues>({
     defaultValues: getProjectDefaults(project, defaultValues),
@@ -202,16 +204,16 @@ export function ProjectForm({
     );
   };
 
+  const submitForm = handleSubmit(async (values) => {
+    try {
+      await onSubmit({ ...values, projectCode: displayedProjectCode });
+    } catch (error) {
+      applyApiErrorsToForm(error, setError);
+    }
+  });
+
   return (
-    <form
-      className="flex w-full flex-1 flex-col gap-5"
-      onSubmit={handleSubmit((values) =>
-        onSubmit({
-          ...values,
-          projectCode: displayedProjectCode,
-        }),
-      )}
-    >
+    <form className="flex w-full flex-1 flex-col gap-5" onSubmit={submitForm}>
       {mode === 'edit' ? <input type="hidden" {...register('quotationId')} /> : null}
       <div className="grid w-full items-start gap-6 xl:grid-cols-12">
         <div className="space-y-6 xl:col-span-8">

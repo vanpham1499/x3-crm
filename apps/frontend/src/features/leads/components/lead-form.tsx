@@ -10,6 +10,7 @@ import { compactFormFieldClassName } from '@/components/form/form-field-styles';
 import { FormInputField } from '@/components/form/form-input-field';
 import { FormSection } from '@/components/form/form-section';
 import { FormSelectField } from '@/components/form/form-select-field';
+import { applyApiErrorsToForm } from '@/lib/api-error';
 import { getLeadDefaults } from '@/lib/lead-utils';
 import type { Lead, LeadFormValues, LeadStatus } from '@/types/lead';
 import type { AppOption } from '@/types/option';
@@ -23,7 +24,7 @@ type LeadFormProps = {
   services: AppOption[];
   statuses: LeadStatus[];
   isSubmitting: boolean;
-  onSubmit: (values: LeadFormValues) => void;
+  onSubmit: (values: LeadFormValues) => Promise<unknown>;
 };
 
 function LeadDatePicker({
@@ -67,6 +68,7 @@ export function LeadForm({
     register,
     handleSubmit,
     setValue,
+    setError,
     watch,
     formState: { errors },
   } = useForm<LeadFormValues>({ defaultValues: defaults });
@@ -74,8 +76,16 @@ export function LeadForm({
   const typedSourceName = watch('sourceName');
   const selectedSource = sources.find((source) => String(source.id) === selectedSourceId) || null;
 
+  const submitForm = handleSubmit(async (values) => {
+    try {
+      await onSubmit(values);
+    } catch (error) {
+      applyApiErrorsToForm(error, setError);
+    }
+  });
+
   return (
-    <form className="flex w-full flex-1 flex-col" onSubmit={handleSubmit(onSubmit)}>
+    <form className="flex w-full flex-1 flex-col" onSubmit={submitForm}>
       <div className="grid w-full items-start gap-6 xl:grid-cols-12">
         <div className="xl:col-span-8">
           <FormSection title="Thông tin lead">

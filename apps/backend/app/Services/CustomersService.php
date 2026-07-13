@@ -121,7 +121,7 @@ class CustomersService extends BaseService
 
     private function loadCustomerRelations(Customer $customer): Customer
     {
-        return $customer->load(['lead', 'customerTypeOption', 'sourceOption', 'industryOption', 'salesUser', 'projects', 'invoices', 'timelines.createdBy']);
+        return $customer->load(['lead', 'customerTypeOption', 'sourceOption', 'industryOption', 'salesUser', 'projects', 'timelines.createdBy']);
     }
 
     private function lockLeadForConversion(mixed $leadId): ?Lead

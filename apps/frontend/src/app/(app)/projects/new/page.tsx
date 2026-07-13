@@ -152,7 +152,7 @@ export default function NewProjectPage() {
         defaultValues={defaultValues}
         cancelHref={customerId ? `/customers/${customerId}` : '/projects'}
         isSubmitting={createMutation.isPending}
-        onSubmit={(values) => createMutation.mutate(values)}
+        onSubmit={(values) => createMutation.mutateAsync(values)}
       />
     </div>
   );

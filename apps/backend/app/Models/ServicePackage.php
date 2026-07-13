@@ -3,7 +3,6 @@
 namespace App\Models;
 
 use Illuminate\Database\Eloquent\Relations\BelongsTo;
-use Illuminate\Database\Eloquent\Relations\HasMany;
 
 class ServicePackage extends BaseModel
 {
@@ -30,10 +29,5 @@ class ServicePackage extends BaseModel
     public function service(): BelongsTo
     {
         return $this->belongsTo(Service::class);
-    }
-
-    public function revenueItems(): HasMany
-    {
-        return $this->hasMany(RevenueItem::class);
     }
 }

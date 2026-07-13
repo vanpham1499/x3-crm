@@ -20,8 +20,6 @@ class CreatePaymentRequest extends BaseRequest
             'projectId' => ['nullable', 'integer', Rule::exists('projects', 'id')->whereNull('deleted_at')],
             'contract_id' => ['nullable', 'integer', Rule::exists('contracts', 'id')->whereNull('deleted_at')],
             'contractId' => ['nullable', 'integer', Rule::exists('contracts', 'id')->whereNull('deleted_at')],
-            'revenue_id' => ['nullable', 'integer', Rule::exists('revenues', 'id')->whereNull('deleted_at')],
-            'revenueId' => ['nullable', 'integer', Rule::exists('revenues', 'id')->whereNull('deleted_at')],
             'transaction_date' => ['required_without_all:transactionDate,transaction_at,transactionAt', 'date'],
             'transactionDate' => ['required_without_all:transaction_date,transaction_at,transactionAt', 'date'],
             'transaction_at' => ['nullable', 'date'],

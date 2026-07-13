@@ -15,6 +15,9 @@ import { FormInputField } from '@/components/form/form-input-field';
 import { VietQrBankSelect } from '@/components/form/vietqr-bank-select';
 import { PageHeader } from '@/components/shell/page-header';
 import { AppDataTable } from '@/components/table/app-data-table';
+import { TablePaginationBar } from '@/components/table/table-pagination-bar';
+import { usePagination } from '@/hooks/use-pagination';
+import { applyApiErrorsToForm } from '@/lib/api-error';
 import {
   getBankAccountBankCode,
   getBankAccountMetaBoolean,
@@ -55,6 +58,7 @@ function BankAccountDialog({
     reset,
     watch,
     setValue,
+    setError,
     formState: { errors },
   } = useForm<CompanyBankAccountFormValues>({
     values: getCompanyBankAccountDefaults(account),
@@ -77,8 +81,12 @@ function BankAccountDialog({
       contentClassName="space-y-4"
       onClose={closeDialog}
       onSubmit={handleSubmit(async (values) => {
-        await onSubmit(values, account);
-        closeDialog();
+        try {
+          await onSubmit(values, account);
+          closeDialog();
+        } catch (error) {
+          applyApiErrorsToForm(error, setError);
+        }
       })}
       actions={
         <>
@@ -129,7 +137,6 @@ function BankAccountDialog({
         className="!m-0 min-h-10 rounded-lg border border-slate-200 px-2"
         control={
           <Checkbox
-            size="small"
             checked={Boolean(isDefault)}
             onChange={(event) => setValue('isDefault', event.target.checked, { shouldDirty: true })}
           />
@@ -154,6 +161,9 @@ export function CompanyBankAccountManager({
   const [deleteTarget, setDeleteTarget] = useState<AppOption | null>(null);
   const [menuAnchorEl, setMenuAnchorEl] = useState<HTMLElement | null>(null);
   const [activeAccount, setActiveAccount] = useState<AppOption | null>(null);
+  const { pageItems, page, setPage, totalPages, totalItems, pageSize } = usePagination(accounts, {
+    resetKey: keyword,
+  });
 
   const openActionMenu = (event: MouseEvent<HTMLButtonElement>, account: AppOption) => {
     setMenuAnchorEl(event.currentTarget);
@@ -200,11 +210,11 @@ export function CompanyBankAccountManager({
             { key: 'actions', className: 'w-24' },
           ]}
           isLoading={isFetching}
-          isEmpty={accounts.length === 0}
+          isEmpty={pageItems.length === 0}
           emptyText="Chưa có tài khoản nhận tiền"
           minWidthClassName="min-w-[1120px]"
         >
-          {accounts.map((account) => (
+          {pageItems.map((account) => (
             <tr key={account.id} className="group hover:bg-slate-50/80">
               <td className="sticky left-0 z-10 bg-white px-3 py-4 group-hover:bg-slate-50">
                 <div className="flex min-w-0 items-center gap-2">
@@ -265,9 +275,13 @@ export function CompanyBankAccountManager({
           ))}
         </AppDataTable>
 
-        <div className="border-t border-slate-200 px-5 py-4 text-sm text-slate-500">
-          Hiển thị <strong className="text-slate-950">{accounts.length}</strong> tài khoản
-        </div>
+        <TablePaginationBar
+          page={page}
+          totalPages={totalPages}
+          totalItems={totalItems}
+          pageSize={pageSize}
+          onPageChange={setPage}
+        />
       </section>
 
       <Menu anchorEl={menuAnchorEl} open={Boolean(menuAnchorEl)} onClose={closeActionMenu}>

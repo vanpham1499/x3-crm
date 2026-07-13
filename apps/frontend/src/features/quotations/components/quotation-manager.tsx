@@ -15,6 +15,8 @@ import { CompactSearchField } from '@/components/form/compact-search-field';
 import { CompactSelectField } from '@/components/form/compact-select-field';
 import { PageHeader } from '@/components/shell/page-header';
 import { AppDataTable } from '@/components/table/app-data-table';
+import { TablePaginationBar } from '@/components/table/table-pagination-bar';
+import { usePagination } from '@/hooks/use-pagination';
 import { getQuotationPaymentContent, QUOTATION_PAYMENT_STATUS_LABELS } from '@/lib/quotation-utils';
 import type { Quotation, QuotationFilters } from '@/types/quotation';
 
@@ -95,6 +97,10 @@ export function QuotationManager({
   const [activeQuotation, setActiveQuotation] = useState<Quotation | null>(null);
   const [deleteTarget, setDeleteTarget] = useState<Quotation | null>(null);
   const [qrTarget, setQrTarget] = useState<Quotation | null>(null);
+  const { pageItems, page, setPage, totalPages, totalItems, pageSize } = usePagination(
+    quotations,
+    { resetKey: filters },
+  );
 
   const openActionMenu = (event: MouseEvent<HTMLButtonElement>, quotation: Quotation) => {
     setMenuAnchorEl(event.currentTarget);
@@ -155,11 +161,11 @@ export function QuotationManager({
             { key: 'actions', className: 'w-36' },
           ]}
           isLoading={isFetching}
-          isEmpty={quotations.length === 0}
+          isEmpty={pageItems.length === 0}
           emptyText="Chưa có báo giá"
           minWidthClassName="min-w-[1420px]"
         >
-          {quotations.map((quotation) => {
+          {pageItems.map((quotation) => {
             const partyCode = quotation.lead?.leadCode || quotation.customer?.customerCode || '';
             const partyName =
               quotation.lead?.customerName || quotation.customer?.customerName || '-';
@@ -305,9 +311,13 @@ export function QuotationManager({
           })}
         </AppDataTable>
 
-        <div className="border-t border-slate-200 px-5 py-4 text-sm text-slate-500">
-          Hiển thị <strong className="text-slate-950">{quotations.length}</strong> báo giá
-        </div>
+        <TablePaginationBar
+          page={page}
+          totalPages={totalPages}
+          totalItems={totalItems}
+          pageSize={pageSize}
+          onPageChange={setPage}
+        />
       </section>
 
       <Menu anchorEl={menuAnchorEl} open={Boolean(menuAnchorEl)} onClose={closeActionMenu}>

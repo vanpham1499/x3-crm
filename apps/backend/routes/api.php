@@ -2,20 +2,22 @@
 
 use App\Http\Controllers\AuthController;
 use App\Http\Controllers\ContractsController;
+use App\Http\Controllers\KpiPointsController;
 use App\Http\Controllers\CustomersController;
-use App\Http\Controllers\InvoicesController;
 use App\Http\Controllers\LeadsController;
 use App\Http\Controllers\MediaController;
 use App\Http\Controllers\OptionsController;
 use App\Http\Controllers\PaymentsController;
 use App\Http\Controllers\PermissionsController;
 use App\Http\Controllers\ProjectCostsController;
+use App\Http\Controllers\ProjectWeeklySettingsController;
 use App\Http\Controllers\ProjectsController;
 use App\Http\Controllers\QuotationsController;
-use App\Http\Controllers\RevenuesController;
 use App\Http\Controllers\RolesController;
 use App\Http\Controllers\ServicesController;
 use App\Http\Controllers\UsersController;
+use App\Http\Controllers\WeeklyReportAttachmentsController;
+use App\Http\Controllers\WeeklyReportsController;
 use Illuminate\Support\Facades\Route;
 
 Route::get('/', fn () => [
@@ -98,26 +100,38 @@ Route::middleware(['auth:sanctum', 'active'])->group(function (): void {
     Route::patch('/quotations/{id}', [QuotationsController::class, 'update']);
     Route::delete('/quotations/{id}', [QuotationsController::class, 'destroy']);
 
-    Route::get('/revenues', [RevenuesController::class, 'index']);
-    Route::post('/revenues', [RevenuesController::class, 'store']);
-    Route::get('/revenues/{id}', [RevenuesController::class, 'show']);
-    Route::put('/revenues/{id}', [RevenuesController::class, 'update']);
-    Route::patch('/revenues/{id}', [RevenuesController::class, 'update']);
-    Route::delete('/revenues/{id}', [RevenuesController::class, 'destroy']);
-
-    Route::get('/invoices', [InvoicesController::class, 'index']);
-    Route::post('/invoices', [InvoicesController::class, 'store']);
-    Route::get('/invoices/{id}', [InvoicesController::class, 'show']);
-    Route::put('/invoices/{id}', [InvoicesController::class, 'update']);
-    Route::patch('/invoices/{id}', [InvoicesController::class, 'update']);
-    Route::delete('/invoices/{id}', [InvoicesController::class, 'destroy']);
-
     Route::get('/contracts', [ContractsController::class, 'index']);
     Route::post('/contracts', [ContractsController::class, 'store']);
     Route::get('/contracts/{id}', [ContractsController::class, 'show']);
     Route::put('/contracts/{id}', [ContractsController::class, 'update']);
     Route::patch('/contracts/{id}', [ContractsController::class, 'update']);
     Route::delete('/contracts/{id}', [ContractsController::class, 'destroy']);
+
+    Route::get('/project-weekly-settings', [ProjectWeeklySettingsController::class, 'index']);
+    Route::post('/project-weekly-settings', [ProjectWeeklySettingsController::class, 'store']);
+    Route::get('/project-weekly-settings/{id}', [ProjectWeeklySettingsController::class, 'show']);
+    Route::put('/project-weekly-settings/{id}', [ProjectWeeklySettingsController::class, 'update']);
+    Route::patch('/project-weekly-settings/{id}', [ProjectWeeklySettingsController::class, 'update']);
+    Route::delete('/project-weekly-settings/{id}', [ProjectWeeklySettingsController::class, 'destroy']);
+
+    Route::get('/weekly-reports', [WeeklyReportsController::class, 'index']);
+    Route::post('/weekly-reports', [WeeklyReportsController::class, 'store']);
+    Route::get('/weekly-reports/{id}', [WeeklyReportsController::class, 'show']);
+    Route::put('/weekly-reports/{id}', [WeeklyReportsController::class, 'update']);
+    Route::patch('/weekly-reports/{id}', [WeeklyReportsController::class, 'update']);
+    Route::delete('/weekly-reports/{id}', [WeeklyReportsController::class, 'destroy']);
+    Route::post('/weekly-reports/{id}/submit', [WeeklyReportsController::class, 'submit']);
+    Route::post('/weekly-reports/{id}/approve', [WeeklyReportsController::class, 'approve'])->middleware('role:ADMIN,LEADER');
+    Route::post('/weekly-reports/{id}/attachments', [WeeklyReportAttachmentsController::class, 'store']);
+    Route::delete('/weekly-report-attachments/{id}', [WeeklyReportAttachmentsController::class, 'destroy']);
+
+    Route::get('/kpi-points', [KpiPointsController::class, 'index']);
+    Route::post('/kpi-points', [KpiPointsController::class, 'store']);
+    Route::get('/kpi-points/{id}', [KpiPointsController::class, 'show']);
+    Route::put('/kpi-points/{id}', [KpiPointsController::class, 'update']);
+    Route::patch('/kpi-points/{id}', [KpiPointsController::class, 'update']);
+    Route::delete('/kpi-points/{id}', [KpiPointsController::class, 'destroy']);
+    Route::post('/kpi-points/{id}/approve', [KpiPointsController::class, 'approve'])->middleware('role:ADMIN,LEADER');
 
     Route::get('/payments', [PaymentsController::class, 'index']);
     Route::post('/payments', [PaymentsController::class, 'store']);

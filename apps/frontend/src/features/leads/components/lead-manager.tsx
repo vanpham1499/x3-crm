@@ -25,6 +25,8 @@ import { CompactSelectField } from '@/components/form/compact-select-field';
 import { IconTabs } from '@/components/navigation/icon-tabs';
 import { PageHeader } from '@/components/shell/page-header';
 import { AppDataTable } from '@/components/table/app-data-table';
+import { TablePaginationBar } from '@/components/table/table-pagination-bar';
+import { usePagination } from '@/hooks/use-pagination';
 import { getLeadStatusClass, getUniqueLeadStatuses } from '@/lib/lead-utils';
 import { getOptionColor } from '@/lib/option-utils';
 import { formatDate, formatDateTime } from '@/lib/utils';
@@ -620,6 +622,9 @@ export function LeadManager({
   const [viewTab, setViewTab] = useState(0);
   const [menuAnchorEl, setMenuAnchorEl] = useState<HTMLElement | null>(null);
   const [activeLead, setActiveLead] = useState<Lead | null>(null);
+  const { pageItems, page, setPage, totalPages, totalItems, pageSize } = usePagination(leads, {
+    resetKey: filters,
+  });
   const viewLeadId = viewTarget?.id || '';
   const { data: viewLeadDetail, isFetching: isFetchingViewLead } = useQuery<Lead>({
     queryKey: ['leads', viewLeadId, 'quick-view'],
@@ -753,11 +758,11 @@ export function LeadManager({
             { key: 'actions', className: 'w-36' },
           ]}
           isLoading={isFetching}
-          isEmpty={leads.length === 0}
+          isEmpty={pageItems.length === 0}
           emptyText="Không có dữ liệu lead"
           minWidthClassName="min-w-[1240px]"
         >
-          {leads.map((lead) => {
+          {pageItems.map((lead) => {
             const link = lead.website || lead.planLink;
             const serviceOptions = lead.interestedServiceOptions?.length
               ? lead.interestedServiceOptions
@@ -938,11 +943,13 @@ export function LeadManager({
           </MenuItem>
         </Menu>
 
-        <div className="flex flex-col gap-3 border-t border-slate-200 px-5 py-4 text-sm text-slate-500 sm:flex-row sm:items-center sm:justify-between">
-          <span>
-            Hiển thị <strong className="text-slate-950">{leads.length}</strong> lead
-          </span>
-        </div>
+        <TablePaginationBar
+          page={page}
+          totalPages={totalPages}
+          totalItems={totalItems}
+          pageSize={pageSize}
+          onPageChange={setPage}
+        />
       </section>
 
       <LeadViewDialog

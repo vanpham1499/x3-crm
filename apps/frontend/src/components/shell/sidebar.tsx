@@ -9,6 +9,8 @@ import AccountBalanceWalletRoundedIcon from '@mui/icons-material/AccountBalanceW
 import AdminPanelSettingsRoundedIcon from '@mui/icons-material/AdminPanelSettingsRounded';
 import CalendarMonthRoundedIcon from '@mui/icons-material/CalendarMonthRounded';
 import DesignServicesRoundedIcon from '@mui/icons-material/DesignServicesRounded';
+import EmojiEventsRoundedIcon from '@mui/icons-material/EmojiEventsRounded';
+import GradingRoundedIcon from '@mui/icons-material/GradingRounded';
 import GridViewRoundedIcon from '@mui/icons-material/GridViewRounded';
 import GroupsRoundedIcon from '@mui/icons-material/GroupsRounded';
 import HandshakeRoundedIcon from '@mui/icons-material/HandshakeRounded';
@@ -44,6 +46,7 @@ const navGroups = [
       { href: '/quotations', label: 'Báo giá', icon: RequestQuoteRoundedIcon },
       { href: '/payments', label: 'Thanh toán', icon: AccountBalanceWalletRoundedIcon },
       { href: '/weekly-reports', label: 'Báo cáo tuần', icon: CalendarMonthRoundedIcon },
+      { href: '/kpi', label: 'KPI', icon: EmojiEventsRoundedIcon },
       {
         href: '/users',
         label: 'Tài khoản',
@@ -63,6 +66,11 @@ const navGroups = [
             href: '/settings/bank-accounts',
             label: 'Tài khoản nhận tiền',
             icon: AccountBalanceRoundedIcon,
+          },
+          {
+            href: '/settings/kpi-categories',
+            label: 'Lỗi / Thành tích KPI',
+            icon: GradingRoundedIcon,
           },
           { href: '/settings/options', label: 'Tùy chọn', icon: TuneRoundedIcon },
         ],

@@ -45,7 +45,6 @@ class CustomerResource extends JsonResource
                 'email' => $this->salesUser->email,
             ] : null),
             'projectsCount' => $this->whenLoaded('projects', fn () => $this->projects->count()),
-            'invoicesCount' => $this->whenLoaded('invoices', fn () => $this->invoices->count()),
             'timelines' => CustomerTimelineResource::collection($this->whenLoaded('timelines')),
             'createdAt' => $this->created_at?->toISOString(),
             'updatedAt' => $this->updated_at?->toISOString(),
