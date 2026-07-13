@@ -14,7 +14,7 @@ class WeeklyReportAttachmentsController extends Controller
     public function store(UploadWeeklyReportAttachmentRequest $request, string $id): JsonResponse
     {
         /** @var User $user */
-        $user = $request->attributes->get('auth_user');
+        $user = $request->user();
 
         return $this->success($this->attachments->upload($id, $request->file('file'), $user), 201);
     }

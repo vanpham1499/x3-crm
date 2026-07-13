@@ -1,10 +1,11 @@
 <?php
 
-use App\Http\Middleware\AuthenticateJwt;
+use App\Http\Middleware\EnsureActiveUser;
 use App\Http\Middleware\EnsureUserRole;
 use Illuminate\Foundation\Application;
 use Illuminate\Foundation\Configuration\Exceptions;
 use Illuminate\Foundation\Configuration\Middleware;
+use Illuminate\Http\Middleware\HandleCors;
 use Illuminate\Http\Request;
 use Illuminate\Validation\ValidationException;
 use Symfony\Component\HttpFoundation\Response;
@@ -16,12 +17,14 @@ return Application::configure(basePath: dirname(__DIR__))
         apiPrefix: 'api',
     )
     ->withMiddleware(function (Middleware $middleware): void {
+        $middleware->statefulApi();
+
         $middleware->api(append: [
-            \Illuminate\Http\Middleware\HandleCors::class,
+            HandleCors::class,
         ]);
 
         $middleware->alias([
-            'jwt' => AuthenticateJwt::class,
+            'active' => EnsureActiveUser::class,
             'role' => EnsureUserRole::class,
         ]);
     })

@@ -21,20 +21,18 @@ import AddRoundedIcon from '@mui/icons-material/AddRounded';
 import DeleteRoundedIcon from '@mui/icons-material/DeleteRounded';
 import DragIndicatorRoundedIcon from '@mui/icons-material/DragIndicatorRounded';
 import EditRoundedIcon from '@mui/icons-material/EditRounded';
-import {
-  Button,
-  Dialog,
-  DialogActions,
-  DialogContent,
-  DialogTitle,
-  IconButton,
-  Switch,
-  Tab,
-  Tabs,
-  TextField,
-} from '@mui/material';
+import GroupsRoundedIcon from '@mui/icons-material/GroupsRounded';
+import MoreVertRoundedIcon from '@mui/icons-material/MoreVertRounded';
+import PersonSearchRoundedIcon from '@mui/icons-material/PersonSearchRounded';
+import WorkRoundedIcon from '@mui/icons-material/WorkRounded';
+import { IconButton, Menu, MenuItem, Switch } from '@mui/material';
 import { Controller, useForm } from 'react-hook-form';
+import { DialogActionButton } from '@/components/actions/dialog-action-button';
+import { AppFormDialog } from '@/components/dialog/app-form-dialog';
 import { ConfirmDialog } from '@/components/feedback/confirm-dialog';
+import { FormInputField } from '@/components/form/form-input-field';
+import { IconTabs } from '@/components/navigation/icon-tabs';
+import { PageHeader } from '@/components/shell/page-header';
 import { applyApiErrorsToForm } from '@/lib/api-error';
 import {
   OPTION_SECTIONS,
@@ -90,73 +88,59 @@ function OptionDialog({
   };
 
   return (
-    <Dialog
+    <AppFormDialog
       open={Boolean(state)}
-      onClose={isSubmitting ? undefined : closeDialog}
+      title={`${state?.mode === 'edit' ? 'Chỉnh sửa option' : 'Thêm option'}${group?.title ? ` · ${group.title}` : ''}`}
       maxWidth="sm"
-      fullWidth
-    >
-      <DialogTitle className="border-b border-slate-100 px-6 py-5">
-        <p className="text-lg font-bold text-slate-950">
-          {state?.mode === 'edit' ? 'Chỉnh sửa option' : 'Thêm option'}
-        </p>
-        <p className="mt-1 text-sm text-slate-500">{group?.title}</p>
-      </DialogTitle>
-
-      <form
-        onSubmit={handleSubmit(async (values) => {
-          try {
-            await onSubmit(values, option);
-            closeDialog();
-          } catch (error) {
-            applyApiErrorsToForm(error, setError);
-          }
-        })}
-      >
-        <DialogContent className="grid gap-4 px-6 py-5">
-          <input type="hidden" {...register('group')} />
-          <input type="hidden" {...register('sortOrder', { valueAsNumber: true })} />
-          <div className="grid gap-3 sm:grid-cols-[1fr_120px]">
-            <TextField
-              fullWidth
-              label="Tên hiển thị *"
-              error={Boolean(errors.label)}
-              helperText={errors.label?.message}
-              {...register('label', { required: 'Bắt buộc' })}
-            />
-            <TextField fullWidth type="color" label="Màu" {...register('color')} />
-          </div>
-
-          <Controller
-            name="isActive"
-            control={control}
-            render={({ field }) => (
-              <div className="flex items-center justify-between rounded-xl border border-slate-200 px-4 py-3">
-                <p className="font-bold text-slate-950">Hoạt động</p>
-                <Switch
-                  checked={field.value}
-                  onChange={(event) => field.onChange(event.target.checked)}
-                />
-              </div>
-            )}
-          />
-        </DialogContent>
-
-        <DialogActions className="border-t border-slate-100 px-6 py-4">
-          <Button variant="outlined" onClick={closeDialog} disabled={isSubmitting}>
+      submitting={isSubmitting}
+      contentClassName="space-y-4"
+      onClose={closeDialog}
+      onSubmit={handleSubmit(async (values) => {
+        try {
+          await onSubmit(values, option);
+          closeDialog();
+        } catch (error) {
+          applyApiErrorsToForm(error, setError);
+        }
+      })}
+      actions={
+        <>
+          <DialogActionButton disabled={isSubmitting} onClick={closeDialog}>
             Hủy
-          </Button>
-          <Button
-            type="submit"
-            variant="contained"
-            disabled={isSubmitting}
-            className="!bg-slate-900 hover:!bg-slate-800"
-          >
+          </DialogActionButton>
+          <DialogActionButton type="submit" tone="primary" disabled={isSubmitting}>
             {isSubmitting ? 'Đang lưu...' : state?.mode === 'edit' ? 'Lưu thay đổi' : 'Tạo option'}
-          </Button>
-        </DialogActions>
-      </form>
-    </Dialog>
+          </DialogActionButton>
+        </>
+      }
+    >
+      <input type="hidden" {...register('group')} />
+      <input type="hidden" {...register('sortOrder', { valueAsNumber: true })} />
+      <div className="grid gap-4 sm:grid-cols-[minmax(0,1fr)_104px]">
+        <FormInputField
+          label="Tên hiển thị *"
+          error={Boolean(errors.label)}
+          helperText={errors.label?.message}
+          {...register('label', { required: 'Vui lòng nhập tên hiển thị' })}
+        />
+        <FormInputField type="color" label="Màu" {...register('color')} />
+      </div>
+
+      <Controller
+        name="isActive"
+        control={control}
+        render={({ field }) => (
+          <div className="flex min-h-10 items-center justify-between rounded-lg border border-slate-200 px-3">
+            <p className="text-sm font-bold text-slate-800">Hoạt động</p>
+            <Switch
+              size="small"
+              checked={field.value}
+              onChange={(event) => field.onChange(event.target.checked)}
+            />
+          </div>
+        )}
+      />
+    </AppFormDialog>
   );
 }
 
@@ -174,6 +158,7 @@ function SortableOptionCard({
   onDelete: (option: AppOption) => void;
 }) {
   const color = getOptionColor(option);
+  const [menuAnchorEl, setMenuAnchorEl] = useState<HTMLElement | null>(null);
   const {
     attributes,
     isDragging,
@@ -219,6 +204,7 @@ function SortableOptionCard({
         <div className="flex shrink-0 items-center">
           <IconButton
             size="small"
+            aria-label={`Chỉnh sửa ${option.label}`}
             title="Chỉnh sửa"
             className="!h-8 !w-8"
             disabled={isReordering}
@@ -229,17 +215,19 @@ function SortableOptionCard({
 
           <IconButton
             size="small"
-            title="Xóa"
-            className="!h-8 !w-8 hover:text-rose-600"
+            aria-label={`Mở tác vụ ${option.label}`}
+            title="Tác vụ"
+            className="!h-8 !w-8"
             disabled={isReordering}
-            onClick={() => onDelete(option)}
+            onClick={(event) => setMenuAnchorEl(event.currentTarget)}
           >
-            <DeleteRoundedIcon fontSize="small" />
+            <MoreVertRoundedIcon fontSize="small" />
           </IconButton>
 
           <button
             ref={setActivatorNodeRef}
             type="button"
+            aria-label={`Kéo để sắp xếp ${option.label}`}
             title="Kéo để sắp xếp"
             disabled={isReordering}
             className={`inline-flex h-8 w-8 cursor-grab items-center justify-center rounded-md text-slate-400 transition hover:bg-slate-100 hover:text-slate-600 active:cursor-grabbing ${
@@ -252,6 +240,32 @@ function SortableOptionCard({
           </button>
         </div>
       </div>
+
+      <Menu
+        anchorEl={menuAnchorEl}
+        open={Boolean(menuAnchorEl)}
+        onClose={() => setMenuAnchorEl(null)}
+      >
+        <MenuItem
+          onClick={() => {
+            onEdit(group, option);
+            setMenuAnchorEl(null);
+          }}
+        >
+          <EditRoundedIcon fontSize="small" className="mr-2 text-slate-500" />
+          Chỉnh sửa
+        </MenuItem>
+        <MenuItem
+          className="text-rose-600"
+          onClick={() => {
+            onDelete(option);
+            setMenuAnchorEl(null);
+          }}
+        >
+          <DeleteRoundedIcon fontSize="small" className="mr-2" />
+          Xóa
+        </MenuItem>
+      </Menu>
     </div>
   );
 }
@@ -302,41 +316,35 @@ export function OptionsManager({
 
   return (
     <div className="min-h-[calc(100vh-72px)] w-full bg-slate-50/60 p-6">
-      <div className="mb-6">
-        <h1 className="text-2xl font-bold text-slate-950">Danh mục hệ thống</h1>
-        <div className="mt-2 flex items-center gap-2 text-sm text-slate-500">
-          <span>Dashboard</span>
-          <span className="h-1 w-1 rounded-full bg-slate-300" />
-          <span>Thiết lập hệ thống</span>
-          <span className="h-1 w-1 rounded-full bg-slate-300" />
-          <span className="text-slate-950">Danh mục</span>
-        </div>
-      </div>
+      <PageHeader title="Tùy chọn hệ thống" />
 
-      <section className="rounded-2xl border border-slate-200 bg-white shadow-sm">
-        <div className="flex flex-col gap-3 border-b border-slate-200 px-5 pt-4 sm:flex-row sm:items-center sm:justify-between">
-          <Tabs
-            value={activeSectionIndex}
-            onChange={(_, nextValue) => setActiveSectionIndex(nextValue)}
-            variant="scrollable"
-            scrollButtons="auto"
-          >
-            {OPTION_SECTIONS.map((section) => (
-              <Tab key={section.title} label={section.title} />
-            ))}
-          </Tabs>
-
-          {isFetching && (
-            <span className="pb-3 text-sm font-semibold text-primary sm:pb-0">Đang tải...</span>
-          )}
-        </div>
+      <section className="overflow-hidden rounded-2xl border border-slate-200 bg-white shadow-sm">
+        <IconTabs
+          value={activeSectionIndex}
+          onChange={setActiveSectionIndex}
+          ariaLabel="Nhóm tùy chọn hệ thống"
+          items={OPTION_SECTIONS.map((section, index) => ({
+            label: section.title,
+            icon:
+              index === 0 ? (
+                <PersonSearchRoundedIcon className="!text-[18px]" />
+              ) : index === 1 ? (
+                <GroupsRoundedIcon className="!text-[18px]" />
+              ) : (
+                <WorkRoundedIcon className="!text-[18px]" />
+              ),
+          }))}
+        />
 
         <div className="p-5">
-          <div className="mb-5">
-            <h2 className="text-xl font-bold text-slate-950">{activeSection.title}</h2>
+          <div className="mb-4 flex min-h-7 items-center justify-between gap-3">
+            <h2 className="text-base font-bold text-slate-950">{activeSection.title}</h2>
+            {isFetching ? (
+              <span className="text-xs font-bold text-primary">Đang tải...</span>
+            ) : null}
           </div>
 
-          <div className="grid gap-5 xl:grid-cols-4">
+          <div className="grid gap-5 lg:grid-cols-2 xl:grid-cols-3">
             {activeSection.groups.map((group) => {
               const groupItems = groupedOptions[group.group] || [];
               const isGroupReordering = reorderingGroup === group.group;
@@ -373,6 +381,7 @@ export function OptionsManager({
                       )}
                       <IconButton
                         size="small"
+                        aria-label={`Thêm tùy chọn ${group.title}`}
                         title="Thêm option"
                         disabled={isGroupLoading}
                         onClick={() => setDialogState({ mode: 'create', group })}

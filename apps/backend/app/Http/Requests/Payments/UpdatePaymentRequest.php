@@ -8,7 +8,7 @@ class UpdatePaymentRequest extends CreatePaymentRequest
     {
         return collect(parent::rules())
             ->map(fn (array $rules): array => array_values(array_map(
-                fn ($rule) => in_array($rule, ['required', 'required_without:transactionDate', 'required_without:transaction_date'], true) ? 'sometimes' : $rule,
+                fn ($rule) => is_string($rule) && str_starts_with($rule, 'required') ? 'sometimes' : $rule,
                 $rules
             )))
             ->all();

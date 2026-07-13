@@ -34,9 +34,14 @@ export default function UsersPage() {
     queryFn: () => api.get('/roles').then((response) => response.data),
   });
 
-  const { data: users = [], isFetching, isLoading } = useQuery<User[]>({
+  const {
+    data: users = [],
+    isFetching,
+    isLoading,
+  } = useQuery<User[]>({
     queryKey: ['users', filters],
-    queryFn: () => api.get('/users', { params: getUsersParams(filters) }).then((response) => response.data),
+    queryFn: () =>
+      api.get('/users', { params: getUsersParams(filters) }).then((response) => response.data),
     placeholderData: keepPreviousData,
   });
 
@@ -53,7 +58,8 @@ export default function UsersPage() {
   });
 
   const bulkDeleteMutation = useMutation({
-    mutationFn: (userIds: number[]) => Promise.all(userIds.map((userId) => api.delete(`/users/${userId}`))),
+    mutationFn: (userIds: number[]) =>
+      Promise.all(userIds.map((userId) => api.delete(`/users/${userId}`))),
     onSuccess: (_, userIds) => {
       queryClient.invalidateQueries({ queryKey: ['users'] });
       notify.success(`Đã xóa ${userIds.length} nhân viên`);

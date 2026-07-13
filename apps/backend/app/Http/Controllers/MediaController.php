@@ -10,14 +10,12 @@ use Illuminate\Http\Request;
 
 class MediaController extends Controller
 {
-    public function __construct(private readonly MediaService $media)
-    {
-    }
+    public function __construct(private readonly MediaService $media) {}
 
     public function index(Request $request): JsonResponse
     {
         /** @var User $user */
-        $user = $request->attributes->get('auth_user');
+        $user = $request->user();
 
         return $this->success($this->media->findAll(
             $user,
@@ -29,7 +27,7 @@ class MediaController extends Controller
     public function upload(UploadMediaRequest $request): JsonResponse
     {
         /** @var User $user */
-        $user = $request->attributes->get('auth_user');
+        $user = $request->user();
 
         return $this->success($this->media->upload($request->file('file'), $user), 201);
     }

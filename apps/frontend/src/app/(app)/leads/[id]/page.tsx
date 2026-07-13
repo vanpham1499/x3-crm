@@ -3,10 +3,13 @@
 import Link from 'next/link';
 import { useParams, useRouter } from 'next/navigation';
 import AddBusinessRoundedIcon from '@mui/icons-material/AddBusinessRounded';
+import ArrowForwardRoundedIcon from '@mui/icons-material/ArrowForwardRounded';
 import { Button } from '@mui/material';
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
+import { CrmFlowBar } from '@/components/crm/crm-flow-bar';
 import { useAppNotification } from '@/components/feedback/notification-provider';
 import { ContentLoading } from '@/components/shell/content-loading';
+import { PageHeader } from '@/components/shell/page-header';
 import { LeadForm } from '@/features/leads/components/lead-form';
 import { getApiErrorMessage } from '@/lib/api-error';
 import { getUniqueLeadStatuses, toLeadPayload } from '@/lib/lead-utils';
@@ -30,7 +33,8 @@ export default function EditLeadPage() {
 
   const { data: existingCustomers = [] } = useQuery<Customer[]>({
     queryKey: ['customers', 'by-lead', id],
-    queryFn: () => api.get('/customers', { params: { lead_id: id } }).then((response) => response.data),
+    queryFn: () =>
+      api.get('/customers', { params: { lead_id: id } }).then((response) => response.data),
     enabled: Boolean(id),
   });
 
@@ -98,34 +102,53 @@ export default function EditLeadPage() {
     return <ContentLoading />;
   }
 
-  const hasConvertedCustomer = Boolean(lead.convertedCustomerId || existingCustomers.length > 0);
+  const convertedCustomerId =
+    lead.convertedCustomer?.id || lead.convertedCustomerId || existingCustomers[0]?.id;
 
   return (
-    <div className="min-h-[calc(100vh-72px)] bg-slate-50/60 p-6">
-      <div className="mb-8 flex w-full flex-col gap-4 sm:flex-row sm:items-start sm:justify-between">
-        <div>
-          <h1 className="text-2xl font-bold text-slate-950">Chỉnh sửa lead</h1>
-          <div className="mt-2 flex items-center gap-2 text-sm text-slate-500">
-            <span>Dashboard</span>
-            <span className="h-1 w-1 rounded-full bg-slate-300" />
-            <span>Lead</span>
-            <span className="h-1 w-1 rounded-full bg-slate-300" />
-            <span className="text-slate-950">{lead.customerName}</span>
-          </div>
-        </div>
+    <div className="flex min-h-[calc(100vh-72px)] flex-col bg-slate-50/60 px-6 pt-6">
+      <PageHeader
+        title={lead.customerName}
+        currentLabel="Hồ sơ"
+        eyebrow={
+          <span className="rounded-md bg-slate-100 px-2 py-1 text-xs font-bold text-slate-600">
+            Lead {lead.leadCode || lead.id}
+          </span>
+        }
+      />
 
-        {!hasConvertedCustomer && (
+      <CrmFlowBar
+        steps={[
+          {
+            label: 'Lead',
+            state: convertedCustomerId ? 'done' : 'active',
+            href: `/leads/${lead.id}`,
+          },
+          {
+            label: 'Customer',
+            state: convertedCustomerId ? 'active' : 'pending',
+            href: convertedCustomerId ? `/customers/${convertedCustomerId}` : undefined,
+          },
+          { label: 'Dự án', state: 'pending' },
+        ]}
+        action={
           <Button
             component={Link}
-            href={`/customers/new?leadId=${lead.id}`}
+            href={
+              convertedCustomerId
+                ? `/customers/${convertedCustomerId}`
+                : `/customers/new?leadId=${lead.id}`
+            }
             variant="contained"
-            startIcon={<AddBusinessRoundedIcon />}
-            className="!bg-slate-900 hover:!bg-slate-800"
+            startIcon={
+              convertedCustomerId ? <ArrowForwardRoundedIcon /> : <AddBusinessRoundedIcon />
+            }
+            className="brand-blue-action"
           >
-            Tạo khách hàng
+            {convertedCustomerId ? 'Mở khách hàng' : 'Chuyển thành khách hàng'}
           </Button>
-        )}
-      </div>
+        }
+      />
 
       <LeadForm
         mode="edit"

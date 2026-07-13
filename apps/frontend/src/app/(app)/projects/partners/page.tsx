@@ -25,6 +25,7 @@ function matchesKeyword(partner: AppOption, keyword: string) {
     partner.label,
     partner.value,
     getPartnerMetaValue(partner, 'accountNo'),
+    getPartnerMetaValue(partner, 'bankCode'),
     getPartnerMetaValue(partner, 'bankName'),
   ]
     .filter(Boolean)

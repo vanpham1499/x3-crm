@@ -6,41 +6,32 @@ import Link from 'next/link';
 import { useRouter } from 'next/navigation';
 import { useQuery } from '@tanstack/react-query';
 import AddRoundedIcon from '@mui/icons-material/AddRounded';
-import AttachFileRoundedIcon from '@mui/icons-material/AttachFileRounded';
-import CloseRoundedIcon from '@mui/icons-material/CloseRounded';
 import DeleteRoundedIcon from '@mui/icons-material/DeleteRounded';
 import EditRoundedIcon from '@mui/icons-material/EditRounded';
 import HistoryRoundedIcon from '@mui/icons-material/HistoryRounded';
+import InfoRoundedIcon from '@mui/icons-material/InfoRounded';
 import MoreVertRoundedIcon from '@mui/icons-material/MoreVertRounded';
 import OpenInNewRoundedIcon from '@mui/icons-material/OpenInNewRounded';
 import PersonAddAlt1RoundedIcon from '@mui/icons-material/PersonAddAlt1Rounded';
 import PhoneRoundedIcon from '@mui/icons-material/PhoneRounded';
 import RequestQuoteRoundedIcon from '@mui/icons-material/RequestQuoteRounded';
-import SearchRoundedIcon from '@mui/icons-material/SearchRounded';
 import VisibilityRoundedIcon from '@mui/icons-material/VisibilityRounded';
-import {
-  Button,
-  Checkbox,
-  Dialog,
-  DialogContent,
-  DialogTitle,
-  IconButton,
-  InputAdornment,
-  LinearProgress,
-  Menu,
-  MenuItem,
-  Tab,
-  Tabs,
-  TextField,
-} from '@mui/material';
+import { Button, IconButton, Menu, MenuItem } from '@mui/material';
+import { DialogActionButton } from '@/components/actions/dialog-action-button';
+import { AppDetailDialog } from '@/components/dialog/app-detail-dialog';
 import { ConfirmDialog } from '@/components/feedback/confirm-dialog';
+import { CompactSearchField } from '@/components/form/compact-search-field';
+import { CompactSelectField } from '@/components/form/compact-select-field';
+import { IconTabs } from '@/components/navigation/icon-tabs';
+import { PageHeader } from '@/components/shell/page-header';
+import { AppDataTable } from '@/components/table/app-data-table';
 import { TablePaginationBar } from '@/components/table/table-pagination-bar';
 import { usePagination } from '@/hooks/use-pagination';
 import { getLeadStatusClass, getUniqueLeadStatuses } from '@/lib/lead-utils';
 import { getOptionColor } from '@/lib/option-utils';
 import { formatDate, formatDateTime } from '@/lib/utils';
 import api from '@/services/api/client';
-import type { Lead, LeadAttachment, LeadFilters, LeadTimelineEntry } from '@/types/lead';
+import type { Lead, LeadFilters, LeadTimelineEntry } from '@/types/lead';
 import type { AppOption } from '@/types/option';
 import type { Quotation } from '@/types/quotation';
 import type { User } from '@/types/user';
@@ -71,6 +62,16 @@ function shortLink(value?: string | null) {
     .replace(/^https?:\/\//i, '')
     .replace(/^www\./i, '')
     .split('/')[0];
+}
+
+function getLeadIdentity(lead: Lead) {
+  const leadCode = lead.leadCode?.trim();
+  const customerName = lead.customerName.trim();
+
+  if (!leadCode) return customerName;
+  if (leadCode.toLowerCase().includes(customerName.toLowerCase())) return leadCode;
+
+  return `${leadCode}.${customerName}`;
 }
 
 function hexToRgb(hex: string) {
@@ -276,16 +277,25 @@ function getEntryChanges(entry: LeadTimelineEntry) {
   return entry.changes || getEntryData(entry)?.changes || [];
 }
 
-function getLeadAttachments(lead: Lead) {
-  return lead.attachments || lead.files || [];
+function getQuotationStatusLabel(status?: string | null) {
+  const normalizedStatus = status?.toLowerCase();
+
+  if (normalizedStatus === 'draft') return 'Nháp';
+  if (normalizedStatus === 'sent') return 'Đã gửi';
+  if (normalizedStatus === 'won') return 'Đã chốt';
+  if (normalizedStatus === 'lost') return 'Không chốt';
+
+  return status || '-';
 }
 
-function getAttachmentUrl(file: LeadAttachment) {
-  return file.url || file.fileUrl || file.file_url || '';
-}
+function getQuotationStatusClass(status?: string | null) {
+  const normalizedStatus = status?.toLowerCase();
 
-function getAttachmentName(file: LeadAttachment) {
-  return file.name || file.fileName || file.title || getAttachmentUrl(file) || 'File đính kèm';
+  if (normalizedStatus === 'won') return 'bg-emerald-50 text-emerald-700 ring-emerald-100';
+  if (normalizedStatus === 'sent') return 'bg-sky-50 text-sky-700 ring-sky-100';
+  if (normalizedStatus === 'lost') return 'bg-rose-50 text-rose-700 ring-rose-100';
+
+  return 'bg-slate-100 text-slate-700 ring-slate-200';
 }
 
 function LeadDetailRow({ label, value }: { label: string; value?: string | number | null }) {
@@ -312,9 +322,12 @@ function LeadViewDialog({
   onTabChange: (tab: number) => void;
   onClose: () => void;
 }) {
-  const { data: quotations = [] } = useQuery<Quotation[]>({
+  const { data: quotations = [], isFetching: isFetchingQuotations } = useQuery<Quotation[]>({
     queryKey: ['quotations', 'by-lead', lead?.id],
-    queryFn: () => api.get<Quotation[]>('/quotations', { params: { lead_id: lead?.id } }).then((response) => response.data),
+    queryFn: () =>
+      api
+        .get<Quotation[]>('/quotations', { params: { lead_id: lead?.id } })
+        .then((response) => response.data),
     enabled: Boolean(lead?.id),
   });
 
@@ -326,7 +339,6 @@ function LeadViewDialog({
       ? [lead.interestedServiceOption]
       : [];
   const timelineEntries = getTimelineEntries(lead);
-  const attachments = getLeadAttachments(lead);
   const link = lead.website || lead.planLink;
   const industryName = lead.industryOption?.label || lead.industry;
   const sourceName = lead.sourceOption?.label || lead.source?.name;
@@ -335,69 +347,71 @@ function LeadViewDialog({
     : lead.interestedService?.name || lead.interestedServiceText;
 
   return (
-    <Dialog open onClose={onClose} maxWidth="lg" fullWidth>
-      <DialogTitle className="flex flex-col gap-4 border-b border-slate-100 !px-6 !py-4 sm:flex-row sm:items-start sm:justify-between">
-        <div className="min-w-0">
-          <p className="truncate text-base font-bold text-slate-950">{lead.customerName}</p>
-          <p className="mt-1 text-sm font-medium text-slate-500">
-            {lead.leadCode ? `Mã lead: ${lead.leadCode}` : 'Chi tiết lead'}
-          </p>
-        </div>
-        <div className="flex shrink-0 flex-wrap items-center gap-2">
-          {!lead.convertedCustomerId && (
+    <AppDetailDialog
+      open
+      title={lead.customerName}
+      eyebrow={lead.leadCode || `Lead #${lead.id}`}
+      loading={isLoading || isFetchingQuotations}
+      onClose={onClose}
+      actions={
+        <>
+          {lead.convertedCustomerId ? (
+            <DialogActionButton
+              href={`/customers/${lead.convertedCustomerId}`}
+              tone="primary"
+              endIcon={<OpenInNewRoundedIcon />}
+            >
+              Mở khách hàng
+            </DialogActionButton>
+          ) : (
             <>
-              <Button
-                component={Link}
+              <DialogActionButton
                 href={`/quotations/new?leadId=${lead.id}`}
-                size="small"
-                variant="outlined"
                 startIcon={<RequestQuoteRoundedIcon />}
               >
                 Tạo báo giá
-              </Button>
-              <Button
-                component={Link}
+              </DialogActionButton>
+              <DialogActionButton
                 href={`/customers/new?leadId=${lead.id}`}
-                size="small"
-                variant="contained"
+                tone="primary"
                 startIcon={<PersonAddAlt1RoundedIcon />}
-                className="!bg-slate-900 hover:!bg-slate-800"
               >
                 Tạo khách hàng mới
-              </Button>
+              </DialogActionButton>
             </>
           )}
-          <Button
-            component={Link}
-            href={`/leads/${lead.id}`}
-            size="small"
-            variant="outlined"
-            startIcon={<EditRoundedIcon />}
-          >
+          <DialogActionButton href={`/leads/${lead.id}`} startIcon={<EditRoundedIcon />}>
             Chỉnh sửa lead
-          </Button>
-          <IconButton size="small" onClick={onClose} title="Đóng">
-            <CloseRoundedIcon fontSize="small" />
-          </IconButton>
-        </div>
-      </DialogTitle>
-      <DialogContent className="!p-0">
-        {isLoading && <LinearProgress color="primary" />}
-        <Tabs
-          value={tab}
-          onChange={(_, nextTab) => onTabChange(nextTab)}
-          className="border-b border-slate-100 px-4"
-        >
-          <Tab label="Thông tin" />
-          <Tab label="Lịch sử chăm sóc" />
-          <Tab label="File đính kèm" />
-        </Tabs>
+          </DialogActionButton>
+        </>
+      }
+    >
+      <IconTabs
+        value={tab}
+        onChange={onTabChange}
+        ariaLabel="Nội dung chi tiết lead"
+        items={[
+          {
+            label: 'Thông tin',
+            icon: <InfoRoundedIcon className="!text-[18px]" />,
+          },
+          {
+            label: 'Lịch sử chăm sóc',
+            icon: <HistoryRoundedIcon className="!text-[18px]" />,
+          },
+          {
+            label: 'Lịch sử báo giá',
+            icon: <RequestQuoteRoundedIcon className="!text-[18px]" />,
+          },
+        ]}
+      />
 
+      <div className="bg-slate-50/60">
         {tab === 0 && (
-          <div className="grid gap-3 p-4 lg:grid-cols-[minmax(0,1fr)_minmax(360px,0.9fr)]">
-            <section className="rounded-lg border border-slate-200 bg-white p-5">
-              <h3 className="mb-5 text-sm font-bold text-slate-950">Thông tin lead</h3>
-              <dl className="space-y-4">
+          <div role="tabpanel" aria-label="Thông tin lead" className="p-4">
+            <section className="rounded-xl border border-slate-200 bg-white p-5">
+              <h3 className="mb-4 text-sm font-bold text-slate-950">Thông tin lead</h3>
+              <dl className="grid gap-3 lg:grid-cols-2">
                 <LeadDetailRow label="Khách hàng" value={lead.customerName} />
                 <LeadDetailRow label="SĐT" value={lead.phone} />
                 <LeadDetailRow label="Nguồn" value={sourceName} />
@@ -411,72 +425,19 @@ function LeadViewDialog({
                 <LeadDetailRow label="Zalo" value={lead.zaloGroup} />
               </dl>
 
-              <div className="mt-5 rounded-lg bg-amber-50 p-4 ring-1 ring-amber-100">
+              <div className="mt-4 rounded-lg bg-amber-50 p-4 ring-1 ring-amber-100">
                 <p className="text-xs font-bold uppercase text-amber-700">Ghi chú</p>
                 <p className="mt-2 whitespace-pre-line text-sm font-semibold leading-6 text-slate-800">
                   {stringValue(lead.note)}
                 </p>
               </div>
             </section>
-
-            <section className="rounded-lg border border-slate-200 bg-white p-5">
-              <h3 className="mb-5 text-sm font-bold text-slate-950">Timeline chăm sóc</h3>
-              <LeadTimelineList entries={timelineEntries} lead={lead} statuses={statuses} />
-            </section>
-
-            <section className="rounded-lg border border-slate-200 bg-white p-5 lg:col-span-2">
-              <div className="mb-4 flex items-center justify-between">
-                <h3 className="text-sm font-bold text-slate-950">Báo giá ({quotations.length})</h3>
-                {!lead.convertedCustomerId && (
-                  <Button
-                    component={Link}
-                    href={`/quotations/new?leadId=${lead.id}`}
-                    size="small"
-                    startIcon={<RequestQuoteRoundedIcon />}
-                  >
-                    Tạo báo giá
-                  </Button>
-                )}
-              </div>
-              {quotations.length === 0 ? (
-                <p className="text-sm font-medium text-slate-500">Lead chưa có báo giá nào.</p>
-              ) : (
-                <div className="divide-y divide-slate-100">
-                  {quotations.map((quotation) => (
-                    <div key={quotation.id} className="flex flex-wrap items-center justify-between gap-2 py-3">
-                      <Link
-                        href={`/quotations/${quotation.id}`}
-                        className="font-bold text-slate-950 hover:underline"
-                      >
-                        {quotation.quotationCode || `#${quotation.id}`}
-                      </Link>
-                      <span className="text-sm font-semibold text-slate-700">
-                        {new Intl.NumberFormat('vi-VN').format(Math.round(Number(quotation.totalAmount) || 0))} đ
-                      </span>
-                      <span className="rounded-md bg-slate-100 px-2 py-1 text-xs font-bold text-slate-700">
-                        {quotation.status || '-'}
-                      </span>
-                      {!quotation.projectId && (
-                        <Button
-                          component={Link}
-                          href={`/projects/new?quotationId=${quotation.id}`}
-                          size="small"
-                          variant="outlined"
-                        >
-                          Tạo dự án từ báo giá này
-                        </Button>
-                      )}
-                    </div>
-                  ))}
-                </div>
-              )}
-            </section>
           </div>
         )}
 
         {tab === 1 && (
-          <div className="p-4">
-            <section className="rounded-lg border border-slate-200 bg-white p-5">
+          <div role="tabpanel" aria-label="Lịch sử chăm sóc" className="p-4">
+            <section className="rounded-xl border border-slate-200 bg-white p-5">
               <h3 className="mb-5 flex items-center gap-2 text-sm font-bold text-slate-950">
                 <HistoryRoundedIcon className="!text-[18px] text-slate-500" />
                 Lịch sử chăm sóc
@@ -487,39 +448,87 @@ function LeadViewDialog({
         )}
 
         {tab === 2 && (
-          <div className="p-4">
-            <section className="rounded-lg border border-slate-200 bg-white p-5">
-              <h3 className="mb-5 flex items-center gap-2 text-sm font-bold text-slate-950">
-                <AttachFileRoundedIcon className="!text-[18px] text-slate-500" />
-                File đính kèm
-              </h3>
-              {attachments.length === 0 ? (
-                <p className="text-sm font-medium text-slate-500">Chưa có file đính kèm.</p>
-              ) : (
-                <div className="grid gap-3 sm:grid-cols-2">
-                  {attachments.map((file, index) => {
-                    const url = getAttachmentUrl(file);
+          <div role="tabpanel" aria-label="Lịch sử báo giá" className="p-4">
+            <section className="overflow-hidden rounded-xl border border-slate-200 bg-white">
+              <div className="flex flex-wrap items-center justify-between gap-3 border-b border-slate-200 px-4 py-3">
+                <h3 className="text-sm font-bold text-slate-950">
+                  Lịch sử báo giá ({quotations.length})
+                </h3>
+                {!lead.convertedCustomerId && (
+                  <DialogActionButton
+                    href={`/quotations/new?leadId=${lead.id}`}
+                    startIcon={<RequestQuoteRoundedIcon />}
+                  >
+                    Tạo báo giá
+                  </DialogActionButton>
+                )}
+              </div>
 
-                    return (
-                      <a
-                        key={file.id || `${getAttachmentName(file)}-${index}`}
-                        href={url || undefined}
-                        target="_blank"
-                        rel="noreferrer"
-                        className="flex min-w-0 items-center gap-3 rounded-lg border border-slate-200 p-3 text-sm font-semibold text-slate-800 hover:border-blue-200 hover:bg-blue-50"
+              {quotations.length === 0 ? (
+                <div className="px-4 py-10 text-center">
+                  <p className="text-sm font-semibold text-slate-500">Lead chưa có báo giá nào.</p>
+                </div>
+              ) : (
+                <div className="text-sm">
+                  <div className="hidden grid-cols-[minmax(180px,1fr)_150px_110px_112px] gap-3 bg-slate-50 px-4 py-2 text-xs font-bold uppercase text-slate-500 md:grid">
+                    <span>Báo giá</span>
+                    <span>Tổng tiền</span>
+                    <span>Trạng thái</span>
+                    <span />
+                  </div>
+                  <div className="divide-y divide-slate-100">
+                    {quotations.map((quotation) => (
+                      <div
+                        key={quotation.id}
+                        className="grid gap-3 px-4 py-3 transition-colors hover:bg-slate-50/70 md:grid-cols-[minmax(180px,1fr)_150px_110px_112px] md:items-center"
                       >
-                        <AttachFileRoundedIcon className="shrink-0 !text-[18px] text-slate-500" />
-                        <span className="truncate">{getAttachmentName(file)}</span>
-                      </a>
-                    );
-                  })}
+                        <div className="min-w-0">
+                          <Link
+                            href={`/quotations/${quotation.id}`}
+                            className="text-sm font-semibold text-slate-950 hover:text-emerald-700 hover:underline"
+                          >
+                            {quotation.quotationCode || `#${quotation.id}`}
+                          </Link>
+                          <p className="mt-1 text-xs font-medium text-slate-500">
+                            {quotation.createdAt
+                              ? formatDate(quotation.createdAt)
+                              : 'Chưa có ngày tạo'}
+                          </p>
+                        </div>
+                        <div>
+                          <p className="text-sm font-semibold tabular-nums text-slate-800">
+                            {new Intl.NumberFormat('vi-VN').format(
+                              Math.round(Number(quotation.totalAmount) || 0),
+                            )}{' '}
+                            đ
+                          </p>
+                        </div>
+                        <span
+                          className={`w-fit rounded-md px-2 py-1 text-xs font-bold ring-1 ${getQuotationStatusClass(quotation.status)}`}
+                        >
+                          {getQuotationStatusLabel(quotation.status)}
+                        </span>
+                        {!quotation.projectId && lead.convertedCustomerId ? (
+                          <DialogActionButton
+                            href={`/projects/new?customerId=${lead.convertedCustomerId}&quotationId=${quotation.id}`}
+                          >
+                            Tạo dự án
+                          </DialogActionButton>
+                        ) : (
+                          <DialogActionButton href={`/quotations/${quotation.id}`}>
+                            Mở báo giá
+                          </DialogActionButton>
+                        )}
+                      </div>
+                    ))}
+                  </div>
                 </div>
               )}
             </section>
           </div>
         )}
-      </DialogContent>
-    </Dialog>
+      </div>
+    </AppDetailDialog>
   );
 }
 
@@ -542,6 +551,7 @@ function LeadTimelineList({
         const color = getEntryColor(entry, lead, statuses);
         const actor = getEntryActor(entry);
         const time = getEntryTime(entry);
+        const title = getEntryTitle(entry);
         const description = getEntryDescription(entry);
         const changes = getEntryChanges(entry);
 
@@ -560,10 +570,16 @@ function LeadTimelineList({
               />
             </div>
             <div className="min-w-0">
-              <p className="text-sm font-bold text-slate-800">
+              <p className="text-sm font-bold text-slate-900">{title}</p>
+              <p className="mt-1 text-xs font-medium text-slate-500">
                 {formatDateTime(time)}
                 {actor?.name ? ` - ${actor.name}` : ''}
               </p>
+              {description && (
+                <p className="mt-2 whitespace-pre-line text-sm leading-6 text-slate-700">
+                  {description}
+                </p>
+              )}
               {changes.length > 0 && (
                 <div className="mt-2 space-y-1 rounded-lg bg-slate-50 p-3">
                   {changes.map((change, changeIndex) => (
@@ -601,7 +617,6 @@ export function LeadManager({
   onDelete,
 }: LeadManagerProps) {
   const router = useRouter();
-  const [selectedLeadIds, setSelectedLeadIds] = useState<number[]>([]);
   const [deleteTarget, setDeleteTarget] = useState<Lead | null>(null);
   const [viewTarget, setViewTarget] = useState<Lead | null>(null);
   const [viewTab, setViewTab] = useState(0);
@@ -627,32 +642,8 @@ export function LeadManager({
         : getUniqueLeadStatuses(leads),
     [leads, statuses],
   );
-  const visibleLeadIds = useMemo(() => leads.map((lead) => lead.id), [leads]);
-  const selectedVisibleCount = visibleLeadIds.filter((id) => selectedLeadIds.includes(id)).length;
-  const isAllVisibleSelected =
-    visibleLeadIds.length > 0 && selectedVisibleCount === visibleLeadIds.length;
-  const isSomeVisibleSelected = selectedVisibleCount > 0 && !isAllVisibleSelected;
-  const hasSelectedRows = selectedLeadIds.length > 0;
-
   const updateFilters = (nextFilters: Partial<LeadFilters>) => {
     onFiltersChange({ ...filters, ...nextFilters });
-    setSelectedLeadIds([]);
-  };
-
-  const toggleAllVisibleRows = (checked: boolean) => {
-    if (checked) {
-      setSelectedLeadIds((current) => Array.from(new Set([...current, ...visibleLeadIds])));
-      return;
-    }
-
-    setSelectedLeadIds((current) => current.filter((id) => !visibleLeadIds.includes(id)));
-  };
-
-  const toggleLeadRow = (leadId: number, checked: boolean) => {
-    setSelectedLeadIds((current) => {
-      if (checked) return Array.from(new Set([...current, leadId]));
-      return current.filter((id) => id !== leadId);
-    });
   };
 
   const openActionMenu = (event: MouseEvent<HTMLButtonElement>, lead: Lead) => {
@@ -687,355 +678,255 @@ export function LeadManager({
 
   return (
     <div className="min-h-[calc(100vh-72px)] w-full bg-slate-50/60 p-6">
-      <div className="mb-6 flex flex-col gap-4 sm:flex-row sm:items-center sm:justify-between">
-        <div>
-          <h1 className="text-2xl font-bold text-slate-950">Lead</h1>
-          <div className="mt-2 flex items-center gap-2 text-sm text-slate-500">
-            <span>Dashboard</span>
-            <span className="h-1 w-1 rounded-full bg-slate-300" />
-            <span>Lead</span>
-            <span className="h-1 w-1 rounded-full bg-slate-300" />
-            <span className="text-slate-950">Danh sách</span>
-          </div>
-        </div>
-
-        <Button
-          component={Link}
-          href="/leads/new"
-          variant="contained"
-          startIcon={<AddRoundedIcon />}
-          className="!bg-slate-900 hover:!bg-slate-800"
-        >
-          Thêm lead
-        </Button>
-      </div>
+      <PageHeader
+        title="Lead"
+        action={{
+          label: 'Thêm lead',
+          href: '/leads/new',
+          icon: <AddRoundedIcon />,
+        }}
+      />
 
       <section className="w-full overflow-hidden rounded-2xl border border-slate-200 bg-white shadow-sm">
-        <div className="grid gap-3 border-b border-slate-200 p-5 lg:grid-cols-[minmax(280px,1fr)_repeat(4,190px)]">
-          <TextField
-            fullWidth
+        <div className="grid gap-3  border-slate-200 p-4 lg:grid-cols-[minmax(260px,1fr)_repeat(4,176px)]">
+          <CompactSearchField
             label="Từ khóa"
             placeholder="Tìm lead, số điện thoại, website, ngành..."
             value={filters.keyword}
-            onChange={(event) => updateFilters({ keyword: event.target.value })}
-            slotProps={{
-              input: {
-                startAdornment: (
-                  <InputAdornment position="start">
-                    <SearchRoundedIcon fontSize="small" />
-                  </InputAdornment>
-                ),
-              },
-            }}
+            onChange={(value) => updateFilters({ keyword: value })}
           />
 
-          <TextField
-            select
+          <CompactSelectField
             label="Trạng thái"
             value={filters.status_option_id || filters.status_id}
-            onChange={(event) =>
-              updateFilters({ status_option_id: event.target.value, status_id: '' })
-            }
-          >
-            <MenuItem value="">Tất cả</MenuItem>
-            {statusOptions.map((status) => (
-              <MenuItem key={status.id} value={String(status.id)}>
-                {status.name}
-              </MenuItem>
-            ))}
-          </TextField>
+            options={statusOptions.map((status) => ({
+              value: String(status.id),
+              label: status.name,
+            }))}
+            onChange={(value) => updateFilters({ status_option_id: value, status_id: '' })}
+          />
 
-          <TextField
-            select
+          <CompactSelectField
             label="Nhân sự"
             value={filters.assigned_user_id}
-            onChange={(event) => updateFilters({ assigned_user_id: event.target.value })}
-          >
-            <MenuItem value="">Tất cả</MenuItem>
-            {users.map((user) => (
-              <MenuItem key={user.id} value={String(user.id)}>
-                {user.name || user.email || user.code}
-              </MenuItem>
-            ))}
-          </TextField>
+            options={users.map((user) => ({
+              value: String(user.id),
+              label: user.name || user.email || user.code || '-',
+            }))}
+            onChange={(value) => updateFilters({ assigned_user_id: value })}
+          />
 
-          <TextField
-            select
+          <CompactSelectField
             label="Nguồn"
             value={filters.source_option_id || filters.source_id}
-            onChange={(event) =>
-              updateFilters({ source_option_id: event.target.value, source_id: '' })
-            }
-          >
-            <MenuItem value="">Tất cả</MenuItem>
-            {sources.map((source) => (
-              <MenuItem key={source.id} value={String(source.id)}>
-                {source.label}
-              </MenuItem>
-            ))}
-          </TextField>
+            options={sources.map((source) => ({
+              value: String(source.id),
+              label: source.label,
+            }))}
+            onChange={(value) => updateFilters({ source_option_id: value, source_id: '' })}
+          />
 
-          <TextField
-            select
+          <CompactSelectField
             label="Dịch vụ"
             value={filters.interested_service_option_id || filters.interested_service_id}
-            onChange={(event) =>
+            options={services.map((service) => ({
+              value: String(service.id),
+              label: service.label,
+            }))}
+            onChange={(value) =>
               updateFilters({
-                interested_service_option_id: event.target.value,
+                interested_service_option_id: value,
                 interested_service_id: '',
               })
             }
-          >
-            <MenuItem value="">Tất cả</MenuItem>
-            {services.map((service) => (
-              <MenuItem key={service.id} value={String(service.id)}>
-                {service.label}
-              </MenuItem>
-            ))}
-          </TextField>
+          />
         </div>
 
-        {hasSelectedRows && (
-          <div className="flex h-14 items-center justify-between bg-emerald-100 px-5 text-sm font-bold text-emerald-700">
-            <div className="flex items-center gap-4">
-              <Checkbox
-                color="success"
-                size="small"
-                checked
-                onChange={(event) => toggleAllVisibleRows(event.target.checked)}
-              />
-              <span>{selectedLeadIds.length} selected</span>
-            </div>
-            <IconButton
-              size="small"
-              color="success"
-              onClick={() => setSelectedLeadIds([])}
-              title="Xóa lựa chọn"
-            >
-              <DeleteRoundedIcon fontSize="small" />
-            </IconButton>
-          </div>
-        )}
+        <AppDataTable
+          columns={[
+            {
+              key: 'lead',
+              label: 'Lead',
+              className: 'sticky left-0 z-20 w-[360px] bg-slate-100',
+            },
+            { key: 'status', label: 'Trạng thái', className: 'w-32' },
+            { key: 'assignee', label: 'Nhân sự', className: 'w-40' },
+            { key: 'source', label: 'Nguồn', className: 'w-36' },
+            { key: 'service', label: 'Dịch vụ', className: 'w-44' },
+            { key: 'occurredDate', label: 'Ngày phát sinh', className: 'w-32' },
+            { key: 'note', label: 'Ghi chú' },
+            { key: 'actions', className: 'w-36' },
+          ]}
+          isLoading={isFetching}
+          isEmpty={pageItems.length === 0}
+          emptyText="Không có dữ liệu lead"
+          minWidthClassName="min-w-[1240px]"
+        >
+          {pageItems.map((lead) => {
+            const link = lead.website || lead.planLink;
+            const serviceOptions = lead.interestedServiceOptions?.length
+              ? lead.interestedServiceOptions
+              : lead.interestedServiceOption
+                ? [lead.interestedServiceOption]
+                : [];
+            const fallbackServiceName =
+              lead.interestedService?.name || lead.interestedServiceText || '';
+            const status = lead.statusOption
+              ? {
+                  id: lead.statusOption.id,
+                  name: lead.statusOption.label,
+                  sortOrder: lead.statusOption.sortOrder || 0,
+                }
+              : lead.status;
+            const sourceName = lead.sourceOption?.label || lead.source?.name || '-';
+            const industryName = lead.industryOption?.label || lead.industry;
+            const leadIdentity = getLeadIdentity(lead);
 
-        <div className="relative w-full overflow-x-auto">
-          {isFetching && (
-            <div className="absolute left-0 right-0 top-0 z-30">
-              <LinearProgress color="primary" />
-            </div>
-          )}
-
-          <table
-            className={`w-full min-w-[1280px] table-fixed text-left text-sm transition-opacity ${isFetching ? 'opacity-60' : 'opacity-100'}`}
-          >
-            <thead className="bg-slate-50 text-xs font-bold uppercase text-slate-500">
-              <tr>
-                <th className="sticky left-0 z-20 w-12 bg-slate-50 px-5 py-4">
-                  <Checkbox
-                    color="success"
-                    size="small"
-                    checked={isAllVisibleSelected}
-                    indeterminate={isSomeVisibleSelected}
-                    onChange={(event) => toggleAllVisibleRows(event.target.checked)}
-                  />
-                </th>
-                <th className="sticky left-12 z-20 w-[360px] bg-slate-50 px-3 py-4">Lead</th>
-                <th className="w-32 px-3 py-4">Trạng thái</th>
-                <th className="w-40 px-3 py-4">Nhân sự</th>
-                <th className="w-36 px-3 py-4">Nguồn</th>
-                <th className="w-44 px-3 py-4">Dịch vụ</th>
-                <th className="w-32 px-3 py-4">Ngày phát sinh</th>
-                <th className="px-3 py-4">Ghi chú</th>
-                <th className="w-24 px-5 py-4" />
-              </tr>
-            </thead>
-            <tbody className="divide-y divide-slate-100">
-              {leads.length === 0 ? (
-                <tr>
-                  <td
-                    colSpan={9}
-                    className="px-5 py-12 text-center text-sm font-semibold text-slate-500"
-                  >
-                    Không có dữ liệu lead
-                  </td>
-                </tr>
-              ) : (
-                pageItems.map((lead) => {
-                  const isSelected = selectedLeadIds.includes(lead.id);
-                  const link = lead.website || lead.planLink;
-                  const serviceOptions = lead.interestedServiceOptions?.length
-                    ? lead.interestedServiceOptions
-                    : lead.interestedServiceOption
-                      ? [lead.interestedServiceOption]
-                      : [];
-                  const fallbackServiceName =
-                    lead.interestedService?.name || lead.interestedServiceText || '';
-                  const status = lead.statusOption
-                    ? {
-                        id: lead.statusOption.id,
-                        name: lead.statusOption.label,
-                        sortOrder: lead.statusOption.sortOrder || 0,
-                      }
-                    : lead.status;
-                  const sourceName = lead.sourceOption?.label || lead.source?.name || '-';
-                  const industryName = lead.industryOption?.label || lead.industry;
-
-                  return (
-                    <tr
-                      key={lead.id}
-                      className={`group ${isSelected ? 'bg-emerald-50/60' : 'hover:bg-slate-50/80'}`}
-                    >
-                      <td
-                        className={`sticky left-0 z-10 px-5 py-3 ${isSelected ? 'bg-emerald-50/60' : 'bg-white group-hover:bg-slate-50'}`}
+            return (
+              <tr key={lead.id} className="group hover:bg-slate-50/80">
+                <td className="sticky left-0 z-10 bg-white px-3 py-3 group-hover:bg-slate-50">
+                  <div className="w-[336px] rounded-xl border border-slate-100 bg-white p-3 shadow-sm group-hover:border-slate-200">
+                    <div className="flex min-w-0 items-center gap-2">
+                      <p
+                        className="min-w-0 flex-1 truncate font-semibold text-slate-950"
+                        title={leadIdentity}
                       >
-                        <Checkbox
-                          color="success"
-                          size="small"
-                          checked={isSelected}
-                          onChange={(event) => toggleLeadRow(lead.id, event.target.checked)}
-                        />
-                      </td>
-                      <td
-                        className={`sticky left-12 z-10 px-3 py-3 ${isSelected ? 'bg-emerald-50/60' : 'bg-white group-hover:bg-slate-50'}`}
-                      >
-                        <div className="w-[336px] rounded-xl border border-slate-100 bg-white p-3 shadow-sm group-hover:border-slate-200">
-                          <p
-                            className="truncate font-semibold text-slate-950"
-                            title={lead.customerName}
-                          >
-                            {lead.customerName}
-                          </p>
-
-                          <div className="mt-2 flex min-w-0 flex-wrap items-center gap-2">
-                            {lead.phone && (
-                              <span className="inline-flex items-center gap-1 rounded-full bg-sky-50 px-1.5 py-0.5 text-[11px] font-bold text-sky-700 ring-1 ring-sky-100">
-                                <PhoneRoundedIcon className="!text-[14px]" />
-                                {lead.phone}
-                              </span>
-                            )}
-                            {industryName && (
-                              <span className="rounded-md bg-slate-100 px-1.5 py-0.5 text-[11px] font-semibold text-slate-600">
-                                {industryName}
-                              </span>
-                            )}
-                            {link && (
-                              <a
-                                href={externalUrl(link)}
-                                target="_blank"
-                                rel="noreferrer"
-                                className="inline-flex min-w-0 items-center gap-1 rounded-md bg-blue-50 px-1.5 py-0.5 text-[11px] font-bold text-blue-700 ring-1 ring-blue-100 hover:bg-blue-100"
-                                title={link}
-                              >
-                                <span className="truncate">{shortLink(link)}</span>
-                                <OpenInNewRoundedIcon className="shrink-0 !text-[14px]" />
-                              </a>
-                            )}
-                          </div>
-                        </div>
-                      </td>
-                      <td className="px-3 py-4">
-                        {lead.statusOption ? (
-                          <OptionChip
-                            label={lead.statusOption.label}
-                            option={lead.statusOption}
-                            className="max-w-[120px]"
-                            fallbackClassName="border-amber-100 bg-amber-50 text-amber-700"
-                          />
-                        ) : (
-                          <span
-                            className={`rounded-md px-2 py-1 text-xs font-bold ring-1 ${getLeadStatusClass(status)}`}
-                          >
-                            {status?.name || 'Mới'}
-                          </span>
-                        )}
-                      </td>
-                      <td className="px-3 py-4">
-                        <span className="rounded-full bg-sky-50 px-2 py-1 text-xs font-bold text-sky-700 ring-1 ring-sky-100">
-                          {lead.assignedUser?.name || '-'}
+                        {leadIdentity}
+                      </p>
+                      {lead.phone && (
+                        <span className="inline-flex shrink-0 items-center gap-1 rounded-full bg-sky-50 px-1.5 py-0.5 text-[11px] font-bold text-sky-700 ring-1 ring-sky-100">
+                          <PhoneRoundedIcon className="!text-[14px]" />
+                          {lead.phone}
                         </span>
-                      </td>
-                      <td className="px-3 py-4">
-                        <OptionChip
-                          label={sourceName}
-                          option={lead.sourceOption}
-                          className="max-w-[128px]"
-                          fallbackClassName="border-violet-100 bg-violet-50 text-violet-700"
-                        />
-                      </td>
-                      <td className="px-3 py-4">
-                        <div className="flex max-w-[168px] flex-wrap gap-1.5">
-                          {serviceOptions.length > 0 ? (
-                            serviceOptions.map((service) => (
-                              <OptionChip
-                                key={service.id}
-                                label={service.label}
-                                option={service}
-                                className="max-w-[160px]"
-                                fallbackClassName="border-slate-200 bg-slate-100 text-slate-700"
-                              />
-                            ))
-                          ) : (
-                            <OptionChip
-                              label={fallbackServiceName || '-'}
-                              className="max-w-[160px]"
-                              fallbackClassName="border-slate-200 bg-slate-100 text-slate-700"
-                            />
-                          )}
-                        </div>
-                      </td>
-                      <td className="px-3 py-4 text-slate-700">
-                        {formatDate(lead.occurredDate || '')}
-                      </td>
-                      <td className="px-3 py-4">
-                        <p
-                          className="line-clamp-2 max-w-[420px] text-slate-500"
-                          title={lead.note || ''}
+                      )}
+                    </div>
+
+                    <div className="mt-2 flex min-w-0 flex-wrap items-center gap-2">
+                      {industryName && (
+                        <span className="rounded-md bg-slate-100 px-1.5 py-0.5 text-[11px] font-semibold text-slate-600">
+                          {industryName}
+                        </span>
+                      )}
+                      {link && (
+                        <a
+                          href={externalUrl(link)}
+                          target="_blank"
+                          rel="noreferrer"
+                          className="inline-flex min-w-0 items-center gap-1 rounded-md bg-blue-50 px-1.5 py-0.5 text-[11px] font-bold text-blue-700 ring-1 ring-blue-100 hover:bg-blue-100"
+                          title={link}
                         >
-                          {lead.note || '-'}
-                        </p>
-                      </td>
-                      <td className="py-4">
-                        <div className="flex items-center justify-end gap-1 pr-3">
-                          <IconButton
-                            size="small"
-                            title="Xem chi tiết lead"
-                            onClick={() => viewLead(lead)}
-                          >
-                            <VisibilityRoundedIcon fontSize="small" />
-                          </IconButton>
-                          {!lead.convertedCustomerId && (
-                            <IconButton
-                              component={Link}
-                              href={`/customers/new?leadId=${lead.id}`}
-                              size="small"
-                              title="Tạo khách hàng"
-                            >
-                              <PersonAddAlt1RoundedIcon fontSize="small" />
-                            </IconButton>
-                          )}
-                          <IconButton
-                            component={Link}
-                            href={`/leads/${lead.id}`}
-                            size="small"
-                            title="Chỉnh sửa lead"
-                          >
-                            <EditRoundedIcon fontSize="small" />
-                          </IconButton>
-                          <IconButton
-                            size="small"
-                            title="Tác vụ"
-                            onClick={(event) => openActionMenu(event, lead)}
-                          >
-                            <MoreVertRoundedIcon fontSize="small" />
-                          </IconButton>
-                        </div>
-                      </td>
-                    </tr>
-                  );
-                })
-              )}
-            </tbody>
-          </table>
-        </div>
+                          <span className="truncate">{shortLink(link)}</span>
+                          <OpenInNewRoundedIcon className="shrink-0 !text-[14px]" />
+                        </a>
+                      )}
+                    </div>
+                  </div>
+                </td>
+                <td className="px-3 py-4">
+                  {lead.statusOption ? (
+                    <OptionChip
+                      label={lead.statusOption.label}
+                      option={lead.statusOption}
+                      className="max-w-[120px]"
+                      fallbackClassName="border-amber-100 bg-amber-50 text-amber-700"
+                    />
+                  ) : (
+                    <span
+                      className={`rounded-md px-2 py-1 text-xs font-bold ring-1 ${getLeadStatusClass(status)}`}
+                    >
+                      {status?.name || 'Mới'}
+                    </span>
+                  )}
+                </td>
+                <td className="px-3 py-4">
+                  <span className="rounded-full bg-sky-50 px-2 py-1 text-xs font-bold text-sky-700 ring-1 ring-sky-100">
+                    {lead.assignedUser?.name || '-'}
+                  </span>
+                </td>
+                <td className="px-3 py-4">
+                  <OptionChip
+                    label={sourceName}
+                    option={lead.sourceOption}
+                    className="max-w-[128px]"
+                    fallbackClassName="border-violet-100 bg-violet-50 text-violet-700"
+                  />
+                </td>
+                <td className="px-3 py-4">
+                  <div className="flex max-w-[168px] flex-wrap gap-1.5">
+                    {serviceOptions.length > 0 ? (
+                      serviceOptions.map((service) => (
+                        <OptionChip
+                          key={service.id}
+                          label={service.label}
+                          option={service}
+                          className="max-w-[160px]"
+                          fallbackClassName="border-slate-200 bg-slate-100 text-slate-700"
+                        />
+                      ))
+                    ) : (
+                      <OptionChip
+                        label={fallbackServiceName || '-'}
+                        className="max-w-[160px]"
+                        fallbackClassName="border-slate-200 bg-slate-100 text-slate-700"
+                      />
+                    )}
+                  </div>
+                </td>
+                <td className="px-3 py-4 text-slate-700">{formatDate(lead.occurredDate || '')}</td>
+                <td className="px-3 py-4">
+                  <p className="line-clamp-2 max-w-[420px] text-slate-500" title={lead.note || ''}>
+                    {lead.note || '-'}
+                  </p>
+                </td>
+                <td className="py-4">
+                  <div className="flex items-center justify-end gap-1 pr-3">
+                    <IconButton
+                      size="small"
+                      title="Xem chi tiết lead"
+                      onClick={() => viewLead(lead)}
+                    >
+                      <VisibilityRoundedIcon fontSize="small" />
+                    </IconButton>
+                    {lead.convertedCustomerId ? (
+                      <IconButton
+                        component={Link}
+                        href={`/customers/${lead.convertedCustomerId}`}
+                        size="small"
+                        title="Mở khách hàng"
+                      >
+                        <OpenInNewRoundedIcon fontSize="small" />
+                      </IconButton>
+                    ) : (
+                      <IconButton
+                        component={Link}
+                        href={`/customers/new?leadId=${lead.id}`}
+                        size="small"
+                        title="Tạo khách hàng"
+                      >
+                        <PersonAddAlt1RoundedIcon fontSize="small" />
+                      </IconButton>
+                    )}
+                    <IconButton
+                      component={Link}
+                      href={`/leads/${lead.id}`}
+                      size="small"
+                      title="Chỉnh sửa lead"
+                    >
+                      <EditRoundedIcon fontSize="small" />
+                    </IconButton>
+                    <IconButton
+                      size="small"
+                      title="Tác vụ"
+                      onClick={(event) => openActionMenu(event, lead)}
+                    >
+                      <MoreVertRoundedIcon fontSize="small" />
+                    </IconButton>
+                  </div>
+                </td>
+              </tr>
+            );
+          })}
+        </AppDataTable>
 
         <Menu anchorEl={menuAnchorEl} open={Boolean(menuAnchorEl)} onClose={closeActionMenu}>
           <MenuItem onClick={viewActiveLead}>

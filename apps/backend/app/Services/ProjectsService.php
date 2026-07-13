@@ -416,7 +416,7 @@ class ProjectsService extends BaseService
 
     private function currentUser(): ?User
     {
-        $user = request()->attributes->get('auth_user');
+        $user = request()->user();
 
         return $user instanceof User ? $user : null;
     }

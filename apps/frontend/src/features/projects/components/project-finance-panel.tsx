@@ -2,7 +2,7 @@
 
 import Link from 'next/link';
 import AddRoundedIcon from '@mui/icons-material/AddRounded';
-import { Button } from '@mui/material';
+import { TabActionButton } from '@/components/actions/tab-action-button';
 import { getQuotationPaymentContent } from '@/lib/quotation-utils';
 import { formatCurrency } from '@/lib/utils';
 import type { Payment } from '@/types/payment';
@@ -97,24 +97,20 @@ export function ProjectFinancePanel({
 
   return (
     <div className="space-y-4">
-      <section className="overflow-hidden rounded-xl border border-slate-200 bg-white">
+      <section className="overflow-hidden rounded-2xl border border-slate-200 bg-white shadow-sm">
         <div className="flex flex-wrap items-center justify-between gap-3 border-b border-slate-200 px-4 py-3">
           <div className="flex items-center gap-2">
-            <h2 className="font-bold text-slate-950">Báo phí & tiền thu</h2>
+            <h2 className="text-sm font-bold text-slate-950">Báo phí & tiền thu</h2>
             <span className="rounded-full bg-slate-100 px-2 py-1 text-xs font-bold text-slate-600">
               {quotations.length}
             </span>
           </div>
-          <Button
-            component={Link}
+          <TabActionButton
             href={`/quotations/new?projectId=${project.id}`}
-            variant="contained"
-            size="small"
             startIcon={<AddRoundedIcon />}
-            className="!bg-slate-900 hover:!bg-slate-800"
           >
             Tạo báo phí
-          </Button>
+          </TabActionButton>
         </div>
 
         {quotations.length === 0 ? (
@@ -124,7 +120,7 @@ export function ProjectFinancePanel({
         ) : (
           <div className="overflow-x-auto">
             <table className="w-full min-w-[900px] text-left text-sm">
-              <thead className="bg-slate-50 text-[11px] font-bold uppercase text-slate-500">
+              <thead className="border-y border-slate-200 bg-slate-100 text-sm font-bold text-slate-700">
                 <tr>
                   <th className="px-4 py-3">Ngày báo</th>
                   <th className="px-3 py-3">Báo phí / Nội dung CK</th>
@@ -212,17 +208,17 @@ export function ProjectFinancePanel({
 
       {children}
 
-      <section className="overflow-hidden rounded-xl border border-slate-200 bg-white">
+      <section className="overflow-hidden rounded-2xl border border-slate-200 bg-white shadow-sm">
         <div className="flex items-center justify-between border-b border-slate-200 px-4 py-3">
           <div className="flex items-center gap-2">
-            <h2 className="font-bold text-slate-950">Tiền vào</h2>
+            <h2 className="text-sm font-bold text-slate-950">Tiền vào</h2>
             <span className="rounded-full bg-slate-100 px-2 py-1 text-xs font-bold text-slate-600">
               {sortedPayments.length}
             </span>
           </div>
-          <Link href="/payments" className="text-xs font-bold text-blue-700 hover:underline">
+          <TabActionButton href="/payments" tone="secondary">
             Mở thanh toán
-          </Link>
+          </TabActionButton>
         </div>
 
         {sortedPayments.length === 0 ? (
@@ -232,7 +228,7 @@ export function ProjectFinancePanel({
         ) : (
           <div className="overflow-x-auto">
             <table className="w-full min-w-[840px] text-left text-sm">
-              <thead className="bg-slate-50 text-[11px] font-bold uppercase text-slate-500">
+              <thead className="border-y border-slate-200 bg-slate-100 text-sm font-bold text-slate-700">
                 <tr>
                   <th className="px-4 py-3">Ngày thanh toán</th>
                   <th className="px-3 py-3">Báo phí</th>

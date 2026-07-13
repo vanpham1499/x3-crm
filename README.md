@@ -5,7 +5,7 @@ Hệ thống CRM cho agency digital marketing, xây dựng với Next.js + Larav
 ## Tech Stack
 
 - **Frontend**: Next.js 14, Tailwind CSS, Material UI, React Query, Zustand
-- **Backend**: Laravel 11, PostgreSQL, JWT Auth
+- **Backend**: Laravel 11, PostgreSQL, Laravel Sanctum session auth
 - **Monorepo**: npm workspaces
 
 ## Cài Đặt
@@ -32,8 +32,13 @@ DB_PORT=5432
 DB_DATABASE=x3crm
 DB_USERNAME=x3crm
 DB_PASSWORD=x3crm123
-JWT_SECRET=your-super-secret-jwt-key-change-in-production
+SANCTUM_STATEFUL_DOMAINS=localhost:3000
+SESSION_DRIVER=database
+SESSION_COOKIE=x3_crm_session
 ```
+
+Khi triển khai HTTPS production, đặt `SESSION_SECURE_COOKIE=true` và cấu hình
+`SANCTUM_STATEFUL_DOMAINS` theo domain frontend thực tế.
 
 ## Chạy Bằng Docker
 
@@ -84,16 +89,18 @@ npm run db:fresh       # php artisan migrate:fresh --seed
 
 ## Tài Khoản Mặc Định
 
-| Vai trò | Email | Mật khẩu |
-|---------|-------|----------|
-| Admin | admin@x3crm.com | Admin@123 |
-| Leader | leader@x3crm.com | Leader@123 |
-| Kế toán | ketoan@x3crm.com | Ketoan@123 |
-| Nhân viên | nv002@x3crm.com | Nv002@123 |
+| Vai trò   | Email            | Mật khẩu   |
+| --------- | ---------------- | ---------- |
+| Admin     | admin@x3crm.com  | Admin@123  |
+| Leader    | leader@x3crm.com | Leader@123 |
+| Kế toán   | ketoan@x3crm.com | Ketoan@123 |
+| Nhân viên | nv002@x3crm.com  | Nv002@123  |
 
 ## API Hiện Có
 
 - `POST /api/auth/login`
+- `POST /api/auth/logout`
+- `GET /api/auth/me`
 - `GET /api/auth/profile`
 - `PUT /api/auth/change-password`
 - `GET /api/users`

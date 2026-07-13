@@ -119,8 +119,6 @@ class KpiPointsService extends BaseService
 
     private function currentUser(): ?\App\Models\User
     {
-        $user = request()->attributes->get('auth_user');
-
-        return $user instanceof \App\Models\User ? $user : null;
+        return request()->user();
     }
 }

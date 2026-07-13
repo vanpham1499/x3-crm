@@ -1,42 +1,30 @@
 'use client';
 
-import { useState } from 'react';
-import type { MouseEvent } from 'react';
+import { useState, type MouseEvent } from 'react';
 import AddRoundedIcon from '@mui/icons-material/AddRounded';
 import DeleteRoundedIcon from '@mui/icons-material/DeleteRounded';
 import EditRoundedIcon from '@mui/icons-material/EditRounded';
 import MoreVertRoundedIcon from '@mui/icons-material/MoreVertRounded';
-import SearchRoundedIcon from '@mui/icons-material/SearchRounded';
-import {
-  Autocomplete,
-  Button,
-  Checkbox,
-  Dialog,
-  DialogActions,
-  DialogContent,
-  DialogTitle,
-  FormControlLabel,
-  IconButton,
-  InputAdornment,
-  LinearProgress,
-  Menu,
-  MenuItem,
-  TextField,
-} from '@mui/material';
-import { useQuery } from '@tanstack/react-query';
+import { Checkbox, FormControlLabel, IconButton, Menu, MenuItem } from '@mui/material';
 import { useForm } from 'react-hook-form';
+import { DialogActionButton } from '@/components/actions/dialog-action-button';
+import { AppFormDialog } from '@/components/dialog/app-form-dialog';
 import { ConfirmDialog } from '@/components/feedback/confirm-dialog';
+import { CompactSearchField } from '@/components/form/compact-search-field';
+import { FormInputField } from '@/components/form/form-input-field';
+import { VietQrBankSelect } from '@/components/form/vietqr-bank-select';
+import { PageHeader } from '@/components/shell/page-header';
+import { AppDataTable } from '@/components/table/app-data-table';
 import { TablePaginationBar } from '@/components/table/table-pagination-bar';
 import { usePagination } from '@/hooks/use-pagination';
 import { applyApiErrorsToForm } from '@/lib/api-error';
 import {
+  getBankAccountBankCode,
   getBankAccountMetaBoolean,
   getBankAccountMetaValue,
-  getBankAccountBankCode,
   getCompanyBankAccountDefaults,
   type CompanyBankAccountFormValues,
 } from '@/lib/company-bank-account-options';
-import { fetchVietQrBanks, getVietQrBankLabel } from '@/lib/vietqr-banks';
 import type { AppOption } from '@/types/option';
 
 type BankAccountManagerProps = {
@@ -77,12 +65,7 @@ function BankAccountDialog({
   });
   const isDefault = watch('isDefault');
   const bankCode = watch('bankCode');
-  const { data: vietQrBanks = [], isFetching: isBanksFetching } = useQuery({
-    queryKey: ['vietqr-banks'],
-    queryFn: fetchVietQrBanks,
-    staleTime: 24 * 60 * 60 * 1000,
-  });
-  const selectedBank = vietQrBanks.find((bank) => bank.code === bankCode) || null;
+  const bankName = watch('bankName');
 
   const closeDialog = () => {
     reset();
@@ -90,125 +73,77 @@ function BankAccountDialog({
   };
 
   return (
-    <Dialog
+    <AppFormDialog
       open={Boolean(state)}
-      onClose={isSubmitting ? undefined : closeDialog}
+      title={state?.mode === 'edit' ? 'Chỉnh sửa tài khoản' : 'Thêm tài khoản nhận tiền'}
       maxWidth="sm"
-      fullWidth
-    >
-      <DialogTitle className="border-b border-slate-100 px-5 py-4">
-        <p className="text-base font-bold text-slate-950">
-          {state?.mode === 'edit' ? 'Chỉnh sửa tài khoản' : 'Thêm tài khoản nhận tiền'}
-        </p>
-        <p className="mt-0.5 text-xs text-slate-500">
-          Danh sách ngân hàng được tải trực tiếp từ VietQR để tránh sai mã khi tạo QR.
-        </p>
-      </DialogTitle>
-
-      <form
-        onSubmit={handleSubmit(async (values) => {
-          try {
-            await onSubmit(values, account);
-            closeDialog();
-          } catch (error) {
-            applyApiErrorsToForm(error, setError);
-          }
-        })}
-      >
-        <DialogContent className="grid gap-3 px-5 py-4">
-          <input type="hidden" {...register('bankCode', { required: 'Bắt buộc' })} />
-          <input type="hidden" {...register('bankName')} />
-          <Autocomplete
-            options={vietQrBanks}
-            value={selectedBank}
-            loading={isBanksFetching}
-            onChange={(_, bank) => {
-              setValue('bankCode', bank?.code || '', { shouldDirty: true, shouldValidate: true });
-              setValue('bankName', bank?.name || '', { shouldDirty: true });
-            }}
-            getOptionLabel={getVietQrBankLabel}
-            isOptionEqualToValue={(option, value) => option.code === value.code}
-            loadingText="Đang tải ngân hàng VietQR..."
-            noOptionsText={isBanksFetching ? 'Đang tải ngân hàng VietQR...' : 'Không có ngân hàng'}
-            renderOption={(props, bank) => (
-              <li {...props} key={bank.code}>
-                <div className="flex min-w-0 items-center gap-3">
-                  {bank.logo ? (
-                    <img
-                      src={bank.logo}
-                      alt=""
-                      className="h-6 w-6 shrink-0 rounded-full object-contain"
-                    />
-                  ) : (
-                    <span className="h-6 w-6 shrink-0 rounded-full bg-slate-100" />
-                  )}
-                  <div className="min-w-0">
-                    <p className="truncate text-sm font-bold text-slate-950">
-                      {bank.shortName || bank.code}
-                    </p>
-                    <p className="truncate text-xs text-slate-500">{bank.name}</p>
-                  </div>
-                </div>
-              </li>
-            )}
-            renderInput={(params) => (
-              <TextField
-                {...params}
-                required
-                label="Ngân hàng"
-                error={Boolean(errors.bankCode)}
-                helperText={
-                  errors.bankCode?.message || 'Mã VietQR sẽ được tự lấy từ ngân hàng đã chọn.'
-                }
-              />
-            )}
-          />
-          <TextField
-            fullWidth
-            label="Số tài khoản *"
-            error={Boolean(errors.accountNo)}
-            helperText={errors.accountNo?.message}
-            {...register('accountNo', { required: 'Bắt buộc' })}
-          />
-          <TextField
-            fullWidth
-            label="Tên chủ tài khoản *"
-            error={Boolean(errors.accountName)}
-            helperText={errors.accountName?.message}
-            {...register('accountName', { required: 'Bắt buộc' })}
-          />
-          <TextField fullWidth label="Chi nhánh" {...register('branch')} />
-          <FormControlLabel
-            control={
-              <Checkbox
-                checked={Boolean(isDefault)}
-                onChange={(event) => setValue('isDefault', event.target.checked)}
-              />
-            }
-            label="Đặt làm tài khoản mặc định cho báo giá"
-          />
-        </DialogContent>
-
-        <DialogActions className="border-t border-slate-100 px-5 py-3">
-          <Button size="small" variant="outlined" onClick={closeDialog} disabled={isSubmitting}>
+      submitting={isSubmitting}
+      contentClassName="space-y-4"
+      onClose={closeDialog}
+      onSubmit={handleSubmit(async (values) => {
+        try {
+          await onSubmit(values, account);
+          closeDialog();
+        } catch (error) {
+          applyApiErrorsToForm(error, setError);
+        }
+      })}
+      actions={
+        <>
+          <DialogActionButton disabled={isSubmitting} onClick={closeDialog}>
             Hủy
-          </Button>
-          <Button
-            type="submit"
-            size="small"
-            variant="contained"
-            disabled={isSubmitting}
-            className="!bg-slate-900 hover:!bg-slate-800"
-          >
+          </DialogActionButton>
+          <DialogActionButton type="submit" tone="primary" disabled={isSubmitting}>
             {isSubmitting
               ? 'Đang lưu...'
               : state?.mode === 'edit'
                 ? 'Lưu thay đổi'
                 : 'Tạo tài khoản'}
-          </Button>
-        </DialogActions>
-      </form>
-    </Dialog>
+          </DialogActionButton>
+        </>
+      }
+    >
+      <input type="hidden" {...register('bankCode', { required: 'Bắt buộc' })} />
+      <input type="hidden" {...register('bankName')} />
+      <VietQrBankSelect
+        required
+        valueCode={bankCode}
+        valueName={bankName}
+        onChange={(bank) => {
+          setValue('bankCode', bank?.code || '', { shouldDirty: true, shouldValidate: true });
+          setValue('bankName', bank?.name || '', { shouldDirty: true });
+        }}
+        error={Boolean(errors.bankCode)}
+        helperText={errors.bankCode?.message}
+      />
+
+      <div className="grid gap-4 sm:grid-cols-2">
+        <FormInputField
+          label="Số tài khoản *"
+          error={Boolean(errors.accountNo)}
+          helperText={errors.accountNo?.message}
+          {...register('accountNo', { required: 'Vui lòng nhập số tài khoản' })}
+        />
+        <FormInputField
+          label="Tên chủ tài khoản *"
+          error={Boolean(errors.accountName)}
+          helperText={errors.accountName?.message}
+          {...register('accountName', { required: 'Vui lòng nhập tên chủ tài khoản' })}
+        />
+      </div>
+
+      <FormInputField label="Chi nhánh" {...register('branch')} />
+      <FormControlLabel
+        className="!m-0 min-h-10 rounded-lg border border-slate-200 px-2"
+        control={
+          <Checkbox
+            checked={Boolean(isDefault)}
+            onChange={(event) => setValue('isDefault', event.target.checked, { shouldDirty: true })}
+          />
+        }
+        label={<span className="text-sm font-semibold text-slate-700">Tài khoản mặc định</span>}
+      />
+    </AppFormDialog>
   );
 }
 
@@ -240,148 +175,105 @@ export function CompanyBankAccountManager({
     setActiveAccount(null);
   };
 
-  const editActiveAccount = () => {
-    if (activeAccount) setDialogState({ mode: 'edit', account: activeAccount });
-    closeActionMenu();
-  };
-
-  const deleteActiveAccount = () => {
-    if (activeAccount) setDeleteTarget(activeAccount);
-    closeActionMenu();
-  };
-
   return (
     <div className="min-h-[calc(100vh-72px)] w-full bg-slate-50/60 p-6">
-      <div className="mb-6 flex flex-col gap-4 sm:flex-row sm:items-center sm:justify-between">
-        <div>
-          <h1 className="text-2xl font-bold text-slate-950">Tài khoản nhận tiền</h1>
-          <div className="mt-2 flex items-center gap-2 text-sm text-slate-500">
-            <span>Dashboard</span>
-            <span className="h-1 w-1 rounded-full bg-slate-300" />
-            <span>Cài đặt</span>
-            <span className="h-1 w-1 rounded-full bg-slate-300" />
-            <span className="text-slate-950">Tài khoản nhận tiền</span>
-          </div>
-        </div>
-
-        <Button
-          type="button"
-          variant="contained"
-          startIcon={<AddRoundedIcon />}
-          onClick={() => setDialogState({ mode: 'create' })}
-          className="!bg-slate-900 hover:!bg-slate-800"
-        >
-          Thêm tài khoản
-        </Button>
-      </div>
+      <PageHeader
+        title="Tài khoản nhận tiền"
+        action={{
+          label: 'Thêm tài khoản',
+          icon: <AddRoundedIcon />,
+          onClick: () => setDialogState({ mode: 'create' }),
+        }}
+      />
 
       <section className="w-full overflow-hidden rounded-2xl border border-slate-200 bg-white shadow-sm">
-        <div className="border-b border-slate-200 p-5">
-          <TextField
-            fullWidth
+        <div className="p-4">
+          <CompactSearchField
             label="Từ khóa"
-            placeholder="Tìm mã ngân hàng, số tài khoản, chủ tài khoản..."
+            placeholder="Tìm ngân hàng, số tài khoản, chủ tài khoản..."
             value={keyword}
-            onChange={(event) => onKeywordChange(event.target.value)}
-            slotProps={{
-              input: {
-                startAdornment: (
-                  <InputAdornment position="start">
-                    <SearchRoundedIcon fontSize="small" />
-                  </InputAdornment>
-                ),
-              },
-            }}
+            onChange={onKeywordChange}
           />
         </div>
 
-        <div className="relative w-full overflow-x-auto">
-          {isFetching && (
-            <div className="absolute left-0 right-0 top-0 z-30">
-              <LinearProgress color="primary" />
-            </div>
-          )}
-
-          <table
-            className={`w-full min-w-[980px] table-fixed text-left text-sm transition-opacity ${isFetching ? 'opacity-60' : 'opacity-100'}`}
-          >
-            <thead className="bg-slate-50 text-xs font-bold uppercase text-slate-500">
-              <tr>
-                <th className="w-32 px-5 py-4">Mã NH</th>
-                <th className="w-44 px-5 py-4">Số tài khoản</th>
-                <th className="w-[280px] px-5 py-4">Chủ tài khoản</th>
-                <th className="w-52 px-5 py-4">Ngân hàng</th>
-                <th className="px-5 py-4">Chi nhánh</th>
-                <th className="w-28 px-5 py-4">Mặc định</th>
-                <th className="w-20 px-5 py-4" />
-              </tr>
-            </thead>
-            <tbody className="divide-y divide-slate-100">
-              {accounts.length === 0 ? (
-                <tr>
-                  <td
-                    colSpan={7}
-                    className="px-5 py-12 text-center text-sm font-semibold text-slate-500"
+        <AppDataTable
+          columns={[
+            {
+              key: 'bank',
+              label: 'Ngân hàng',
+              className: 'sticky left-0 z-20 w-64 bg-slate-100',
+            },
+            { key: 'account', label: 'Số tài khoản', className: 'w-48' },
+            { key: 'owner', label: 'Chủ tài khoản', className: 'w-72' },
+            { key: 'branch', label: 'Chi nhánh', className: 'w-56' },
+            { key: 'default', label: 'Mặc định', className: 'w-32' },
+            { key: 'actions', className: 'w-24' },
+          ]}
+          isLoading={isFetching}
+          isEmpty={pageItems.length === 0}
+          emptyText="Chưa có tài khoản nhận tiền"
+          minWidthClassName="min-w-[1120px]"
+        >
+          {pageItems.map((account) => (
+            <tr key={account.id} className="group hover:bg-slate-50/80">
+              <td className="sticky left-0 z-10 bg-white px-3 py-4 group-hover:bg-slate-50">
+                <div className="flex min-w-0 items-center gap-2">
+                  <span className="shrink-0 rounded-md bg-primary/10 px-2 py-1 text-xs font-bold text-primary">
+                    {getBankAccountBankCode(account) || '-'}
+                  </span>
+                  <span
+                    className="truncate font-semibold text-slate-800"
+                    title={getBankAccountMetaValue(account, 'bankName')}
                   >
-                    Chưa có tài khoản nhận tiền
-                  </td>
-                </tr>
-              ) : (
-                pageItems.map((account) => (
-                  <tr key={account.id} className="hover:bg-slate-50/80">
-                    <td className="px-5 py-4 font-bold text-slate-950">
-                      {getBankAccountBankCode(account) || '-'}
-                    </td>
-                    <td className="px-5 py-4 font-semibold tabular-nums text-slate-800">
-                      {account.value || '-'}
-                    </td>
-                    <td className="px-5 py-4 font-semibold text-slate-800">
-                      <span className="block truncate" title={account.label}>
-                        {account.label || '-'}
-                      </span>
-                    </td>
-                    <td className="px-5 py-4 text-slate-700">
-                      <span
-                        className="block truncate"
-                        title={getBankAccountMetaValue(account, 'bankName')}
-                      >
-                        {getBankAccountMetaValue(account, 'bankName') || '-'}
-                      </span>
-                    </td>
-                    <td className="px-5 py-4 text-slate-700">
-                      <span
-                        className="block truncate"
-                        title={getBankAccountMetaValue(account, 'branch')}
-                      >
-                        {getBankAccountMetaValue(account, 'branch') || '-'}
-                      </span>
-                    </td>
-                    <td className="px-5 py-4">
-                      {getBankAccountMetaBoolean(account, 'isDefault') ? (
-                        <span className="rounded-full bg-emerald-50 px-2.5 py-1 text-xs font-bold text-emerald-700">
-                          Có
-                        </span>
-                      ) : (
-                        <span className="text-slate-400">-</span>
-                      )}
-                    </td>
-                    <td className="px-5 py-4">
-                      <div className="flex justify-end">
-                        <IconButton
-                          size="small"
-                          title="Tác vụ"
-                          onClick={(event) => openActionMenu(event, account)}
-                        >
-                          <MoreVertRoundedIcon fontSize="small" />
-                        </IconButton>
-                      </div>
-                    </td>
-                  </tr>
-                ))
-              )}
-            </tbody>
-          </table>
-        </div>
+                    {getBankAccountMetaValue(account, 'bankName') || '-'}
+                  </span>
+                </div>
+              </td>
+              <td className="px-3 py-4 font-mono font-semibold tabular-nums text-slate-800">
+                {account.value || '-'}
+              </td>
+              <td className="px-3 py-4">
+                <span className="block truncate font-semibold text-slate-900" title={account.label}>
+                  {account.label || '-'}
+                </span>
+              </td>
+              <td className="px-3 py-4 text-slate-700">
+                <span className="block truncate" title={getBankAccountMetaValue(account, 'branch')}>
+                  {getBankAccountMetaValue(account, 'branch') || '-'}
+                </span>
+              </td>
+              <td className="px-3 py-4">
+                {getBankAccountMetaBoolean(account, 'isDefault') ? (
+                  <span className="inline-flex rounded-md bg-emerald-50 px-2 py-1 text-xs font-bold text-emerald-700 ring-1 ring-emerald-100">
+                    Mặc định
+                  </span>
+                ) : (
+                  <span className="text-slate-400">-</span>
+                )}
+              </td>
+              <td className="py-4">
+                <div className="flex items-center justify-end gap-1 pr-3">
+                  <IconButton
+                    size="small"
+                    aria-label="Chỉnh sửa tài khoản nhận tiền"
+                    title="Chỉnh sửa"
+                    onClick={() => setDialogState({ mode: 'edit', account })}
+                  >
+                    <EditRoundedIcon fontSize="small" />
+                  </IconButton>
+                  <IconButton
+                    size="small"
+                    aria-label="Mở tác vụ tài khoản nhận tiền"
+                    title="Tác vụ"
+                    onClick={(event) => openActionMenu(event, account)}
+                  >
+                    <MoreVertRoundedIcon fontSize="small" />
+                  </IconButton>
+                </div>
+              </td>
+            </tr>
+          ))}
+        </AppDataTable>
 
         <TablePaginationBar
           page={page}
@@ -393,11 +285,23 @@ export function CompanyBankAccountManager({
       </section>
 
       <Menu anchorEl={menuAnchorEl} open={Boolean(menuAnchorEl)} onClose={closeActionMenu}>
-        <MenuItem onClick={editActiveAccount}>
+        <MenuItem
+          onClick={() => {
+            if (activeAccount) setDialogState({ mode: 'edit', account: activeAccount });
+            closeActionMenu();
+          }}
+        >
           <EditRoundedIcon fontSize="small" className="mr-2 text-slate-500" />
           Chỉnh sửa
         </MenuItem>
-        <MenuItem onClick={deleteActiveAccount} className="text-rose-600" disabled={isDeleting}>
+        <MenuItem
+          className="text-rose-600"
+          disabled={isDeleting}
+          onClick={() => {
+            if (activeAccount) setDeleteTarget(activeAccount);
+            closeActionMenu();
+          }}
+        >
           <DeleteRoundedIcon fontSize="small" className="mr-2" />
           Xóa
         </MenuItem>

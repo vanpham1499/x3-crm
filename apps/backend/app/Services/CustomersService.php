@@ -5,10 +5,13 @@ namespace App\Services;
 use App\Http\Resources\CustomerResource;
 use App\Models\Customer;
 use App\Models\CustomerTimeline;
+use App\Models\Lead;
 use App\Models\Option;
 use App\Models\User;
 use App\Repositories\CustomerRepository;
 use Illuminate\Support\Facades\DB;
+use Symfony\Component\HttpKernel\Exception\ConflictHttpException;
+use Symfony\Component\HttpKernel\Exception\NotFoundHttpException;
 
 class CustomersService extends BaseService
 {
@@ -24,16 +27,21 @@ class CustomersService extends BaseService
         return $this->apiResource($this->customers->findWithRelationsOrFail($id), CustomerResource::class);
     }
 
-    public function create(array $data): array
+    public function create(array $data, bool $linkLead = true): array
     {
-        return $this->transaction(function () use ($data): array {
+        return $this->transaction(function () use ($data, $linkLead): array {
             $data = $this->normalizePayload($data);
             $data['customer_code'] = $data['customer_code'] ?? $this->generateCustomerCode();
+            $lead = $linkLead ? $this->lockLeadForConversion($data['lead_id'] ?? null) : null;
 
             /** @var Customer $customer */
             $customer = $this->customers->create($data);
             $customer = $this->loadCustomerRelations($customer);
             $this->recordTimeline($customer, 'create', $this->buildCreatedTimelineContent($customer));
+
+            if ($lead) {
+                $this->completeLeadConversion($lead, $customer);
+            }
 
             return $this->apiResource($this->loadCustomerRelations($customer), CustomerResource::class);
         });
@@ -113,7 +121,80 @@ class CustomersService extends BaseService
 
     private function loadCustomerRelations(Customer $customer): Customer
     {
-        return $customer->load(['lead', 'customerTypeOption', 'sourceOption', 'industryOption', 'salesUser', 'projects', 'invoices', 'timelines.createdBy']);
+        return $customer->load(['lead', 'customerTypeOption', 'sourceOption', 'industryOption', 'salesUser', 'projects', 'timelines.createdBy']);
+    }
+
+    private function lockLeadForConversion(mixed $leadId): ?Lead
+    {
+        if (! $leadId) {
+            return null;
+        }
+
+        /** @var Lead|null $lead */
+        $lead = Lead::query()->whereKey($leadId)->lockForUpdate()->first();
+
+        if (! $lead) {
+            throw new NotFoundHttpException('Lead không tồn tại');
+        }
+
+        $existingCustomer = Customer::query()->where('lead_id', $lead->id)->first();
+
+        if ($lead->converted_customer_id || $existingCustomer) {
+            throw new ConflictHttpException('Lead này đã được chuyển thành khách hàng');
+        }
+
+        return $lead;
+    }
+
+    private function completeLeadConversion(Lead $lead, Customer $customer): void
+    {
+        $lead->update([
+            'converted_customer_id' => $customer->id,
+            'closed_date' => $lead->closed_date?->toDateString() ?? now()->toDateString(),
+        ]);
+
+        $quotationIds = DB::table('quotations')
+            ->where('lead_id', $lead->id)
+            ->whereNull('deleted_at')
+            ->pluck('id');
+
+        DB::table('quotations')
+            ->whereIn('id', $quotationIds)
+            ->whereNull('customer_id')
+            ->update([
+                'customer_id' => $customer->id,
+                'updated_at' => now(),
+            ]);
+
+        DB::table('payments')
+            ->whereIn('quotation_id', $quotationIds)
+            ->whereNull('customer_id')
+            ->whereNull('deleted_at')
+            ->update([
+                'customer_id' => $customer->id,
+                'updated_at' => now(),
+            ]);
+
+        CustomerTimeline::query()->create([
+            'lead_id' => $lead->id,
+            'customer_id' => $customer->id,
+            'type' => 'convert',
+            'content' => json_encode([
+                'action' => 'convert_customer',
+                'title' => 'Chuyển Lead thành khách hàng',
+                'lead' => [
+                    'id' => $lead->id,
+                    'code' => $lead->lead_code,
+                    'customerName' => $lead->customer_name,
+                ],
+                'customer' => [
+                    'id' => $customer->id,
+                    'code' => $customer->customer_code,
+                    'customerName' => $customer->customer_name,
+                ],
+            ], JSON_UNESCAPED_UNICODE | JSON_UNESCAPED_SLASHES),
+            'created_by' => $this->currentUser()?->id,
+        ]);
     }
 
     private function recordTimeline(Customer $customer, string $type, array $content): void
@@ -244,7 +325,7 @@ class CustomersService extends BaseService
 
     private function currentUser(): ?User
     {
-        $user = request()->attributes->get('auth_user');
+        $user = request()->user();
 
         return $user instanceof User ? $user : null;
     }

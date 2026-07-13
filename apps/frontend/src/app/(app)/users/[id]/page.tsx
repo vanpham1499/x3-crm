@@ -7,7 +7,11 @@ import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import { ConfirmDialog } from '@/components/feedback/confirm-dialog';
 import { useAppNotification } from '@/components/feedback/notification-provider';
 import { ContentLoading } from '@/components/shell/content-loading';
-import { UserForm, UserFormValues, getUserFormDefaults } from '@/features/users/components/user-form';
+import {
+  UserForm,
+  UserFormValues,
+  getUserFormDefaults,
+} from '@/features/users/components/user-form';
 import { getApiErrorMessage } from '@/lib/api-error';
 import { api } from '@/services/api/client';
 import { useAuthStore } from '@/stores/auth-store';
@@ -18,7 +22,7 @@ export default function UserDetailPage() {
   const notify = useAppNotification();
   const params = useParams();
   const queryClient = useQueryClient();
-  const { user: authUser, token, setAuth } = useAuthStore();
+  const { user: authUser, setAuth } = useAuthStore();
   const [deleteDialogOpen, setDeleteDialogOpen] = useState(false);
   const id = params.id as string;
 
@@ -46,8 +50,8 @@ export default function UserDetailPage() {
 
       queryClient.setQueryData(['user', id], updatedUser);
       queryClient.invalidateQueries({ queryKey: ['users'] });
-      if (token && authUser?.id === updatedUser.id) {
-        setAuth(updatedUser, token);
+      if (authUser?.id === updatedUser.id) {
+        setAuth(updatedUser);
       }
       notify.success('Cập nhật nhân viên thành công');
     },

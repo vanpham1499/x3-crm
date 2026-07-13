@@ -1,21 +1,19 @@
 'use client';
 
 import { useMemo, useState } from 'react';
+import type { MouseEvent } from 'react';
 import Link from 'next/link';
 import AddRoundedIcon from '@mui/icons-material/AddRounded';
 import DeleteRoundedIcon from '@mui/icons-material/DeleteRounded';
 import EditRoundedIcon from '@mui/icons-material/EditRounded';
 import LinkRoundedIcon from '@mui/icons-material/LinkRounded';
-import SearchRoundedIcon from '@mui/icons-material/SearchRounded';
-import {
-  Button,
-  IconButton,
-  InputAdornment,
-  LinearProgress,
-  MenuItem,
-  TextField,
-} from '@mui/material';
+import MoreVertRoundedIcon from '@mui/icons-material/MoreVertRounded';
+import { IconButton, Menu, MenuItem } from '@mui/material';
 import { ConfirmDialog } from '@/components/feedback/confirm-dialog';
+import { CompactSearchField } from '@/components/form/compact-search-field';
+import { CompactSelectField } from '@/components/form/compact-select-field';
+import { PageHeader } from '@/components/shell/page-header';
+import { AppDataTable } from '@/components/table/app-data-table';
 import { TablePaginationBar } from '@/components/table/table-pagination-bar';
 import { usePagination } from '@/hooks/use-pagination';
 import {
@@ -79,6 +77,8 @@ export function ProjectManager({
   onDelete,
 }: ProjectManagerProps) {
   const [deleteTarget, setDeleteTarget] = useState<ProjectItem | null>(null);
+  const [menuAnchorEl, setMenuAnchorEl] = useState<HTMLElement | null>(null);
+  const [activeProject, setActiveProject] = useState<ProjectItem | null>(null);
   const serviceOptions = useMemo(() => flattenServices(services), [services]);
   const { pageItems, page, setPage, totalPages, totalItems, pageSize } = usePagination(projects, {
     resetKey: filters,
@@ -96,267 +96,232 @@ export function ProjectManager({
     return getProjectRevenueGroupInfo(Boolean(config?.enabled));
   };
 
+  const openActionMenu = (event: MouseEvent<HTMLButtonElement>, project: ProjectItem) => {
+    setMenuAnchorEl(event.currentTarget);
+    setActiveProject(project);
+  };
+
+  const closeActionMenu = () => {
+    setMenuAnchorEl(null);
+    setActiveProject(null);
+  };
+
+  const deleteActiveProject = () => {
+    if (activeProject) setDeleteTarget(activeProject);
+    closeActionMenu();
+  };
+
   return (
     <div className="min-h-[calc(100vh-72px)] w-full bg-slate-50/60 p-6">
-      <div className="mb-6 flex flex-col gap-4 sm:flex-row sm:items-center sm:justify-between">
-        <div>
-          <h1 className="text-2xl font-bold text-slate-950">Dự án</h1>
-          <div className="mt-2 flex items-center gap-2 text-sm text-slate-500">
-            <span>Dashboard</span>
-            <span className="h-1 w-1 rounded-full bg-slate-300" />
-            <span className="text-slate-950">Dự án</span>
-          </div>
-        </div>
-
-        <Button
-          component={Link}
-          href="/projects/new"
-          variant="contained"
-          startIcon={<AddRoundedIcon />}
-          className="!bg-slate-900 hover:!bg-slate-800"
-        >
-          Thêm dự án
-        </Button>
-      </div>
+      <PageHeader
+        title="Dự án"
+        action={{
+          label: 'Thêm dự án',
+          href: '/projects/new',
+          icon: <AddRoundedIcon />,
+        }}
+      />
 
       <section className="w-full overflow-hidden rounded-2xl border border-slate-200 bg-white shadow-sm">
-        <div className="grid gap-3 border-b border-slate-200 p-5 md:grid-cols-2 xl:grid-cols-6">
-          <TextField
-            fullWidth
+        <div className="grid gap-3 p-4 md:grid-cols-2 xl:grid-cols-3 2xl:grid-cols-[minmax(260px,1.4fr)_repeat(5,minmax(150px,1fr))]">
+          <CompactSearchField
             label="Từ khóa"
             placeholder="Tìm mã, tên dự án, ghi chú..."
             value={filters.keyword}
-            onChange={(event) => updateFilters({ keyword: event.target.value })}
-            className="xl:col-span-2"
-            slotProps={{
-              input: {
-                startAdornment: (
-                  <InputAdornment position="start">
-                    <SearchRoundedIcon fontSize="small" />
-                  </InputAdornment>
-                ),
-              },
-            }}
+            onChange={(value) => updateFilters({ keyword: value })}
           />
 
-          <TextField
-            select
+          <CompactSelectField
             label="Trạng thái"
             value={filters.status_option_id}
-            onChange={(event) => updateFilters({ status_option_id: event.target.value })}
-          >
-            <MenuItem value="">Tất cả</MenuItem>
-            {statuses.map((status) => (
-              <MenuItem key={status.id} value={status.id}>
-                {status.label}
-              </MenuItem>
-            ))}
-          </TextField>
+            options={statuses.map((status) => ({
+              value: String(status.id),
+              label: status.label,
+            }))}
+            onChange={(value) => updateFilters({ status_option_id: value })}
+          />
 
-          <TextField
-            select
+          <CompactSelectField
             label="Khách hàng"
             value={filters.customer_id}
-            onChange={(event) => updateFilters({ customer_id: event.target.value })}
-          >
-            <MenuItem value="">Tất cả</MenuItem>
-            {customers.map((customer) => (
-              <MenuItem key={customer.id} value={customer.id}>
-                {customerLabel(customer)}
-              </MenuItem>
-            ))}
-          </TextField>
+            options={customers.map((customer) => ({
+              value: String(customer.id),
+              label: customerLabel(customer),
+            }))}
+            onChange={(value) => updateFilters({ customer_id: value })}
+          />
 
-          <TextField
-            select
+          <CompactSelectField
             label="Dịch vụ"
             value={filters.service_id}
-            onChange={(event) => updateFilters({ service_id: event.target.value })}
-          >
-            <MenuItem value="">Tất cả</MenuItem>
-            {serviceOptions.map((service) => (
-              <MenuItem key={service.id} value={service.id}>
-                {'- '.repeat(service.depth)}
-                {service.code} - {service.name}
-              </MenuItem>
-            ))}
-          </TextField>
+            options={serviceOptions.map((service) => ({
+              value: String(service.id),
+              label: `${'— '.repeat(service.depth)}${service.code} - ${service.name}`,
+            }))}
+            onChange={(value) => updateFilters({ service_id: value })}
+          />
 
-          <TextField
-            select
+          <CompactSelectField
             label="Người quản lý"
             value={filters.manager_user_id}
-            onChange={(event) => updateFilters({ manager_user_id: event.target.value })}
-          >
-            <MenuItem value="">Tất cả</MenuItem>
-            {users.map((user) => (
-              <MenuItem key={user.id} value={user.id}>
-                {userLabel(user)}
-              </MenuItem>
-            ))}
-          </TextField>
+            options={users.map((user) => ({
+              value: String(user.id),
+              label: userLabel(user),
+            }))}
+            onChange={(value) => updateFilters({ manager_user_id: value })}
+          />
+
+          <CompactSelectField
+            label="Sales"
+            value={filters.sales_user_id}
+            options={users.map((user) => ({
+              value: String(user.id),
+              label: userLabel(user),
+            }))}
+            onChange={(value) => updateFilters({ sales_user_id: value })}
+          />
         </div>
 
-        <div className="relative overflow-x-auto">
-          {isFetching && (
-            <div className="absolute left-0 right-0 top-0 z-20">
-              <LinearProgress color="primary" />
-            </div>
-          )}
+        <AppDataTable
+          columns={[
+            {
+              key: 'project',
+              label: 'Dự án',
+              className: 'sticky left-0 z-20 w-[300px] bg-slate-100',
+            },
+            { key: 'customer', label: 'Khách hàng', className: 'w-[220px]' },
+            { key: 'service', label: 'Dịch vụ', className: 'w-[220px]' },
+            { key: 'revenueGroup', label: 'Nhóm doanh thu', className: 'w-[190px]' },
+            { key: 'status', label: 'Trạng thái', className: 'w-40' },
+            { key: 'manager', label: 'Người quản lý', className: 'w-[180px]' },
+            { key: 'sales', label: 'Sales', className: 'w-[180px]' },
+            { key: 'startDate', label: 'Bắt đầu', className: 'w-32' },
+            { key: 'endDate', label: 'Kết thúc', className: 'w-32' },
+            { key: 'actions', className: 'w-24' },
+          ]}
+          isLoading={isFetching}
+          isEmpty={pageItems.length === 0}
+          emptyText="Không có dữ liệu dự án"
+          minWidthClassName="min-w-[1780px]"
+        >
+          {pageItems.map((project) => {
+            const revenueGroup = getRevenueGroup(project);
+            const isManagementFee = revenueGroup.group === '2.1';
 
-          <table
-            className={`w-full min-w-[1380px] table-fixed text-left text-sm transition-opacity ${isFetching ? 'opacity-60' : 'opacity-100'}`}
-          >
-            <thead className="bg-slate-50 text-xs font-bold uppercase text-slate-500">
-              <tr>
-                <th className="w-[320px] px-5 py-4">Mã dự án</th>
-                <th className="w-[240px] px-3 py-4">Khách hàng</th>
-                <th className="w-[220px] px-3 py-4">Dịch vụ</th>
-                <th className="w-[190px] px-3 py-4">Nhóm doanh thu</th>
-                <th className="w-40 px-3 py-4">Trạng thái</th>
-                <th className="w-[180px] px-3 py-4">Người quản lý</th>
-                <th className="w-[180px] px-3 py-4">Sales</th>
-                <th className="w-32 px-3 py-4">Bắt đầu</th>
-                <th className="w-32 px-3 py-4">Kết thúc</th>
-                <th className="w-28 px-5 py-4" />
-              </tr>
-            </thead>
-            <tbody className="divide-y divide-slate-100">
-              {projects.length === 0 ? (
-                <tr>
-                  <td
-                    colSpan={10}
-                    className="px-5 py-12 text-center text-sm font-semibold text-slate-500"
+            return (
+              <tr key={project.id} className="group hover:bg-slate-50/80">
+                <td className="sticky left-0 z-10 bg-white px-3 py-4 group-hover:bg-slate-50">
+                  <div className="min-w-0">
+                    <Link
+                      href={`/projects/${project.id}`}
+                      className="block truncate font-bold text-primary transition-colors hover:text-primary/80"
+                      title={project.projectCode || project.projectName}
+                    >
+                      {project.projectCode || '-'}
+                    </Link>
+                    <Link
+                      href={`/projects/${project.id}`}
+                      className="mt-1 block truncate text-xs text-slate-500 transition-colors hover:text-primary"
+                      title={project.projectName}
+                    >
+                      {project.projectName}
+                    </Link>
+                    {project.planLink ? (
+                      <a
+                        href={getProjectExternalUrl(project.planLink)}
+                        target="_blank"
+                        rel="noreferrer"
+                        className="mt-1 inline-flex max-w-full items-center gap-1 truncate text-xs font-semibold text-blue-600 hover:text-blue-700"
+                      >
+                        <LinkRoundedIcon fontSize="inherit" />
+                        <span className="truncate">Plan</span>
+                      </a>
+                    ) : null}
+                  </div>
+                </td>
+                <td className="px-3 py-4">
+                  {project.customer ? (
+                    <Link
+                      href={`/customers/${project.customer.id}`}
+                      className="block truncate font-semibold text-slate-800 transition-colors hover:text-primary"
+                      title={project.customer.customerName || project.customer.companyName || ''}
+                    >
+                      {project.customer.customerName || project.customer.companyName || '-'}
+                    </Link>
+                  ) : (
+                    <span className="text-slate-500">-</span>
+                  )}
+                </td>
+                <td className="px-3 py-4">
+                  <p className="truncate text-slate-700" title={project.service?.name || ''}>
+                    {project.service?.code ? `${project.service.code} - ` : ''}
+                    {project.service?.name || '-'}
+                  </p>
+                </td>
+                <td className="px-3 py-4">
+                  <span
+                    className={`inline-flex rounded-full px-2.5 py-1 text-xs font-bold ring-1 ${
+                      isManagementFee
+                        ? 'bg-sky-50 text-sky-800 ring-sky-200'
+                        : 'bg-amber-50 text-amber-800 ring-amber-200'
+                    }`}
+                    title={revenueGroup.description}
                   >
-                    Chưa có dự án nào
-                  </td>
-                </tr>
-              ) : (
-                pageItems.map((project) => {
-                  const revenueGroup = getRevenueGroup(project);
-                  const isManagementFee = revenueGroup.group === '2.1';
-
-                  return (
-                    <tr key={project.id} className="hover:bg-slate-50/80">
-                      <td className="px-5 py-4">
-                        <div className="min-w-0">
-                          <p
-                            className="truncate font-bold text-blue-700"
-                            title={project.projectCode || project.projectName}
-                          >
-                            {project.projectCode || '-'}
-                          </p>
-                          <p
-                            className="mt-1 truncate text-xs text-slate-500"
-                            title={project.projectName}
-                          >
-                            {project.projectName}
-                          </p>
-                          {project.planLink ? (
-                            <a
-                              href={getProjectExternalUrl(project.planLink)}
-                              target="_blank"
-                              rel="noreferrer"
-                              className="mt-1 inline-flex max-w-full items-center gap-1 truncate text-xs font-semibold text-blue-600 hover:text-blue-700"
-                            >
-                              <LinkRoundedIcon fontSize="inherit" />
-                              <span className="truncate">Plan</span>
-                            </a>
-                          ) : null}
-                        </div>
-                      </td>
-                      <td className="px-3 py-4">
-                        <p
-                          className="truncate font-semibold text-slate-800"
-                          title={
-                            project.customer?.customerName || project.customer?.companyName || ''
-                          }
-                        >
-                          {project.customer?.customerName || project.customer?.companyName || '-'}
-                        </p>
-                      </td>
-                      <td className="px-3 py-4">
-                        <p className="truncate text-slate-700" title={project.service?.name || ''}>
-                          {project.service?.code ? `${project.service.code} - ` : ''}
-                          {project.service?.name || '-'}
-                        </p>
-                      </td>
-                      <td className="px-3 py-4">
-                        <span
-                          className={`inline-flex rounded-full px-2.5 py-1 text-xs font-bold ring-1 ${
-                            isManagementFee
-                              ? 'bg-sky-50 text-sky-800 ring-sky-200'
-                              : 'bg-amber-50 text-amber-800 ring-amber-200'
-                          }`}
-                          title={revenueGroup.description}
-                        >
-                          {revenueGroup.title}
-                        </span>
-                        <p className="mt-1.5 text-xs leading-4 text-slate-500">
-                          {isManagementFee ? 'Theo ngân sách' : 'SL × đơn giá'}
-                        </p>
-                      </td>
-                      <td className="px-3 py-4">
-                        <span
-                          className={`rounded-md px-2 py-1 text-xs font-bold ${projectStatusClass(project)}`}
-                          style={
-                            project.statusOption
-                              ? { backgroundColor: getProjectStatusColor(project) }
-                              : undefined
-                          }
-                        >
-                          {project.statusOption?.label || 'Chưa chọn'}
-                        </span>
-                      </td>
-                      <td className="px-3 py-4">
-                        <p
-                          className="truncate text-slate-700"
-                          title={project.managerUser?.name || ''}
-                        >
-                          {project.managerUser?.name || '-'}
-                        </p>
-                      </td>
-                      <td className="px-3 py-4">
-                        <p
-                          className="truncate text-slate-700"
-                          title={project.salesUser?.name || ''}
-                        >
-                          {project.salesUser?.name || '-'}
-                        </p>
-                      </td>
-                      <td className="px-3 py-4 text-slate-600">
-                        {formatProjectDate(project.startDate)}
-                      </td>
-                      <td className="px-3 py-4 text-slate-600">
-                        {formatProjectDate(project.endDate)}
-                      </td>
-                      <td className="px-5 py-4">
-                        <div className="flex items-center justify-end gap-1">
-                          <IconButton
-                            component={Link}
-                            href={`/projects/${project.id}`}
-                            size="small"
-                            title="Chỉnh sửa"
-                          >
-                            <EditRoundedIcon fontSize="small" />
-                          </IconButton>
-                          <IconButton
-                            size="small"
-                            title="Xóa"
-                            className="hover:text-rose-600"
-                            onClick={() => setDeleteTarget(project)}
-                          >
-                            <DeleteRoundedIcon fontSize="small" />
-                          </IconButton>
-                        </div>
-                      </td>
-                    </tr>
-                  );
-                })
-              )}
-            </tbody>
-          </table>
-        </div>
+                    {revenueGroup.title}
+                  </span>
+                  <p className="mt-1.5 text-xs leading-4 text-slate-500">
+                    {isManagementFee ? 'Theo ngân sách' : 'SL × đơn giá'}
+                  </p>
+                </td>
+                <td className="px-3 py-4">
+                  <span
+                    className={`rounded-md px-2 py-1 text-xs font-bold ${projectStatusClass(project)}`}
+                    style={
+                      project.statusOption
+                        ? { backgroundColor: getProjectStatusColor(project) }
+                        : undefined
+                    }
+                  >
+                    {project.statusOption?.label || 'Chưa chọn'}
+                  </span>
+                </td>
+                <td className="px-3 py-4">
+                  <p className="truncate text-slate-700" title={project.managerUser?.name || ''}>
+                    {project.managerUser?.name || '-'}
+                  </p>
+                </td>
+                <td className="px-3 py-4">
+                  <p className="truncate text-slate-700" title={project.salesUser?.name || ''}>
+                    {project.salesUser?.name || '-'}
+                  </p>
+                </td>
+                <td className="px-3 py-4 text-slate-600">{formatProjectDate(project.startDate)}</td>
+                <td className="px-3 py-4 text-slate-600">{formatProjectDate(project.endDate)}</td>
+                <td className="py-4">
+                  <div className="flex items-center justify-end gap-1 pr-3">
+                    <IconButton
+                      component={Link}
+                      href={`/projects/${project.id}`}
+                      size="small"
+                      title="Chỉnh sửa"
+                      aria-label={`Chỉnh sửa dự án ${project.projectCode || project.projectName}`}
+                    >
+                      <EditRoundedIcon fontSize="small" />
+                    </IconButton>
+                    <IconButton
+                      size="small"
+                      title="Tác vụ"
+                      aria-label={`Tác vụ dự án ${project.projectCode || project.projectName}`}
+                      onClick={(event) => openActionMenu(event, project)}
+                    >
+                      <MoreVertRoundedIcon fontSize="small" />
+                    </IconButton>
+                  </div>
+                </td>
+              </tr>
+            );
+          })}
+        </AppDataTable>
 
         <TablePaginationBar
           page={page}
@@ -365,6 +330,21 @@ export function ProjectManager({
           pageSize={pageSize}
           onPageChange={setPage}
         />
+
+        <Menu anchorEl={menuAnchorEl} open={Boolean(menuAnchorEl)} onClose={closeActionMenu}>
+          <MenuItem
+            component={Link}
+            href={activeProject ? `/projects/${activeProject.id}` : '/projects'}
+            onClick={closeActionMenu}
+          >
+            <EditRoundedIcon fontSize="small" className="mr-2 text-slate-500" />
+            Chỉnh sửa
+          </MenuItem>
+          <MenuItem onClick={deleteActiveProject} className="text-rose-600" disabled={isDeleting}>
+            <DeleteRoundedIcon fontSize="small" className="mr-2" />
+            Xóa
+          </MenuItem>
+        </Menu>
       </section>
 
       <ConfirmDialog

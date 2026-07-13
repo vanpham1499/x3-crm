@@ -184,8 +184,6 @@ class WeeklyReportsService extends BaseService
 
     private function currentUser(): ?User
     {
-        $user = request()->attributes->get('auth_user');
-
-        return $user instanceof User ? $user : null;
+        return request()->user();
     }
 }
