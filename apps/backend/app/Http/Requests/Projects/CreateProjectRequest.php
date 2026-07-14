@@ -11,8 +11,6 @@ class CreateProjectRequest extends BaseRequest
     public function rules(): array
     {
         return [
-            'project_code' => ['nullable', 'string', 'max:100'],
-            'projectCode' => ['nullable', 'string', 'max:100'],
             'customer_id' => ['required_without:customerId', 'integer', Rule::exists('customers', 'id')->whereNull('deleted_at')],
             'customerId' => ['required_without:customer_id', 'integer', Rule::exists('customers', 'id')->whereNull('deleted_at')],
             'quotation_id' => ['nullable', 'integer', Rule::exists('quotations', 'id')->whereNull('deleted_at')],
@@ -21,6 +19,8 @@ class CreateProjectRequest extends BaseRequest
             'serviceId' => ['required_without:service_id', 'integer', Rule::exists('services', 'id')->whereNull('deleted_at')],
             'project_name' => ['required_without:projectName', 'string', 'max:255'],
             'projectName' => ['required_without:project_name', 'string', 'max:255'],
+            'project_type' => ['nullable', Rule::in(['K', 'M'])],
+            'projectType' => ['nullable', Rule::in(['K', 'M'])],
             'status_option_id' => ['nullable', 'integer', Rule::exists('options', 'id')->where('group', Option::GROUP_PROJECT_STATUS)->whereNull('deleted_at')],
             'statusOptionId' => ['nullable', 'integer', Rule::exists('options', 'id')->where('group', Option::GROUP_PROJECT_STATUS)->whereNull('deleted_at')],
             'manager_user_id' => ['nullable', 'integer', Rule::exists('users', 'id')->whereNull('deleted_at')],

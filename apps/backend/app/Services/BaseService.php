@@ -2,6 +2,7 @@
 
 namespace App\Services;
 
+use Illuminate\Contracts\Pagination\LengthAwarePaginator;
 use Illuminate\Http\Resources\Json\JsonResource;
 use Illuminate\Support\Facades\DB;
 
@@ -26,5 +27,22 @@ abstract class BaseService
         return $records
             ->map(fn ($record) => $this->apiResource($record, $resourceClass))
             ->values();
+    }
+
+    protected function apiPaginatedCollection(
+        LengthAwarePaginator $paginator,
+        ?string $resourceClass = null,
+    ): array {
+        return [
+            'data' => $this->apiCollection($paginator->getCollection(), $resourceClass),
+            'meta' => [
+                'currentPage' => $paginator->currentPage(),
+                'lastPage' => $paginator->lastPage(),
+                'perPage' => $paginator->perPage(),
+                'total' => $paginator->total(),
+                'from' => $paginator->firstItem(),
+                'to' => $paginator->lastItem(),
+            ],
+        ];
     }
 }

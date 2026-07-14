@@ -18,6 +18,14 @@ class WeeklyReportsService extends BaseService
         return $this->apiCollection($this->reports->findAll($this->normalizeKeys($filters)), WeeklyReportResource::class);
     }
 
+    public function findPaginated(array $filters, int $perPage, int $page): array
+    {
+        return $this->apiPaginatedCollection(
+            $this->reports->findPaginated($this->normalizeKeys($filters), $perPage, $page),
+            WeeklyReportResource::class,
+        );
+    }
+
     public function findOne(string $id): array
     {
         return $this->apiResource($this->reports->findWithRelationsOrFail($id), WeeklyReportResource::class);

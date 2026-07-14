@@ -10,8 +10,8 @@ class QuotationResource extends JsonResource
 {
     public function toArray(Request $request): array
     {
-        $paidAmount = $this->relationLoaded('payments')
-            ? (float) $this->payments->sum('amount')
+        $paidAmount = $this->relationLoaded('paymentAllocations')
+            ? (float) $this->paymentAllocations->sum('amount')
             : 0.0;
         $totalAmount = (float) $this->total_amount;
 
@@ -52,6 +52,7 @@ class QuotationResource extends JsonResource
                 'id' => $this->project->id,
                 'projectCode' => $this->project->project_code,
                 'projectName' => $this->project->project_name,
+                'projectType' => $this->project->project_type,
             ] : null),
             'contract' => $this->whenLoaded('contract', fn () => $this->contract ? [
                 'id' => $this->contract->id,

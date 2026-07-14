@@ -8,23 +8,39 @@ use App\Models\Quotation;
 use App\Repositories\PaymentRepository;
 use App\Support\QuotationReference;
 use Carbon\Carbon;
-use Illuminate\Support\Facades\DB;
+use Illuminate\Database\Eloquent\Collection;
+use Illuminate\Validation\ValidationException;
 
 class PaymentsService extends BaseService
 {
     public function __construct(
         private readonly PaymentRepository $payments,
         private readonly QuotationsService $quotations,
+        private readonly PaymentAllocationService $paymentAllocations,
     ) {}
 
     public function findAll(array $filters = [])
     {
-        return $this->apiCollection($this->payments->findAll($this->normalizeKeys($filters)), PaymentResource::class);
+        $payments = $this->payments->findAll($this->normalizeKeys($filters));
+        $this->paymentAllocations->appendCollectionContext($payments);
+
+        return $this->apiCollection($payments, PaymentResource::class);
+    }
+
+    public function findPaginated(array $filters, int $perPage, int $page): array
+    {
+        $paginator = $this->payments->findPaginated($this->normalizeKeys($filters), $perPage, $page);
+        $this->paymentAllocations->appendCollectionContext($paginator->getCollection());
+
+        return $this->apiPaginatedCollection($paginator, PaymentResource::class);
     }
 
     public function findOne(string $id): array
     {
-        return $this->apiResource($this->payments->findWithRelationsOrFail($id), PaymentResource::class);
+        $payment = $this->payments->findWithRelationsOrFail($id);
+        $this->paymentAllocations->appendCollectionContext(new Collection([$payment]));
+
+        return $this->apiResource($payment, PaymentResource::class);
     }
 
     public function create(array $data): array
@@ -41,7 +57,8 @@ class PaymentsService extends BaseService
 
             /** @var Payment $payment */
             $payment = $this->payments->create($data);
-            $this->reconcileQuotationPayments($quotation?->id);
+            $this->paymentAllocations->reconcilePayment($payment->id);
+            $this->paymentAllocations->autoAllocateToQuotation($payment->id, $quotation?->id, auth()->id());
 
             return $this->paymentResource($payment);
         });
@@ -51,8 +68,20 @@ class PaymentsService extends BaseService
     {
         return $this->transaction(function () use ($id, $data): array {
             $current = $this->payments->findWithRelationsOrFail($id);
-            $previousQuotationId = $current->quotation_id;
             $data = $this->normalizePayload($data);
+
+            if (array_key_exists('amount', $data)) {
+                $committedAmount = (float) $current->allocations->sum('amount')
+                    + (float) $current->refunds->sum('amount');
+
+                if ((float) $data['amount'] < $committedAmount) {
+                    throw ValidationException::withMessages([
+                        'amount' => ['Số tiền giao dịch không được nhỏ hơn tổng đã phân bổ và đã hoàn.'],
+                    ]);
+                }
+            }
+
+            $previousQuotationId = $current->quotation_id;
             $quotationId = array_key_exists('quotation_id', $data)
                 ? $data['quotation_id']
                 : $previousQuotationId;
@@ -66,10 +95,11 @@ class PaymentsService extends BaseService
 
             /** @var Payment $payment */
             $payment = $this->payments->update($id, $data);
-            $this->reconcileQuotationPayments($previousQuotationId);
+            $this->paymentAllocations->reconcilePayment($payment->id);
+            $this->paymentAllocations->reconcileQuotation($previousQuotationId);
 
             if ((string) $quotationId !== (string) $previousQuotationId) {
-                $this->reconcileQuotationPayments($quotationId);
+                $this->paymentAllocations->autoAllocateToQuotation($payment->id, $quotationId, auth()->id());
             }
 
             return $this->paymentResource($payment);
@@ -80,9 +110,14 @@ class PaymentsService extends BaseService
     {
         return $this->transaction(function () use ($id): array {
             $payment = $this->payments->findWithRelationsOrFail($id);
-            $quotationId = $payment->quotation_id;
+
+            if ($payment->allocations->isNotEmpty() || $payment->refunds->isNotEmpty()) {
+                throw ValidationException::withMessages([
+                    'payment' => ['Không thể xóa giao dịch đã có phân bổ hoặc hoàn tiền.'],
+                ]);
+            }
+
             $this->payments->delete($id);
-            $this->reconcileQuotationPayments($quotationId);
 
             return ['message' => 'Xóa thanh toán thành công'];
         });
@@ -117,10 +152,16 @@ class PaymentsService extends BaseService
                         $this->matchedPayload($quotation),
                         $webhookDetails,
                     ));
-                    $this->reconcileQuotationPayments($quotation->id);
                 } elseif ($webhookDetails !== []) {
                     $existingPayment = $this->payments->update($existingPayment->id, $webhookDetails);
                 }
+
+                $this->paymentAllocations->reconcilePayment($existingPayment->id);
+                $this->paymentAllocations->autoAllocateToQuotation(
+                    $existingPayment->id,
+                    $quotation?->id,
+                    auth()->id(),
+                );
 
                 return $this->paymentResource($existingPayment);
             }
@@ -129,16 +170,19 @@ class PaymentsService extends BaseService
                 $payment = $this->payments->create(array_merge($data, [
                     'status' => 'unmatched',
                     'reconciled_status' => 'unmatched',
+                    'receipt_type' => 'customer',
                     'webhook_payload' => $rawPayload,
                 ]));
+                $this->paymentAllocations->reconcilePayment($payment->id);
 
                 return $this->paymentResource($payment);
             }
 
             $payment = $this->payments->create(array_merge($data, $this->matchedPayload($quotation), [
+                'receipt_type' => 'customer',
                 'webhook_payload' => $rawPayload,
             ]));
-            $this->reconcileQuotationPayments($quotation->id);
+            $this->paymentAllocations->autoAllocateToQuotation($payment->id, $quotation->id, auth()->id());
 
             return $this->paymentResource($payment);
         });
@@ -147,32 +191,52 @@ class PaymentsService extends BaseService
     public function matchProject(string $id, array $data): array
     {
         return $this->transaction(function () use ($id, $data): array {
-            $payment = $this->payments->findWithRelationsOrFail($id);
             $data = $this->normalizePayload($data);
-            $quotation = $payment->quotation_id ? $this->quotations->findModel($payment->quotation_id) : null;
+            $quotation = ! empty($data['quotation_id'])
+                ? $this->quotations->findModel((string) $data['quotation_id'])
+                : null;
 
-            if (! $quotation && ! empty($data['quotation_id'])) {
-                $quotation = $this->quotations->findModel($data['quotation_id']);
-            }
-
-            $update = array_filter([
-                'quotation_id' => $quotation?->id ?? $data['quotation_id'] ?? null,
-                'lead_id' => $quotation?->lead_id ?? $data['lead_id'] ?? null,
+            $this->paymentAllocations->link($id, [
                 'customer_id' => $quotation?->customer_id ?? $data['customer_id'] ?? null,
                 'project_id' => $quotation?->project_id ?? $data['project_id'] ?? null,
-                'contract_id' => $quotation?->contract_id ?? $data['contract_id'] ?? null,
-            ], fn ($value) => $value !== null);
+                'receipt_type' => 'customer',
+            ]);
 
-            $update['status'] = ($update['project_id'] ?? null) ? 'matched_project' : 'matched_quotation';
-            $update['reconciled_status'] = $update['status'];
-            $update['matched_at'] = now();
+            if ($quotation) {
+                $this->payments->update($id, $this->matchedPayload($quotation));
+                $this->paymentAllocations->autoAllocateToQuotation($id, $quotation->id, auth()->id());
+            }
 
-            /** @var Payment $updated */
-            $updated = $this->payments->update($payment->id, $update);
-            $this->reconcileQuotationPayments($quotation?->id);
-
-            return $this->paymentResource($updated);
+            return $this->paymentResource($this->payments->findWithRelationsOrFail($id));
         });
+    }
+
+    public function allocate(string $id, array $data): array
+    {
+        $this->paymentAllocations->allocate($id, $data['allocations'] ?? [], auth()->id());
+
+        return $this->paymentResource($this->payments->findWithRelationsOrFail($id));
+    }
+
+    public function removeAllocation(string $paymentId, string $allocationId): array
+    {
+        $this->paymentAllocations->removeAllocation($paymentId, $allocationId, auth()->id());
+
+        return $this->paymentResource($this->payments->findWithRelationsOrFail($paymentId));
+    }
+
+    public function refund(string $id, array $data): array
+    {
+        $this->paymentAllocations->refund($id, $data, auth()->id());
+
+        return $this->paymentResource($this->payments->findWithRelationsOrFail($id));
+    }
+
+    public function link(string $id, array $data): array
+    {
+        $this->paymentAllocations->link($id, $this->normalizeKeys($data));
+
+        return $this->paymentResource($this->payments->findWithRelationsOrFail($id));
     }
 
     private function matchedPayload(Quotation $quotation): array
@@ -187,6 +251,7 @@ class PaymentsService extends BaseService
             'contract_id' => $quotation->contract_id,
             'status' => $hasProject ? 'matched_project' : 'matched_quotation',
             'reconciled_status' => $hasProject ? 'matched_project' : 'matched_quotation',
+            'receipt_type' => 'customer',
             'matched_at' => now(),
         ];
     }
@@ -232,6 +297,9 @@ class PaymentsService extends BaseService
             'transactionContent' => 'transaction_content',
             'customerCodeText' => 'customer_code_text',
             'reconciledStatus' => 'reconciled_status',
+            'receiptType' => 'receipt_type',
+            'dateFrom' => 'date_from',
+            'dateTo' => 'date_to',
         ];
 
         foreach ($map as $from => $to) {
@@ -277,59 +345,6 @@ class PaymentsService extends BaseService
         return $data;
     }
 
-    private function reconcileQuotationPayments(string|int|null $quotationId): void
-    {
-        if (! $quotationId) {
-            return;
-        }
-
-        $quotation = $this->quotations->findModel((string) $quotationId);
-        $receivedAmount = (float) Payment::query()
-            ->where('quotation_id', $quotationId)
-            ->sum('amount');
-        $matchStatus = $quotation->project_id ? 'matched_project' : 'matched_quotation';
-        $paymentStatus = $this->collectionStatus(
-            $receivedAmount,
-            (float) $quotation->total_amount,
-            $matchStatus,
-        );
-
-        Payment::query()
-            ->where('quotation_id', $quotationId)
-            ->update([
-                'status' => $paymentStatus,
-                'reconciled_status' => $matchStatus,
-                'matched_at' => now(),
-                'updated_at' => now(),
-            ]);
-
-        if ($receivedAmount > 0 && $quotation->status !== Quotation::STATUS_LOST) {
-            DB::table('quotations')
-                ->where('id', $quotationId)
-                ->update(['status' => Quotation::STATUS_WON, 'updated_at' => now()]);
-        }
-    }
-
-    private function collectionStatus(
-        float $receivedAmount,
-        float $totalAmount,
-        string $matchStatus,
-    ): string {
-        if ($receivedAmount <= 0) {
-            return $matchStatus;
-        }
-
-        if ($receivedAmount < $totalAmount) {
-            return 'partial';
-        }
-
-        if ($receivedAmount > $totalAmount) {
-            return 'overpaid';
-        }
-
-        return 'paid';
-    }
-
     private function findDuplicateWebhookPayment(array $data): ?Payment
     {
         $reference = trim((string) ($data['reference'] ?? ''));
@@ -360,9 +375,18 @@ class PaymentsService extends BaseService
 
     private function paymentResource(Payment $payment): array
     {
-        return $this->apiResource(
-            $payment->refresh()->load(['quotation', 'lead', 'customer', 'project', 'contract']),
-            PaymentResource::class,
-        );
+        $payment = $payment->refresh()->load([
+            'quotation',
+            'lead',
+            'customer',
+            'project',
+            'contract',
+            'allocations.quotation.customer',
+            'allocations.quotation.project',
+            'refunds',
+        ]);
+        $this->paymentAllocations->appendCollectionContext(new Collection([$payment]));
+
+        return $this->apiResource($payment, PaymentResource::class);
     }
 }

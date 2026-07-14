@@ -2,16 +2,16 @@
 
 use App\Http\Controllers\AuthController;
 use App\Http\Controllers\ContractsController;
-use App\Http\Controllers\KpiPointsController;
 use App\Http\Controllers\CustomersController;
+use App\Http\Controllers\KpiPointsController;
 use App\Http\Controllers\LeadsController;
 use App\Http\Controllers\MediaController;
 use App\Http\Controllers\OptionsController;
 use App\Http\Controllers\PaymentsController;
 use App\Http\Controllers\PermissionsController;
 use App\Http\Controllers\ProjectCostsController;
-use App\Http\Controllers\ProjectWeeklySettingsController;
 use App\Http\Controllers\ProjectsController;
+use App\Http\Controllers\ProjectWeeklySettingsController;
 use App\Http\Controllers\QuotationsController;
 use App\Http\Controllers\RolesController;
 use App\Http\Controllers\ServicesController;
@@ -136,6 +136,10 @@ Route::middleware(['auth:sanctum', 'active'])->group(function (): void {
     Route::get('/payments', [PaymentsController::class, 'index']);
     Route::post('/payments', [PaymentsController::class, 'store']);
     Route::post('/payments/{id}/match-project', [PaymentsController::class, 'matchProject']);
+    Route::post('/payments/{id}/allocations', [PaymentsController::class, 'allocate']);
+    Route::delete('/payments/{paymentId}/allocations/{allocationId}', [PaymentsController::class, 'removeAllocation']);
+    Route::post('/payments/{id}/refunds', [PaymentsController::class, 'refund']);
+    Route::post('/payments/{id}/link', [PaymentsController::class, 'link']);
     Route::get('/payments/{id}', [PaymentsController::class, 'show']);
     Route::put('/payments/{id}', [PaymentsController::class, 'update']);
     Route::patch('/payments/{id}', [PaymentsController::class, 'update']);

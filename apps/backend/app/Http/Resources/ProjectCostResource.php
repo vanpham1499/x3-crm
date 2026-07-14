@@ -18,6 +18,8 @@ class ProjectCostResource extends JsonResource
             'status' => $this->status,
             'cid' => $this->cid,
             'adAccount' => $this->ad_account,
+            'cidIsDead' => (bool) $this->cid_is_dead,
+            'cidSpentAmount' => $this->cid_spent_amount,
             'bankAccountOptionId' => $this->bank_account_option_id,
             'partnerOptionId' => $this->partner_option_id,
             'amountBeforeVat' => $this->amount_before_vat,

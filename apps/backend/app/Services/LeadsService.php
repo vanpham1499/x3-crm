@@ -33,6 +33,16 @@ class LeadsService extends BaseService
         return $this->apiCollection($this->leads->findAll($filters), LeadResource::class);
     }
 
+    public function findPaginated(array $filters, int $perPage, int $page): array
+    {
+        $filters = $this->normalizeFilters($filters);
+
+        return $this->apiPaginatedCollection(
+            $this->leads->findPaginated($filters, $perPage, $page),
+            LeadResource::class,
+        );
+    }
+
     public function findOne(string $id): array
     {
         return $this->apiResource($this->leads->findWithRelationsOrFail($id), LeadResource::class);
@@ -253,7 +263,6 @@ class LeadsService extends BaseService
     {
         $data = $this->normalizeProjectKeys($data);
         $serviceId = $data['service_id'] ?? $quotation?->service_id;
-        $projectCode = $quotation ? $this->quotationProjectCode($quotation) : ($data['project_code'] ?? null);
         $projectName = $data['project_name'] ?? $this->quotationProjectName($quotation) ?? (($customer['customerName'] ?? $lead->customer_name).' - '.($quotation?->service_name ?? 'Project'));
 
         if (! $serviceId) {
@@ -264,7 +273,6 @@ class LeadsService extends BaseService
             'customer_id' => $customer['id'],
             'quotation_id' => $quotation?->id,
             'service_id' => $serviceId,
-            'project_code' => $projectCode,
             'project_name' => ($customer['customerName'] ?? $lead->customer_name).' - '.($quotation?->service_name ?? 'Dự án'),
             'sales_user_id' => $lead->assigned_user_id,
             'note' => $lead->note,
@@ -272,7 +280,6 @@ class LeadsService extends BaseService
             'customer_id' => $customer['id'],
             'quotation_id' => $quotation?->id,
             'service_id' => $serviceId,
-            'project_code' => $projectCode,
             'project_name' => $projectName,
         ]);
     }
@@ -297,15 +304,6 @@ class LeadsService extends BaseService
             'customer_id' => $customer['id'],
             'contract_no' => $data['contract_no'] ?? $project['projectCode'] ?? null,
         ]);
-    }
-
-    private function quotationProjectCode(Quotation $quotation): ?string
-    {
-        if (! $quotation->quotation_code) {
-            return null;
-        }
-
-        return preg_replace('/\.Q[0-9]+$/i', '', $quotation->quotation_code) ?: $quotation->quotation_code;
     }
 
     private function quotationProjectName(?Quotation $quotation): ?string

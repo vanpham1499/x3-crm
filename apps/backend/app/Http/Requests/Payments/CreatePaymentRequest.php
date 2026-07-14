@@ -34,6 +34,8 @@ class CreatePaymentRequest extends BaseRequest
             'customer_code_text' => ['nullable', 'string', 'max:100'],
             'customerCodeText' => ['nullable', 'string', 'max:100'],
             'status' => ['nullable', 'string', 'max:50'],
+            'receipt_type' => ['nullable', Rule::in(['customer', 'internal', 'other'])],
+            'receiptType' => ['nullable', Rule::in(['customer', 'internal', 'other'])],
             'reconciled_status' => ['nullable', 'string', 'max:50'],
             'reconciledStatus' => ['nullable', 'string', 'max:50'],
             'note' => ['nullable', 'string'],

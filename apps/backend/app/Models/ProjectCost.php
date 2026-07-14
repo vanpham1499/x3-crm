@@ -24,6 +24,8 @@ class ProjectCost extends BaseModel
         'status',
         'cid',
         'ad_account',
+        'cid_is_dead',
+        'cid_spent_amount',
         'bank_account_option_id',
         'partner_option_id',
         'amount_before_vat',
@@ -41,6 +43,8 @@ class ProjectCost extends BaseModel
 
     protected $casts = [
         'transaction_date' => 'date',
+        'cid_is_dead' => 'boolean',
+        'cid_spent_amount' => 'decimal:2',
         'amount_before_vat' => 'decimal:2',
         'vat_rate' => 'decimal:2',
         'vat_amount' => 'decimal:2',

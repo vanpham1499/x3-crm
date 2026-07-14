@@ -10,6 +10,7 @@ use App\Models\Project;
 use App\Models\User;
 use App\Repositories\ProjectRepository;
 use Illuminate\Support\Facades\DB;
+use Illuminate\Support\Str;
 use Illuminate\Validation\ValidationException;
 
 class ProjectsService extends BaseService
@@ -24,6 +25,14 @@ class ProjectsService extends BaseService
         return $this->apiCollection($this->projects->findAll($this->normalizeKeys($filters)), ProjectResource::class);
     }
 
+    public function findPaginated(array $filters, int $perPage, int $page): array
+    {
+        return $this->apiPaginatedCollection(
+            $this->projects->findPaginated($this->normalizeKeys($filters), $perPage, $page),
+            ProjectResource::class,
+        );
+    }
+
     public function findOne(string $id): array
     {
         return $this->apiResource($this->projects->findWithRelationsOrFail($id), ProjectResource::class);
@@ -36,9 +45,11 @@ class ProjectsService extends BaseService
             unset($data['contract']);
 
             $data = $this->normalizePayload($data);
+            unset($data['project_code']);
             $this->validateQuotationLink($data);
-            $data['project_code'] = $data['project_code'] ?? $this->projectCodeFromQuotation($data['quotation_id'] ?? null);
-            $data['project_code'] = $data['project_code'] ?? $this->generateProjectCode();
+            $data['project_type'] = $data['project_type'] ?? 'K';
+            $data['start_date'] = $data['start_date'] ?? now()->toDateString();
+            $data['project_code'] = $this->buildProjectCode($data) ?? $this->generateProjectCode();
             $data['project_code'] = $this->ensureUniqueProjectCode($data['project_code']);
             $data['status_option_id'] = $data['status_option_id'] ?? $this->defaultStatusOption()->id;
 
@@ -64,8 +75,20 @@ class ProjectsService extends BaseService
             unset($data['contract']);
 
             $data = $this->normalizePayload($data);
+            unset($data['project_code']);
             $before = $this->loadProjectRelations($this->projects->findWithRelationsOrFail($id));
             $this->validateQuotationLink($data, $before);
+            $codeData = [
+                'customer_id' => $data['customer_id'] ?? $before->customer_id,
+                'service_id' => $data['service_id'] ?? $before->service_id,
+                'project_type' => $data['project_type'] ?? $before->project_type ?? 'K',
+                'project_name' => $data['project_name'] ?? $before->project_name,
+            ];
+            $nextProjectCode = $this->buildProjectCode($codeData);
+
+            if ($nextProjectCode) {
+                $data['project_code'] = $this->ensureUniqueProjectCode($nextProjectCode, $before->id);
+            }
 
             /** @var Project $project */
             $project = $this->projects->update($id, $data);
@@ -120,6 +143,7 @@ class ProjectsService extends BaseService
             'quotationId' => 'quotation_id',
             'serviceId' => 'service_id',
             'projectName' => 'project_name',
+            'projectType' => 'project_type',
             'statusId' => 'status_id',
             'statusOptionId' => 'status_option_id',
             'managerUserId' => 'manager_user_id',
@@ -158,12 +182,6 @@ class ProjectsService extends BaseService
         if ($quotation->project_id && (string) $quotation->project_id !== (string) $projectId) {
             throw ValidationException::withMessages([
                 'quotationId' => ['Báo phí này đã được gắn với một dự án khác.'],
-            ]);
-        }
-
-        if ($quotation->status === 'lost') {
-            throw ValidationException::withMessages([
-                'quotationId' => ['Không thể tạo dự án từ báo phí đã hủy.'],
             ]);
         }
 
@@ -329,6 +347,7 @@ class ProjectsService extends BaseService
             'customer_id' => 'Khách hàng',
             'service_id' => 'Dịch vụ',
             'project_name' => 'Tên dự án',
+            'project_type' => 'Type dự án',
             'status_option_id' => 'Trạng thái',
             'manager_user_id' => 'Nhân sự quản lý',
             'sales_user_id' => 'Nhân sự sales',
@@ -439,24 +458,74 @@ class ProjectsService extends BaseService
         return $code;
     }
 
-    private function projectCodeFromQuotation(?string $quotationId): ?string
+    private function buildProjectCode(array $data): ?string
     {
-        if (! $quotationId) {
+        $customerCode = ! empty($data['customer_id'])
+            ? DB::table('customers')
+                ->where('id', $data['customer_id'])
+                ->whereNull('deleted_at')
+                ->value('customer_code')
+            : null;
+        $serviceCode = $this->rootServiceCode($data['service_id'] ?? null);
+        $projectType = $data['project_type'] ?? null;
+        $projectName = $data['project_name'] ?? null;
+
+        if (! $customerCode || ! $serviceCode || ! in_array($projectType, ['K', 'M'], true) || ! is_string($projectName) || trim($projectName) === '') {
             return null;
         }
 
-        $quotationCode = DB::table('quotations')->where('id', $quotationId)->value('quotation_code');
+        $code = collect([$customerCode, $serviceCode, $projectType, $projectName])
+            ->map(fn (string $part): string => $this->normalizeCodeSegment($part))
+            ->filter()
+            ->join('.');
 
-        if (! $quotationCode) {
-            return null;
-        }
-
-        return preg_replace('/\.Q[0-9]+$/i', '', $quotationCode) ?: $quotationCode;
+        return $code !== '' ? mb_substr($code, 0, 100) : null;
     }
 
-    private function ensureUniqueProjectCode(string $code): string
+    private function rootServiceCode(mixed $serviceId): ?string
     {
-        if (! DB::table('projects')->where('project_code', $code)->exists()) {
+        if (! $serviceId) {
+            return null;
+        }
+
+        $service = DB::table('services')
+            ->where('id', $serviceId)
+            ->whereNull('deleted_at')
+            ->first(['id', 'parent_id', 'code']);
+
+        while ($service && $service->parent_id) {
+            $parent = DB::table('services')
+                ->where('id', $service->parent_id)
+                ->whereNull('deleted_at')
+                ->first(['id', 'parent_id', 'code']);
+
+            if (! $parent) {
+                break;
+            }
+
+            $service = $parent;
+        }
+
+        return $service?->code;
+    }
+
+    private function normalizeCodeSegment(string $value): string
+    {
+        $value = Str::ascii(trim($value));
+        $value = preg_replace('/\s+/', '', $value) ?: '';
+        $value = preg_replace('/[^A-Za-z0-9._-]/', '', $value) ?: '';
+
+        return Str::upper($value);
+    }
+
+    private function ensureUniqueProjectCode(string $code, int|string|null $exceptProjectId = null): string
+    {
+        $exists = fn (string $candidate): bool => DB::table('projects')
+            ->where('project_code', $candidate)
+            ->when($exceptProjectId, fn ($query) => $query->where('id', '!=', $exceptProjectId))
+            ->exists();
+
+        if (! $exists($code)) {
             return $code;
         }
 
@@ -467,7 +536,7 @@ class ProjectsService extends BaseService
             $suffix = ".{$nextNumber}";
             $candidate = mb_substr($baseCode, 0, 100 - mb_strlen($suffix)).$suffix;
             $nextNumber++;
-        } while (DB::table('projects')->where('project_code', $candidate)->exists());
+        } while ($exists($candidate));
 
         return $candidate;
     }

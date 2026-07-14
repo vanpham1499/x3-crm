@@ -9,11 +9,7 @@ class Quotation extends BaseModel
 {
     public const STATUS_DRAFT = 'draft';
 
-    public const STATUS_SENT = 'sent';
-
     public const STATUS_WON = 'won';
-
-    public const STATUS_LOST = 'lost';
 
     protected $fillable = [
         'quotation_code',
@@ -79,6 +75,11 @@ class Quotation extends BaseModel
     public function payments(): HasMany
     {
         return $this->hasMany(Payment::class);
+    }
+
+    public function paymentAllocations(): HasMany
+    {
+        return $this->hasMany(PaymentAllocation::class);
     }
 
     public function items(): HasMany
