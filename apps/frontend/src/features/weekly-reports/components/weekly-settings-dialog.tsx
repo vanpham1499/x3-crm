@@ -1,16 +1,12 @@
 'use client';
 
-import {
-  Button,
-  Dialog,
-  DialogActions,
-  DialogContent,
-  DialogTitle,
-  MenuItem,
-  Switch,
-  TextField,
-} from '@mui/material';
+import { MenuItem, Switch } from '@mui/material';
 import { Controller, useForm } from 'react-hook-form';
+import { DialogActionButton } from '@/components/actions/dialog-action-button';
+import { AppFormDialog } from '@/components/dialog/app-form-dialog';
+import { compactFormFieldClassName } from '@/components/form/form-field-styles';
+import { FormInputField } from '@/components/form/form-input-field';
+import { FormSelectField } from '@/components/form/form-select-field';
 import { MoneyInput } from '@/components/form/money-input';
 import { applyApiErrorsToForm } from '@/lib/api-error';
 import type { ProjectWeeklySetting, ProjectWeeklySettingFormValues } from '@/types/weekly-report';
@@ -68,113 +64,112 @@ export function WeeklySettingsDialog({
   };
 
   return (
-    <Dialog open={open} onClose={isSubmitting ? undefined : closeDialog} maxWidth="sm" fullWidth>
-      <DialogTitle className="border-b border-slate-100 px-5 py-4">
-        <p className="text-base font-bold text-slate-950">Cấu hình báo cáo tuần dự án</p>
-      </DialogTitle>
+    <AppFormDialog
+      open={open}
+      title="Cấu hình báo cáo tuần"
+      maxWidth="sm"
+      submitting={isSubmitting}
+      onClose={closeDialog}
+      onSubmit={handleSubmit(async (values) => {
+        try {
+          await onSubmit(values);
+          closeDialog();
+        } catch (error) {
+          applyApiErrorsToForm(error, setError);
+        }
+      })}
+      actions={
+        <>
+          <DialogActionButton disabled={isSubmitting} onClick={closeDialog}>
+            Hủy
+          </DialogActionButton>
+          <DialogActionButton type="submit" tone="primary" disabled={isSubmitting}>
+            {isSubmitting ? 'Đang lưu...' : 'Lưu cấu hình'}
+          </DialogActionButton>
+        </>
+      }
+    >
+      <div className="grid gap-4 md:grid-cols-2">
+        <Controller
+          name="reportOwnerUserId"
+          control={control}
+          render={({ field }) => (
+            <FormSelectField
+              label="Người phụ trách"
+              error={Boolean(errors.reportOwnerUserId)}
+              helperText={errors.reportOwnerUserId?.message}
+              {...field}
+            >
+              <MenuItem value="">Chưa chọn</MenuItem>
+              {users.map((user) => (
+                <MenuItem key={user.id} value={String(user.id)}>
+                  {user.name}
+                </MenuItem>
+              ))}
+            </FormSelectField>
+          )}
+        />
 
-      <form
-        onSubmit={handleSubmit(async (values) => {
-          try {
-            await onSubmit(values);
-            closeDialog();
-          } catch (error) {
-            applyApiErrorsToForm(error, setError);
-          }
-        })}
-      >
-        <DialogContent className="grid gap-3 px-5 py-4 md:grid-cols-2">
+        <Controller
+          name="reportWeekday"
+          control={control}
+          render={({ field }) => (
+            <FormSelectField
+              label="Ngày báo cáo"
+              error={Boolean(errors.reportWeekday)}
+              helperText={errors.reportWeekday?.message}
+              {...field}
+            >
+              {Object.entries(WEEKDAY_LABELS).map(([value, label]) => (
+                <MenuItem key={value} value={value}>
+                  {label}
+                </MenuItem>
+              ))}
+            </FormSelectField>
+          )}
+        />
+
+        <Controller
+          name="monthlyBudget"
+          control={control}
+          render={({ field }) => (
+            <MoneyInput
+              fullWidth
+              size="small"
+              label="Ngân sách / tháng"
+              value={field.value}
+              onValueChange={field.onChange}
+              error={Boolean(errors.monthlyBudget)}
+              helperText={errors.monthlyBudget?.message}
+              className={compactFormFieldClassName}
+            />
+          )}
+        />
+
+        <FormInputField
+          type="number"
+          label="Phí quản lý (%)"
+          error={Boolean(errors.managementFeeRate)}
+          helperText={errors.managementFeeRate?.message}
+          slotProps={{ htmlInput: { min: 0, step: 0.01 } }}
+          {...register('managementFeeRate')}
+        />
+
+        <label className="flex min-h-10 items-center gap-2 rounded-lg border border-slate-200 px-3 md:col-span-2">
           <Controller
-            name="reportOwnerUserId"
+            name="isActive"
             control={control}
             render={({ field }) => (
-              <TextField
-                select
-                fullWidth
-                label="Người phụ trách báo cáo"
-                error={Boolean(errors.reportOwnerUserId)}
-                helperText={errors.reportOwnerUserId?.message}
-                {...field}
-              >
-                <MenuItem value="">Chưa chọn</MenuItem>
-                {users.map((user) => (
-                  <MenuItem key={user.id} value={String(user.id)}>
-                    {user.name}
-                  </MenuItem>
-                ))}
-              </TextField>
-            )}
-          />
-          <Controller
-            name="reportWeekday"
-            control={control}
-            render={({ field }) => (
-              <TextField
-                select
-                fullWidth
-                label="Thứ báo cáo tuần"
-                error={Boolean(errors.reportWeekday)}
-                helperText={errors.reportWeekday?.message}
-                {...field}
-              >
-                {Object.entries(WEEKDAY_LABELS).map(([value, label]) => (
-                  <MenuItem key={value} value={value}>
-                    {label}
-                  </MenuItem>
-                ))}
-              </TextField>
-            )}
-          />
-          <Controller
-            name="monthlyBudget"
-            control={control}
-            render={({ field }) => (
-              <MoneyInput
-                fullWidth
-                label="Ngân sách/tháng"
-                value={field.value}
-                onValueChange={field.onChange}
-                error={Boolean(errors.monthlyBudget)}
-                helperText={errors.monthlyBudget?.message}
+              <Switch
+                size="small"
+                checked={field.value}
+                onChange={(event) => field.onChange(event.target.checked)}
               />
             )}
           />
-          <TextField
-            fullWidth
-            type="number"
-            label="% Phí quản lý"
-            error={Boolean(errors.managementFeeRate)}
-            helperText={errors.managementFeeRate?.message}
-            slotProps={{ htmlInput: { min: 0, step: 0.01 } }}
-            {...register('managementFeeRate')}
-          />
-          <div className="flex items-center gap-2 md:col-span-2">
-            <Controller
-              name="isActive"
-              control={control}
-              render={({ field }) => (
-                <Switch checked={field.value} onChange={(event) => field.onChange(event.target.checked)} />
-              )}
-            />
-            <span className="text-sm font-semibold text-slate-700">Đang áp dụng báo cáo tuần</span>
-          </div>
-        </DialogContent>
-
-        <DialogActions className="border-t border-slate-100 px-5 py-3">
-          <Button size="small" variant="outlined" onClick={closeDialog} disabled={isSubmitting}>
-            Hủy
-          </Button>
-          <Button
-            type="submit"
-            size="small"
-            variant="contained"
-            disabled={isSubmitting}
-            className="!bg-slate-900 hover:!bg-slate-800"
-          >
-            {isSubmitting ? 'Đang lưu...' : 'Lưu cấu hình'}
-          </Button>
-        </DialogActions>
-      </form>
-    </Dialog>
+          <span className="text-sm font-semibold text-slate-700">Đang áp dụng báo cáo tuần</span>
+        </label>
+      </div>
+    </AppFormDialog>
   );
 }

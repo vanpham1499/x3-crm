@@ -20,8 +20,8 @@ import { CompactSelectField } from '@/components/form/compact-select-field';
 import { IconTabs } from '@/components/navigation/icon-tabs';
 import { PageHeader } from '@/components/shell/page-header';
 import { AppDataTable } from '@/components/table/app-data-table';
+import { EntityTableLink } from '@/components/table/entity-table-link';
 import { TablePaginationBar } from '@/components/table/table-pagination-bar';
-import { usePagination } from '@/hooks/use-pagination';
 import api from '@/services/api/client';
 import type { Customer, CustomerFilters } from '@/types/customer';
 import type { AppOption } from '@/types/option';
@@ -34,8 +34,14 @@ type CustomerManagerProps = {
   sources: AppOption[];
   industries: AppOption[];
   filters: CustomerFilters;
+  page: number;
+  totalPages: number;
+  totalItems: number;
+  pageSize: number;
   isFetching: boolean;
   isDeleting: boolean;
+  onPageChange: (page: number) => void;
+  onPageSizeChange: (pageSize: number) => void;
   onFiltersChange: (filters: CustomerFilters) => void;
   onDelete: (customer: Customer) => void;
 };
@@ -49,6 +55,18 @@ function InfoPill({ value, className }: { value?: string | null; className: stri
       <span className="truncate">{value || '-'}</span>
     </span>
   );
+}
+
+function getCustomerIdentity(customer: Customer) {
+  const customerCode = customer.customerCode?.trim();
+  const customerName = customer.customerName?.trim() || customer.companyName?.trim() || '';
+
+  if (!customerCode) return customerName || '-';
+  if (!customerName || customerCode.toLowerCase().includes(customerName.toLowerCase())) {
+    return customerCode;
+  }
+
+  return `${customerCode}.${customerName}`;
 }
 
 function CustomerDetailRow({ label, value }: { label: string; value?: string | number | null }) {
@@ -182,8 +200,14 @@ export function CustomerManager({
   sources,
   industries,
   filters,
+  page,
+  totalPages,
+  totalItems,
+  pageSize,
   isFetching,
   isDeleting,
+  onPageChange,
+  onPageSizeChange,
   onFiltersChange,
   onDelete,
 }: CustomerManagerProps) {
@@ -197,9 +221,6 @@ export function CustomerManager({
     queryKey: ['customers', viewCustomerId, 'quick-view'],
     queryFn: () => api.get(`/customers/${viewCustomerId}`).then((response) => response.data),
     enabled: Boolean(viewCustomerId),
-  });
-  const { pageItems, page, setPage, totalPages, totalItems, pageSize } = usePagination(customers, {
-    resetKey: filters,
   });
 
   const updateFilters = (nextFilters: Partial<CustomerFilters>) => {
@@ -298,101 +319,96 @@ export function CustomerManager({
         <AppDataTable
           columns={[
             {
-              key: 'code',
-              label: 'Mã KH',
-              className: 'sticky left-0 z-20 w-36 bg-slate-100',
+              key: 'customer',
+              label: 'Khách hàng',
+              className: 'sticky left-0 z-20 w-[300px] bg-slate-100',
             },
-            { key: 'name', label: 'Tên khách hàng', className: 'w-[260px]' },
-            { key: 'type', label: 'Loại khách', className: 'w-36' },
-            { key: 'phone', label: 'SĐT', className: 'w-36' },
+            { key: 'type', label: 'Loại', className: 'w-36' },
+            { key: 'phone', label: 'Số điện thoại', className: 'w-36' },
             { key: 'email', label: 'Email', className: 'w-56' },
             { key: 'representative', label: 'Người đại diện', className: 'w-48' },
             { key: 'sales', label: 'Người phụ trách', className: 'w-44' },
             { key: 'actions', className: 'w-36' },
           ]}
           isLoading={isFetching}
-          isEmpty={pageItems.length === 0}
+          isEmpty={customers.length === 0}
           emptyText="Không có dữ liệu khách hàng"
-          minWidthClassName="min-w-[1430px]"
+          minWidthClassName="min-w-[1320px]"
         >
-          {pageItems.map((customer) => (
-            <tr key={customer.id} className="group hover:bg-slate-50/80">
-              <td className="sticky left-0 z-10 bg-white px-3 py-4 font-bold text-slate-800 group-hover:bg-slate-50">
-                <span className="block truncate" title={customer.customerCode || ''}>
-                  {customer.customerCode || '-'}
-                </span>
-              </td>
-              <td className="px-3 py-4">
-                <p
-                  className="truncate font-semibold text-slate-950"
-                  title={customer.customerName || ''}
-                >
-                  {customer.customerName || '-'}
-                </p>
-              </td>
-              <td className="px-3 py-4">
-                <InfoPill
-                  value={customer.customerTypeOption?.label || customer.customerType}
-                  className="bg-emerald-50 text-emerald-700 ring-emerald-100"
-                />
-              </td>
-              <td className="px-3 py-4 text-slate-700">
-                <span className="block truncate" title={customer.phone || ''}>
-                  {customer.phone || '-'}
-                </span>
-              </td>
-              <td className="px-3 py-4 text-slate-700">
-                <span className="block truncate" title={customer.email || ''}>
-                  {customer.email || '-'}
-                </span>
-              </td>
-              <td className="px-3 py-4 text-slate-700">
-                <span className="block truncate" title={customer.representativeName || ''}>
-                  {customer.representativeName || '-'}
-                </span>
-              </td>
-              <td className="px-3 py-4">
-                <InfoPill
-                  value={customer.salesUser?.name}
-                  className="bg-sky-50 text-sky-700 ring-sky-100"
-                />
-              </td>
-              <td className="py-4">
-                <div className="flex items-center justify-end gap-1 pr-3">
-                  <IconButton
-                    size="small"
-                    title="Xem chi tiết khách hàng"
-                    onClick={() => viewCustomer(customer)}
-                  >
-                    <VisibilityRoundedIcon fontSize="small" />
-                  </IconButton>
-                  <IconButton
-                    component={Link}
-                    href={`/customers/${customer.id}`}
-                    size="small"
-                    title="Chỉnh sửa khách hàng"
-                  >
-                    <EditRoundedIcon fontSize="small" />
-                  </IconButton>
-                  <IconButton
-                    component={Link}
-                    href={`/projects/new?customerId=${customer.id}`}
-                    size="small"
-                    title="Tạo dự án"
-                  >
-                    <WorkRoundedIcon fontSize="small" />
-                  </IconButton>
-                  <IconButton
-                    size="small"
-                    title="Tác vụ"
-                    onClick={(event) => openActionMenu(event, customer)}
-                  >
-                    <MoreVertRoundedIcon fontSize="small" />
-                  </IconButton>
-                </div>
-              </td>
-            </tr>
-          ))}
+          {customers.map((customer) => {
+            const customerIdentity = getCustomerIdentity(customer);
+
+            return (
+              <tr key={customer.id} className="group hover:bg-slate-50/80">
+                <td className="sticky left-0 z-10 bg-white px-3 py-4 group-hover:bg-slate-50">
+                  <EntityTableLink href={`/customers/${customer.id}`} title={customerIdentity}>
+                    {customerIdentity}
+                  </EntityTableLink>
+                </td>
+                <td className="px-3 py-4">
+                  <InfoPill
+                    value={customer.customerTypeOption?.label || customer.customerType}
+                    className="bg-emerald-50 text-emerald-700 ring-emerald-100"
+                  />
+                </td>
+                <td className="px-3 py-4 text-slate-700">
+                  <span className="block truncate" title={customer.phone || ''}>
+                    {customer.phone || '-'}
+                  </span>
+                </td>
+                <td className="px-3 py-4 text-slate-700">
+                  <span className="block truncate" title={customer.email || ''}>
+                    {customer.email || '-'}
+                  </span>
+                </td>
+                <td className="px-3 py-4 text-slate-700">
+                  <span className="block truncate" title={customer.representativeName || ''}>
+                    {customer.representativeName || '-'}
+                  </span>
+                </td>
+                <td className="px-3 py-4">
+                  <InfoPill
+                    value={customer.salesUser?.name}
+                    className="bg-sky-50 text-sky-700 ring-sky-100"
+                  />
+                </td>
+                <td className="py-4">
+                  <div className="flex items-center justify-end gap-1 pr-3">
+                    <IconButton
+                      size="small"
+                      title="Xem chi tiết khách hàng"
+                      onClick={() => viewCustomer(customer)}
+                    >
+                      <VisibilityRoundedIcon fontSize="small" />
+                    </IconButton>
+                    <IconButton
+                      component={Link}
+                      href={`/customers/${customer.id}`}
+                      size="small"
+                      title="Chỉnh sửa khách hàng"
+                    >
+                      <EditRoundedIcon fontSize="small" />
+                    </IconButton>
+                    <IconButton
+                      component={Link}
+                      href={`/projects/new?customerId=${customer.id}`}
+                      size="small"
+                      title="Tạo dự án"
+                    >
+                      <WorkRoundedIcon fontSize="small" />
+                    </IconButton>
+                    <IconButton
+                      size="small"
+                      title="Tác vụ"
+                      onClick={(event) => openActionMenu(event, customer)}
+                    >
+                      <MoreVertRoundedIcon fontSize="small" />
+                    </IconButton>
+                  </div>
+                </td>
+              </tr>
+            );
+          })}
         </AppDataTable>
 
         <Menu anchorEl={menuAnchorEl} open={Boolean(menuAnchorEl)} onClose={closeActionMenu}>
@@ -419,7 +435,8 @@ export function CustomerManager({
           totalPages={totalPages}
           totalItems={totalItems}
           pageSize={pageSize}
-          onPageChange={setPage}
+          onPageChange={onPageChange}
+          onPageSizeChange={onPageSizeChange}
         />
       </section>
 

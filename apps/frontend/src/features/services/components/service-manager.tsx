@@ -21,8 +21,6 @@ import { FormSelectField } from '@/components/form/form-select-field';
 import { MoneyInput } from '@/components/form/money-input';
 import { PageHeader } from '@/components/shell/page-header';
 import { AppDataTable } from '@/components/table/app-data-table';
-import { TablePaginationBar } from '@/components/table/table-pagination-bar';
-import { usePagination } from '@/hooks/use-pagination';
 import { applyApiErrorsToForm } from '@/lib/api-error';
 import {
   DEFAULT_MANAGEMENT_FEE_RATES,
@@ -388,10 +386,6 @@ export function ServiceManager({
   const [menuAnchorEl, setMenuAnchorEl] = useState<HTMLElement | null>(null);
   const [activeService, setActiveService] = useState<FlatServiceItem | null>(null);
   const flatServices = useMemo(() => flattenServices(services), [services]);
-  const { pageItems, page, setPage, totalPages, totalItems, pageSize } = usePagination(
-    flatServices,
-    { resetKey: filters },
-  );
   const rootColorMap = useMemo(() => {
     const roots = flatServices.filter((service) => service.depth === 0);
 
@@ -447,27 +441,27 @@ export function ServiceManager({
             { key: 'actions', className: 'w-40' },
           ]}
           isLoading={isFetching}
-          isEmpty={pageItems.length === 0}
+          isEmpty={flatServices.length === 0}
           emptyText="Chưa có dịch vụ nào"
           minWidthClassName="min-w-[1080px]"
         >
-          {pageItems.map((service) => {
+          {flatServices.map((service) => {
             const color = rootColorMap.get(getRootServiceId(service)) || ROOT_COLOR_CLASSES[0];
 
             return (
               <tr key={service.id} className={`group border-l-4 ${color.row} hover:bg-slate-50/80`}>
                 <td className={`px-3 py-4 ${service.depth > 0 ? color.child : ''}`}>
                   <div
-                    className="flex min-w-0 items-start gap-3"
+                    className="flex min-w-0 items-center gap-2"
                     style={{ paddingLeft: service.depth * 24 }}
                   >
                     <span
-                      className={`mt-0.5 inline-flex h-8 w-8 shrink-0 items-center justify-center rounded-lg ring-1 ${color.icon}`}
+                      className={`inline-flex h-6 w-6 shrink-0 items-center justify-center rounded-md ring-1 ${color.icon}`}
                     >
                       {service.depth === 0 ? (
-                        <AccountTreeRoundedIcon fontSize="small" />
+                        <AccountTreeRoundedIcon className="!text-[16px]" />
                       ) : (
-                        <SubdirectoryArrowRightRoundedIcon fontSize="small" />
+                        <SubdirectoryArrowRightRoundedIcon className="!text-[16px]" />
                       )}
                     </span>
                     <div className="flex min-w-0 items-center gap-2">
@@ -594,14 +588,6 @@ export function ServiceManager({
             Xóa
           </MenuItem>
         </Menu>
-
-        <TablePaginationBar
-          page={page}
-          totalPages={totalPages}
-          totalItems={totalItems}
-          pageSize={pageSize}
-          onPageChange={setPage}
-        />
       </section>
 
       <ServiceFormDialog

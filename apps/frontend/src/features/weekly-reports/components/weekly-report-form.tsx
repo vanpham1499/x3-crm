@@ -1,13 +1,20 @@
 'use client';
 
-import { useEffect, useRef, useState } from 'react';
-import Link from 'next/link';
+import { useEffect, useRef, useState, type ReactNode } from 'react';
 import AddRoundedIcon from '@mui/icons-material/AddRounded';
 import DeleteRoundedIcon from '@mui/icons-material/DeleteRounded';
 import SaveRoundedIcon from '@mui/icons-material/SaveRounded';
-import { Autocomplete, Button, IconButton, MenuItem, TextField } from '@mui/material';
+import { Autocomplete, IconButton, MenuItem } from '@mui/material';
 import { useQuery } from '@tanstack/react-query';
+import { TabActionButton } from '@/components/actions/tab-action-button';
+import { FormActionBar } from '@/components/form/form-action-bar';
+import { FormDatePicker } from '@/components/form/form-date-picker';
+import { compactFormFieldClassName } from '@/components/form/form-field-styles';
+import { FormInputField } from '@/components/form/form-input-field';
+import { FormSection } from '@/components/form/form-section';
+import { FormSelectField } from '@/components/form/form-select-field';
 import { MoneyInput } from '@/components/form/money-input';
+import { PageHeader } from '@/components/shell/page-header';
 import { WeeklyReportAttachmentsPanel } from '@/features/weekly-reports/components/weekly-report-attachments-panel';
 import { getApiFieldErrors } from '@/lib/api-error';
 import api from '@/services/api/client';
@@ -29,6 +36,7 @@ type WeeklyReportFormProps = {
   onSubmit: (payload: Record<string, unknown>) => Promise<unknown>;
   pendingFiles?: File[];
   onPendingFilesChange?: (files: File[]) => void;
+  headerActions?: ReactNode;
 };
 
 function idToString(value?: string | number | null): string {
@@ -81,6 +89,7 @@ export function WeeklyReportForm({
   onSubmit,
   pendingFiles,
   onPendingFilesChange,
+  headerActions,
 }: WeeklyReportFormProps) {
   const [projectId, setProjectId] = useState(defaultProjectId || '');
   const [weekStartDate, setWeekStartDate] = useState('');
@@ -104,7 +113,9 @@ export function WeeklyReportForm({
     queryKey: ['project-weekly-settings', 'form', projectId],
     queryFn: () =>
       api
-        .get<ProjectWeeklySetting[]>('/project-weekly-settings', { params: { project_id: projectId } })
+        .get<ProjectWeeklySetting[]>('/project-weekly-settings', {
+          params: { project_id: projectId },
+        })
         .then((response) => response.data),
     enabled: mode === 'create' && Boolean(projectId),
   });
@@ -229,97 +240,78 @@ export function WeeklyReportForm({
   };
 
   return (
-    <div className="min-h-[calc(100vh-72px)] bg-slate-50/60 p-6">
-      <div className="mb-8 flex flex-col gap-4 sm:flex-row sm:items-center sm:justify-between">
-        <div>
-          <h1 className="text-2xl font-bold text-slate-950">
-            {mode === 'edit' ? 'Chỉnh sửa báo cáo tuần' : 'Thêm báo cáo tuần'}
-          </h1>
-          <div className="mt-2 flex items-center gap-2 text-sm text-slate-500">
-            <span>Dashboard</span>
-            <span className="h-1 w-1 rounded-full bg-slate-300" />
-            <span>Báo cáo tuần</span>
-            <span className="h-1 w-1 rounded-full bg-slate-300" />
-            <span className="text-slate-950">{mode === 'edit' ? 'Chỉnh sửa' : 'Thêm mới'}</span>
-          </div>
-        </div>
-
-        <Button component={Link} href="/weekly-reports" variant="outlined">
-          Quay lại
-        </Button>
-      </div>
+    <form
+      className="flex min-h-[calc(100vh-72px)] flex-col bg-slate-50/60 px-6 pt-6"
+      onSubmit={(event) => {
+        event.preventDefault();
+        if (!isSubmitting && !isReadOnly && (mode === 'edit' || projectId)) submitForm();
+      }}
+    >
+      <PageHeader
+        title={mode === 'edit' ? 'Chỉnh sửa báo cáo tuần' : 'Thêm báo cáo tuần'}
+        currentLabel={mode === 'edit' ? 'Chỉnh sửa' : undefined}
+        actions={headerActions}
+      />
 
       <div className="grid items-start gap-6 xl:grid-cols-12">
-        <section className="rounded-2xl border border-slate-200 bg-white shadow-sm xl:col-span-7">
-          <div className="border-b border-slate-200 px-6 py-5">
-            <h2 className="text-lg font-bold text-slate-950">Thông tin báo cáo</h2>
-          </div>
-
-          <div className="space-y-4 p-6">
+        <div className="xl:col-span-7">
+          <FormSection title="Thông tin báo cáo">
             <Autocomplete
               options={projects}
               value={selectedProject}
               disabled={mode === 'edit'}
               onChange={(_, value) => setProjectId(idToString(value?.id))}
               getOptionLabel={(option) =>
-                `${option.projectCode || ''} - ${option.projectName || ''}`
+                option.projectCode || option.projectName || `Dự án #${option.id}`
               }
               isOptionEqualToValue={(option, value) => option.id === value.id}
+              noOptionsText="Không tìm thấy dự án"
               renderInput={(params) => (
-                <TextField
+                <FormInputField
                   {...params}
                   required
                   label="Dự án"
+                  placeholder="Tìm theo mã dự án"
                   error={Boolean(fieldErrors.projectId)}
                   helperText={fieldErrors.projectId}
                 />
               )}
             />
 
-            <div className="rounded-lg border border-slate-200 bg-slate-50 px-3 py-2.5">
-              <p className="text-xs font-bold uppercase tracking-wide text-slate-400">
-                Trạng thái dự án
-              </p>
-              <p className="mt-1 text-sm font-semibold text-slate-800">
+            <div className="flex min-h-10 items-center justify-between gap-3 rounded-lg border border-slate-200 bg-slate-50 px-3 py-2">
+              <span className="text-sm font-semibold text-slate-500">Trạng thái dự án</span>
+              <span className="truncate text-sm font-bold text-slate-800">
                 {!selectedProject
-                  ? 'Chọn dự án trước'
-                  : selectedProject.statusOption?.label || 'Dự án chưa có trạng thái'}
-              </p>
-              {fieldErrors.projectStatus && (
-                <p className="mt-1 text-xs font-semibold text-red-600">
-                  {fieldErrors.projectStatus}
-                </p>
-              )}
+                  ? 'Chưa chọn dự án'
+                  : selectedProject.statusOption?.label || 'Chưa có trạng thái'}
+              </span>
             </div>
+            {fieldErrors.projectStatus && (
+              <p className="text-xs font-semibold text-red-600">{fieldErrors.projectStatus}</p>
+            )}
 
             <div className="grid gap-4 md:grid-cols-2">
-              <TextField
-                fullWidth
-                type="date"
-                label="Từ ngày *"
+              <FormDatePicker
+                label="Từ ngày"
                 value={weekStartDate}
+                required
                 disabled={isReadOnly}
-                onChange={(event) => setWeekStartDate(event.target.value)}
-                slotProps={{ inputLabel: { shrink: true } }}
                 error={Boolean(fieldErrors.weekStartDate)}
                 helperText={fieldErrors.weekStartDate}
+                onChange={setWeekStartDate}
               />
-              <TextField
-                fullWidth
-                type="date"
-                label="Đến ngày *"
+              <FormDatePicker
+                label="Đến ngày"
                 value={weekEndDate}
+                required
                 disabled={isReadOnly}
-                onChange={(event) => setWeekEndDate(event.target.value)}
-                slotProps={{ inputLabel: { shrink: true } }}
                 error={Boolean(fieldErrors.weekEndDate)}
                 helperText={fieldErrors.weekEndDate}
+                onChange={setWeekEndDate}
               />
             </div>
 
-            <TextField
-              select
-              fullWidth
+            <FormSelectField
               label="Tình trạng tuần"
               value={weeklyCondition}
               disabled={isReadOnly}
@@ -329,20 +321,21 @@ export function WeeklyReportForm({
               <MenuItem value="Tốt">Tốt</MenuItem>
               <MenuItem value="Cần theo dõi">Cần theo dõi</MenuItem>
               <MenuItem value="Rủi ro">Rủi ro</MenuItem>
-            </TextField>
+            </FormSelectField>
 
             <div className="grid gap-4 md:grid-cols-2">
               <MoneyInput
                 fullWidth
-                label="Ngân sách/tháng"
+                size="small"
+                label="Ngân sách / tháng"
                 value={monthlyBudget}
                 disabled={isReadOnly}
                 onValueChange={setMonthlyBudget}
+                className={compactFormFieldClassName}
               />
-              <TextField
-                fullWidth
+              <FormInputField
                 type="number"
-                label="% Phí quản lý"
+                label="Phí quản lý (%)"
                 value={managementFeeRate}
                 disabled={isReadOnly}
                 onChange={(event) => setManagementFeeRate(event.target.value)}
@@ -350,8 +343,7 @@ export function WeeklyReportForm({
               />
             </div>
 
-            <TextField
-              fullWidth
+            <FormInputField
               multiline
               minRows={3}
               label="Vấn đề - Giải pháp"
@@ -359,8 +351,7 @@ export function WeeklyReportForm({
               disabled={isReadOnly}
               onChange={(event) => setProblemSolution(event.target.value)}
             />
-            <TextField
-              fullWidth
+            <FormInputField
               multiline
               minRows={2}
               label="Tóm tắt"
@@ -368,8 +359,7 @@ export function WeeklyReportForm({
               disabled={isReadOnly}
               onChange={(event) => setSummary(event.target.value)}
             />
-            <TextField
-              fullWidth
+            <FormInputField
               multiline
               minRows={2}
               label="Hành động tiếp theo"
@@ -377,8 +367,8 @@ export function WeeklyReportForm({
               disabled={isReadOnly}
               onChange={(event) => setNextAction(event.target.value)}
             />
-          </div>
-        </section>
+          </FormSection>
+        </div>
 
         <div className="xl:col-span-5">
           {mode === 'edit' && report ? (
@@ -397,85 +387,53 @@ export function WeeklyReportForm({
         </div>
       </div>
 
-      <section className="mt-6 overflow-hidden rounded-2xl border border-slate-200 bg-white shadow-sm">
-          <div className="flex items-center justify-between border-b border-slate-200 px-6 py-5">
-            <div>
-              <h2 className="text-lg font-bold text-slate-950">Chi tiết vấn đề / hành động</h2>
-            </div>
-            {!isReadOnly && (
-              <Button
-                variant="contained"
-                startIcon={<AddRoundedIcon />}
-                onClick={addItem}
-                className="!bg-slate-900 hover:!bg-slate-800"
-              >
+      <div className="mt-6">
+        <FormSection
+          title="Chi tiết vấn đề / hành động"
+          action={
+            !isReadOnly ? (
+              <TabActionButton startIcon={<AddRoundedIcon />} onClick={addItem}>
                 Thêm dòng
-              </Button>
-            )}
-          </div>
-
-          <div className="space-y-4 p-6">
+              </TabActionButton>
+            ) : undefined
+          }
+        >
+          <div className="space-y-3">
             {items.map((item) => (
-              <div
-                key={item.id}
-                className="grid items-start gap-3 rounded-xl border border-slate-200 p-4 lg:grid-cols-[130px_minmax(0,1fr)_120px_140px_38px]"
-              >
-                <TextField
-                  select
-                  fullWidth
-                  label="Loại"
-                  size="small"
-                  value={item.itemType}
-                  disabled={isReadOnly}
-                  onChange={(event) => updateItem(item.id, { itemType: event.target.value })}
-                >
-                  {Object.entries(ITEM_TYPE_LABELS).map(([value, label]) => (
-                    <MenuItem key={value} value={value}>
-                      {label}
-                    </MenuItem>
-                  ))}
-                </TextField>
-                <div className="space-y-2 lg:col-span-1">
-                  <TextField
-                    fullWidth
+              <div key={item.id} className="rounded-xl border border-slate-200 bg-slate-50/30 p-4">
+                <div className="grid items-start gap-3 lg:grid-cols-[140px_minmax(220px,1fr)_130px_150px_36px]">
+                  <FormSelectField
+                    label="Loại"
+                    value={item.itemType}
+                    disabled={isReadOnly}
+                    onChange={(event) => updateItem(item.id, { itemType: event.target.value })}
+                  >
+                    {Object.entries(ITEM_TYPE_LABELS).map(([value, label]) => (
+                      <MenuItem key={value} value={value}>
+                        {label}
+                      </MenuItem>
+                    ))}
+                  </FormSelectField>
+                  <FormInputField
                     label="Tiêu đề"
-                    size="small"
                     value={item.title}
                     disabled={isReadOnly}
                     onChange={(event) => updateItem(item.id, { title: event.target.value })}
                   />
-                  <TextField
-                    fullWidth
-                    multiline
-                    minRows={2}
-                    label="Nội dung"
-                    size="small"
-                    value={item.content}
+                  <FormSelectField
+                    label="Ưu tiên"
+                    value={item.priority}
                     disabled={isReadOnly}
-                    onChange={(event) => updateItem(item.id, { content: event.target.value })}
-                  />
-                </div>
-                <TextField
-                  select
-                  fullWidth
-                  label="Ưu tiên"
-                  size="small"
-                  value={item.priority}
-                  disabled={isReadOnly}
-                  onChange={(event) => updateItem(item.id, { priority: event.target.value })}
-                >
-                  {Object.entries(PRIORITY_LABELS).map(([value, label]) => (
-                    <MenuItem key={value} value={value}>
-                      {label}
-                    </MenuItem>
-                  ))}
-                </TextField>
-                <div className="space-y-2">
-                  <TextField
-                    select
-                    fullWidth
+                    onChange={(event) => updateItem(item.id, { priority: event.target.value })}
+                  >
+                    {Object.entries(PRIORITY_LABELS).map(([value, label]) => (
+                      <MenuItem key={value} value={value}>
+                        {label}
+                      </MenuItem>
+                    ))}
+                  </FormSelectField>
+                  <FormSelectField
                     label="Trạng thái"
-                    size="small"
                     value={item.status}
                     disabled={isReadOnly}
                     onChange={(event) => updateItem(item.id, { status: event.target.value })}
@@ -485,12 +443,34 @@ export function WeeklyReportForm({
                         {label}
                       </MenuItem>
                     ))}
-                  </TextField>
-                  <TextField
-                    select
-                    fullWidth
+                  </FormSelectField>
+                  {!isReadOnly ? (
+                    <IconButton
+                      size="small"
+                      color="error"
+                      disabled={items.length === 1}
+                      onClick={() => deleteItem(item.id)}
+                      title="Xóa dòng"
+                      aria-label="Xóa dòng báo cáo"
+                    >
+                      <DeleteRoundedIcon fontSize="small" />
+                    </IconButton>
+                  ) : (
+                    <span />
+                  )}
+                </div>
+
+                <div className="mt-3 grid items-start gap-3 lg:grid-cols-[minmax(0,1fr)_220px_180px]">
+                  <FormInputField
+                    multiline
+                    minRows={2}
+                    label="Nội dung"
+                    value={item.content}
+                    disabled={isReadOnly}
+                    onChange={(event) => updateItem(item.id, { content: event.target.value })}
+                  />
+                  <FormSelectField
                     label="Người phụ trách"
-                    size="small"
                     value={item.assigneeUserId}
                     disabled={isReadOnly}
                     onChange={(event) =>
@@ -503,37 +483,29 @@ export function WeeklyReportForm({
                         {user.name}
                       </MenuItem>
                     ))}
-                  </TextField>
+                  </FormSelectField>
+                  <FormDatePicker
+                    label="Hạn xử lý"
+                    value={item.dueDate}
+                    disabled={isReadOnly}
+                    onChange={(dueDate) => updateItem(item.id, { dueDate })}
+                  />
                 </div>
-                {!isReadOnly && (
-                  <IconButton
-                    size="small"
-                    color="error"
-                    disabled={items.length === 1}
-                    onClick={() => deleteItem(item.id)}
-                    title="Xóa dòng"
-                  >
-                    <DeleteRoundedIcon fontSize="small" />
-                  </IconButton>
-                )}
               </div>
             ))}
-
-            {!isReadOnly && (
-              <div className="flex justify-end">
-                <Button
-                  variant="contained"
-                  startIcon={<SaveRoundedIcon />}
-                  disabled={isSubmitting || (mode === 'create' && !projectId)}
-                  onClick={submitForm}
-                  className="!bg-slate-900 hover:!bg-slate-800"
-                >
-                  {isSubmitting ? 'Đang lưu...' : 'Lưu báo cáo'}
-                </Button>
-              </div>
-            )}
           </div>
-      </section>
-    </div>
+        </FormSection>
+      </div>
+
+      {!isReadOnly && (
+        <FormActionBar
+          cancelHref="/weekly-reports"
+          submitLabel={mode === 'create' ? 'Tạo báo cáo' : 'Lưu thay đổi'}
+          isSubmitting={isSubmitting}
+          submitDisabled={mode === 'create' && !projectId}
+          submitIcon={<SaveRoundedIcon />}
+        />
+      )}
+    </form>
   );
 }

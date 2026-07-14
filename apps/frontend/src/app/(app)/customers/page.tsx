@@ -1,16 +1,21 @@
 ﻿'use client';
 
-import { useState } from 'react';
+import { useEffect, useState } from 'react';
 import { keepPreviousData, useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import { ConfirmDialog } from '@/components/feedback/confirm-dialog';
 import { useAppNotification } from '@/components/feedback/notification-provider';
 import { ContentLoading } from '@/components/shell/content-loading';
 import { CustomerManager } from '@/features/customers/components/customer-manager';
+import { useServerListState } from '@/hooks/use-server-list-state';
 import { getApiErrorMessage } from '@/lib/api-error';
 import api from '@/services/api/client';
 import type { Customer, CustomerFilters } from '@/types/customer';
 import type { AppOption } from '@/types/option';
+import type { PaginatedResponse } from '@/types/pagination';
 import type { User } from '@/types/user';
+
+const CUSTOMERS_PAGE_SIZE = 10;
+const CUSTOMERS_LIST_QUERY_KEY = ['customers', 'list'] as const;
 
 function getCustomerParams(filters: CustomerFilters) {
   return {
@@ -27,14 +32,19 @@ export default function CustomersPage() {
   const queryClient = useQueryClient();
   const notify = useAppNotification();
   const [deleteTarget, setDeleteTarget] = useState<Customer | null>(null);
-  const [filters, setFilters] = useState<CustomerFilters>({
-    keyword: '',
-    customer_type_option_id: 0,
-    source_option_id: 0,
-    industry_option_id: 0,
-    sales_user_id: 0,
-    lead_id: 0,
-  });
+  const { filters, requestFilters, page, pageSize, setPage, setPageSize, onFiltersChange } =
+    useServerListState<CustomerFilters>({
+      initialFilters: {
+        keyword: '',
+        customer_type_option_id: 0,
+        source_option_id: 0,
+        industry_option_id: 0,
+        sales_user_id: 0,
+        lead_id: 0,
+      },
+      queryKey: CUSTOMERS_LIST_QUERY_KEY,
+      pageSize: CUSTOMERS_PAGE_SIZE,
+    });
 
   const { data: users = [] } = useQuery<User[]>({
     queryKey: ['users', 'customer-options'],
@@ -54,15 +64,40 @@ export default function CustomersPage() {
   const industries = options.filter((option) => option.group === 'industry');
 
   const {
-    data: customers = [],
+    data: customersPage,
     isFetching,
     isLoading,
-  } = useQuery<Customer[]>({
-    queryKey: ['customers', filters],
-    queryFn: () =>
-      api.get('/customers', { params: getCustomerParams(filters) }).then((response) => response.data),
+  } = useQuery<PaginatedResponse<Customer>>({
+    queryKey: [...CUSTOMERS_LIST_QUERY_KEY, requestFilters, page, pageSize],
+    queryFn: ({ signal }) =>
+      api
+        .get<PaginatedResponse<Customer>>('/customers', {
+          params: {
+            ...getCustomerParams(requestFilters),
+            page,
+            per_page: pageSize,
+          },
+          signal,
+        })
+        .then((response) => response.data),
     placeholderData: keepPreviousData,
   });
+
+  const customers = customersPage?.data || [];
+  const pagination = customersPage?.meta || {
+    currentPage: page,
+    lastPage: 1,
+    perPage: pageSize,
+    total: 0,
+    from: null,
+    to: null,
+  };
+
+  useEffect(() => {
+    if (page > pagination.lastPage) {
+      setPage(Math.max(1, pagination.lastPage));
+    }
+  }, [page, pagination.lastPage]);
 
   const deleteMutation = useMutation({
     mutationFn: (customer: Customer) => api.delete(`/customers/${customer.id}`),
@@ -89,9 +124,15 @@ export default function CustomersPage() {
         sources={sources}
         industries={industries}
         filters={filters}
+        page={page}
+        totalPages={pagination.lastPage}
+        totalItems={pagination.total}
+        pageSize={pageSize}
         isFetching={isFetching}
         isDeleting={deleteMutation.isPending}
-        onFiltersChange={setFilters}
+        onPageChange={setPage}
+        onPageSizeChange={setPageSize}
+        onFiltersChange={onFiltersChange}
         onDelete={setDeleteTarget}
       />
 

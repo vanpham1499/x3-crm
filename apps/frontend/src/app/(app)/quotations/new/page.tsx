@@ -9,10 +9,8 @@ import { COMPANY_BANK_ACCOUNT_OPTION_GROUP } from '@/lib/company-bank-account-op
 import { SERVICE_QUOTE_CONFIG_GROUP } from '@/lib/service-quote-config';
 import { getApiErrorMessage } from '@/lib/api-error';
 import api from '@/services/api/client';
-import type { Customer } from '@/types/customer';
 import type { Lead } from '@/types/lead';
 import type { AppOption } from '@/types/option';
-import type { ProjectItem } from '@/types/project';
 import type { Quotation } from '@/types/quotation';
 import type { ServiceItem } from '@/types/service';
 
@@ -27,16 +25,6 @@ export default function NewQuotationPage() {
   const { data: leads = [], isLoading: isLeadsLoading } = useQuery<Lead[]>({
     queryKey: ['leads', 'quotation-form-options'],
     queryFn: () => api.get('/leads').then((response) => response.data),
-  });
-
-  const { data: customers = [], isLoading: isCustomersLoading } = useQuery<Customer[]>({
-    queryKey: ['customers', 'quotation-form-options'],
-    queryFn: () => api.get('/customers').then((response) => response.data),
-  });
-
-  const { data: projects = [], isLoading: isProjectsLoading } = useQuery<ProjectItem[]>({
-    queryKey: ['projects', 'quotation-form-options'],
-    queryFn: () => api.get('/projects').then((response) => response.data),
   });
 
   const { data: services = [], isLoading: isServicesLoading } = useQuery<ServiceItem[]>({
@@ -68,22 +56,15 @@ export default function NewQuotationPage() {
       api.post<Quotation>('/quotations', payload).then((response) => response.data),
     onSuccess: (quotation) => {
       queryClient.invalidateQueries({ queryKey: ['quotations'] });
-      notify.success('Tạo báo giá thành công');
+      notify.success('Tạo báo phí thành công');
       router.push(`/quotations/${quotation.id}`);
     },
     onError: (error) => {
-      notify.error(getApiErrorMessage(error, 'Tạo báo giá thất bại'));
+      notify.error(getApiErrorMessage(error, 'Tạo báo phí thất bại'));
     },
   });
 
-  if (
-    isLeadsLoading ||
-    isCustomersLoading ||
-    isProjectsLoading ||
-    isServicesLoading ||
-    isQuoteConfigsLoading ||
-    isBankAccountsLoading
-  ) {
+  if (isLeadsLoading || isServicesLoading || isQuoteConfigsLoading || isBankAccountsLoading) {
     return <ContentLoading />;
   }
 
@@ -91,8 +72,6 @@ export default function NewQuotationPage() {
     <QuotationForm
       mode="create"
       leads={leads}
-      customers={customers}
-      projects={projects}
       services={services}
       quoteConfigs={quoteConfigs}
       bankAccountOptions={bankAccountOptions}

@@ -3,7 +3,7 @@ import type { Lead } from '@/types/lead';
 import type { ProjectItem } from '@/types/project';
 import type { ServiceItem } from '@/types/service';
 
-export type QuotationStatus = 'draft' | 'sent' | 'won' | 'lost';
+export type QuotationStatus = 'draft' | 'won';
 
 export type QuotationItem = {
   id?: number;
@@ -48,7 +48,7 @@ export type Quotation = {
   metadata?: Record<string, unknown> | null;
   lead?: Pick<Lead, 'id' | 'leadCode' | 'customerName'> | null;
   customer?: Pick<Customer, 'id' | 'customerCode' | 'customerName'> | null;
-  project?: Pick<ProjectItem, 'id' | 'projectCode' | 'projectName'> | null;
+  project?: Pick<ProjectItem, 'id' | 'projectCode' | 'projectName' | 'projectType'> | null;
   contract?: {
     id: number;
     contractNo?: string | null;
@@ -72,4 +72,3 @@ export type QuotationLineFormValue = {
   unitPrice: string;
   locked?: boolean;
 };
-

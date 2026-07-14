@@ -2,6 +2,7 @@
 
 import Link from 'next/link';
 import { useState, type MouseEvent } from 'react';
+import AddRoundedIcon from '@mui/icons-material/AddRounded';
 import CheckCircleOutlineRoundedIcon from '@mui/icons-material/CheckCircleOutlineRounded';
 import DeleteRoundedIcon from '@mui/icons-material/DeleteRounded';
 import EditRoundedIcon from '@mui/icons-material/EditRounded';
@@ -9,19 +10,17 @@ import MoreVertRoundedIcon from '@mui/icons-material/MoreVertRounded';
 import SendRoundedIcon from '@mui/icons-material/SendRounded';
 import SettingsOutlinedIcon from '@mui/icons-material/SettingsOutlined';
 import WarningAmberRoundedIcon from '@mui/icons-material/WarningAmberRounded';
-import {
-  Button,
-  IconButton,
-  LinearProgress,
-  Menu,
-  MenuItem,
-  TextField,
-  Tooltip,
-} from '@mui/material';
+import { IconButton, Menu, MenuItem } from '@mui/material';
+import { PrimaryActionButton } from '@/components/actions/primary-action-button';
 import { ConfirmDialog } from '@/components/feedback/confirm-dialog';
+import { CompactAutocompleteField } from '@/components/form/compact-autocomplete-field';
+import { CompactSelectField } from '@/components/form/compact-select-field';
+import { PageHeader } from '@/components/shell/page-header';
+import { AppDataTable } from '@/components/table/app-data-table';
+import { EntityTableLink } from '@/components/table/entity-table-link';
 import { TablePaginationBar } from '@/components/table/table-pagination-bar';
-import { usePagination } from '@/hooks/use-pagination';
 import { getReportWeekdayLabel } from '@/lib/weekly-report-schedule';
+import { formatDate } from '@/lib/utils';
 import type { ProjectItem } from '@/types/project';
 import type {
   ProjectWeeklySetting,
@@ -39,6 +38,12 @@ type WeeklyReportManagerProps = {
   isSubmitting: boolean;
   isApproving: boolean;
   canApprove: boolean;
+  page: number;
+  totalPages: number;
+  totalItems: number;
+  pageSize: number;
+  onPageChange: (page: number) => void;
+  onPageSizeChange: (pageSize: number) => void;
   onFiltersChange: (filters: WeeklyReportFilters) => void;
   onDelete: (report: WeeklyReport) => void;
   onSubmit: (report: WeeklyReport) => void;
@@ -75,6 +80,12 @@ export function WeeklyReportManager({
   isSubmitting,
   isApproving,
   canApprove,
+  page,
+  totalPages,
+  totalItems,
+  pageSize,
+  onPageChange,
+  onPageSizeChange,
   onFiltersChange,
   onDelete,
   onSubmit,
@@ -84,10 +95,6 @@ export function WeeklyReportManager({
   const [menuAnchorEl, setMenuAnchorEl] = useState<HTMLElement | null>(null);
   const [activeReport, setActiveReport] = useState<WeeklyReport | null>(null);
   const [deleteTarget, setDeleteTarget] = useState<WeeklyReport | null>(null);
-  const { pageItems, page, setPage, totalPages, totalItems, pageSize } = usePagination(reports, {
-    resetKey: filters,
-  });
-
   const openActionMenu = (event: MouseEvent<HTMLButtonElement>, report: WeeklyReport) => {
     setMenuAnchorEl(event.currentTarget);
     setActiveReport(report);
@@ -104,185 +111,152 @@ export function WeeklyReportManager({
 
   return (
     <div className="min-h-[calc(100vh-72px)] w-full bg-slate-50/60 p-6">
-      <div className="mb-6 flex flex-col gap-4 sm:flex-row sm:items-center sm:justify-between">
-        <div>
-          <h1 className="text-2xl font-bold text-slate-950">Báo cáo tuần</h1>
-          <div className="mt-2 flex items-center gap-2 text-sm text-slate-500">
-            <span>Dashboard</span>
-            <span className="h-1 w-1 rounded-full bg-slate-300" />
-            <span className="text-slate-950">Báo cáo tuần</span>
+      <PageHeader
+        title="Báo cáo tuần"
+        actions={
+          <div className="flex flex-wrap items-center gap-2">
+            <PrimaryActionButton
+              tone="secondary"
+              startIcon={<SettingsOutlinedIcon />}
+              disabled={!filters.projectId}
+              title={
+                filters.projectId
+                  ? 'Cấu hình báo cáo tuần cho dự án đã chọn'
+                  : 'Chọn một dự án để cấu hình'
+              }
+              onClick={onOpenSettings}
+            >
+              Cấu hình dự án
+            </PrimaryActionButton>
+            <PrimaryActionButton href="/weekly-reports/new" startIcon={<AddRoundedIcon />}>
+              Thêm báo cáo
+            </PrimaryActionButton>
           </div>
-        </div>
-
-        <div className="flex flex-wrap items-center gap-2">
-          <Tooltip
-            title={filters.projectId ? '' : 'Chọn một dự án ở bộ lọc bên dưới để cấu hình'}
-          >
-            <span>
-              <Button
-                variant="outlined"
-                startIcon={<SettingsOutlinedIcon />}
-                onClick={onOpenSettings}
-                disabled={!filters.projectId}
-              >
-                Cấu hình dự án
-              </Button>
-            </span>
-          </Tooltip>
-          <Button
-            component={Link}
-            href="/weekly-reports/new"
-            variant="contained"
-            className="!bg-slate-900 hover:!bg-slate-800"
-          >
-            Thêm báo cáo
-          </Button>
-        </div>
-      </div>
+        }
+      />
 
       {overdueSettings.length > 0 && (
-        <div className="mb-4 rounded-xl border border-amber-200 bg-amber-50 p-4">
-          <div className="flex items-start gap-3">
-            <WarningAmberRoundedIcon className="mt-0.5 shrink-0 text-amber-600" />
-            <div className="min-w-0">
-              <p className="font-bold text-amber-800">
-                {overdueSettings.length} dự án trễ hạn báo cáo tuần này
-              </p>
-              <ul className="mt-2 space-y-1.5">
-                {overdueSettings.map((setting) => (
-                  <li
-                    key={setting.id}
-                    className="flex flex-wrap items-center justify-between gap-2 text-sm"
-                  >
-                    <span className="font-semibold text-amber-900">
-                      {setting.project?.projectCode || `Dự án #${setting.projectId}`}
-                      <span className="ml-2 font-normal text-amber-700">
-                        (hạn {getReportWeekdayLabel(setting.reportWeekday)} hàng tuần)
-                      </span>
-                    </span>
-                    <Link
-                      href={`/weekly-reports/new?projectId=${setting.projectId}`}
-                      className="font-bold text-amber-800 underline hover:text-amber-900"
-                    >
-                      Tạo báo cáo ngay
-                    </Link>
-                  </li>
-                ))}
-              </ul>
-            </div>
+        <section className="mb-4 overflow-hidden rounded-xl border border-amber-200 bg-amber-50">
+          <div className="flex items-center gap-2 border-b border-amber-200 px-4 py-3 text-amber-800">
+            <WarningAmberRoundedIcon className="!text-[20px]" />
+            <h2 className="text-sm font-bold">
+              {overdueSettings.length} dự án trễ hạn báo cáo tuần này
+            </h2>
           </div>
-        </div>
+          <div className="divide-y divide-amber-100 px-4">
+            {overdueSettings.map((setting) => (
+              <div
+                key={setting.id}
+                className="flex min-h-10 flex-wrap items-center justify-between gap-2 py-2 text-sm"
+              >
+                <span className="min-w-0 truncate font-semibold text-amber-900">
+                  {setting.project?.projectCode || `Dự án #${setting.projectId}`}
+                  <span className="ml-2 font-normal text-amber-700">
+                    Hạn {getReportWeekdayLabel(setting.reportWeekday)}
+                  </span>
+                </span>
+                <Link
+                  href={`/weekly-reports/new?projectId=${setting.projectId}`}
+                  className="shrink-0 font-bold text-amber-800 hover:underline focus-visible:rounded focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-amber-300"
+                >
+                  Tạo báo cáo
+                </Link>
+              </div>
+            ))}
+          </div>
+        </section>
       )}
 
       <section className="w-full overflow-hidden rounded-2xl border border-slate-200 bg-white shadow-sm">
-        <div className="grid gap-3 border-b border-slate-200 p-5 lg:grid-cols-[minmax(280px,1fr)_180px]">
-          <TextField
-            select
-            fullWidth
+        <div className="grid gap-3 p-4 lg:grid-cols-[minmax(280px,1fr)_190px]">
+          <CompactAutocompleteField
             label="Dự án"
             value={filters.projectId}
-            onChange={(event) => updateFilters({ projectId: event.target.value })}
-          >
-            <MenuItem value="">Tất cả dự án</MenuItem>
-            {projects.map((project) => (
-              <MenuItem key={project.id} value={String(project.id)}>
-                {project.projectCode} - {project.projectName}
-              </MenuItem>
-            ))}
-          </TextField>
-
-          <TextField
-            select
+            allLabel="Tất cả dự án"
+            options={projects.map((project) => ({
+              value: String(project.id),
+              label: project.projectCode || project.projectName || `Dự án #${project.id}`,
+            }))}
+            onChange={(projectId) => updateFilters({ projectId })}
+          />
+          <CompactSelectField
             label="Trạng thái"
             value={filters.status}
-            onChange={(event) => updateFilters({ status: event.target.value })}
-          >
-            <MenuItem value="">Tất cả</MenuItem>
-            <MenuItem value="draft">Nháp</MenuItem>
-            <MenuItem value="submitted">Đã gửi</MenuItem>
-            <MenuItem value="approved">Đã duyệt</MenuItem>
-          </TextField>
+            options={[
+              { value: 'draft', label: 'Nháp' },
+              { value: 'submitted', label: 'Đã gửi' },
+              { value: 'approved', label: 'Đã duyệt' },
+            ]}
+            onChange={(status) => updateFilters({ status })}
+          />
         </div>
 
-        <div className="relative w-full overflow-x-auto">
-          {isFetching && (
-            <div className="absolute left-0 right-0 top-0 z-30">
-              <LinearProgress color="primary" />
-            </div>
-          )}
-
-          <table
-            className={`w-full min-w-[1180px] table-fixed text-left text-sm transition-opacity ${isFetching ? 'opacity-60' : 'opacity-100'}`}
-          >
-            <thead className="bg-slate-50 text-xs font-bold uppercase text-slate-500">
-              <tr>
-                <th className="w-[220px] px-5 py-4">Dự án</th>
-                <th className="w-40 px-5 py-4">Tuần báo cáo</th>
-                <th className="w-40 px-5 py-4">Người báo cáo</th>
-                <th className="w-32 px-5 py-4">Tình trạng tuần</th>
-                <th className="w-32 px-5 py-4">Trạng thái</th>
-                <th className="w-20 px-5 py-4" />
-              </tr>
-            </thead>
-            <tbody className="divide-y divide-slate-100">
-              {reports.length === 0 ? (
-                <tr>
-                  <td colSpan={6} className="px-5 py-12 text-center text-sm font-semibold text-slate-500">
-                    Chưa có báo cáo tuần
-                  </td>
-                </tr>
-              ) : (
-                pageItems.map((report) => (
-                  <tr key={report.id} className="hover:bg-slate-50/80">
-                    <td className="px-5 py-4">
-                      <Link
-                        href={`/weekly-reports/${report.id}`}
-                        className="block truncate font-bold text-slate-950 hover:underline"
-                      >
-                        {report.project?.projectCode || `Dự án #${report.projectId}`}
-                      </Link>
-                      <p className="mt-1 truncate text-xs font-semibold text-slate-500">
-                        {report.project?.projectName || '-'}
-                      </p>
-                    </td>
-                    <td className="px-5 py-4 text-slate-700">
-                      {report.weekStartDate} → {report.weekEndDate}
-                    </td>
-                    <td className="px-5 py-4 text-slate-700">{report.reporter?.name || '-'}</td>
-                    <td className="px-5 py-4">
-                      <span
-                        className={`inline-flex rounded-md px-2 py-1 text-xs font-bold ring-1 ${conditionClass(report.weeklyCondition)}`}
-                      >
-                        {report.weeklyCondition || 'Chưa đánh giá'}
-                      </span>
-                    </td>
-                    <td className="px-5 py-4">
-                      <span
-                        className={`inline-flex rounded-md px-2 py-1 text-xs font-bold ring-1 ${statusClass(report.status)}`}
-                      >
-                        {STATUS_LABELS[report.status] || report.status}
-                      </span>
-                    </td>
-                    <td className="px-5 py-4">
-                      <div className="flex justify-end">
-                        <IconButton size="small" title="Tác vụ" onClick={(event) => openActionMenu(event, report)}>
-                          <MoreVertRoundedIcon fontSize="small" />
-                        </IconButton>
-                      </div>
-                    </td>
-                  </tr>
-                ))
-              )}
-            </tbody>
-          </table>
-        </div>
+        <AppDataTable
+          columns={[
+            { key: 'project', label: 'Dự án', className: 'w-[260px]' },
+            { key: 'week', label: 'Tuần báo cáo', className: 'w-[220px]' },
+            { key: 'reporter', label: 'Người báo cáo', className: 'w-[180px]' },
+            { key: 'condition', label: 'Tình trạng tuần', className: 'w-[160px]' },
+            { key: 'status', label: 'Trạng thái', className: 'w-[130px]' },
+            { key: 'actions', className: 'w-[56px]' },
+          ]}
+          isLoading={isFetching}
+          isEmpty={reports.length === 0}
+          emptyText="Chưa có báo cáo tuần"
+          minWidthClassName="min-w-[1010px]"
+        >
+          {reports.map((report) => (
+            <tr key={report.id} className="hover:bg-slate-50/80">
+              <td className="px-3 py-3.5">
+                <EntityTableLink
+                  href={`/weekly-reports/${report.id}`}
+                  tone="blue"
+                  title={report.project?.projectCode || undefined}
+                >
+                  {report.project?.projectCode || `Dự án #${report.projectId}`}
+                </EntityTableLink>
+              </td>
+              <td className="whitespace-nowrap px-3 py-3.5 font-medium text-slate-700">
+                {formatDate(report.weekStartDate)} → {formatDate(report.weekEndDate)}
+              </td>
+              <td className="truncate px-3 py-3.5 font-medium text-slate-700">
+                {report.reporter?.name || '-'}
+              </td>
+              <td className="px-3 py-3.5">
+                <span
+                  className={`inline-flex max-w-full items-center truncate rounded-full px-2 py-1 text-xs font-bold ring-1 ${conditionClass(report.weeklyCondition)}`}
+                >
+                  {report.weeklyCondition || 'Chưa đánh giá'}
+                </span>
+              </td>
+              <td className="px-3 py-3.5">
+                <span
+                  className={`inline-flex rounded-full px-2 py-1 text-xs font-bold ring-1 ${statusClass(report.status)}`}
+                >
+                  {STATUS_LABELS[report.status] || report.status}
+                </span>
+              </td>
+              <td className="px-3 py-3.5 text-right">
+                <IconButton
+                  size="small"
+                  aria-label={`Tác vụ báo cáo ${report.project?.projectCode || report.id}`}
+                  title="Tác vụ"
+                  onClick={(event) => openActionMenu(event, report)}
+                >
+                  <MoreVertRoundedIcon fontSize="small" />
+                </IconButton>
+              </td>
+            </tr>
+          ))}
+        </AppDataTable>
 
         <TablePaginationBar
           page={page}
           totalPages={totalPages}
           totalItems={totalItems}
           pageSize={pageSize}
-          onPageChange={setPage}
+          onPageChange={onPageChange}
+          onPageSizeChange={onPageSizeChange}
         />
       </section>
 

@@ -437,8 +437,8 @@ conflict with this snapshot, prefer this snapshot because it reflects the latest
   - Left column: customer identity/contact/legal/note information.
   - Right column: customer type option, source option, and sales owner.
   - Inputs/selects/date fields use MUI.
-- `/customers/new?leadId=<lead id>` preloads the lead and service tree, prefills customer data from
-  lead, and creates the customer through `POST /customers`.
+- `/customers/new?leadId=<lead id>` preloads the lead, prefills customer data from the lead, and
+  creates the customer through `POST /customers`.
   - `/customers/new` is not a free-create page. It must require a valid `leadId`; if `leadId` is
     missing or the lead cannot be loaded, show an error toast and redirect to `/leads`.
   - Before creating a customer from lead, check `GET /customers?lead_id=<lead id>`. If a customer
@@ -448,8 +448,11 @@ conflict with this snapshot, prefer this snapshot because it reflects the latest
 - After creating a customer from `/customers/new?leadId=<lead id>`, redirect directly to
   `/projects/new?customerId=<created customer id>` so the user can immediately create a project
   attached to that customer.
-  - Customer code is exactly the source lead's `lead_code`. It is submitted as `customerCode` but is
-    hidden on the customer form.
+  - Customer code is independent from `lead_code`. The backend allocates it as `MAX(customer_code)
+    - 1` under a transaction-level advisory lock (`001`, `002`, `003`, ...); failed/rolled-back
+      requests do not consume a number. The frontend must not submit or edit it.
+  - `lead_code` is only the reference of the source Lead. After conversion, Customer and all new
+    downstream records use `customer_code` as the primary business identity.
   - `leadId` is also hidden on the customer form.
   - Customer name defaults to the lead customer name, for example `K.HYUNDAINGOCAN - C.Mai`.
   - Customer industry is text-only in the form. Do not show the industry option select on customer
@@ -593,12 +596,17 @@ conflict with this snapshot, prefer this snapshot because it reflects the latest
   a `Xuất cho chủ thể khác` action that switches to independent recipient fields: name,
   representative, tax code, address, invoice email, and phone. Backend stores these in
   `invoice_recipient_*` columns so later Customer edits do not rewrite contract history.
-- Project code is read-only in the form and auto-generated as
-  `<customer_code>.<root_service_code>.<project_name>`, for example `001.DV1.M.X3SALES`. The root
-  service code is the highest-level parent service code of the selected service, so selecting
-  `DV1.1 - Dịch vụ Google / Gói vận hành quảng cáo` uses `DV1`. Force the project code field label
-  to shrink because the value is set programmatically. Status options use the `project_status`
-  option group, and the list pill uses `statusOption.meta.color` when available.
+- Project Type has exactly two values: `K` and `M`. Project name, the compact Type select and the
+  read-only project code stay on one form row. Project code is generated as
+  `<customer_code>.<root_service_code>.<project_type>.<project_name>`, for example
+  `001.DV1.M.X3SALES`. The root service code is the highest-level parent service code of the
+  selected service, so selecting `DV1.1 - Dịch vụ Google / Gói vận hành quảng cáo` uses `DV1`. Force
+  the project code field label to shrink because the value is set programmatically. The backend
+  always rebuilds the code from authoritative Customer, service root, Type and project name on
+  create or edit; it never accepts a client-provided project code. New projects default to Type `K`,
+  and their start date defaults to the creation date. Existing projects with a blank start date use
+  their `createdAt` date in the edit form. Status options use the `project_status` option group, and
+  the list pill uses `statusOption.meta.color` when available.
 - Project delete uses the shared confirm dialog and toast notification pattern.
 - `/projects/services` manages services via backend `/services`.
 - Service quote/pricing configuration is stored in backend `/options`, not in the services table.
@@ -633,6 +641,10 @@ conflict with this snapshot, prefer this snapshot because it reflects the latest
   project. The backend generates codes as `<project-code-base>.Q001`, `<project-code-base>.Q002`,
   etc. The project code uses the base part without `.Qxxx`; for example project `001.DV1.M.X3SALES`
   can have quotations `001.DV1.M.X3SALES.Q001` and `001.DV1.M.X3SALES.Q002`.
+- Quotation business status has exactly two values: `draft` is displayed as `Báo phí`, and `won` is
+  displayed as `Đã thanh toán`. Create/edit forms must not expose a status field. New quotations
+  always start as `draft`; payment allocation changes status to `won` only when received money is at
+  least the quotation total. Linking a quotation to a project must not mark it paid.
 - Payment webhook auto-matches only when the transfer content contains an exact `quotation_code`. If
   the quotation already has project/contract, the payment is linked to quotation, lead, customer,
   project, and contract. If project/contract do not exist yet, payment stays linked to quotation and
@@ -682,6 +694,8 @@ conflict with this snapshot, prefer this snapshot because it reflects the latest
 - Quotation form should keep the VietQR payment block compact at the end of the information column:
   only select the receiving company bank account. Do not show QR preview or warning alerts inside
   the form. QR preview belongs on the `/quotations` list via the row action `Xem QR thanh toán`.
+- Quotation `validUntil` uses the shared `FormDatePicker`: display dates as `DD/MM/YYYY` and submit
+  the API value as `YYYY-MM-DD`.
 - Quotation form information column should avoid nested bordered boxes. Keep customer/project,
   service pricing, notes, and payment account controls as flat form grids inside the main card.
   Service selector is full width; when auto pricing is enabled, `Ngân sách` and `Gói setup` are two

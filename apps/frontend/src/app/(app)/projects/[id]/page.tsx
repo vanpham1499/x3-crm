@@ -18,6 +18,11 @@ import { ProjectCustomerPanel } from '@/features/projects/components/project-cus
 import { ProjectFinancePanel } from '@/features/projects/components/project-finance-panel';
 import { ProjectForm } from '@/features/projects/components/project-form';
 import { getApiErrorMessage } from '@/lib/api-error';
+import {
+  calculateAvailableTopupBudget,
+  calculateRealizedProjectCost,
+  isManagedBudgetProject,
+} from '@/lib/project-topup-budget';
 import { getRootServiceItem, getProjectStatusColor, toProjectPayload } from '@/lib/project-utils';
 import {
   getConfigForRoot,
@@ -41,17 +46,26 @@ type ProjectTab = 'info' | 'contract' | 'finance' | 'customer';
 
 const PROJECT_TABS: ProjectTab[] = ['info', 'contract', 'finance', 'customer'];
 
+function paymentAmountForQuotation(payment: Payment, quotationId: number) {
+  const allocations = payment.allocations || [];
+
+  if (allocations.length > 0) {
+    return allocations
+      .filter((allocation) => allocation.quotationId === quotationId)
+      .reduce((sum, allocation) => sum + (Number(allocation.amount) || 0), 0);
+  }
+
+  return payment.quotationId === quotationId
+    ? Number(payment.allocatedAmount ?? payment.amount) || 0
+    : 0;
+}
+
 export default function EditProjectPage() {
   const params = useParams();
   const id = params.id as string;
   const queryClient = useQueryClient();
   const notify = useAppNotification();
   const [activeTab, setActiveTab] = useState<ProjectTab>('info');
-
-  const { data: customers = [] } = useQuery<Customer[]>({
-    queryKey: ['customers', 'project-form-options'],
-    queryFn: () => api.get('/customers').then((response) => response.data),
-  });
 
   const { data: services = [] } = useQuery<ServiceItem[]>({
     queryKey: ['services', 'project-form-options'],
@@ -196,24 +210,38 @@ export default function EditProjectPage() {
   const config = configOption ? getServiceQuoteConfigMeta(configOption, rootService) : null;
   const revenueGroupInfo = getProjectRevenueGroupInfo(Boolean(config?.enabled));
   const revenueGroup = revenueGroupInfo.group;
-  const billableQuotations = quotations.filter((quotation) =>
-    ['sent', 'won'].includes(quotation.status || ''),
-  );
+  const billableQuotations = quotations;
   const totalQuoted = billableQuotations.reduce(
     (sum, quotation) => sum + (Number(quotation.totalAmount) || 0),
     0,
   );
-  const totalReceived = payments.reduce((sum, payment) => sum + (Number(payment.amount) || 0), 0);
+  const totalReceived = billableQuotations.reduce(
+    (sum, quotation) =>
+      sum +
+      payments.reduce(
+        (paymentSum, payment) => paymentSum + paymentAmountForQuotation(payment, quotation.id),
+        0,
+      ),
+    0,
+  );
   const outstanding = billableQuotations.reduce((sum, quotation) => {
-    const received = payments
-      .filter((payment) => payment.quotationId === quotation.id)
-      .reduce((paymentSum, payment) => paymentSum + (Number(payment.amount) || 0), 0);
+    const received = payments.reduce(
+      (paymentSum, payment) => paymentSum + paymentAmountForQuotation(payment, quotation.id),
+      0,
+    );
     return sum + Math.max(0, (Number(quotation.totalAmount) || 0) - received);
   }, 0);
-  const totalCost = projectCosts
-    .filter((cost) => cost.status === 'completed')
-    .reduce((sum, cost) => sum + (Number(cost.totalAmount) || 0), 0);
+  const totalCost = calculateRealizedProjectCost(projectCosts);
   const profit = totalReceived - totalCost;
+  const managedBudgetProject = isManagedBudgetProject({
+    projectType: project.projectType,
+    projectCode: project.projectCode,
+    quotations,
+  });
+  const { availableBudget: availableTopupBudget } = calculateAvailableTopupBudget({
+    quotations,
+    costs: projectCosts,
+  });
 
   const metrics = [
     { label: 'Tổng báo phí', value: totalQuoted, className: 'text-slate-950' },
@@ -225,6 +253,15 @@ export default function EditProjectPage() {
       value: profit,
       className: profit >= 0 ? 'text-emerald-700' : 'text-rose-700',
     },
+    ...(managedBudgetProject
+      ? [
+          {
+            label: 'Số tiền có thể nạp',
+            value: availableTopupBudget,
+            className: 'text-blue-700',
+          },
+        ]
+      : []),
   ];
   const activeTabIndex = PROJECT_TABS.indexOf(activeTab);
 
@@ -267,7 +304,11 @@ export default function EditProjectPage() {
             </span>
           </div>
 
-          <div className="mt-4 grid gap-px overflow-hidden rounded-lg bg-slate-200 ring-1 ring-slate-200 sm:grid-cols-2 lg:grid-cols-5">
+          <div
+            className={`mt-4 grid gap-px overflow-hidden rounded-lg bg-slate-200 ring-1 ring-slate-200 sm:grid-cols-2 ${
+              managedBudgetProject ? 'lg:grid-cols-6' : 'lg:grid-cols-5'
+            }`}
+          >
             {metrics.map((metric) => (
               <div key={metric.label} className="bg-white px-4 py-3">
                 <p className="text-[11px] font-bold uppercase tracking-wide text-slate-400">
@@ -313,7 +354,7 @@ export default function EditProjectPage() {
           <ProjectForm
             mode="edit"
             project={project}
-            customers={customers}
+            initialCustomer={projectCustomer || project.customer}
             services={services}
             users={users}
             statuses={statuses}
@@ -332,6 +373,8 @@ export default function EditProjectPage() {
           >
             <ProjectCostPanel
               projectId={project.id}
+              projectType={project.projectType}
+              projectCode={project.projectCode}
               revenueGroup={revenueGroup}
               costs={projectCosts}
               quotations={quotations}

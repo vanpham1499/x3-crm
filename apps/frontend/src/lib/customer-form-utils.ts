@@ -1,7 +1,5 @@
-import { flattenServices } from '@/lib/service-utils';
 import type { Customer, CustomerFormValues, CustomerPayload } from '@/types/customer';
 import type { Lead } from '@/types/lead';
-import type { ServiceItem } from '@/types/service';
 
 export function getDateInputValue(value?: string | Date | null) {
   if (!value) return '';
@@ -10,8 +8,10 @@ export function getDateInputValue(value?: string | Date | null) {
   return date.toISOString().slice(0, 10);
 }
 
-function emptyToNull(value: string) {
-  const trimmed = value.trim();
+function emptyToNull(value: unknown) {
+  if (value === undefined || value === null) return null;
+
+  const trimmed = String(value).trim();
   return trimmed ? trimmed : null;
 }
 
@@ -19,73 +19,9 @@ function idToString(value?: string | number | null): string {
   return value === undefined || value === null || value === '' ? '' : String(value);
 }
 
-function findRootService(service: ServiceItem, services: ServiceItem[]) {
-  const flatServices = flattenServices(services);
-  const serviceMap = new Map(flatServices.map((item) => [item.id, item]));
-  let current = serviceMap.get(service.id) || service;
-
-  while (current.parentId && serviceMap.has(current.parentId)) {
-    current = serviceMap.get(current.parentId)!;
-  }
-
-  return current;
-}
-
-export function findLeadSelectedService(lead: Lead | null | undefined, services: ServiceItem[]) {
-  if (!lead) return null;
-
-  const flatServices = flattenServices(services);
-
-  if (lead.interestedServiceId) {
-    const service = flatServices.find((item) => item.id === lead.interestedServiceId);
-    if (service) return service;
-  }
-
-  if (lead.interestedService?.id) {
-    const service = flatServices.find((item) => item.id === lead.interestedService?.id);
-    if (service) return service;
-  }
-
-  const serviceLabels = [
-    ...(lead.interestedServiceOptions || []).map((option) => option.label),
-    lead.interestedServiceOption?.label,
-    lead.interestedService?.name,
-    lead.interestedServiceText,
-  ]
-    .filter(Boolean)
-    .map((value) => String(value).trim().toLowerCase());
-
-  return (
-    flatServices.find((service) =>
-      serviceLabels.some(
-        (label) =>
-          service.name.trim().toLowerCase() === label ||
-          service.code.trim().toLowerCase() === label,
-      ),
-    ) || null
-  );
-}
-
-export function getRootServiceCodeForLead(lead: Lead | null | undefined, services: ServiceItem[]) {
-  const selectedService = findLeadSelectedService(lead, services);
-  if (!selectedService) return 'DV1';
-
-  return findRootService(selectedService, services).code || selectedService.code || 'DV1';
-}
-
-export function generateCustomerCodeFromLead(
-  lead: Lead | null | undefined,
-  _services: ServiceItem[],
-) {
-  return lead?.leadCode || '';
-}
-
-export function createEmptyCustomerFormValues(
-  lead?: Lead | null,
-  services: ServiceItem[] = [],
-): CustomerFormValues {
+export function createEmptyCustomerFormValues(lead?: Lead | null): CustomerFormValues {
   return {
-    customerCode: lead ? generateCustomerCodeFromLead(lead, services) : '',
+    customerCode: '',
     leadId: idToString(lead?.id),
     customerName: lead?.customerName || '',
     customerType: '',
@@ -133,9 +69,8 @@ export function customerToFormValues(customer: Customer): CustomerFormValues {
 
 export function buildCustomerPayload(values: CustomerFormValues): CustomerPayload {
   return {
-    customerCode: emptyToNull(values.customerCode),
     leadId: emptyToNull(values.leadId),
-    customerName: values.customerName.trim(),
+    customerName: String(values.customerName || '').trim(),
     customerType: null,
     customerTypeOptionId: emptyToNull(values.customerTypeOptionId),
     companyName: emptyToNull(values.companyName),

@@ -10,10 +10,8 @@ import { getApiErrorMessage } from '@/lib/api-error';
 import { COMPANY_BANK_ACCOUNT_OPTION_GROUP } from '@/lib/company-bank-account-options';
 import { SERVICE_QUOTE_CONFIG_GROUP } from '@/lib/service-quote-config';
 import api from '@/services/api/client';
-import type { Customer } from '@/types/customer';
 import type { Lead } from '@/types/lead';
 import type { AppOption } from '@/types/option';
-import type { ProjectItem } from '@/types/project';
 import type { Quotation } from '@/types/quotation';
 import type { ServiceItem } from '@/types/service';
 
@@ -28,19 +26,10 @@ export default function EditQuotationPage() {
     queryFn: () => api.get('/leads').then((response) => response.data),
   });
 
-  const { data: customers = [], isLoading: isCustomersLoading } = useQuery<Customer[]>({
-    queryKey: ['customers', 'quotation-form-options'],
-    queryFn: () => api.get('/customers').then((response) => response.data),
-  });
-
-  const { data: projects = [], isLoading: isProjectsLoading } = useQuery<ProjectItem[]>({
-    queryKey: ['projects', 'quotation-form-options'],
-    queryFn: () => api.get('/projects').then((response) => response.data),
-  });
-
   const { data: services = [], isLoading: isServicesLoading } = useQuery<ServiceItem[]>({
     queryKey: ['services', 'quotation-form-options'],
-    queryFn: () => api.get('/services', { params: { tree: true } }).then((response) => response.data),
+    queryFn: () =>
+      api.get('/services', { params: { tree: true } }).then((response) => response.data),
   });
 
   const { data: quoteConfigs = [], isLoading: isQuoteConfigsLoading } = useQuery<AppOption[]>({
@@ -51,13 +40,15 @@ export default function EditQuotationPage() {
         .then((response) => response.data),
   });
 
-  const { data: bankAccountOptions = [], isLoading: isBankAccountsLoading } = useQuery<AppOption[]>({
-    queryKey: ['options', COMPANY_BANK_ACCOUNT_OPTION_GROUP],
-    queryFn: () =>
-      api
-        .get('/options', { params: { groups: COMPANY_BANK_ACCOUNT_OPTION_GROUP } })
-        .then((response) => response.data),
-  });
+  const { data: bankAccountOptions = [], isLoading: isBankAccountsLoading } = useQuery<AppOption[]>(
+    {
+      queryKey: ['options', COMPANY_BANK_ACCOUNT_OPTION_GROUP],
+      queryFn: () =>
+        api
+          .get('/options', { params: { groups: COMPANY_BANK_ACCOUNT_OPTION_GROUP } })
+          .then((response) => response.data),
+    },
+  );
 
   const { data: quotation, isLoading: isQuotationLoading } = useQuery<Quotation>({
     queryKey: ['quotations', id],
@@ -71,17 +62,15 @@ export default function EditQuotationPage() {
     onSuccess: (updatedQuotation) => {
       queryClient.setQueryData(['quotations', id], updatedQuotation);
       queryClient.invalidateQueries({ queryKey: ['quotations'] });
-      notify.success('Cập nhật báo giá thành công');
+      notify.success('Cập nhật báo phí thành công');
     },
     onError: (error) => {
-      notify.error(getApiErrorMessage(error, 'Cập nhật báo giá thất bại'));
+      notify.error(getApiErrorMessage(error, 'Cập nhật báo phí thất bại'));
     },
   });
 
   if (
     isLeadsLoading ||
-    isCustomersLoading ||
-    isProjectsLoading ||
     isServicesLoading ||
     isQuoteConfigsLoading ||
     isBankAccountsLoading ||
@@ -93,7 +82,7 @@ export default function EditQuotationPage() {
   if (!quotation) {
     return (
       <div className="p-6">
-        <Alert severity="error">Không tìm thấy báo giá</Alert>
+        <Alert severity="error">Không tìm thấy báo phí</Alert>
       </div>
     );
   }
@@ -103,8 +92,6 @@ export default function EditQuotationPage() {
       mode="edit"
       quotation={quotation}
       leads={leads}
-      customers={customers}
-      projects={projects}
       services={services}
       quoteConfigs={quoteConfigs}
       bankAccountOptions={bankAccountOptions}

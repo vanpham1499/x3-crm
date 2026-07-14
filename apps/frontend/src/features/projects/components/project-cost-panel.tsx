@@ -4,7 +4,9 @@ import { useState } from 'react';
 import AddRoundedIcon from '@mui/icons-material/AddRounded';
 import DeleteOutlineRoundedIcon from '@mui/icons-material/DeleteOutlineRounded';
 import EditOutlinedIcon from '@mui/icons-material/EditOutlined';
-import { IconButton, MenuItem } from '@mui/material';
+import InfoOutlinedIcon from '@mui/icons-material/InfoOutlined';
+import WarningAmberRoundedIcon from '@mui/icons-material/WarningAmberRounded';
+import { Checkbox, FormControlLabel, IconButton, MenuItem } from '@mui/material';
 import { useMutation, useQueryClient } from '@tanstack/react-query';
 import { Controller, useForm } from 'react-hook-form';
 import { DialogActionButton } from '@/components/actions/dialog-action-button';
@@ -13,12 +15,14 @@ import { AppFormDialog } from '@/components/dialog/app-form-dialog';
 import { ConfirmDialog } from '@/components/feedback/confirm-dialog';
 import { useAppNotification } from '@/components/feedback/notification-provider';
 import { compactFormFieldClassName } from '@/components/form/form-field-styles';
+import { FormDatePicker } from '@/components/form/form-date-picker';
 import { FormInputField } from '@/components/form/form-input-field';
 import { FormSelectField } from '@/components/form/form-select-field';
 import { MoneyInput } from '@/components/form/money-input';
 import { applyApiErrorsToForm, getApiErrorMessage } from '@/lib/api-error';
 import { getBankAccountBankCode } from '@/lib/company-bank-account-options';
 import { getPartnerMetaValue } from '@/lib/project-partner-options';
+import { calculateAvailableTopupBudget, isManagedBudgetProject } from '@/lib/project-topup-budget';
 import { formatCurrency } from '@/lib/utils';
 import api from '@/services/api/client';
 import type { AppOption } from '@/types/option';
@@ -76,6 +80,8 @@ function getCostDefaults(cost?: ProjectCost | null): ProjectCostFormValues {
     status: cost?.status || 'pending',
     cid: cost?.cid || '',
     adAccount: cost?.adAccount || '',
+    cidIsDead: cost?.cidIsDead === true,
+    cidSpentAmount: String(cost?.cidSpentAmount ?? ''),
     bankAccountOptionId: cost?.bankAccountOptionId ? String(cost.bankAccountOptionId) : '',
     partnerOptionId: cost?.partnerOptionId ? String(cost.partnerOptionId) : '',
     amountBeforeVat: String(cost?.amountBeforeVat ?? ''),
@@ -91,6 +97,9 @@ function CostDialog({
   open,
   entryType,
   cost,
+  projectType,
+  projectCode,
+  costs,
   quotations,
   bankAccounts,
   partners,
@@ -101,6 +110,9 @@ function CostDialog({
   open: boolean;
   entryType: ProjectCostEntryType;
   cost?: ProjectCost | null;
+  projectType?: 'K' | 'M' | null;
+  projectCode?: string | null;
+  costs: ProjectCost[];
   quotations: Quotation[];
   bankAccounts: AppOption[];
   partners: AppOption[];
@@ -115,14 +127,40 @@ function CostDialog({
     handleSubmit,
     reset,
     setError,
+    setValue,
     watch,
     formState: { errors },
   } = useForm<ProjectCostFormValues>({ values: getCostDefaults(cost) });
   const amountBeforeVat = Number(watch('amountBeforeVat')) || 0;
+  const selectedQuotationId = watch('quotationId');
+  const cidIsDead = watch('cidIsDead');
+  const cidSpentAmount = Math.max(0, Number(watch('cidSpentAmount')) || 0);
+  const currentStatus = watch('status');
   const vatRate = Number(watch('vatRate')) || 0;
   const discountAmount = isAdSpend ? 0 : Number(watch('discountAmount')) || 0;
   const vatAmount = Math.round((amountBeforeVat * vatRate) / 100);
   const totalAmount = Math.max(0, amountBeforeVat + vatAmount - discountAmount);
+  const managedBudgetProject = isManagedBudgetProject({
+    projectType,
+    projectCode,
+    quotations,
+  });
+  const draftEditingCost = cost
+    ? {
+        ...cost,
+        quotationId: selectedQuotationId ? Number(selectedQuotationId) : null,
+        status: currentStatus,
+        amountBeforeVat,
+        cidIsDead,
+        cidSpentAmount,
+      }
+    : null;
+  const { customerBudget, availableBudget } = calculateAvailableTopupBudget({
+    quotations,
+    costs,
+    quotationId: selectedQuotationId,
+    editingCost: draftEditingCost,
+  });
 
   const closeDialog = () => {
     reset();
@@ -170,14 +208,33 @@ function CostDialog({
           </FormSelectField>
         )}
       />
-      <FormInputField
-        type="date"
-        label={isAdSpend ? 'Ngày nạp/hủy *' : 'Ngày chi/hủy *'}
-        error={Boolean(errors.transactionDate)}
-        helperText={errors.transactionDate?.message}
-        slotProps={{ inputLabel: { shrink: true } }}
-        {...register('transactionDate', { required: 'Bắt buộc' })}
-      />
+
+      {isAdSpend ? (
+        <Controller
+          name="transactionDate"
+          control={control}
+          rules={{ required: 'Bắt buộc' }}
+          render={({ field }) => (
+            <FormDatePicker
+              label="Ngày nạp/hủy"
+              value={field.value}
+              onChange={field.onChange}
+              required
+              error={Boolean(errors.transactionDate)}
+              helperText={errors.transactionDate?.message}
+            />
+          )}
+        />
+      ) : (
+        <FormInputField
+          type="date"
+          label="Ngày chi/hủy *"
+          error={Boolean(errors.transactionDate)}
+          helperText={errors.transactionDate?.message}
+          slotProps={{ inputLabel: { shrink: true } }}
+          {...register('transactionDate', { required: 'Bắt buộc' })}
+        />
+      )}
 
       {isAdSpend ? (
         <>
@@ -286,6 +343,26 @@ function CostDialog({
         )}
       />
 
+      {isAdSpend && managedBudgetProject ? (
+        <div
+          role="status"
+          aria-live="polite"
+          className="md:col-span-2 flex min-h-9 items-center justify-between gap-3 rounded-md border border-sky-200 bg-sky-50/70 px-3 py-1.5"
+        >
+          <span className="inline-flex items-center gap-1.5 text-xs font-semibold text-sky-700">
+            <InfoOutlinedIcon className="shrink-0 !text-[16px]" />
+            {customerBudget > 0
+              ? 'Ngân sách còn có thể nạp'
+              : 'Chưa có ngân sách khách trong báo phí'}
+          </span>
+          {customerBudget > 0 ? (
+            <strong className="whitespace-nowrap text-sm font-extrabold tabular-nums text-sky-800">
+              {formatCurrency(availableBudget)}
+            </strong>
+          ) : null}
+        </div>
+      ) : null}
+
       {!isAdSpend ? (
         <>
           <Controller
@@ -311,6 +388,63 @@ function CostDialog({
             )}
           />
         </>
+      ) : null}
+
+      {isAdSpend && cost ? (
+        <div
+          className={`md:col-span-2 flex min-h-11 flex-col gap-2 rounded-md border px-3 py-1.5 md:flex-row md:items-center md:justify-between ${
+            cidIsDead ? 'border-rose-200 bg-rose-50' : 'border-slate-200 bg-slate-50'
+          }`}
+        >
+          <Controller
+            name="cidIsDead"
+            control={control}
+            render={({ field }) => (
+              <FormControlLabel
+                className="!m-0"
+                control={
+                  <Checkbox
+                    size="small"
+                    color="error"
+                    checked={field.value}
+                    onChange={(event) => {
+                      field.onChange(event.target.checked);
+                      if (!event.target.checked) {
+                        setValue('cidSpentAmount', '');
+                      }
+                    }}
+                  />
+                }
+                label={
+                  <span className="inline-flex items-center gap-1.5 whitespace-nowrap text-sm font-bold text-slate-800">
+                    <WarningAmberRoundedIcon
+                      className={`!text-[17px] ${cidIsDead ? 'text-rose-600' : 'text-slate-400'}`}
+                    />
+                    <span className={cidIsDead ? 'text-rose-700' : undefined}>
+                      CID ngừng hoạt động
+                    </span>
+                  </span>
+                }
+              />
+            )}
+          />
+
+          {cidIsDead ? (
+            <Controller
+              name="cidSpentAmount"
+              control={control}
+              render={({ field }) => (
+                <MoneyInput
+                  size="small"
+                  label="Số tiền CID đã chạy"
+                  value={field.value}
+                  onValueChange={field.onChange}
+                  className={`${compactFormFieldClassName} w-full md:w-[320px]`}
+                />
+              )}
+            />
+          ) : null}
+        </div>
       ) : null}
 
       <FormInputField
@@ -345,6 +479,8 @@ function CostDialog({
 
 export function ProjectCostPanel({
   projectId,
+  projectType,
+  projectCode,
   revenueGroup,
   costs,
   quotations,
@@ -352,6 +488,8 @@ export function ProjectCostPanel({
   partners,
 }: {
   projectId: number;
+  projectType?: 'K' | 'M' | null;
+  projectCode?: string | null;
   revenueGroup: '2.1' | '2.2';
   costs: ProjectCost[];
   quotations: Quotation[];
@@ -382,6 +520,9 @@ export function ProjectCostPanel({
         status: values.status,
         cid: values.cid.trim() || null,
         adAccount: values.adAccount.trim() || null,
+        cidIsDead: entryType === 'ad_spend' ? values.cidIsDead : false,
+        cidSpentAmount:
+          entryType === 'ad_spend' && values.cidIsDead ? Number(values.cidSpentAmount) || 0 : 0,
         bankAccountOptionId: values.bankAccountOptionId ? Number(values.bankAccountOptionId) : null,
         partnerOptionId: values.partnerOptionId ? Number(values.partnerOptionId) : null,
         amountBeforeVat: Number(values.amountBeforeVat) || 0,
@@ -435,15 +576,6 @@ export function ProjectCostPanel({
           <h2 className="text-sm font-bold text-slate-950">
             {entryType === 'ad_spend' ? 'Chi phí nạp quảng cáo' : 'Chi phí đối tác'}
           </h2>
-          <span
-            className={`rounded-full px-2.5 py-1 text-xs font-bold ring-1 ${
-              revenueGroup === '2.1'
-                ? 'bg-sky-50 text-sky-700 ring-sky-200'
-                : 'bg-amber-50 text-amber-700 ring-amber-200'
-            }`}
-          >
-            {revenueGroup}
-          </span>
         </div>
         <TabActionButton startIcon={<AddRoundedIcon />} onClick={openCreate}>
           {entryType === 'ad_spend' ? 'Thêm lần nạp' : 'Thêm chi phí'}
@@ -452,7 +584,7 @@ export function ProjectCostPanel({
 
       <div className="overflow-x-auto">
         {entryType === 'ad_spend' ? (
-          <table className="w-full min-w-[1180px] text-left text-sm">
+          <table className="w-full min-w-[1280px] text-left text-sm">
             <thead className="border-y border-slate-200 bg-slate-100 text-sm font-bold text-slate-700">
               <tr>
                 <th className="px-4 py-3">Ngày nạp/hủy</th>
@@ -483,8 +615,22 @@ export function ProjectCostPanel({
                     <td className="px-3 py-3 font-bold text-blue-700">
                       {cost.quotation?.quotationCode || '-'}
                     </td>
-                    <td className="px-3 py-3 font-mono font-bold text-slate-800">
-                      {cost.cid || '-'}
+                    <td className="px-3 py-3">
+                      <div className="flex items-center gap-2 whitespace-nowrap">
+                        <span className="font-mono font-bold text-slate-800">
+                          {cost.cid || '-'}
+                        </span>
+                        {cost.cidIsDead ? (
+                          <>
+                            <span className="rounded-md bg-rose-50 px-1.5 py-0.5 text-[11px] font-bold text-rose-700 ring-1 ring-rose-200">
+                              Ngừng hoạt động
+                            </span>
+                            <span className="text-xs font-bold tabular-nums text-rose-700">
+                              Đã chạy {formatCurrency(Number(cost.cidSpentAmount) || 0)}
+                            </span>
+                          </>
+                        ) : null}
+                      </div>
                     </td>
                     <td className="px-3 py-3 text-slate-700">{cost.adAccount || '-'}</td>
                     <td className="px-3 py-3 text-slate-700">
@@ -614,6 +760,9 @@ export function ProjectCostPanel({
         open={dialogOpen}
         entryType={entryType}
         cost={editingCost}
+        projectType={projectType}
+        projectCode={projectCode}
+        costs={costs}
         quotations={quotations}
         bankAccounts={bankAccounts}
         partners={partners}

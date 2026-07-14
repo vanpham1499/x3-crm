@@ -7,6 +7,8 @@ import type { User } from '@/types/user';
 
 export type ProjectUserSummary = Pick<User, 'id' | 'code' | 'name' | 'email'>;
 
+export type ProjectType = 'K' | 'M';
+
 export type ProjectCustomerSummary = Pick<
   Customer,
   'id' | 'customerCode' | 'customerName' | 'companyName' | 'phone' | 'email' | 'leadId'
@@ -19,6 +21,7 @@ export type ProjectItem = {
   quotationId?: number | null;
   serviceId: number;
   projectName: string;
+  projectType?: ProjectType | null;
   statusId?: number | null;
   statusOptionId?: number | null;
   managerUserId?: number | null;
@@ -56,7 +59,6 @@ export type ProjectPaymentSummary = {
 
 export type ProjectFilters = {
   keyword: string;
-  customer_id: string;
   service_id: string;
   status_option_id: string;
   manager_user_id: string;
@@ -69,6 +71,7 @@ export type ProjectFormValues = {
   quotationId: string;
   serviceId: string;
   projectName: string;
+  projectType: ProjectType;
   statusOptionId: string;
   managerUserId: string;
   salesUserId: string;

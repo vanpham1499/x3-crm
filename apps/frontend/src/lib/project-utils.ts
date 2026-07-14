@@ -1,9 +1,8 @@
-import type { ProjectFormValues, ProjectItem } from '@/types/project';
+import type { ProjectFormValues, ProjectItem, ProjectType } from '@/types/project';
 import type { ServiceItem } from '@/types/service';
 
 export const DEFAULT_PROJECT_FILTERS = {
   keyword: '',
-  customer_id: '',
   service_id: '',
   status_option_id: '',
   manager_user_id: '',
@@ -12,6 +11,23 @@ export const DEFAULT_PROJECT_FILTERS = {
 
 function idToString(value?: string | number | null): string {
   return value === undefined || value === null || value === '' ? '' : String(value);
+}
+
+function dateInputValue(value?: string | null): string {
+  if (!value) return '';
+
+  const date = new Date(value);
+  if (Number.isNaN(date.getTime())) return value.slice(0, 10);
+
+  const year = date.getFullYear();
+  const month = String(date.getMonth() + 1).padStart(2, '0');
+  const day = String(date.getDate()).padStart(2, '0');
+
+  return `${year}-${month}-${day}`;
+}
+
+function todayInputValue(): string {
+  return dateInputValue(new Date().toISOString());
 }
 
 export function getProjectDefaults(
@@ -24,12 +40,20 @@ export function getProjectDefaults(
     quotationId: idToString(project?.quotationId) || defaults?.quotationId || '',
     serviceId: idToString(project?.serviceId) || defaults?.serviceId || '',
     projectName: project?.projectName || defaults?.projectName || '',
+    projectType:
+      project?.projectType === 'M' || project?.projectType === 'K'
+        ? project.projectType
+        : defaults?.projectType || 'K',
     statusOptionId: idToString(project?.statusOptionId) || defaults?.statusOptionId || '',
     managerUserId: idToString(project?.managerUserId) || defaults?.managerUserId || '',
     salesUserId: idToString(project?.salesUserId) || defaults?.salesUserId || '',
     zaloGroup: project?.zaloGroup || defaults?.zaloGroup || '',
     planLink: project?.planLink || defaults?.planLink || '',
-    startDate: project?.startDate || defaults?.startDate || '',
+    startDate:
+      project?.startDate ||
+      defaults?.startDate ||
+      dateInputValue(project?.createdAt) ||
+      todayInputValue(),
     endDate: project?.endDate || defaults?.endDate || '',
     note: project?.note || defaults?.note || '',
   };
@@ -37,11 +61,11 @@ export function getProjectDefaults(
 
 export function toProjectPayload(values: ProjectFormValues) {
   const payload: Record<string, unknown> = {
-    projectCode: values.projectCode.trim() || null,
     customerId: values.customerId,
     quotationId: values.quotationId || null,
     serviceId: values.serviceId,
     projectName: values.projectName.trim(),
+    projectType: values.projectType,
     statusOptionId: values.statusOptionId || null,
     managerUserId: values.managerUserId || null,
     salesUserId: values.salesUserId || null,
@@ -66,10 +90,7 @@ export function getRootServiceCode(services: ServiceItem[], serviceId: string): 
   return '';
 }
 
-export function getRootServiceItem(
-  services: ServiceItem[],
-  serviceId: string,
-): ServiceItem | null {
+export function getRootServiceItem(services: ServiceItem[], serviceId: string): ServiceItem | null {
   for (const service of services) {
     if (String(service.id) === serviceId) return service;
 
@@ -88,19 +109,24 @@ export function toCodeSegment(value?: string | null): string {
     .normalize('NFD')
     .replace(/[̀-ͯ]/g, '')
     .toUpperCase()
-    .replace(/\s+/g, '');
+    .replace(/\s+/g, '')
+    .replace(/[^A-Z0-9._-]/g, '');
 }
 
 export function generateProjectCode({
   customerCode,
   rootServiceCode,
+  projectType,
   projectName,
 }: {
   customerCode?: string | null;
   rootServiceCode?: string | null;
+  projectType?: ProjectType | null;
   projectName?: string | null;
 }) {
-  const parts = [customerCode, rootServiceCode, projectName].map((part) => toCodeSegment(part));
+  const parts = [customerCode, rootServiceCode, projectType, projectName].map((part) =>
+    toCodeSegment(part),
+  );
 
   if (parts.some((part) => !part)) return '';
 

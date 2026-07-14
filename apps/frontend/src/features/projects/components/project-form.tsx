@@ -1,6 +1,6 @@
 'use client';
 
-import { useMemo } from 'react';
+import { useMemo, useState } from 'react';
 import SaveRoundedIcon from '@mui/icons-material/SaveRounded';
 import { Autocomplete, MenuItem } from '@mui/material';
 import { DatePicker } from '@mui/x-date-pickers/DatePicker';
@@ -11,6 +11,7 @@ import { compactFormFieldClassName } from '@/components/form/form-field-styles';
 import { FormInputField } from '@/components/form/form-input-field';
 import { FormSection } from '@/components/form/form-section';
 import { FormSelectField } from '@/components/form/form-select-field';
+import { ServerPaginatedAutocomplete } from '@/components/form/server-paginated-autocomplete';
 import { applyApiErrorsToForm } from '@/lib/api-error';
 import {
   generateProjectCode,
@@ -35,7 +36,7 @@ import type { User } from '@/types/user';
 type ProjectFormProps = {
   mode: 'create' | 'edit';
   project?: ProjectItem | null;
-  customers: Customer[];
+  initialCustomer?: CustomerOption | null;
   services: ServiceItem[];
   users: User[];
   statuses: AppOption[];
@@ -46,6 +47,11 @@ type ProjectFormProps = {
   isSubmitting: boolean;
   onSubmit: (values: ProjectFormValues) => Promise<unknown>;
 };
+
+type CustomerOption = Pick<
+  Customer,
+  'id' | 'customerCode' | 'customerName' | 'companyName' | 'phone' | 'email' | 'leadId'
+>;
 
 function ProjectDatePicker({
   label,
@@ -72,7 +78,7 @@ function ProjectDatePicker({
   );
 }
 
-function customerLabel(customer: Customer) {
+function customerLabel(customer: CustomerOption) {
   return [customer.customerCode, customer.customerName || customer.companyName]
     .filter(Boolean)
     .join(' - ');
@@ -87,10 +93,8 @@ function serviceLabel(service: ReturnType<typeof flattenServices>[number]) {
 }
 
 const QUOTATION_STATUS_LABELS: Record<string, string> = {
-  draft: 'Nháp',
-  sent: 'Đã gửi',
-  won: 'Đã chốt',
-  lost: 'Đã hủy',
+  draft: 'Báo phí',
+  won: 'Đã thanh toán',
 };
 
 function quotationLabel(quotation: Quotation) {
@@ -112,7 +116,7 @@ function quotationMetadataText(quotation: Quotation, key: string) {
 export function ProjectForm({
   mode,
   project,
-  customers,
+  initialCustomer = null,
   services,
   users,
   statuses,
@@ -124,6 +128,9 @@ export function ProjectForm({
   onSubmit,
 }: ProjectFormProps) {
   const serviceOptions = useMemo(() => flattenServices(services), [services]);
+  const [selectedCustomer, setSelectedCustomer] = useState<CustomerOption | null>(
+    initialCustomer || project?.customer || null,
+  );
   const {
     control,
     register,
@@ -135,10 +142,9 @@ export function ProjectForm({
     defaultValues: getProjectDefaults(project, defaultValues),
   });
   const selectedQuotationId = useWatch({ control, name: 'quotationId' }) || '';
-  const selectedCustomerId = useWatch({ control, name: 'customerId' }) || '';
   const selectedServiceId = useWatch({ control, name: 'serviceId' }) || '';
   const projectName = useWatch({ control, name: 'projectName' }) || '';
-  const selectedCustomer = customers.find((customer) => String(customer.id) === selectedCustomerId);
+  const projectType = useWatch({ control, name: 'projectType' }) || 'K';
   const selectedQuotation = quotations.find(
     (quotation) => String(quotation.id) === selectedQuotationId,
   );
@@ -167,19 +173,18 @@ export function ProjectForm({
     : null;
   const usesAutomaticQuote = Boolean(quoteConfig?.enabled);
   const revenueGroup = getProjectRevenueGroupInfo(usesAutomaticQuote);
-  const selectedCustomerCode =
-    selectedCustomer?.customerCode || selectedCustomer?.lead?.leadCode || '';
+  const selectedCustomerCode = selectedCustomer?.customerCode || '';
   const generatedProjectCode = useMemo(
     () =>
       generateProjectCode({
         customerCode: selectedCustomerCode,
         rootServiceCode,
+        projectType,
         projectName,
       }),
-    [projectName, rootServiceCode, selectedCustomerCode],
+    [projectName, projectType, rootServiceCode, selectedCustomerCode],
   );
-  const displayedProjectCode =
-    generatedProjectCode || (mode === 'edit' ? project?.projectCode || '' : '');
+  const displayedProjectCode = generatedProjectCode || project?.projectCode || '';
 
   const applyOriginQuotation = (quotation: Quotation | null) => {
     setValue('quotationId', quotation ? String(quotation.id) : '', {
@@ -193,6 +198,7 @@ export function ProjectForm({
       shouldDirty: true,
       shouldValidate: true,
     });
+    setSelectedCustomer(quotation.customer || null);
     setValue('serviceId', quotation.serviceId ? String(quotation.serviceId) : '', {
       shouldDirty: true,
       shouldValidate: true,
@@ -206,7 +212,7 @@ export function ProjectForm({
 
   const submitForm = handleSubmit(async (values) => {
     try {
-      await onSubmit({ ...values, projectCode: displayedProjectCode });
+      await onSubmit(values);
     } catch (error) {
       applyApiErrorsToForm(error, setError);
     }
@@ -224,19 +230,22 @@ export function ProjectForm({
                 control={control}
                 rules={{ required: 'Vui lòng chọn khách hàng' }}
                 render={({ field }) => (
-                  <FormSelectField
-                    label="Khách hàng *"
+                  <ServerPaginatedAutocomplete<CustomerOption>
+                    endpoint="/customers"
+                    queryKey={['customers', 'project-form-autocomplete']}
+                    label="Mã khách hàng *"
+                    value={selectedCustomer}
                     disabled={Boolean(selectedQuotation)}
+                    required
                     error={Boolean(errors.customerId)}
                     helperText={errors.customerId?.message}
-                    {...field}
-                  >
-                    {customers.map((customer) => (
-                      <MenuItem key={customer.id} value={String(customer.id)}>
-                        {customerLabel(customer)}
-                      </MenuItem>
-                    ))}
-                  </FormSelectField>
+                    placeholder="Nhập mã, tên, số điện thoại hoặc email"
+                    getOptionLabel={customerLabel}
+                    onChange={(customer) => {
+                      setSelectedCustomer(customer);
+                      field.onChange(customer ? String(customer.id) : '');
+                    }}
+                  />
                 )}
               />
 
@@ -284,7 +293,7 @@ export function ProjectForm({
               />
             </div>
 
-            <div className="grid gap-4 md:grid-cols-2">
+            <div className="grid grid-cols-[minmax(0,1fr)_72px_minmax(0,1.25fr)] gap-2 md:grid-cols-[minmax(0,1fr)_80px_minmax(0,1.25fr)] md:gap-3">
               <Controller
                 name="projectName"
                 control={control}
@@ -300,6 +309,22 @@ export function ProjectForm({
                 )}
               />
               <Controller
+                name="projectType"
+                control={control}
+                rules={{ required: 'Chọn loại' }}
+                render={({ field }) => (
+                  <FormSelectField
+                    {...field}
+                    label="Loại *"
+                    error={Boolean(errors.projectType)}
+                    helperText={errors.projectType?.message}
+                  >
+                    <MenuItem value="K">K</MenuItem>
+                    <MenuItem value="M">M</MenuItem>
+                  </FormSelectField>
+                )}
+              />
+              <Controller
                 name="projectCode"
                 control={control}
                 render={({ field }) => (
@@ -307,7 +332,7 @@ export function ProjectForm({
                     {...field}
                     value={displayedProjectCode}
                     label="Mã dự án"
-                    placeholder="Chọn khách hàng, dịch vụ và nhập tên dự án"
+                    placeholder="Mã KH.DV.TYPE.TÊN DỰ ÁN"
                     className="[&_.MuiOutlinedInput-root]:!bg-emerald-50/60"
                     slotProps={{
                       htmlInput: { readOnly: true },
@@ -382,7 +407,7 @@ export function ProjectForm({
                     onChange={(_, nextValue) => applyOriginQuotation(nextValue)}
                     getOptionLabel={quotationLabel}
                     isOptionEqualToValue={(option, value) => option.id === value.id}
-                    getOptionDisabled={(option) => !option.customerId || option.status === 'lost'}
+                    getOptionDisabled={(option) => !option.customerId}
                     noOptionsText="Không có báo phí chưa gắn dự án"
                     renderOption={(props, option) => (
                       <li {...props} key={option.id}>

@@ -43,7 +43,7 @@ const navGroups = [
           { href: '/projects/partners', label: 'Đối tác', icon: HandshakeRoundedIcon },
         ],
       },
-      { href: '/quotations', label: 'Báo giá', icon: RequestQuoteRoundedIcon },
+      { href: '/quotations', label: 'Báo phí', icon: RequestQuoteRoundedIcon },
       { href: '/payments', label: 'Thanh toán', icon: AccountBalanceWalletRoundedIcon },
       { href: '/weekly-reports', label: 'Báo cáo tuần', icon: CalendarMonthRoundedIcon },
       { href: '/kpi', label: 'KPI', icon: EmojiEventsRoundedIcon },

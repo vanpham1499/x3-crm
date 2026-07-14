@@ -86,7 +86,6 @@ export type CustomerFormValues = {
 };
 
 export type CustomerPayload = {
-  customerCode?: string | null;
   leadId?: string | null;
   customerName: string;
   customerType?: string | null;

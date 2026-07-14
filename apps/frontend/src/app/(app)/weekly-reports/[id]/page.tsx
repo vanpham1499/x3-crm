@@ -3,8 +3,9 @@
 import { useParams } from 'next/navigation';
 import CheckCircleOutlineRoundedIcon from '@mui/icons-material/CheckCircleOutlineRounded';
 import SendRoundedIcon from '@mui/icons-material/SendRounded';
-import { Alert, Button } from '@mui/material';
+import { Alert } from '@mui/material';
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
+import { PrimaryActionButton } from '@/components/actions/primary-action-button';
 import { useAppNotification } from '@/components/feedback/notification-provider';
 import { ContentLoading } from '@/components/shell/content-loading';
 import { WeeklyReportForm } from '@/features/weekly-reports/components/weekly-report-form';
@@ -89,42 +90,39 @@ export default function EditWeeklyReportPage() {
   }
 
   return (
-    <div>
-      <div className="flex flex-wrap items-center justify-end gap-2 px-6 pt-6">
-        <span className="rounded-md bg-slate-100 px-3 py-1.5 text-xs font-bold text-slate-700">
-          Trạng thái: {STATUS_LABELS[report.status] || report.status}
-        </span>
-        {report.status === 'draft' && (
-          <Button
-            variant="outlined"
-            startIcon={<SendRoundedIcon />}
-            disabled={submitMutation.isPending}
-            onClick={() => submitMutation.mutate()}
-          >
-            {submitMutation.isPending ? 'Đang gửi...' : 'Gửi duyệt'}
-          </Button>
-        )}
-        {report.status === 'submitted' && canApprove && (
-          <Button
-            variant="contained"
-            color="success"
-            startIcon={<CheckCircleOutlineRoundedIcon />}
-            disabled={approveMutation.isPending}
-            onClick={() => approveMutation.mutate()}
-          >
-            {approveMutation.isPending ? 'Đang duyệt...' : 'Duyệt báo cáo'}
-          </Button>
-        )}
-      </div>
-
-      <WeeklyReportForm
-        mode="edit"
-        report={report}
-        projects={projects}
-        users={users}
-        isSubmitting={updateMutation.isPending}
-        onSubmit={(payload) => updateMutation.mutateAsync(payload)}
-      />
-    </div>
+    <WeeklyReportForm
+      mode="edit"
+      report={report}
+      projects={projects}
+      users={users}
+      isSubmitting={updateMutation.isPending}
+      onSubmit={(payload) => updateMutation.mutateAsync(payload)}
+      headerActions={
+        <div className="flex flex-wrap items-center gap-2">
+          <span className="inline-flex h-10 items-center rounded-lg border border-slate-200 bg-white px-3 text-xs font-bold text-slate-700">
+            {STATUS_LABELS[report.status] || report.status}
+          </span>
+          {report.status === 'draft' && (
+            <PrimaryActionButton
+              tone="secondary"
+              startIcon={<SendRoundedIcon />}
+              disabled={submitMutation.isPending}
+              onClick={() => submitMutation.mutate()}
+            >
+              {submitMutation.isPending ? 'Đang gửi...' : 'Gửi duyệt'}
+            </PrimaryActionButton>
+          )}
+          {report.status === 'submitted' && canApprove && (
+            <PrimaryActionButton
+              startIcon={<CheckCircleOutlineRoundedIcon />}
+              disabled={approveMutation.isPending}
+              onClick={() => approveMutation.mutate()}
+            >
+              {approveMutation.isPending ? 'Đang duyệt...' : 'Duyệt báo cáo'}
+            </PrimaryActionButton>
+          )}
+        </div>
+      }
+    />
   );
 }
