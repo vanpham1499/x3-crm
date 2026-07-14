@@ -14,6 +14,8 @@ export type ProjectCost = {
   status: ProjectCostStatus;
   cid?: string | null;
   adAccount?: string | null;
+  cidIsDead?: boolean;
+  cidSpentAmount?: string | number | null;
   bankAccountOptionId?: number | null;
   partnerOptionId?: number | null;
   amountBeforeVat?: string | number | null;
@@ -40,6 +42,8 @@ export type ProjectCostFormValues = {
   status: ProjectCostStatus;
   cid: string;
   adAccount: string;
+  cidIsDead: boolean;
+  cidSpentAmount: string;
   bankAccountOptionId: string;
   partnerOptionId: string;
   amountBeforeVat: string;

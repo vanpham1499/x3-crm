@@ -1,6 +1,6 @@
 'use client';
 
-import { useMemo, useState } from 'react';
+import { useEffect, useMemo, useState } from 'react';
 import { keepPreviousData, useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import { useAppNotification } from '@/components/feedback/notification-provider';
 import { ContentLoading } from '@/components/shell/content-loading';
@@ -15,6 +15,7 @@ import {
 import { useAuthStore } from '@/stores/auth-store';
 import api from '@/services/api/client';
 import type { ProjectItem } from '@/types/project';
+import type { PaginatedResponse } from '@/types/pagination';
 import type { User } from '@/types/user';
 import type {
   ProjectWeeklySetting,
@@ -22,6 +23,9 @@ import type {
   WeeklyReport,
   WeeklyReportFilters,
 } from '@/types/weekly-report';
+
+const WEEKLY_REPORTS_PAGE_SIZE = 10;
+const WEEKLY_REPORTS_LIST_QUERY_KEY = ['weekly-reports', 'list'] as const;
 
 function reportParams(filters: WeeklyReportFilters) {
   return {
@@ -35,6 +39,8 @@ export default function WeeklyReportsPage() {
   const notify = useAppNotification();
   const currentUser = useAuthStore((state) => state.user);
   const canApprove = currentUser?.role === 'ADMIN' || currentUser?.role === 'LEADER';
+  const [page, setPage] = useState(1);
+  const [pageSize, setPageSize] = useState(WEEKLY_REPORTS_PAGE_SIZE);
   const [filters, setFilters] = useState<WeeklyReportFilters>({ projectId: '', status: '' });
   const [settingsOpen, setSettingsOpen] = useState(false);
 
@@ -49,17 +55,46 @@ export default function WeeklyReportsPage() {
   });
 
   const {
-    data: reports = [],
+    data: reportsPage,
     isFetching,
     isLoading,
-  } = useQuery<WeeklyReport[]>({
-    queryKey: ['weekly-reports', filters],
-    queryFn: () =>
+  } = useQuery<PaginatedResponse<WeeklyReport>>({
+    queryKey: [...WEEKLY_REPORTS_LIST_QUERY_KEY, filters, page, pageSize],
+    queryFn: ({ signal }) =>
       api
-        .get<WeeklyReport[]>('/weekly-reports', { params: reportParams(filters) })
+        .get<PaginatedResponse<WeeklyReport>>('/weekly-reports', {
+          params: {
+            ...reportParams(filters),
+            page,
+            per_page: pageSize,
+          },
+          signal,
+        })
         .then((response) => response.data),
     placeholderData: keepPreviousData,
   });
+
+  const reports = reportsPage?.data || [];
+  const pagination = reportsPage?.meta || {
+    currentPage: page,
+    lastPage: 1,
+    perPage: pageSize,
+    total: 0,
+    from: null,
+    to: null,
+  };
+
+  useEffect(() => {
+    if (page > pagination.lastPage) {
+      setPage(Math.max(1, pagination.lastPage));
+    }
+  }, [page, pagination.lastPage]);
+
+  const handlePageSizeChange = (nextPageSize: number) => {
+    void queryClient.cancelQueries({ queryKey: WEEKLY_REPORTS_LIST_QUERY_KEY });
+    setPage(1);
+    setPageSize(nextPageSize);
+  };
 
   const { data: projectSettings } = useQuery<ProjectWeeklySetting[]>({
     queryKey: ['project-weekly-settings', filters.projectId],
@@ -188,7 +223,16 @@ export default function WeeklyReportsPage() {
         isSubmitting={submitMutation.isPending}
         isApproving={approveMutation.isPending}
         canApprove={canApprove}
-        onFiltersChange={setFilters}
+        page={page}
+        totalPages={pagination.lastPage}
+        totalItems={pagination.total}
+        pageSize={pageSize}
+        onPageChange={setPage}
+        onPageSizeChange={handlePageSizeChange}
+        onFiltersChange={(nextFilters) => {
+          setPage(1);
+          setFilters(nextFilters);
+        }}
         onDelete={(report) => deleteMutation.mutate(report)}
         onSubmit={(report) => submitMutation.mutate(report)}
         onApprove={(report) => approveMutation.mutate(report)}

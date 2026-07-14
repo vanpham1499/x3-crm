@@ -14,7 +14,6 @@ import api from '@/services/api/client';
 import type { Customer, CustomerFormValues } from '@/types/customer';
 import type { Lead } from '@/types/lead';
 import type { AppOption } from '@/types/option';
-import type { ServiceItem } from '@/types/service';
 import type { User } from '@/types/user';
 
 export default function NewCustomerPage() {
@@ -35,12 +34,6 @@ export default function NewCustomerPage() {
       api
         .get('/options', { params: { groups: 'customer_type,lead_source,industry' } })
         .then((response) => response.data),
-  });
-
-  const { data: services = [] } = useQuery<ServiceItem[]>({
-    queryKey: ['services', 'customer-code-tree'],
-    queryFn: () =>
-      api.get('/services', { params: { tree: true } }).then((response) => response.data),
   });
 
   const {
@@ -67,10 +60,7 @@ export default function NewCustomerPage() {
   const customerTypes = options.filter((option) => option.group === 'customer_type');
   const sources = options.filter((option) => option.group === 'lead_source');
 
-  const defaultValues = useMemo(
-    () => createEmptyCustomerFormValues(lead || null, services),
-    [lead, services],
-  );
+  const defaultValues = useMemo(() => createEmptyCustomerFormValues(lead || null), [lead]);
 
   const existingCustomer = existingCustomers[0];
   const convertedCustomerId =

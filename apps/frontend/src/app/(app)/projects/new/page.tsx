@@ -26,9 +26,10 @@ export default function NewProjectPage() {
   const customerId = searchParams.get('customerId') || '';
   const quotationId = searchParams.get('quotationId') || '';
 
-  const { data: customers = [], isLoading: isCustomersLoading } = useQuery<Customer[]>({
-    queryKey: ['customers', 'project-form-options'],
-    queryFn: () => api.get('/customers').then((response) => response.data),
+  const { data: selectedCustomer, isLoading: isCustomerLoading } = useQuery<Customer>({
+    queryKey: ['customers', 'project-form-initial', customerId],
+    queryFn: () => api.get<Customer>(`/customers/${customerId}`).then((response) => response.data),
+    enabled: Boolean(customerId),
   });
 
   const { data: services = [], isLoading: isServicesLoading } = useQuery<ServiceItem[]>({
@@ -64,7 +65,6 @@ export default function NewProjectPage() {
     queryFn: () => api.get<Quotation[]>('/quotations').then((response) => response.data),
   });
 
-  const selectedCustomer = customers.find((customer) => String(customer.id) === customerId);
   const contextualQuotations = customerId
     ? quotations.filter(
         (item) =>
@@ -76,11 +76,7 @@ export default function NewProjectPage() {
     : quotations;
 
   const quotation = contextualQuotations.find(
-    (item) =>
-      String(item.id) === quotationId &&
-      !item.projectId &&
-      Boolean(item.customerId) &&
-      item.status !== 'lost',
+    (item) => String(item.id) === quotationId && !item.projectId && Boolean(item.customerId),
   );
 
   const quotationMetadata = quotation?.metadata || {};
@@ -88,6 +84,7 @@ export default function NewProjectPage() {
     customerId: quotation?.customerId ? String(quotation.customerId) : customerId,
     quotationId: quotation ? String(quotation.id) : '',
     serviceId: quotation?.serviceId ? String(quotation.serviceId) : '',
+    projectType: quotationMetadata.projectType === 'M' ? 'M' : 'K',
     projectName:
       typeof quotationMetadata.projectName === 'string' && quotationMetadata.projectName
         ? quotationMetadata.projectName
@@ -110,7 +107,7 @@ export default function NewProjectPage() {
   });
 
   if (
-    isCustomersLoading ||
+    isCustomerLoading ||
     isServicesLoading ||
     isUsersLoading ||
     isStatusesLoading ||
@@ -143,7 +140,7 @@ export default function NewProjectPage() {
 
       <ProjectForm
         mode="create"
-        customers={customers}
+        initialCustomer={selectedCustomer || quotation?.customer || null}
         services={services}
         users={users}
         statuses={statuses}

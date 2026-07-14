@@ -1,6 +1,6 @@
 'use client';
 
-import { useState } from 'react';
+import { useEffect, useState } from 'react';
 import { keepPreviousData, useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import { useAppNotification } from '@/components/feedback/notification-provider';
 import { ContentLoading } from '@/components/shell/content-loading';
@@ -9,6 +9,7 @@ import { getApiErrorMessage } from '@/lib/api-error';
 import { useAuthStore } from '@/stores/auth-store';
 import api from '@/services/api/client';
 import type { AppOption } from '@/types/option';
+import type { PaginatedResponse, PaginationMeta } from '@/types/pagination';
 import type { User } from '@/types/user';
 import {
   KPI_CATEGORY_OPTION_GROUP,
@@ -16,7 +17,15 @@ import {
   type KpiPoint,
   type KpiPointFilters,
   type KpiPointFormValues,
+  type KpiPointSummary,
 } from '@/types/kpi';
+
+const KPI_PAGE_SIZE = 10;
+const KPI_LIST_QUERY_KEY = ['kpi-points', 'list'] as const;
+
+type KpiPointsPage = PaginatedResponse<KpiPoint> & {
+  meta: PaginationMeta & { summary?: KpiPointSummary[] };
+};
 
 function kpiParams(filters: KpiPointFilters) {
   return {
@@ -33,6 +42,8 @@ export default function KpiPage() {
   const notify = useAppNotification();
   const currentUser = useAuthStore((state) => state.user);
   const canApprove = currentUser?.role === 'ADMIN' || currentUser?.role === 'LEADER';
+  const [page, setPage] = useState(1);
+  const [pageSize, setPageSize] = useState(KPI_PAGE_SIZE);
   const [filters, setFilters] = useState<KpiPointFilters>({
     userId: '',
     category: '',
@@ -58,15 +69,47 @@ export default function KpiPage() {
     .map(kpiCategoryFromOption);
 
   const {
-    data: points = [],
+    data: pointsPage,
     isFetching,
     isLoading,
-  } = useQuery<KpiPoint[]>({
-    queryKey: ['kpi-points', filters],
-    queryFn: () =>
-      api.get<KpiPoint[]>('/kpi-points', { params: kpiParams(filters) }).then((r) => r.data),
+  } = useQuery<KpiPointsPage>({
+    queryKey: [...KPI_LIST_QUERY_KEY, filters, page, pageSize],
+    queryFn: ({ signal }) =>
+      api
+        .get<KpiPointsPage>('/kpi-points', {
+          params: {
+            ...kpiParams(filters),
+            page,
+            per_page: pageSize,
+          },
+          signal,
+        })
+        .then((response) => response.data),
     placeholderData: keepPreviousData,
   });
+
+  const points = pointsPage?.data || [];
+  const pagination = pointsPage?.meta || {
+    currentPage: page,
+    lastPage: 1,
+    perPage: pageSize,
+    total: 0,
+    from: null,
+    to: null,
+    summary: [],
+  };
+
+  useEffect(() => {
+    if (page > pagination.lastPage) {
+      setPage(Math.max(1, pagination.lastPage));
+    }
+  }, [page, pagination.lastPage]);
+
+  const handlePageSizeChange = (nextPageSize: number) => {
+    void queryClient.cancelQueries({ queryKey: KPI_LIST_QUERY_KEY });
+    setPage(1);
+    setPageSize(nextPageSize);
+  };
 
   const saveMutation = useMutation({
     mutationFn: (values: KpiPointFormValues) =>
@@ -113,6 +156,7 @@ export default function KpiPage() {
   return (
     <KpiManager
       points={points}
+      summary={pagination.summary || []}
       users={users}
       categories={categories}
       filters={filters}
@@ -121,7 +165,16 @@ export default function KpiPage() {
       isDeleting={deleteMutation.isPending}
       isApproving={approveMutation.isPending}
       canApprove={canApprove}
-      onFiltersChange={setFilters}
+      page={page}
+      totalPages={pagination.lastPage}
+      totalItems={pagination.total}
+      pageSize={pageSize}
+      onPageChange={setPage}
+      onPageSizeChange={handlePageSizeChange}
+      onFiltersChange={(nextFilters) => {
+        setPage(1);
+        setFilters(nextFilters);
+      }}
       onSave={(values) => saveMutation.mutateAsync(values)}
       onDelete={(point) => deleteMutation.mutate(point)}
       onApprove={(point) => approveMutation.mutate(point)}

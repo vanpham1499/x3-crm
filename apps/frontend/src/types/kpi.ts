@@ -43,6 +43,13 @@ export type KpiPoint = {
   updatedAt?: string;
 };
 
+export type KpiPointSummary = {
+  userId: number;
+  name: string;
+  total: number;
+  count: number;
+};
+
 export type KpiPointFilters = {
   userId: string;
   category: string;

@@ -84,7 +84,6 @@ export function CustomerApiForm({
       <div className="grid w-full items-start gap-6 xl:grid-cols-12">
         <div className="xl:col-span-8">
           <FormSection title="Thông tin khách hàng">
-            <input type="hidden" {...register('customerCode')} />
             <input type="hidden" {...register('leadId')} />
 
             <div className="grid gap-4 md:grid-cols-2 !mt-0">
@@ -155,7 +154,7 @@ export function CustomerApiForm({
                 <FormSelectField label="Loại khách hàng" {...field}>
                   <MenuItem value="">Chưa chọn</MenuItem>
                   {customerTypes.map((option) => (
-                    <MenuItem key={option.id} value={option.id}>
+                    <MenuItem key={option.id} value={String(option.id)}>
                       {option.label}
                     </MenuItem>
                   ))}
@@ -170,7 +169,7 @@ export function CustomerApiForm({
                 <FormSelectField label="Nguồn phát sinh" {...field}>
                   <MenuItem value="">Chưa chọn</MenuItem>
                   {sources.map((option) => (
-                    <MenuItem key={option.id} value={option.id}>
+                    <MenuItem key={option.id} value={String(option.id)}>
                       {option.label}
                     </MenuItem>
                   ))}
@@ -185,7 +184,7 @@ export function CustomerApiForm({
                 <FormSelectField label="Nhân sự sales" {...field}>
                   <MenuItem value="">Chưa chọn</MenuItem>
                   {users.map((user) => (
-                    <MenuItem key={user.id} value={user.id}>
+                    <MenuItem key={user.id} value={String(user.id)}>
                       {user.name || user.email || user.code}
                     </MenuItem>
                   ))}

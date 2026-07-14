@@ -5,8 +5,9 @@ import AttachFileRoundedIcon from '@mui/icons-material/AttachFileRounded';
 import DeleteOutlineRoundedIcon from '@mui/icons-material/DeleteOutlineRounded';
 import DescriptionRoundedIcon from '@mui/icons-material/DescriptionRounded';
 import UploadFileRoundedIcon from '@mui/icons-material/UploadFileRounded';
-import { Button, CircularProgress, IconButton, LinearProgress } from '@mui/material';
+import { CircularProgress, IconButton, LinearProgress } from '@mui/material';
 import { useMutation, useQueryClient } from '@tanstack/react-query';
+import { TabActionButton } from '@/components/actions/tab-action-button';
 import { useAppNotification } from '@/components/feedback/notification-provider';
 import { getApiErrorMessage } from '@/lib/api-error';
 import { getMediaPreviewUrl } from '@/lib/media-url';
@@ -15,7 +16,8 @@ import type { WeeklyReportAttachment } from '@/types/weekly-report';
 
 const ACCEPT =
   'image/jpeg,image/png,image/gif,image/webp,application/pdf,.doc,.docx,.xls,.xlsx,.csv,.zip';
-const HELPER_TEXT = 'Hỗ trợ ảnh (jpeg, png, gif, webp) và tài liệu (pdf, doc, xls, csv, zip), tối đa 10MB.';
+const HELPER_TEXT =
+  'Hỗ trợ ảnh (jpeg, png, gif, webp) và tài liệu (pdf, doc, xls, csv, zip), tối đa 10MB.';
 
 function formatDate(value?: string | null) {
   if (!value) return '-';
@@ -35,7 +37,7 @@ function isImageMime(mimeType?: string | null) {
 
 function EmptyState() {
   return (
-    <div className="flex min-h-32 flex-col items-center justify-center rounded-xl border border-dashed border-slate-200 text-center text-slate-500">
+    <div className="flex min-h-28 flex-col items-center justify-center rounded-lg border border-dashed border-slate-200 bg-slate-50/50 text-center text-slate-500">
       <AttachFileRoundedIcon className="mb-2 text-3xl text-slate-300" />
       <p className="text-sm font-semibold">Chưa có tệp đính kèm nào</p>
     </div>
@@ -61,20 +63,17 @@ function PanelShell({
 }) {
   return (
     <section className="h-full overflow-hidden rounded-2xl border border-slate-200 bg-white shadow-sm">
-      <div className="flex flex-wrap items-center justify-between gap-3 border-b border-slate-200 px-6 py-5">
-        <div>
-          <h2 className="text-lg font-bold text-slate-950">{title}</h2>
-          <p className="mt-1 text-sm text-slate-500">{helperText}</p>
-        </div>
-        <Button
-          variant="contained"
-          startIcon={isBusy ? <CircularProgress size={16} color="inherit" /> : <UploadFileRoundedIcon />}
+      <div className="flex min-h-14 flex-wrap items-center justify-between gap-3 border-b border-slate-200 px-5 py-3.5">
+        <h2 className="text-base font-bold text-slate-950">{title}</h2>
+        <TabActionButton
+          startIcon={
+            isBusy ? <CircularProgress size={16} color="inherit" /> : <UploadFileRoundedIcon />
+          }
           disabled={isBusy}
           onClick={onPickFiles}
-          className="!bg-slate-900 hover:!bg-slate-800"
         >
           {isBusy ? 'Đang tải lên...' : 'Tải tệp lên'}
-        </Button>
+        </TabActionButton>
         <input
           ref={inputRef}
           type="file"
@@ -90,7 +89,10 @@ function PanelShell({
 
       {isBusy && <LinearProgress color="primary" />}
 
-      <div className="p-6">{children}</div>
+      <div className="space-y-3 p-5">
+        {children}
+        <p className="text-xs leading-5 text-slate-500">{helperText}</p>
+      </div>
     </section>
   );
 }
@@ -111,12 +113,16 @@ function AttachmentRow({
   isRemoving?: boolean;
 }) {
   return (
-    <div className="flex items-center gap-3 rounded-xl border border-slate-200 p-3">
+    <div className="flex items-center gap-3 rounded-lg border border-slate-200 p-3">
       {isImageMime(mimeType) ? (
         // eslint-disable-next-line @next/next/no-img-element
-        <img src={previewUrl} alt={fileName} className="h-12 w-12 shrink-0 rounded-lg object-cover" />
+        <img
+          src={previewUrl}
+          alt={fileName}
+          className="h-10 w-10 shrink-0 rounded-lg object-cover"
+        />
       ) : (
-        <span className="flex h-12 w-12 shrink-0 items-center justify-center rounded-lg bg-slate-100 text-slate-500">
+        <span className="flex h-10 w-10 shrink-0 items-center justify-center rounded-lg bg-slate-100 text-slate-500">
           <DescriptionRoundedIcon />
         </span>
       )}
@@ -203,7 +209,9 @@ function ExistingAttachmentsPanel({ reportId, attachments }: ExistingModeProps) 
     const failed = results.filter((result) => result.status === 'rejected').length;
 
     if (failed === 0) {
-      notify.success(files.length > 1 ? `Đã tải lên ${files.length} tệp` : 'Đã tải lên tệp đính kèm');
+      notify.success(
+        files.length > 1 ? `Đã tải lên ${files.length} tệp` : 'Đã tải lên tệp đính kèm',
+      );
     } else if (failed < files.length) {
       notify.error(`${failed}/${files.length} tệp tải lên thất bại`);
     }

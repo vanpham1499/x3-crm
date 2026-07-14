@@ -41,7 +41,7 @@ type CustomerListProps = {
 };
 
 function getCustomerRowId(customer: Customer) {
-  return customer.leadCode || customer.customerCode;
+  return String(customer.id);
 }
 
 function InfoPill({ value, tone }: { value: string; tone: CustomerPillTone }) {
@@ -142,7 +142,7 @@ export function CustomerList({
 
   const goToEditCustomer = () => {
     if (!activeCustomer) return;
-    router.push(`${editBasePath}/${activeCustomer.leadCode}`);
+    router.push(`${editBasePath}/${activeCustomer.id}`);
     closeActionMenu();
   };
 
@@ -271,7 +271,7 @@ export function CustomerList({
 
                 return (
                   <tr
-                    key={`${customer.leadCode}-${customer.customerCode}`}
+                    key={customer.id}
                     className={`group ${isSelected ? 'bg-emerald-50/60' : 'hover:bg-slate-50/80'}`}
                   >
                     <td
@@ -362,7 +362,7 @@ export function CustomerList({
                       <div className="flex items-center justify-end gap-1 pr-3">
                         <IconButton
                           component={Link}
-                          href={`${editBasePath}/${customer.leadCode}`}
+                          href={`${editBasePath}/${customer.id}`}
                           size="small"
                           className="text-slate-500 hover:bg-slate-100 hover:text-slate-800"
                           title={editTitle}

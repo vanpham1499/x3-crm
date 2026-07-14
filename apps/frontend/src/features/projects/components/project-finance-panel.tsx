@@ -11,18 +11,25 @@ import type { Quotation } from '@/types/quotation';
 
 const PAYMENT_STATUS_LABELS: Record<string, string> = {
   unmatched: 'Chờ xử lý',
+  matched_customer: 'Đã gắn khách hàng',
   matched_quotation: 'Đã khớp báo phí',
   matched_project: 'Đã khớp dự án',
-  partial: 'Chưa thu đủ',
+  partially_allocated: 'Đã phân bổ + chuyển thừa',
+  allocated: 'Đã phân bổ hết',
+  partially_refunded: 'Đã hoàn một phần',
+  allocated_and_refunded: 'Đã phân bổ & hoàn dư',
+  refunded: 'Đã hoàn toàn bộ',
+  non_customer: 'Không phải khoản thu',
+  applied: 'Đã ghi nhận',
+  partial: 'Đã ghi nhận',
   paid: 'Hoàn thành',
-  overpaid: 'Thu thừa',
+  paid_with_excess: 'Đã phân bổ + chuyển thừa',
+  overpaid: 'Chuyển thừa',
 };
 
 const QUOTATION_STATUS_LABELS: Record<string, string> = {
-  draft: 'Nháp',
-  sent: 'Đã báo khách',
-  won: 'Đã chốt',
-  lost: 'Đã hủy',
+  draft: 'Báo phí',
+  won: 'Đã thanh toán',
 };
 
 function formatDate(value?: string | null) {
@@ -62,12 +69,29 @@ function collectionStatus(total: number, received: number) {
 
 function paymentStatusClass(status?: string | null) {
   if (status === 'unmatched') return 'bg-amber-50 text-amber-700 ring-amber-200';
-  if (status === 'partial') return 'bg-amber-50 text-amber-700 ring-amber-200';
+  if (status === 'applied' || status === 'partial') {
+    return 'bg-sky-50 text-sky-700 ring-sky-200';
+  }
   if (status === 'overpaid') return 'bg-violet-50 text-violet-700 ring-violet-200';
+  if (status === 'paid_with_excess') return 'bg-violet-50 text-violet-700 ring-violet-200';
   if (status === 'matched_project' || status === 'matched_quotation' || status === 'paid') {
     return 'bg-emerald-50 text-emerald-700 ring-emerald-200';
   }
   return 'bg-slate-100 text-slate-600 ring-slate-200';
+}
+
+function paymentAmountForQuotation(payment: Payment, quotationId: number) {
+  const allocations = payment.allocations || [];
+
+  if (allocations.length > 0) {
+    return allocations
+      .filter((allocation) => allocation.quotationId === quotationId)
+      .reduce((sum, allocation) => sum + (Number(allocation.amount) || 0), 0);
+  }
+
+  return payment.quotationId === quotationId
+    ? Number(payment.allocatedAmount ?? payment.amount) || 0
+    : 0;
 }
 
 export function ProjectFinancePanel({
@@ -83,12 +107,13 @@ export function ProjectFinancePanel({
   payments: Payment[];
   children?: React.ReactNode;
 }) {
-  const quotationIds = new Set(quotations.map((quotation) => quotation.id));
   const unallocatedPayments = payments.filter(
-    (payment) => !payment.quotationId || !quotationIds.has(payment.quotationId),
+    (payment) =>
+      Number(payment.availableAmount ?? payment.unallocatedAmount) > 0 &&
+      payment.projectId === project.id,
   );
   const unallocatedAmount = unallocatedPayments.reduce(
-    (sum, payment) => sum + (Number(payment.amount) || 0),
+    (sum, payment) => sum + (Number(payment.availableAmount ?? payment.unallocatedAmount) || 0),
     0,
   );
   const sortedPayments = [...payments].sort((a, b) =>
@@ -96,7 +121,7 @@ export function ProjectFinancePanel({
   );
 
   return (
-    <div className="space-y-4">
+    <div className="space-y-4 mb-6">
       <section className="overflow-hidden rounded-2xl border border-slate-200 bg-white shadow-sm">
         <div className="flex flex-wrap items-center justify-between gap-3 border-b border-slate-200 px-4 py-3">
           <div className="flex items-center gap-2">
@@ -133,12 +158,9 @@ export function ProjectFinancePanel({
               </thead>
               <tbody className="divide-y divide-slate-100">
                 {quotations.map((quotation) => {
-                  const quotationPayments = payments.filter(
-                    (payment) => payment.quotationId === quotation.id,
-                  );
                   const total = Number(quotation.totalAmount) || 0;
-                  const received = quotationPayments.reduce(
-                    (sum, payment) => sum + (Number(payment.amount) || 0),
+                  const received = payments.reduce(
+                    (sum, payment) => sum + paymentAmountForQuotation(payment, quotation.id),
                     0,
                   );
                   const remaining = Math.max(0, total - received);

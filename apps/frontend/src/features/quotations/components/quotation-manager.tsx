@@ -15,16 +15,22 @@ import { CompactSearchField } from '@/components/form/compact-search-field';
 import { CompactSelectField } from '@/components/form/compact-select-field';
 import { PageHeader } from '@/components/shell/page-header';
 import { AppDataTable } from '@/components/table/app-data-table';
+import { EntityTableLink } from '@/components/table/entity-table-link';
 import { TablePaginationBar } from '@/components/table/table-pagination-bar';
-import { usePagination } from '@/hooks/use-pagination';
 import { getQuotationPaymentContent, QUOTATION_PAYMENT_STATUS_LABELS } from '@/lib/quotation-utils';
 import type { Quotation, QuotationFilters } from '@/types/quotation';
 
 type QuotationManagerProps = {
   quotations: Quotation[];
   filters: QuotationFilters;
+  page: number;
+  totalPages: number;
+  totalItems: number;
+  pageSize: number;
   isFetching: boolean;
   isDeleting: boolean;
+  onPageChange: (page: number) => void;
+  onPageSizeChange: (pageSize: number) => void;
   onFiltersChange: (filters: QuotationFilters) => void;
   onDelete: (quotation: Quotation) => void;
 };
@@ -59,23 +65,25 @@ function getQuotationQrUrl(quotation: Quotation) {
 }
 
 const statusLabels: Record<string, string> = {
-  draft: 'Nháp',
-  sent: 'Đã gửi',
-  won: 'Đã chốt',
-  lost: 'Đã hủy',
+  draft: 'Báo phí',
+  won: 'Đã thanh toán',
 };
 
 function quotationStatusClass(status?: string | null) {
   if (status === 'won') return 'bg-emerald-50 text-emerald-700 ring-emerald-100';
-  if (status === 'sent') return 'bg-sky-50 text-sky-700 ring-sky-100';
-  if (status === 'lost') return 'bg-rose-50 text-rose-700 ring-rose-100';
-  return 'bg-slate-100 text-slate-600 ring-slate-200';
+  return 'bg-sky-50 text-sky-700 ring-sky-100';
 }
 
-function formatDate(value?: string | null) {
-  if (!value) return '-';
-  const match = value.match(/^(\d{4})-(\d{2})-(\d{2})/);
-  return match ? `${match[3]}/${match[2]}/${match[1]}` : value;
+function getPartyIdentity(code?: string | null, name?: string | null) {
+  const normalizedCode = code?.trim() || '';
+  const normalizedName = name?.trim() || '';
+
+  if (!normalizedCode) return normalizedName || '-';
+  if (!normalizedName || normalizedCode.toLowerCase().includes(normalizedName.toLowerCase())) {
+    return normalizedCode;
+  }
+
+  return `${normalizedCode}.${normalizedName}`;
 }
 
 function paymentStatusClass(status?: string | null) {
@@ -88,8 +96,14 @@ function paymentStatusClass(status?: string | null) {
 export function QuotationManager({
   quotations,
   filters,
+  page,
+  totalPages,
+  totalItems,
+  pageSize,
   isFetching,
   isDeleting,
+  onPageChange,
+  onPageSizeChange,
   onFiltersChange,
   onDelete,
 }: QuotationManagerProps) {
@@ -97,10 +111,6 @@ export function QuotationManager({
   const [activeQuotation, setActiveQuotation] = useState<Quotation | null>(null);
   const [deleteTarget, setDeleteTarget] = useState<Quotation | null>(null);
   const [qrTarget, setQrTarget] = useState<Quotation | null>(null);
-  const { pageItems, page, setPage, totalPages, totalItems, pageSize } = usePagination(
-    quotations,
-    { resetKey: filters },
-  );
 
   const openActionMenu = (event: MouseEvent<HTMLButtonElement>, quotation: Quotation) => {
     setMenuAnchorEl(event.currentTarget);
@@ -119,15 +129,15 @@ export function QuotationManager({
   return (
     <div className="min-h-[calc(100vh-72px)] w-full bg-slate-50/60 p-6">
       <PageHeader
-        title="Báo giá"
-        action={{ label: 'Thêm báo giá', href: '/quotations/new', icon: <AddRoundedIcon /> }}
+        title="Báo phí"
+        action={{ label: 'Thêm báo phí', href: '/quotations/new', icon: <AddRoundedIcon /> }}
       />
 
       <section className="w-full overflow-hidden rounded-2xl border border-slate-200 bg-white shadow-sm">
         <div className="grid gap-3 p-4 lg:grid-cols-[minmax(280px,1fr)_176px]">
           <CompactSearchField
             label="Từ khóa"
-            placeholder="Tìm mã báo giá, lead, dịch vụ, ghi chú..."
+            placeholder="Tìm mã báo phí, lead, dịch vụ, ghi chú..."
             value={filters.keyword}
             onChange={(value) => updateFilters({ keyword: value })}
           />
@@ -136,10 +146,8 @@ export function QuotationManager({
             label="Trạng thái"
             value={filters.status}
             options={[
-              { value: 'draft', label: 'Nháp' },
-              { value: 'sent', label: 'Đã gửi' },
-              { value: 'won', label: 'Đã chốt' },
-              { value: 'lost', label: 'Đã hủy' },
+              { value: 'draft', label: 'Báo phí' },
+              { value: 'won', label: 'Đã thanh toán' },
             ]}
             onChange={(value) => updateFilters({ status: value })}
           />
@@ -149,7 +157,7 @@ export function QuotationManager({
           columns={[
             {
               key: 'quotation',
-              label: 'Báo giá',
+              label: 'Báo phí',
               className: 'sticky left-0 z-20 w-48 bg-slate-100',
             },
             { key: 'customer', label: 'Khách hàng', className: 'w-[250px]' },
@@ -157,83 +165,65 @@ export function QuotationManager({
             { key: 'service', label: 'Dịch vụ', className: 'w-[230px]' },
             { key: 'total', label: 'Tổng báo', className: 'w-40 text-right' },
             { key: 'paid', label: 'Đã thu', className: 'w-40 text-right' },
-            { key: 'status', label: 'Trạng thái', className: 'w-44' },
+            { key: 'status', label: 'Trạng thái', className: 'w-36' },
+            { key: 'paymentStatus', label: 'Thanh toán', className: 'w-40' },
             { key: 'actions', className: 'w-36' },
           ]}
           isLoading={isFetching}
-          isEmpty={pageItems.length === 0}
-          emptyText="Chưa có báo giá"
-          minWidthClassName="min-w-[1420px]"
+          isEmpty={quotations.length === 0}
+          emptyText="Chưa có báo phí"
+          minWidthClassName="min-w-[1580px]"
         >
-          {pageItems.map((quotation) => {
-            const partyCode = quotation.lead?.leadCode || quotation.customer?.customerCode || '';
+          {quotations.map((quotation) => {
+            const partyCode = quotation.customer?.customerCode || quotation.lead?.leadCode || '';
             const partyName =
-              quotation.lead?.customerName || quotation.customer?.customerName || '-';
-            const partyHref = quotation.lead
-              ? `/leads/${quotation.lead.id}`
-              : quotation.customer
-                ? `/customers/${quotation.customer.id}`
+              quotation.customer?.customerName || quotation.lead?.customerName || '-';
+            const partyIdentity = getPartyIdentity(partyCode, partyName);
+            const partyHref = quotation.customer
+              ? `/customers/${quotation.customer.id}`
+              : quotation.lead
+                ? `/leads/${quotation.lead.id}`
                 : '';
             const totalAmount = Number(quotation.totalAmount) || 0;
             const paidAmount = Number(quotation.paidAmount) || 0;
-            const outstandingAmount =
-              quotation.outstandingAmount === null || quotation.outstandingAmount === undefined
-                ? Math.max(0, totalAmount - paidAmount)
-                : Math.max(0, Number(quotation.outstandingAmount) || 0);
 
             return (
               <tr key={quotation.id} className="group hover:bg-slate-50/80">
                 <td className="sticky left-0 z-10 bg-white px-3 py-4 group-hover:bg-slate-50">
-                  <Link
+                  <EntityTableLink
                     href={`/quotations/${quotation.id}`}
-                    className="block truncate font-bold text-primary hover:underline"
                     title={quotation.quotationCode || ''}
                   >
                     {quotation.quotationCode || '-'}
-                  </Link>
-                  <p className="mt-1 text-xs font-medium text-slate-500">
-                    {quotation.validUntil
-                      ? `Hiệu lực ${formatDate(quotation.validUntil)}`
-                      : 'Không giới hạn'}
-                  </p>
+                  </EntityTableLink>
                 </td>
                 <td className="px-3 py-4">
-                  <div className="flex min-w-0 items-center gap-2">
-                    {partyCode ? (
-                      <span className="shrink-0 rounded-md bg-slate-100 px-2 py-1 text-xs font-bold text-slate-600 ring-1 ring-slate-200">
-                        {partyCode}
-                      </span>
-                    ) : null}
-                    {partyHref ? (
-                      <Link
-                        href={partyHref}
-                        className="min-w-0 truncate font-semibold text-slate-950 hover:text-primary hover:underline"
-                        title={partyName}
-                      >
-                        {partyName}
-                      </Link>
-                    ) : (
-                      <span className="truncate font-semibold text-slate-950">{partyName}</span>
-                    )}
-                  </div>
+                  {partyHref ? (
+                    <Link
+                      href={partyHref}
+                      className="block truncate font-semibold text-slate-800 transition-colors hover:text-primary"
+                      title={partyIdentity}
+                    >
+                      {partyIdentity}
+                    </Link>
+                  ) : (
+                    <span
+                      className="block truncate font-semibold text-slate-800"
+                      title={partyIdentity}
+                    >
+                      {partyIdentity}
+                    </span>
+                  )}
                 </td>
                 <td className="px-3 py-4">
                   {quotation.project ? (
-                    <div className="min-w-0">
-                      <Link
-                        href={`/projects/${quotation.project.id}`}
-                        className="block truncate font-bold text-sky-700 hover:underline"
-                        title={quotation.project.projectCode || ''}
-                      >
-                        {quotation.project.projectCode || '-'}
-                      </Link>
-                      <p
-                        className="mt-1 truncate text-xs font-medium text-slate-500"
-                        title={quotation.project.projectName || ''}
-                      >
-                        {quotation.project.projectName || '-'}
-                      </p>
-                    </div>
+                    <EntityTableLink
+                      href={`/projects/${quotation.project.id}`}
+                      title={quotation.project.projectCode || ''}
+                      tone="blue"
+                    >
+                      {quotation.project.projectCode || '-'}
+                    </EntityTableLink>
                   ) : (
                     <span className="text-slate-400">Chưa gắn dự án</span>
                   )}
@@ -257,28 +247,25 @@ export function QuotationManager({
                   {formatCurrency(totalAmount)}
                 </td>
                 <td className="px-3 py-4 text-right">
-                  <p className="font-extrabold tabular-nums text-emerald-700">
+                  <p className="truncate font-extrabold tabular-nums text-emerald-700">
                     {formatCurrency(paidAmount)}
-                  </p>
-                  <p className="mt-1 text-xs font-medium tabular-nums text-slate-500">
-                    Còn {formatCurrency(outstandingAmount)}
                   </p>
                 </td>
                 <td className="px-3 py-4">
-                  <div className="flex flex-col items-start gap-1.5">
-                    <span
-                      className={`inline-flex rounded-md px-2 py-1 text-xs font-bold ring-1 ${quotationStatusClass(quotation.status)}`}
-                    >
-                      {statusLabels[quotation.status || ''] || quotation.status || '-'}
-                    </span>
-                    <span
-                      className={`inline-flex rounded-md px-2 py-1 text-xs font-bold ring-1 ${paymentStatusClass(quotation.paymentStatus)}`}
-                    >
-                      {QUOTATION_PAYMENT_STATUS_LABELS[quotation.paymentStatus || ''] ||
-                        quotation.paymentStatus ||
-                        'Chưa thanh toán'}
-                    </span>
-                  </div>
+                  <span
+                    className={`inline-flex whitespace-nowrap rounded-md px-2 py-1 text-xs font-bold ring-1 ${quotationStatusClass(quotation.status)}`}
+                  >
+                    {statusLabels[quotation.status || ''] || 'Báo phí'}
+                  </span>
+                </td>
+                <td className="px-3 py-4">
+                  <span
+                    className={`inline-flex whitespace-nowrap rounded-md px-2 py-1 text-xs font-bold ring-1 ${paymentStatusClass(quotation.paymentStatus)}`}
+                  >
+                    {QUOTATION_PAYMENT_STATUS_LABELS[quotation.paymentStatus || ''] ||
+                      quotation.paymentStatus ||
+                      'Chưa thanh toán'}
+                  </span>
                 </td>
                 <td className="py-4">
                   <div className="flex items-center justify-end gap-1 pr-3">
@@ -293,7 +280,7 @@ export function QuotationManager({
                       component={Link}
                       href={`/quotations/${quotation.id}`}
                       size="small"
-                      title="Chỉnh sửa báo giá"
+                      title="Chỉnh sửa báo phí"
                     >
                       <EditRoundedIcon fontSize="small" />
                     </IconButton>
@@ -316,7 +303,8 @@ export function QuotationManager({
           totalPages={totalPages}
           totalItems={totalItems}
           pageSize={pageSize}
-          onPageChange={setPage}
+          onPageChange={onPageChange}
+          onPageSizeChange={onPageSizeChange}
         />
       </section>
 
@@ -426,7 +414,7 @@ export function QuotationManager({
           ) : (
             <div className="rounded-lg border border-dashed border-slate-300 bg-slate-50 px-4 py-8 text-center">
               <p className="text-sm font-semibold text-slate-600">
-                Báo giá này chưa có đủ thông tin tài khoản nhận tiền để tạo QR.
+                Báo phí này chưa có đủ thông tin tài khoản nhận tiền để tạo QR.
               </p>
             </div>
           )}
@@ -435,9 +423,9 @@ export function QuotationManager({
 
       <ConfirmDialog
         open={Boolean(deleteTarget)}
-        title="Xóa báo giá?"
-        description={`Bạn có chắc muốn xóa báo giá "${deleteTarget?.quotationCode || ''}"?`}
-        confirmText="Xóa báo giá"
+        title="Xóa báo phí?"
+        description={`Bạn có chắc muốn xóa báo phí "${deleteTarget?.quotationCode || ''}"?`}
+        confirmText="Xóa báo phí"
         loading={isDeleting}
         onClose={() => setDeleteTarget(null)}
         onConfirm={() => {

@@ -13,7 +13,6 @@ import InfoRoundedIcon from '@mui/icons-material/InfoRounded';
 import MoreVertRoundedIcon from '@mui/icons-material/MoreVertRounded';
 import OpenInNewRoundedIcon from '@mui/icons-material/OpenInNewRounded';
 import PersonAddAlt1RoundedIcon from '@mui/icons-material/PersonAddAlt1Rounded';
-import PhoneRoundedIcon from '@mui/icons-material/PhoneRounded';
 import RequestQuoteRoundedIcon from '@mui/icons-material/RequestQuoteRounded';
 import VisibilityRoundedIcon from '@mui/icons-material/VisibilityRounded';
 import { Button, IconButton, Menu, MenuItem } from '@mui/material';
@@ -25,8 +24,8 @@ import { CompactSelectField } from '@/components/form/compact-select-field';
 import { IconTabs } from '@/components/navigation/icon-tabs';
 import { PageHeader } from '@/components/shell/page-header';
 import { AppDataTable } from '@/components/table/app-data-table';
+import { EntityTableLink } from '@/components/table/entity-table-link';
 import { TablePaginationBar } from '@/components/table/table-pagination-bar';
-import { usePagination } from '@/hooks/use-pagination';
 import { getLeadStatusClass, getUniqueLeadStatuses } from '@/lib/lead-utils';
 import { getOptionColor } from '@/lib/option-utils';
 import { formatDate, formatDateTime } from '@/lib/utils';
@@ -43,26 +42,17 @@ type LeadManagerProps = {
   sources: AppOption[];
   services: AppOption[];
   filters: LeadFilters;
+  page: number;
+  totalPages: number;
+  totalItems: number;
+  pageSize: number;
   isFetching: boolean;
   isDeleting: boolean;
+  onPageChange: (page: number) => void;
+  onPageSizeChange: (pageSize: number) => void;
   onFiltersChange: (filters: LeadFilters) => void;
   onDelete: (lead: Lead) => void;
 };
-
-function externalUrl(value?: string | null) {
-  if (!value) return '';
-  if (/^https?:\/\//i.test(value)) return value;
-  return `https://${value}`;
-}
-
-function shortLink(value?: string | null) {
-  if (!value) return '';
-
-  return value
-    .replace(/^https?:\/\//i, '')
-    .replace(/^www\./i, '')
-    .split('/')[0];
-}
 
 function getLeadIdentity(lead: Lead) {
   const leadCode = lead.leadCode?.trim();
@@ -280,10 +270,8 @@ function getEntryChanges(entry: LeadTimelineEntry) {
 function getQuotationStatusLabel(status?: string | null) {
   const normalizedStatus = status?.toLowerCase();
 
-  if (normalizedStatus === 'draft') return 'Nháp';
-  if (normalizedStatus === 'sent') return 'Đã gửi';
-  if (normalizedStatus === 'won') return 'Đã chốt';
-  if (normalizedStatus === 'lost') return 'Không chốt';
+  if (normalizedStatus === 'won') return 'Đã thanh toán';
+  if (normalizedStatus) return 'Báo phí';
 
   return status || '-';
 }
@@ -292,10 +280,7 @@ function getQuotationStatusClass(status?: string | null) {
   const normalizedStatus = status?.toLowerCase();
 
   if (normalizedStatus === 'won') return 'bg-emerald-50 text-emerald-700 ring-emerald-100';
-  if (normalizedStatus === 'sent') return 'bg-sky-50 text-sky-700 ring-sky-100';
-  if (normalizedStatus === 'lost') return 'bg-rose-50 text-rose-700 ring-rose-100';
-
-  return 'bg-slate-100 text-slate-700 ring-slate-200';
+  return 'bg-sky-50 text-sky-700 ring-sky-100';
 }
 
 function LeadDetailRow({ label, value }: { label: string; value?: string | number | null }) {
@@ -369,7 +354,7 @@ function LeadViewDialog({
                 href={`/quotations/new?leadId=${lead.id}`}
                 startIcon={<RequestQuoteRoundedIcon />}
               >
-                Tạo báo giá
+                Tạo báo phí
               </DialogActionButton>
               <DialogActionButton
                 href={`/customers/new?leadId=${lead.id}`}
@@ -400,7 +385,7 @@ function LeadViewDialog({
             icon: <HistoryRoundedIcon className="!text-[18px]" />,
           },
           {
-            label: 'Lịch sử báo giá',
+            label: 'Lịch sử báo phí',
             icon: <RequestQuoteRoundedIcon className="!text-[18px]" />,
           },
         ]}
@@ -448,30 +433,30 @@ function LeadViewDialog({
         )}
 
         {tab === 2 && (
-          <div role="tabpanel" aria-label="Lịch sử báo giá" className="p-4">
+          <div role="tabpanel" aria-label="Lịch sử báo phí" className="p-4">
             <section className="overflow-hidden rounded-xl border border-slate-200 bg-white">
               <div className="flex flex-wrap items-center justify-between gap-3 border-b border-slate-200 px-4 py-3">
                 <h3 className="text-sm font-bold text-slate-950">
-                  Lịch sử báo giá ({quotations.length})
+                  Lịch sử báo phí ({quotations.length})
                 </h3>
                 {!lead.convertedCustomerId && (
                   <DialogActionButton
                     href={`/quotations/new?leadId=${lead.id}`}
                     startIcon={<RequestQuoteRoundedIcon />}
                   >
-                    Tạo báo giá
+                    Tạo báo phí
                   </DialogActionButton>
                 )}
               </div>
 
               {quotations.length === 0 ? (
                 <div className="px-4 py-10 text-center">
-                  <p className="text-sm font-semibold text-slate-500">Lead chưa có báo giá nào.</p>
+                  <p className="text-sm font-semibold text-slate-500">Lead chưa có báo phí nào.</p>
                 </div>
               ) : (
                 <div className="text-sm">
                   <div className="hidden grid-cols-[minmax(180px,1fr)_150px_110px_112px] gap-3 bg-slate-50 px-4 py-2 text-xs font-bold uppercase text-slate-500 md:grid">
-                    <span>Báo giá</span>
+                    <span>Báo phí</span>
                     <span>Tổng tiền</span>
                     <span>Trạng thái</span>
                     <span />
@@ -516,7 +501,7 @@ function LeadViewDialog({
                           </DialogActionButton>
                         ) : (
                           <DialogActionButton href={`/quotations/${quotation.id}`}>
-                            Mở báo giá
+                            Mở báo phí
                           </DialogActionButton>
                         )}
                       </div>
@@ -611,8 +596,14 @@ export function LeadManager({
   sources,
   services,
   filters,
+  page,
+  totalPages,
+  totalItems,
+  pageSize,
   isFetching,
   isDeleting,
+  onPageChange,
+  onPageSizeChange,
   onFiltersChange,
   onDelete,
 }: LeadManagerProps) {
@@ -622,9 +613,6 @@ export function LeadManager({
   const [viewTab, setViewTab] = useState(0);
   const [menuAnchorEl, setMenuAnchorEl] = useState<HTMLElement | null>(null);
   const [activeLead, setActiveLead] = useState<Lead | null>(null);
-  const { pageItems, page, setPage, totalPages, totalItems, pageSize } = usePagination(leads, {
-    resetKey: filters,
-  });
   const viewLeadId = viewTarget?.id || '';
   const { data: viewLeadDetail, isFetching: isFetchingViewLead } = useQuery<Lead>({
     queryKey: ['leads', viewLeadId, 'quick-view'],
@@ -747,23 +735,26 @@ export function LeadManager({
             {
               key: 'lead',
               label: 'Lead',
-              className: 'sticky left-0 z-20 w-[360px] bg-slate-100',
+              className: 'sticky left-0 z-20 w-[16%] bg-slate-100',
             },
-            { key: 'status', label: 'Trạng thái', className: 'w-32' },
-            { key: 'assignee', label: 'Nhân sự', className: 'w-40' },
-            { key: 'source', label: 'Nguồn', className: 'w-36' },
-            { key: 'service', label: 'Dịch vụ', className: 'w-44' },
-            { key: 'occurredDate', label: 'Ngày phát sinh', className: 'w-32' },
-            { key: 'note', label: 'Ghi chú' },
-            { key: 'actions', className: 'w-36' },
+            { key: 'status', label: 'Trạng thái', className: 'w-[9%] text-center' },
+            { key: 'assignee', label: 'Nhân sự', className: 'w-[12%] text-center' },
+            { key: 'source', label: 'Nguồn', className: 'w-[9%] text-center' },
+            { key: 'service', label: 'Dịch vụ', className: 'w-[12%] text-center' },
+            {
+              key: 'occurredDate',
+              label: 'Ngày phát sinh',
+              className: 'w-[11%] text-center',
+            },
+            { key: 'note', label: 'Ghi chú', className: 'w-[19%]' },
+            { key: 'actions', label: '', className: 'w-[12%] pr-5 text-right' },
           ]}
           isLoading={isFetching}
-          isEmpty={pageItems.length === 0}
+          isEmpty={leads.length === 0}
           emptyText="Không có dữ liệu lead"
           minWidthClassName="min-w-[1240px]"
         >
-          {pageItems.map((lead) => {
-            const link = lead.website || lead.planLink;
+          {leads.map((lead) => {
             const serviceOptions = lead.interestedServiceOptions?.length
               ? lead.interestedServiceOptions
               : lead.interestedServiceOption
@@ -779,50 +770,16 @@ export function LeadManager({
                 }
               : lead.status;
             const sourceName = lead.sourceOption?.label || lead.source?.name || '-';
-            const industryName = lead.industryOption?.label || lead.industry;
             const leadIdentity = getLeadIdentity(lead);
 
             return (
-              <tr key={lead.id} className="group hover:bg-slate-50/80">
-                <td className="sticky left-0 z-10 bg-white px-3 py-3 group-hover:bg-slate-50">
-                  <div className="w-[336px] rounded-xl border border-slate-100 bg-white p-3 shadow-sm group-hover:border-slate-200">
-                    <div className="flex min-w-0 items-center gap-2">
-                      <p
-                        className="min-w-0 flex-1 truncate font-semibold text-slate-950"
-                        title={leadIdentity}
-                      >
-                        {leadIdentity}
-                      </p>
-                      {lead.phone && (
-                        <span className="inline-flex shrink-0 items-center gap-1 rounded-full bg-sky-50 px-1.5 py-0.5 text-[11px] font-bold text-sky-700 ring-1 ring-sky-100">
-                          <PhoneRoundedIcon className="!text-[14px]" />
-                          {lead.phone}
-                        </span>
-                      )}
-                    </div>
-
-                    <div className="mt-2 flex min-w-0 flex-wrap items-center gap-2">
-                      {industryName && (
-                        <span className="rounded-md bg-slate-100 px-1.5 py-0.5 text-[11px] font-semibold text-slate-600">
-                          {industryName}
-                        </span>
-                      )}
-                      {link && (
-                        <a
-                          href={externalUrl(link)}
-                          target="_blank"
-                          rel="noreferrer"
-                          className="inline-flex min-w-0 items-center gap-1 rounded-md bg-blue-50 px-1.5 py-0.5 text-[11px] font-bold text-blue-700 ring-1 ring-blue-100 hover:bg-blue-100"
-                          title={link}
-                        >
-                          <span className="truncate">{shortLink(link)}</span>
-                          <OpenInNewRoundedIcon className="shrink-0 !text-[14px]" />
-                        </a>
-                      )}
-                    </div>
-                  </div>
+              <tr key={lead.id} className="group h-16 hover:bg-slate-50/80">
+                <td className="sticky left-0 z-10 bg-white px-3 py-4 align-middle group-hover:bg-slate-50">
+                  <EntityTableLink href={`/leads/${lead.id}`} title={leadIdentity}>
+                    {leadIdentity}
+                  </EntityTableLink>
                 </td>
-                <td className="px-3 py-4">
+                <td className="px-3 py-4 text-center align-middle">
                   {lead.statusOption ? (
                     <OptionChip
                       label={lead.statusOption.label}
@@ -838,12 +795,15 @@ export function LeadManager({
                     </span>
                   )}
                 </td>
-                <td className="px-3 py-4">
-                  <span className="rounded-full bg-sky-50 px-2 py-1 text-xs font-bold text-sky-700 ring-1 ring-sky-100">
-                    {lead.assignedUser?.name || '-'}
+                <td className="px-3 py-4 text-center align-middle">
+                  <span
+                    className="inline-flex max-w-full rounded-full bg-sky-50 px-2 py-1 text-xs font-bold text-sky-700 ring-1 ring-sky-100"
+                    title={lead.assignedUser?.name || '-'}
+                  >
+                    <span className="truncate">{lead.assignedUser?.name || '-'}</span>
                   </span>
                 </td>
-                <td className="px-3 py-4">
+                <td className="px-3 py-4 text-center align-middle">
                   <OptionChip
                     label={sourceName}
                     option={lead.sourceOption}
@@ -851,8 +811,8 @@ export function LeadManager({
                     fallbackClassName="border-violet-100 bg-violet-50 text-violet-700"
                   />
                 </td>
-                <td className="px-3 py-4">
-                  <div className="flex max-w-[168px] flex-wrap gap-1.5">
+                <td className="px-3 py-4 text-center align-middle">
+                  <div className="flex max-w-full flex-wrap justify-center gap-1.5">
                     {serviceOptions.length > 0 ? (
                       serviceOptions.map((service) => (
                         <OptionChip
@@ -872,13 +832,15 @@ export function LeadManager({
                     )}
                   </div>
                 </td>
-                <td className="px-3 py-4 text-slate-700">{formatDate(lead.occurredDate || '')}</td>
-                <td className="px-3 py-4">
-                  <p className="line-clamp-2 max-w-[420px] text-slate-500" title={lead.note || ''}>
+                <td className="whitespace-nowrap px-3 py-4 text-center align-middle tabular-nums text-slate-700">
+                  {formatDate(lead.occurredDate || '')}
+                </td>
+                <td className="px-3 py-4 align-middle">
+                  <p className="max-w-full truncate text-slate-500" title={lead.note || ''}>
                     {lead.note || '-'}
                   </p>
                 </td>
-                <td className="py-4">
+                <td className="px-3 py-4 align-middle">
                   <div className="flex items-center justify-end gap-1 pr-3">
                     <IconButton
                       size="small"
@@ -948,7 +910,8 @@ export function LeadManager({
           totalPages={totalPages}
           totalItems={totalItems}
           pageSize={pageSize}
-          onPageChange={setPage}
+          onPageChange={onPageChange}
+          onPageSizeChange={onPageSizeChange}
         />
       </section>
 

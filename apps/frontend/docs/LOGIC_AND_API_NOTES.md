@@ -107,6 +107,10 @@ Nguyên tắc cập nhật:
 - Một Project tồn tại qua nhiều tháng và có thể có nhiều lần báo phí, nhiều lần thanh toán.
 - `Quotation` trong ngữ cảnh nghiệp vụ được hiển thị là `Báo phí`: số tiền đã báo khách cần thanh
   toán cho một kỳ/lần, không phải tiền ngân hàng đã thực nhận.
+- Trạng thái nghiệp vụ của Báo phí chỉ có hai giá trị: `draft` hiển thị là `Báo phí` và `won` hiển
+  thị là `Đã thanh toán`. Form không cho chọn trạng thái. Báo phí mới luôn là `draft`; backend chỉ
+  chuyển sang `won` khi tổng Payment đã nhận đủ tổng thanh toán, và chuyển lại `draft` nếu đối soát
+  thay đổi làm số tiền nhận không còn đủ.
 - `Payment` là tiền thực tế đã vào tài khoản, tương ứng tab `2.0 Tiền vào Cty`.
 - Một báo phí có thể được thanh toán nhiều lần. Cần giữ riêng số phải thu, số đã nhận, số còn
   thiếu/thừa.
@@ -144,15 +148,16 @@ Nguyên tắc cập nhật:
 - Khi mở từ Customer bằng `/projects/new?customerId=<id>`, danh sách Báo phí khởi tạo chỉ lấy Báo
   phí của Customer đó (hoặc Báo phí của Lead nguồn chưa kịp có `customer_id` với dữ liệu cũ); nút
   Hủy quay lại hồ sơ Customer.
-- Chỉ báo phí chưa gắn Project mới xuất hiện trong danh sách. Báo phí đã hủy hoặc chưa có Customer
-  được hiển thị là không thể chọn.
+- Chỉ báo phí chưa gắn Project mới xuất hiện trong danh sách. Báo phí chưa có Customer được hiển thị
+  là không thể chọn.
 - Khi chọn báo phí, form tự điền `customerId`, `serviceId`, tên dự án từ metadata/tên dịch vụ và số
   tiền cọc. Customer và dịch vụ bị khóa để tránh Project lệch với báo phí nguồn.
 - Backend kiểm tra lại các ràng buộc trên, không chỉ dựa vào frontend: không cho lấy báo phí của dự
-  án khác, báo phí đã hủy, sai Customer hoặc sai dịch vụ.
-- Khi tạo Project thành công, báo phí nguồn được gắn `project_id`, chuyển sang `won`; các Payment đã
-  gắn báo phí cũng được cập nhật Customer/Project. Luồng này hoạt động cả khi Project chưa có hợp
-  đồng; `contract_id` có thể bổ sung sau.
+  án khác, sai Customer hoặc sai dịch vụ.
+- Khi tạo Project thành công, báo phí nguồn được gắn `project_id` nhưng không tự đổi trạng thái;
+  trạng thái chỉ phụ thuộc việc đã thu đủ tiền. Các Payment đã gắn báo phí cũng được cập nhật
+  Customer/Project. Luồng này hoạt động cả khi Project chưa có hợp đồng; `contract_id` có thể bổ
+  sung sau.
 - Form thêm Project không hiển thị và không tự tạo Hợp đồng. Hợp đồng chỉ phát sinh sau khi Project
   đã tồn tại, tại tab `Hợp đồng` trong hồ sơ Project.
 
@@ -195,3 +200,51 @@ Nguyên tắc cập nhật:
 
 - Trang `/projects/services` đã được người dùng xác nhận là chuẩn. Không chỉnh sửa trang hoặc form
   dịch vụ nếu không có yêu cầu trực tiếp mới.
+
+### Quy tắc mã Lead và Customer
+
+- `lead_code` chỉ dùng để nhận diện Lead trước khi chuyển đổi; không dùng để cấp mã Customer.
+- `customer_code` do backend cấp theo dạng `001`, `002`, `003`, ... bằng khóa transaction và
+  `MAX(customer_code) + 1`. Frontend không gửi và không cho sửa trường này. Nếu API rollback thì mã
+  chưa được sử dụng, lần tạo tiếp theo dùng lại số đó nên không nhảy số vì request lỗi.
+- Khi đã có Customer, mã Dự án và Báo phí mới phải ưu tiên `customer_code`. Báo phí thực sự được tạo
+  trước Customer được phép giữ tiền tố Lead đến hết vòng đời.
+- Không đổi mã Báo phí đã phát hành vì mã này đang được dùng trong nội dung chuyển khoản và webhook
+  đối soát. Khi Lead đã chuyển đổi, backend tự bổ sung `customer_id` cho Báo phí còn thiếu liên kết.
+
+### Sổ giao dịch, phân bổ và hoàn tiền
+
+- `payments` là giao dịch ngân hàng gốc. Số tiền, nội dung, thời gian, tài khoản nhận và mã tham
+  chiếu của webhook không được tách thành nhiều giao dịch giả khi khách chuyển gộp.
+- Quan hệ tiền thu với Báo phí là nhiều-nhiều qua `payment_allocations`: một giao dịch có thể trả
+  nhiều Báo phí và một Báo phí có thể nhận nhiều giao dịch.
+- Tiền hoàn được ghi riêng tại `payment_refunds`; thao tác trên CRM chỉ ghi nhận khoản đã hoàn,
+  không tự thực hiện lệnh chuyển tiền tại ngân hàng.
+- Công thức bắt buộc:
+  `Số dư chưa xử lý = Tiền nhận - Tổng phân bổ - Tổng đã hoàn`.
+- Chỉ số `Đã thu` của Báo phí/Dự án chỉ cộng `payment_allocations.amount`, không cộng toàn bộ
+  `payments.amount`. Vì vậy một giao dịch gộp không bị tính lặp cho hai Dự án.
+- Khi webhook nhận diện được mã Báo phí, hệ thống tự phân bổ tối đa bằng số còn phải thu. Phần vượt
+  quá vẫn là số dư chưa xử lý để phân bổ tiếp, giữ làm số dư khách hoặc hoàn lại.
+- `Đã gắn báo phí` chỉ mô tả quan hệ nhận diện. Nếu Báo phí đã thu đủ mà giao dịch đến sau vẫn còn
+  toàn bộ số dư chưa xử lý thì trạng thái tiền phải là `Chuyển thừa`; nếu giao dịch đã phân bổ một
+  phần và vẫn còn dư thì hiển thị `Đã phân bổ + chuyển thừa`. Mã Báo phí vẫn được giữ để truy vết.
+- Không cho tổng phân bổ và hoàn tiền vượt số tiền giao dịch; không cho phân bổ vượt số còn phải thu
+  của Báo phí. Muốn hoàn phần đã phân bổ phải hủy phân bổ trước.
+- Hủy phân bổ dùng soft delete để giữ lịch sử, đồng thời tính lại trạng thái Báo phí và trả tiền về
+  số dư chưa xử lý của giao dịch.
+- Giao dịch chưa xác định có thể phân bổ thẳng vào Báo phí hoặc chỉ gắn Dự án. Gắn Dự án không làm
+  giảm công nợ Báo phí. Có thể đánh dấu `internal`/`other` để loại khỏi khoản thu khách hàng.
+- Báo phí chuyển sang `won`/`Đã thanh toán` khi tổng phân bổ đạt tổng phải thu; nếu hủy phân bổ làm
+  số thu xuống dưới tổng phải thu thì tự quay về `draft`/`Báo phí`.
+- Báo phí đã có phân bổ không được đổi tổng tiền hoặc xóa. Giao dịch đã có phân bổ/hoàn tiền cũng
+  không được xóa trực tiếp.
+- API thao tác chính:
+  `POST /payments/{id}/allocations`,
+  `DELETE /payments/{paymentId}/allocations/{allocationId}`,
+  `POST /payments/{id}/refunds`,
+  `POST /payments/{id}/link`.
+- Migration `2026_07_15_000100_create_payment_allocation_ledger.php` tạo hai sổ mới và chuyển phần
+  tiền đã áp dụng của dữ liệu cũ sang `payment_allocations` mà không thay đổi giao dịch webhook gốc.
+- Migration `2026_07_15_000200_reclassify_excess_payments.php` phân loại lại giao dịch đã gắn vào
+  Báo phí thu đủ thành `Chuyển thừa` mà không làm mất liên kết đối soát.

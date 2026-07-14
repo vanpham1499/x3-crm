@@ -1,37 +1,36 @@
 'use client';
 
-import { useEffect, useMemo, useState } from 'react';
+import { useEffect, useMemo, useState, type MouseEvent } from 'react';
 import AddRoundedIcon from '@mui/icons-material/AddRounded';
 import CheckCircleOutlineRoundedIcon from '@mui/icons-material/CheckCircleOutlineRounded';
 import DeleteOutlineRoundedIcon from '@mui/icons-material/DeleteOutlineRounded';
-import {
-  Autocomplete,
-  Button,
-  Dialog,
-  DialogActions,
-  DialogContent,
-  DialogTitle,
-  IconButton,
-  LinearProgress,
-  MenuItem,
-  TextField,
-} from '@mui/material';
+import MoreVertRoundedIcon from '@mui/icons-material/MoreVertRounded';
+import { Autocomplete, IconButton, Menu, MenuItem } from '@mui/material';
 import { useQuery } from '@tanstack/react-query';
 import { Controller, useForm } from 'react-hook-form';
+import { DialogActionButton } from '@/components/actions/dialog-action-button';
+import { AppFormDialog } from '@/components/dialog/app-form-dialog';
 import { ConfirmDialog } from '@/components/feedback/confirm-dialog';
+import { CompactAutocompleteField } from '@/components/form/compact-autocomplete-field';
+import { FormDatePicker } from '@/components/form/form-date-picker';
+import { FormInputField } from '@/components/form/form-input-field';
+import { FormSelectField } from '@/components/form/form-select-field';
+import { CompactSelectField } from '@/components/form/compact-select-field';
+import { PageHeader } from '@/components/shell/page-header';
+import { AppDataTable } from '@/components/table/app-data-table';
 import { TablePaginationBar } from '@/components/table/table-pagination-bar';
-import { usePagination } from '@/hooks/use-pagination';
 import { applyApiErrorsToForm } from '@/lib/api-error';
+import { formatDate } from '@/lib/utils';
 import api from '@/services/api/client';
 import type { Customer } from '@/types/customer';
-import type { KpiCategory, KpiPoint, KpiPointFilters, KpiPointFormValues } from '@/types/kpi';
+import type {
+  KpiCategory,
+  KpiPoint,
+  KpiPointFilters,
+  KpiPointFormValues,
+  KpiPointSummary,
+} from '@/types/kpi';
 import type { User } from '@/types/user';
-
-function formatDate(value?: string | null) {
-  if (!value) return '-';
-  const date = new Date(value);
-  return Number.isNaN(date.getTime()) ? value : date.toLocaleDateString('vi-VN');
-}
 
 function getDefaults(userId: string): KpiPointFormValues {
   return {
@@ -73,8 +72,6 @@ function KpiDialog({
   } = useForm<KpiPointFormValues>({
     values: getDefaults(defaultUserId),
   });
-  const selectedCategory = watch('category');
-  const categoryMeta = categories.find((category) => category.key === selectedCategory) || null;
   const selectedUserId = watch('userId');
 
   const { data: customers = [], isFetching: isCustomersFetching } = useQuery<Customer[]>({
@@ -86,13 +83,18 @@ function KpiDialog({
     enabled: Boolean(selectedUserId),
   });
 
+  const customerCodes = useMemo(
+    () =>
+      customers
+        .map((customer) => customer.customerCode)
+        .filter(Boolean)
+        .join(', '),
+    [customers],
+  );
+
   useEffect(() => {
-    const codes = customers
-      .map((customer) => customer.customerCode)
-      .filter(Boolean)
-      .join(', ');
-    setValue('customerRef', codes);
-  }, [customers, setValue]);
+    setValue('customerRef', customerCodes);
+  }, [customerCodes, setValue]);
 
   const closeDialog = () => {
     reset();
@@ -100,139 +102,143 @@ function KpiDialog({
   };
 
   return (
-    <Dialog open={open} onClose={isSubmitting ? undefined : closeDialog} maxWidth="sm" fullWidth>
-      <DialogTitle className="border-b border-slate-100 px-5 py-4">
-        <p className="text-base font-bold text-slate-950">Ghi nhận điểm KPI</p>
-      </DialogTitle>
-
-      <form
-        onSubmit={handleSubmit(async (values) => {
-          try {
-            await onSubmit(values);
-            closeDialog();
-          } catch (error) {
-            applyApiErrorsToForm(error, setError);
-          }
-        })}
-      >
-        <DialogContent className="grid gap-3 px-5 py-4 md:grid-cols-2">
-          <Controller
-            name="userId"
-            control={control}
-            rules={{ required: true }}
-            render={({ field }) => (
-              <Autocomplete
-                className="md:col-span-2"
-                options={users}
-                value={users.find((user) => String(user.id) === field.value) || null}
-                onChange={(_, value) => field.onChange(value ? String(value.id) : '')}
-                getOptionLabel={(option) => option.name}
-                isOptionEqualToValue={(option, value) => option.id === value.id}
-                renderInput={(params) => (
-                  <TextField
-                    {...params}
-                    label="Nhân viên *"
-                    error={Boolean(errors.userId)}
-                    helperText={errors.userId?.message}
-                  />
-                )}
-              />
-            )}
-          />
-          <input type="hidden" {...register('customerRef')} />
-          <div className="md:col-span-2 rounded-lg border border-slate-200 bg-slate-50 px-3 py-2.5">
-            <p className="text-xs font-bold uppercase tracking-wide text-slate-400">Mã khách hàng</p>
-            <p className="mt-1 text-sm font-semibold text-slate-800">
-              {!selectedUserId
-                ? 'Chọn nhân viên trước'
-                : isCustomersFetching
-                  ? 'Đang tải...'
-                  : customers.length > 0
-                    ? customers.map((customer) => customer.customerCode).filter(Boolean).join(', ')
-                    : 'Nhân viên chưa phụ trách khách hàng nào'}
-            </p>
-          </div>
-          <Controller
-            name="category"
-            control={control}
-            rules={{ required: true }}
-            render={({ field }) => (
-              <TextField
-                select
-                fullWidth
-                label="Lỗi / Thành tích *"
-                className="md:col-span-2"
-                error={Boolean(errors.category)}
-                helperText={errors.category?.message}
-                {...field}
-                onChange={(event) => {
-                  field.onChange(event);
-                  const meta = categories.find((category) => category.key === event.target.value);
-                  if (meta) setValue('score', String(meta.defaultScore));
-                }}
-              >
-                <MenuItem value="">Chưa chọn</MenuItem>
-                {categories.map((meta) => (
-                  <MenuItem key={meta.key} value={meta.key}>
-                    {meta.label} ({meta.type === 'bonus' ? '+' : ''}
-                    {meta.defaultScore})
-                  </MenuItem>
-                ))}
-              </TextField>
-            )}
-          />
-          <TextField
-            fullWidth
-            type="number"
-            label="Điểm số *"
-            error={Boolean(errors.score)}
-            helperText={
-              errors.score?.message ||
-              (categoryMeta ? `Mặc định: ${categoryMeta.defaultScore}` : undefined)
-            }
-            slotProps={{ htmlInput: { step: 0.5 } }}
-            {...register('score', { required: true })}
-          />
-          <TextField
-            fullWidth
-            type="date"
-            label="Ngày ghi nhận *"
-            error={Boolean(errors.entryDate)}
-            helperText={errors.entryDate?.message}
-            slotProps={{ inputLabel: { shrink: true } }}
-            {...register('entryDate', { required: true })}
-          />
-          <TextField
-            fullWidth
-            multiline
-            minRows={2}
-            label="Ghi chú / Minh chứng"
-            className="md:col-span-2"
-            {...register('note')}
-          />
-        </DialogContent>
-
-        <DialogActions className="border-t border-slate-100 px-5 py-3">
-          <Button size="small" variant="outlined" onClick={closeDialog} disabled={isSubmitting}>
+    <AppFormDialog
+      open={open}
+      title="Ghi nhận điểm KPI"
+      maxWidth="sm"
+      submitting={isSubmitting}
+      onClose={closeDialog}
+      onSubmit={handleSubmit(async (values) => {
+        try {
+          await onSubmit(values);
+          closeDialog();
+        } catch (error) {
+          applyApiErrorsToForm(error, setError);
+        }
+      })}
+      actions={
+        <>
+          <DialogActionButton disabled={isSubmitting} onClick={closeDialog}>
             Hủy
-          </Button>
-          <Button
-            type="submit"
-            size="small"
-            variant="contained"
-            disabled={isSubmitting}
-            className="!bg-slate-900 hover:!bg-slate-800"
-          >
+          </DialogActionButton>
+          <DialogActionButton type="submit" tone="primary" disabled={isSubmitting}>
             {isSubmitting ? 'Đang lưu...' : 'Lưu điểm KPI'}
-          </Button>
-        </DialogActions>
-      </form>
-    </Dialog>
+          </DialogActionButton>
+        </>
+      }
+    >
+      <div className="grid gap-4 md:grid-cols-2">
+        <Controller
+          name="userId"
+          control={control}
+          rules={{ required: 'Vui lòng chọn nhân viên' }}
+          render={({ field }) => (
+            <Autocomplete
+              className="md:col-span-2"
+              options={users}
+              value={users.find((user) => String(user.id) === field.value) || null}
+              onChange={(_, value) => field.onChange(value ? String(value.id) : '')}
+              getOptionLabel={(option) => option.name}
+              isOptionEqualToValue={(option, value) => option.id === value.id}
+              noOptionsText="Không tìm thấy nhân viên"
+              renderInput={(params) => (
+                <FormInputField
+                  {...params}
+                  required
+                  label="Nhân viên"
+                  error={Boolean(errors.userId)}
+                  helperText={errors.userId?.message}
+                />
+              )}
+            />
+          )}
+        />
+
+        <input type="hidden" {...register('customerRef')} />
+        <div className="flex min-h-10 items-center justify-between gap-3 rounded-lg border border-slate-200 bg-slate-50 px-3 py-2 md:col-span-2">
+          <span className="shrink-0 text-sm font-semibold text-slate-500">Mã khách hàng</span>
+          <span
+            className="min-w-0 truncate text-right text-sm font-bold text-slate-800"
+            title={customerCodes || undefined}
+          >
+            {!selectedUserId
+              ? 'Chưa chọn nhân viên'
+              : isCustomersFetching
+                ? 'Đang tải...'
+                : customerCodes || 'Chưa phụ trách khách hàng'}
+          </span>
+        </div>
+
+        <Controller
+          name="category"
+          control={control}
+          rules={{ required: 'Vui lòng chọn hạng mục' }}
+          render={({ field }) => (
+            <FormSelectField
+              required
+              label="Lỗi / Thành tích"
+              className="md:col-span-2"
+              error={Boolean(errors.category)}
+              helperText={errors.category?.message}
+              {...field}
+              onChange={(event) => {
+                field.onChange(event);
+                const category = categories.find((item) => item.key === event.target.value);
+                if (category) setValue('score', String(category.defaultScore));
+              }}
+            >
+              <MenuItem value="">Chưa chọn</MenuItem>
+              {categories.map((category) => (
+                <MenuItem key={category.key} value={category.key}>
+                  {category.label} ({category.type === 'bonus' ? '+' : ''}
+                  {category.defaultScore})
+                </MenuItem>
+              ))}
+            </FormSelectField>
+          )}
+        />
+
+        <FormInputField
+          required
+          type="number"
+          label="Điểm số"
+          error={Boolean(errors.score)}
+          helperText={errors.score?.message}
+          slotProps={{ htmlInput: { step: 0.5 } }}
+          {...register('score', { required: 'Vui lòng nhập điểm số' })}
+        />
+
+        <Controller
+          name="entryDate"
+          control={control}
+          rules={{ required: 'Vui lòng chọn ngày ghi nhận' }}
+          render={({ field }) => (
+            <FormDatePicker
+              required
+              label="Ngày ghi nhận"
+              value={field.value}
+              error={Boolean(errors.entryDate)}
+              helperText={errors.entryDate?.message}
+              onChange={field.onChange}
+            />
+          )}
+        />
+
+        <FormInputField
+          multiline
+          minRows={2}
+          label="Ghi chú / Minh chứng"
+          className="md:col-span-2"
+          {...register('note')}
+        />
+      </div>
+    </AppFormDialog>
   );
 }
 
 export function KpiManager({
   points,
+  summary,
   users,
   categories,
   filters,
@@ -241,12 +247,19 @@ export function KpiManager({
   isDeleting,
   isApproving,
   canApprove,
+  page,
+  totalPages,
+  totalItems,
+  pageSize,
+  onPageChange,
+  onPageSizeChange,
   onFiltersChange,
   onSave,
   onDelete,
   onApprove,
 }: {
   points: KpiPoint[];
+  summary: KpiPointSummary[];
   users: User[];
   categories: KpiCategory[];
   filters: KpiPointFilters;
@@ -255,77 +268,71 @@ export function KpiManager({
   isDeleting: boolean;
   isApproving: boolean;
   canApprove: boolean;
+  page: number;
+  totalPages: number;
+  totalItems: number;
+  pageSize: number;
+  onPageChange: (page: number) => void;
+  onPageSizeChange: (pageSize: number) => void;
   onFiltersChange: (filters: KpiPointFilters) => void;
   onSave: (values: KpiPointFormValues) => Promise<unknown>;
   onDelete: (point: KpiPoint) => void;
   onApprove: (point: KpiPoint) => void;
 }) {
   const [dialogOpen, setDialogOpen] = useState(false);
+  const [menuAnchorEl, setMenuAnchorEl] = useState<HTMLElement | null>(null);
+  const [activePoint, setActivePoint] = useState<KpiPoint | null>(null);
   const [deleteTarget, setDeleteTarget] = useState<KpiPoint | null>(null);
-  const { pageItems, page, setPage, totalPages, totalItems, pageSize } = usePagination(points, {
-    resetKey: filters,
-  });
-
   const updateFilters = (next: Partial<KpiPointFilters>) => {
     onFiltersChange({ ...filters, ...next });
   };
 
-  const summaryByUser = useMemo(() => {
-    const map = new Map<number, { name: string; total: number; count: number }>();
-    points.forEach((point) => {
-      const key = point.userId;
-      const existing = map.get(key) || {
-        name: point.user?.name || `NV #${key}`,
-        total: 0,
-        count: 0,
-      };
-      existing.total += Number(point.score) || 0;
-      existing.count += 1;
-      map.set(key, existing);
-    });
-    return Array.from(map.values()).sort((a, b) => b.total - a.total);
-  }, [points]);
+  const openActionMenu = (event: MouseEvent<HTMLButtonElement>, point: KpiPoint) => {
+    setMenuAnchorEl(event.currentTarget);
+    setActivePoint(point);
+  };
+
+  const closeActionMenu = () => {
+    setMenuAnchorEl(null);
+    setActivePoint(null);
+  };
 
   return (
     <div className="min-h-[calc(100vh-72px)] w-full bg-slate-50/60 p-6">
-      <div className="mb-6 flex flex-col gap-4 sm:flex-row sm:items-center sm:justify-between">
-        <div>
-          <h1 className="text-2xl font-bold text-slate-950">KPI nhân viên</h1>
-          <div className="mt-2 flex items-center gap-2 text-sm text-slate-500">
-            <span>Dashboard</span>
-            <span className="h-1 w-1 rounded-full bg-slate-300" />
-            <span className="text-slate-950">KPI</span>
-          </div>
-        </div>
+      <PageHeader
+        title="KPI nhân viên"
+        action={{
+          label: 'Ghi nhận điểm KPI',
+          icon: <AddRoundedIcon />,
+          onClick: () => setDialogOpen(true),
+        }}
+      />
 
-        <Button
-          variant="contained"
-          startIcon={<AddRoundedIcon />}
-          onClick={() => setDialogOpen(true)}
-          className="!bg-slate-900 hover:!bg-slate-800"
-        >
-          Ghi nhận điểm KPI
-        </Button>
-      </div>
-
-      {summaryByUser.length > 0 && (
+      {summary.length > 0 && (
         <section className="mb-4 overflow-hidden rounded-2xl border border-slate-200 bg-white shadow-sm">
-          <div className="border-b border-slate-200 px-5 py-3">
-            <h2 className="text-sm font-bold text-slate-950">Tổng điểm theo nhân viên (theo bộ lọc)</h2>
+          <div className="flex min-h-12 items-center border-b border-slate-200 px-4 py-3">
+            <h2 className="text-sm font-bold text-slate-950">Tổng điểm theo bộ lọc</h2>
           </div>
-          <div className="flex flex-wrap gap-3 p-4">
-            {summaryByUser.map((row) => (
+          <div className="grid grid-cols-2 gap-3 p-4 md:grid-cols-3 lg:grid-cols-4 xl:grid-cols-6">
+            {summary.map((row) => (
               <div
-                key={row.name}
-                className="rounded-xl border border-slate-200 bg-slate-50 px-4 py-2.5"
+                key={row.userId}
+                className="min-w-0 rounded-xl border border-slate-200 bg-slate-50 px-3 py-2.5"
               >
-                <p className="text-xs font-bold text-slate-500">{row.name}</p>
-                <p
-                  className={`mt-0.5 text-lg font-extrabold tabular-nums ${row.total >= 0 ? 'text-emerald-700' : 'text-rose-700'}`}
-                >
-                  {row.total > 0 ? '+' : ''}
-                  {row.total} <span className="text-xs font-semibold text-slate-400">({row.count} mục)</span>
+                <p className="truncate text-xs font-bold text-slate-600" title={row.name}>
+                  {row.name}
                 </p>
+                <div className="mt-1 flex items-end justify-between gap-2">
+                  <p
+                    className={`text-lg font-extrabold tabular-nums ${row.total >= 0 ? 'text-emerald-700' : 'text-rose-700'}`}
+                  >
+                    {row.total > 0 ? '+' : ''}
+                    {row.total}
+                  </p>
+                  <span className="pb-0.5 text-xs font-semibold text-slate-400">
+                    {row.count} mục
+                  </span>
+                </div>
               </div>
             ))}
           </div>
@@ -333,138 +340,171 @@ export function KpiManager({
       )}
 
       <section className="w-full overflow-hidden rounded-2xl border border-slate-200 bg-white shadow-sm">
-        <div className="grid gap-3 border-b border-slate-200 p-5 lg:grid-cols-4">
-          <Autocomplete
-            options={users}
-            value={users.find((user) => String(user.id) === filters.userId) || null}
-            onChange={(_, value) => updateFilters({ userId: value ? String(value.id) : '' })}
-            getOptionLabel={(option) => option.name}
-            isOptionEqualToValue={(option, value) => option.id === value.id}
-            renderInput={(params) => <TextField {...params} label="Nhân viên" />}
+        <div className="grid gap-3 p-4 lg:grid-cols-2 xl:grid-cols-[minmax(220px,1fr)_minmax(220px,1fr)_150px_160px_160px]">
+          <CompactAutocompleteField
+            label="Nhân viên"
+            value={filters.userId}
+            allLabel="Tất cả nhân viên"
+            options={users.map((user) => ({ value: String(user.id), label: user.name }))}
+            onChange={(userId) => updateFilters({ userId })}
           />
-          <TextField
-            select
-            fullWidth
+          <CompactAutocompleteField
+            label="Hạng mục KPI"
+            value={filters.category}
+            allLabel="Tất cả hạng mục"
+            options={categories.map((category) => ({
+              value: category.key,
+              label: category.label,
+            }))}
+            onChange={(category) => updateFilters({ category })}
+          />
+          <CompactSelectField
             label="Loại"
             value={filters.type}
-            onChange={(event) => updateFilters({ type: event.target.value })}
-          >
-            <MenuItem value="">Tất cả</MenuItem>
-            <MenuItem value="bonus">Thành tích</MenuItem>
-            <MenuItem value="penalty">Lỗi</MenuItem>
-          </TextField>
-          <TextField
-            fullWidth
-            type="date"
+            options={[
+              { value: 'bonus', label: 'Thành tích' },
+              { value: 'penalty', label: 'Lỗi' },
+            ]}
+            onChange={(type) => updateFilters({ type })}
+          />
+          <FormDatePicker
             label="Từ ngày"
             value={filters.dateFrom}
-            onChange={(event) => updateFilters({ dateFrom: event.target.value })}
-            slotProps={{ inputLabel: { shrink: true } }}
+            max={filters.dateTo || undefined}
+            onChange={(dateFrom) => updateFilters({ dateFrom })}
           />
-          <TextField
-            fullWidth
-            type="date"
+          <FormDatePicker
             label="Đến ngày"
             value={filters.dateTo}
-            onChange={(event) => updateFilters({ dateTo: event.target.value })}
-            slotProps={{ inputLabel: { shrink: true } }}
+            min={filters.dateFrom || undefined}
+            onChange={(dateTo) => updateFilters({ dateTo })}
           />
         </div>
 
-        <div className="relative w-full overflow-x-auto">
-          {isFetching && (
-            <div className="absolute left-0 right-0 top-0 z-30">
-              <LinearProgress color="primary" />
-            </div>
-          )}
+        <AppDataTable
+          columns={[
+            { key: 'date', label: 'Ngày', className: 'w-[120px]' },
+            { key: 'user', label: 'Nhân viên', className: 'w-[180px]' },
+            { key: 'category', label: 'Lỗi / Thành tích', className: 'w-[300px]' },
+            { key: 'score', label: 'Điểm', className: 'w-[100px] text-right' },
+            { key: 'customer', label: 'Mã khách', className: 'w-[180px]' },
+            { key: 'note', label: 'Ghi chú', className: 'w-[220px]' },
+            { key: 'approval', label: 'Duyệt', className: 'w-[120px]' },
+            { key: 'actions', className: 'w-[56px]' },
+          ]}
+          isLoading={isFetching}
+          isEmpty={points.length === 0}
+          emptyText="Chưa có dữ liệu KPI"
+          minWidthClassName="min-w-[1210px]"
+        >
+          {points.map((point) => {
+            const score = Number(point.score) || 0;
 
-          <table
-            className={`w-full min-w-[1180px] text-left text-sm transition-opacity ${isFetching ? 'opacity-60' : 'opacity-100'}`}
-          >
-            <thead className="bg-slate-50 text-xs font-bold uppercase text-slate-500">
-              <tr>
-                <th className="px-5 py-4">Ngày</th>
-                <th className="px-5 py-4">Nhân viên</th>
-                <th className="px-5 py-4">Lỗi / Thành tích</th>
-                <th className="px-5 py-4 text-right">Điểm</th>
-                <th className="px-5 py-4">Mã khách</th>
-                <th className="px-5 py-4">Ghi chú</th>
-                <th className="px-5 py-4">Duyệt</th>
-                <th className="w-20 px-5 py-4" />
-              </tr>
-            </thead>
-            <tbody className="divide-y divide-slate-100">
-              {points.length === 0 ? (
-                <tr>
-                  <td colSpan={8} className="px-5 py-12 text-center text-sm font-semibold text-slate-500">
-                    Chưa có dữ liệu KPI
-                  </td>
-                </tr>
-              ) : (
-                pageItems.map((point) => (
-                  <tr key={point.id} className="hover:bg-slate-50/80">
-                    <td className="px-5 py-4 font-semibold text-slate-800">
-                      {formatDate(point.entryDate)}
-                    </td>
-                    <td className="px-5 py-4 font-bold text-slate-950">{point.user?.name || '-'}</td>
-                    <td className="px-5 py-4 text-slate-700">
-                      {point.categoryLabel || point.category}
-                    </td>
-                    <td
-                      className={`px-5 py-4 text-right font-extrabold tabular-nums ${Number(point.score) >= 0 ? 'text-emerald-700' : 'text-rose-700'}`}
+            return (
+              <tr key={point.id} className="hover:bg-slate-50/80">
+                <td className="whitespace-nowrap px-3 py-3.5 font-semibold text-slate-800">
+                  {formatDate(point.entryDate)}
+                </td>
+                <td className="truncate px-3 py-3.5 font-bold text-slate-900">
+                  {point.user?.name || '-'}
+                </td>
+                <td className="px-3 py-3.5">
+                  <div className="flex min-w-0 items-center gap-2">
+                    <span
+                      className={`shrink-0 rounded-full px-2 py-1 text-[11px] font-bold ring-1 ${
+                        point.type === 'bonus'
+                          ? 'bg-emerald-50 text-emerald-700 ring-emerald-200'
+                          : 'bg-rose-50 text-rose-700 ring-rose-200'
+                      }`}
                     >
-                      {Number(point.score) > 0 ? '+' : ''}
-                      {point.score}
-                    </td>
-                    <td className="px-5 py-4 text-slate-600">{point.customerRef || '-'}</td>
-                    <td className="max-w-[220px] truncate px-5 py-4 text-slate-600" title={point.note || ''}>
-                      {point.note || '-'}
-                    </td>
-                    <td className="px-5 py-4">
-                      {point.isApproved ? (
-                        <span className="inline-flex rounded-md bg-emerald-50 px-2 py-1 text-xs font-bold text-emerald-700 ring-1 ring-emerald-200">
-                          Đã duyệt
-                        </span>
-                      ) : canApprove ? (
-                        <IconButton
-                          size="small"
-                          title="Duyệt"
-                          disabled={isApproving}
-                          onClick={() => onApprove(point)}
-                        >
-                          <CheckCircleOutlineRoundedIcon fontSize="small" className="text-slate-400" />
-                        </IconButton>
-                      ) : (
-                        <span className="text-xs font-semibold text-slate-400">Chờ duyệt</span>
-                      )}
-                    </td>
-                    <td className="px-5 py-4">
-                      <div className="flex justify-end">
-                        <IconButton
-                          size="small"
-                          title="Xóa"
-                          disabled={isDeleting}
-                          onClick={() => setDeleteTarget(point)}
-                        >
-                          <DeleteOutlineRoundedIcon fontSize="small" />
-                        </IconButton>
-                      </div>
-                    </td>
-                  </tr>
-                ))
-              )}
-            </tbody>
-          </table>
-        </div>
+                      {point.type === 'bonus' ? 'Thành tích' : 'Lỗi'}
+                    </span>
+                    <span
+                      className="min-w-0 truncate font-medium text-slate-700"
+                      title={point.categoryLabel || point.category}
+                    >
+                      {point.categoryLabel || point.category}
+                    </span>
+                  </div>
+                </td>
+                <td
+                  className={`whitespace-nowrap px-3 py-3.5 text-right font-extrabold tabular-nums ${
+                    score >= 0 ? 'text-emerald-700' : 'text-rose-700'
+                  }`}
+                >
+                  {score > 0 ? '+' : ''}
+                  {point.score}
+                </td>
+                <td
+                  className="truncate px-3 py-3.5 font-medium text-slate-600"
+                  title={point.customerRef || undefined}
+                >
+                  {point.customerRef || '-'}
+                </td>
+                <td className="truncate px-3 py-3.5 text-slate-600" title={point.note || undefined}>
+                  {point.note || '-'}
+                </td>
+                <td className="px-3 py-3.5">
+                  <span
+                    className={`inline-flex rounded-full px-2 py-1 text-xs font-bold ring-1 ${
+                      point.isApproved
+                        ? 'bg-emerald-50 text-emerald-700 ring-emerald-200'
+                        : 'bg-amber-50 text-amber-700 ring-amber-200'
+                    }`}
+                  >
+                    {point.isApproved ? 'Đã duyệt' : 'Chờ duyệt'}
+                  </span>
+                </td>
+                <td className="px-3 py-3.5 text-right">
+                  <IconButton
+                    size="small"
+                    title="Tác vụ"
+                    aria-label={`Tác vụ KPI của ${point.user?.name || 'nhân viên'}`}
+                    onClick={(event) => openActionMenu(event, point)}
+                  >
+                    <MoreVertRoundedIcon fontSize="small" />
+                  </IconButton>
+                </td>
+              </tr>
+            );
+          })}
+        </AppDataTable>
 
         <TablePaginationBar
           page={page}
           totalPages={totalPages}
           totalItems={totalItems}
           pageSize={pageSize}
-          onPageChange={setPage}
+          onPageChange={onPageChange}
+          onPageSizeChange={onPageSizeChange}
         />
       </section>
+
+      <Menu anchorEl={menuAnchorEl} open={Boolean(menuAnchorEl)} onClose={closeActionMenu}>
+        {activePoint && !activePoint.isApproved && canApprove && (
+          <MenuItem
+            disabled={isApproving}
+            onClick={() => {
+              onApprove(activePoint);
+              closeActionMenu();
+            }}
+          >
+            <CheckCircleOutlineRoundedIcon fontSize="small" className="mr-2 text-emerald-600" />
+            Duyệt điểm KPI
+          </MenuItem>
+        )}
+        <MenuItem
+          className="text-rose-600"
+          disabled={isDeleting}
+          onClick={() => {
+            setDeleteTarget(activePoint);
+            closeActionMenu();
+          }}
+        >
+          <DeleteOutlineRoundedIcon fontSize="small" className="mr-2" />
+          Xóa
+        </MenuItem>
+      </Menu>
 
       <KpiDialog
         open={dialogOpen}

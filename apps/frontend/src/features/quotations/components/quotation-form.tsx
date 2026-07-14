@@ -5,13 +5,16 @@ import AddRoundedIcon from '@mui/icons-material/AddRounded';
 import DeleteRoundedIcon from '@mui/icons-material/DeleteRounded';
 import SaveRoundedIcon from '@mui/icons-material/SaveRounded';
 import { Autocomplete, IconButton, MenuItem } from '@mui/material';
+import { useQuery } from '@tanstack/react-query';
 import { TabActionButton } from '@/components/actions/tab-action-button';
 import { FormActionBar } from '@/components/form/form-action-bar';
+import { FormDatePicker } from '@/components/form/form-date-picker';
 import { compactFormFieldClassName } from '@/components/form/form-field-styles';
 import { FormInputField } from '@/components/form/form-input-field';
 import { FormSection } from '@/components/form/form-section';
 import { FormSelectField } from '@/components/form/form-select-field';
 import { MoneyInput } from '@/components/form/money-input';
+import { ServerPaginatedAutocomplete } from '@/components/form/server-paginated-autocomplete';
 import { getApiFieldErrors } from '@/lib/api-error';
 import { PageHeader } from '@/components/shell/page-header';
 import {
@@ -26,22 +29,23 @@ import {
   getServiceQuoteConfigMeta,
 } from '@/lib/service-quote-config';
 import { flattenServices } from '@/lib/service-utils';
+import api from '@/services/api/client';
 import type { AppOption } from '@/types/option';
 import type { Customer } from '@/types/customer';
 import type { Lead } from '@/types/lead';
-import type { ProjectItem } from '@/types/project';
-import type { Quotation, QuotationLineFormValue, QuotationStatus } from '@/types/quotation';
+import type { ProjectItem, ProjectType } from '@/types/project';
+import type { Quotation, QuotationLineFormValue } from '@/types/quotation';
 import type { ServiceItem } from '@/types/service';
 
 type QuoteCustomerMode = 'new_customer' | 'existing_customer';
 type QuoteProjectMode = 'new_project' | 'existing_project';
 
+const NO_SETUP_PACKAGE_KEY = 'none';
+
 type QuotationFormProps = {
   mode: 'create' | 'edit';
   quotation?: Quotation | null;
   leads: Lead[];
-  customers: Customer[];
-  projects: ProjectItem[];
   services: ServiceItem[];
   quoteConfigs: AppOption[];
   bankAccountOptions: AppOption[];
@@ -91,12 +95,34 @@ function getLineUnit(line: { metadata?: Record<string, unknown> | null }) {
   return typeof unit === 'string' && unit ? unit : 'Dịch vụ';
 }
 
+function getCustomerOptionLabel(customer: Customer) {
+  return [customer.customerCode, customer.customerName || customer.companyName]
+    .filter(Boolean)
+    .join(' - ');
+}
+
+function getProjectOptionLabel(project: ProjectItem) {
+  return project.projectCode || `Dự án #${project.id}`;
+}
+
+function getProjectCustomer(project: ProjectItem | null): Customer | null {
+  if (!project?.customer) return null;
+
+  return {
+    id: project.customer.id,
+    customerCode: project.customer.customerCode,
+    customerName: project.customer.customerName,
+    companyName: project.customer.companyName,
+    leadId: project.customer.leadId,
+    phone: project.customer.phone,
+    email: project.customer.email,
+  };
+}
+
 export function QuotationForm({
   mode,
   quotation,
   leads,
-  customers,
-  projects,
   services,
   quoteConfigs,
   bankAccountOptions,
@@ -114,10 +140,12 @@ export function QuotationForm({
   const [leadId, setLeadId] = useState(defaultLeadId || '');
   const [customerId, setCustomerId] = useState('');
   const [projectId, setProjectId] = useState(defaultProjectId || '');
+  const [selectedCustomerOption, setSelectedCustomerOption] = useState<Customer | null>(null);
+  const [selectedProjectOption, setSelectedProjectOption] = useState<ProjectItem | null>(null);
   const [customerName, setCustomerName] = useState('');
   const [projectName, setProjectName] = useState('');
+  const [projectType, setProjectType] = useState<ProjectType>('K');
   const [duration, setDuration] = useState('1 tháng');
-  const [status, setStatus] = useState<QuotationStatus>('draft');
   const [vatRate, setVatRate] = useState('8');
   const [validUntil, setValidUntil] = useState('');
   const [note, setNote] = useState('');
@@ -135,9 +163,27 @@ export function QuotationForm({
     () => getCompanyBankAccounts(bankAccountOptions),
     [bankAccountOptions],
   );
+  const unconvertedLeads = useMemo(
+    () => leads.filter((lead) => !lead.convertedCustomerId && !lead.convertedCustomer?.id),
+    [leads],
+  );
   const selectedLead = leads.find((lead) => String(lead.id) === leadId) || null;
-  const selectedCustomer = customers.find((customer) => String(customer.id) === customerId) || null;
-  const selectedProject = projects.find((project) => String(project.id) === projectId) || null;
+  const selectedCustomer = selectedCustomerOption;
+  const selectedProject = selectedProjectOption;
+  const convertedCustomerId =
+    selectedLead?.convertedCustomerId || selectedLead?.convertedCustomer?.id || null;
+  const { data: convertedCustomer } = useQuery<Customer>({
+    queryKey: ['customers', convertedCustomerId, 'quotation-converted-lead'],
+    queryFn: () =>
+      api.get<Customer>(`/customers/${convertedCustomerId}`).then((response) => response.data),
+    enabled: mode === 'create' && customerMode === 'new_customer' && Boolean(convertedCustomerId),
+  });
+  const { data: defaultProject } = useQuery<ProjectItem>({
+    queryKey: ['projects', defaultProjectId, 'quotation-default-project'],
+    queryFn: () =>
+      api.get<ProjectItem>(`/projects/${defaultProjectId}`).then((response) => response.data),
+    enabled: mode === 'create' && Boolean(defaultProjectId) && selectedProjectOption === null,
+  });
   const selectedService =
     serviceOptions.find((service) => String(service.id) === selectedServiceId) || null;
   const selectedBankAccount =
@@ -153,9 +199,11 @@ export function QuotationForm({
     : null;
   const canUseAutoQuote = Boolean(rootConfig?.enabled);
   const setupPackage =
-    rootConfig?.setupPackages.find((item) => item.key === setupPackageKey) ||
-    rootConfig?.setupPackages[0] ||
-    null;
+    setupPackageKey === NO_SETUP_PACKAGE_KEY
+      ? null
+      : rootConfig?.setupPackages.find((item) => item.key === setupPackageKey) ||
+        rootConfig?.setupPackages[0] ||
+        null;
   const managementFee = rootConfig
     ? calculateManagementFee({
         budget: toNumber(budget),
@@ -182,25 +230,35 @@ export function QuotationForm({
           unitPrice: String(managementFee?.amount || 0),
           locked: true,
         },
-        {
-          id: -3,
-          name: `Phí Setup${setupPackage ? ` - ${setupPackage.label}` : ''}`,
-          unit: 'Lần',
-          quantity: '1',
-          unitPrice: String(setupPackage?.price || 0),
-          locked: true,
-        },
+        ...(setupPackage
+          ? [
+              {
+                id: -3,
+                name: `Phí Setup - ${setupPackage.label}`,
+                unit: 'Lần',
+                quantity: '1',
+                unitPrice: String(setupPackage.price || 0),
+                locked: true,
+              },
+            ]
+          : []),
       ]
     : [];
 
   const billableLines = [...autoLines, ...manualLines].filter(
     (line) => line.locked || line.name.trim(),
   );
+  const excludesBudgetFromTotal = canUseAutoQuote && projectType === 'K';
   const quoteLines = billableLines.map((line, index) => {
     const amount = toNumber(line.quantity) * toNumber(line.unitPrice);
-    return { ...line, no: index + 1, amount };
+    const excludedFromTotal = excludesBudgetFromTotal && line.id === -1;
+
+    return { ...line, no: index + 1, amount, excludedFromTotal };
   });
-  const subtotal = quoteLines.reduce((sum, line) => sum + line.amount, 0);
+  const subtotal = quoteLines.reduce(
+    (sum, line) => sum + (line.excludedFromTotal ? 0 : line.amount),
+    0,
+  );
   const vatAmount = Math.round((subtotal * toNumber(vatRate)) / 100);
   const total = subtotal + vatAmount;
   const paymentContent = getQuotationPaymentContent(quotation);
@@ -224,6 +282,36 @@ export function QuotationForm({
     setLeadId(idToString(quotation.leadId));
     setCustomerId(idToString(quotation.customerId));
     setProjectId(idToString(quotation.projectId));
+    setSelectedCustomerOption(
+      quotation.customer
+        ? {
+            id: quotation.customer.id,
+            customerCode: quotation.customer.customerCode,
+            customerName: quotation.customer.customerName,
+            leadId: quotation.leadId,
+          }
+        : null,
+    );
+    setSelectedProjectOption(
+      quotation.project
+        ? {
+            id: quotation.project.id,
+            projectCode: quotation.project.projectCode,
+            projectName: quotation.project.projectName,
+            projectType: quotation.project.projectType,
+            customerId: Number(quotation.customerId || quotation.customer?.id || 0),
+            serviceId: Number(quotation.serviceId || 0),
+            customer: quotation.customer
+              ? {
+                  id: quotation.customer.id,
+                  customerCode: quotation.customer.customerCode,
+                  customerName: quotation.customer.customerName,
+                  leadId: quotation.leadId,
+                }
+              : null,
+          }
+        : null,
+    );
     setCustomerName(
       getMetadataValue(metadata, 'customerName') ||
         quotation.lead?.customerName ||
@@ -233,8 +321,12 @@ export function QuotationForm({
     setProjectName(
       getMetadataValue(metadata, 'projectName') || quotation.project?.projectName || '',
     );
+    const storedProjectType =
+      getMetadataValue(metadata, 'projectType') || quotation.project?.projectType;
+    setProjectType(
+      storedProjectType === 'K' || storedProjectType === 'M' ? storedProjectType : 'M',
+    );
     setDuration(getMetadataValue(metadata, 'duration') || '1 tháng');
-    setStatus((quotation.status as QuotationStatus) || 'draft');
     setVatRate(String(quotation.vatRate ?? '0'));
     setValidUntil(quotation.validUntil || '');
     setNote(quotation.note || '');
@@ -262,6 +354,14 @@ export function QuotationForm({
   }, [quotation]);
 
   useEffect(() => {
+    if (!defaultProject || selectedProjectOption) return;
+
+    setSelectedProjectOption(defaultProject);
+    setSelectedCustomerOption(getProjectCustomer(defaultProject));
+    setProjectType(defaultProject.projectType === 'M' ? 'M' : 'K');
+  }, [defaultProject, selectedProjectOption]);
+
+  useEffect(() => {
     if (selectedBankAccountId || bankAccounts.length === 0) return;
     setSelectedBankAccountId(
       getDefaultCompanyBankAccount(bankAccountOptions)?.id || bankAccounts[0]?.id || '',
@@ -274,10 +374,23 @@ export function QuotationForm({
   }, [customerName, selectedLead]);
 
   useEffect(() => {
+    if (mode !== 'create' || customerMode !== 'new_customer' || !selectedLead || !convertedCustomer)
+      return;
+
+    setCustomerMode('existing_customer');
+    setProjectMode('new_project');
+    setSelectedCustomerOption(convertedCustomer);
+    setCustomerId(String(convertedCustomer.id));
+    setCustomerName(convertedCustomer.customerName || convertedCustomer.companyName || '');
+  }, [convertedCustomer, customerMode, mode, selectedLead]);
+
+  useEffect(() => {
     if (mode !== 'create' || customerMode !== 'new_customer' || !selectedLead) return;
     setCustomerName(selectedLead.customerName || '');
     setCustomerId('');
     setProjectId('');
+    setSelectedCustomerOption(null);
+    setSelectedProjectOption(null);
   }, [customerMode, mode, selectedLead]);
 
   useEffect(() => {
@@ -297,6 +410,7 @@ export function QuotationForm({
 
     setProjectName(selectedProject.projectName || '');
     setCustomerId(idToString(selectedProject.customerId));
+    setSelectedCustomerOption(getProjectCustomer(selectedProject));
     setCustomerName(
       selectedProject.customer?.customerName ||
         selectedProject.customer?.companyName ||
@@ -305,6 +419,7 @@ export function QuotationForm({
     );
     setLeadId(idToString(selectedProject.customer?.leadId));
     setSelectedServiceId(idToString(selectedProject.serviceId));
+    setProjectType(selectedProject.projectType === 'M' ? 'M' : 'K');
   }, [customerMode, mode, projectMode, selectedProject]);
 
   const updateLine = (lineId: number, values: Partial<QuotationLineFormValue>) => {
@@ -343,11 +458,9 @@ export function QuotationForm({
           ? 'management_fee'
           : 'quantity_price';
     const payload: Record<string, unknown> = {
-      quotationCode: quotation?.quotationCode || undefined,
       serviceId: selectedServiceId ? Number(selectedServiceId) : null,
       serviceCode: selectedService?.code || null,
       serviceName: selectedService?.name || null,
-      status,
       subtotalAmount: subtotal,
       vatRate: toNumber(vatRate),
       vatAmount,
@@ -360,6 +473,7 @@ export function QuotationForm({
         projectMode: customerMode === 'existing_customer' ? projectMode : 'new_project',
         customerName,
         projectName,
+        projectType,
         duration,
         budget,
         setupPackageKey,
@@ -378,31 +492,38 @@ export function QuotationForm({
       },
       items: quoteLines
         .filter((line) => line.name.trim())
-        .map((line, index) => ({
-          serviceId: selectedServiceId ? Number(selectedServiceId) : null,
-          service_id: selectedServiceId ? Number(selectedServiceId) : null,
-          itemCode: line.locked ? String(line.id) : null,
-          item_code: line.locked ? String(line.id) : null,
-          itemName: line.name.trim(),
-          item_name: line.name.trim(),
-          quantity: toNumber(line.quantity),
-          unitPrice: toNumber(line.unitPrice),
-          unit_price: toNumber(line.unitPrice),
-          amountBeforeVat: line.amount,
-          amount_before_vat: line.amount,
-          vatRate: 0,
-          vat_rate: 0,
-          vatAmount: 0,
-          vat_amount: 0,
-          amountAfterVat: line.amount,
-          amount_after_vat: line.amount,
-          sortOrder: index * 10,
-          sort_order: index * 10,
-          metadata: {
-            unit: line.unit,
-            locked: Boolean(line.locked),
-          },
-        })),
+        .map((line, index) => {
+          const lineVatRate = line.excludedFromTotal ? 0 : toNumber(vatRate);
+          const lineVatAmount = Math.round((line.amount * lineVatRate) / 100);
+          const lineAmountAfterVat = line.amount + lineVatAmount;
+
+          return {
+            serviceId: selectedServiceId ? Number(selectedServiceId) : null,
+            service_id: selectedServiceId ? Number(selectedServiceId) : null,
+            itemCode: line.locked ? String(line.id) : null,
+            item_code: line.locked ? String(line.id) : null,
+            itemName: line.name.trim(),
+            item_name: line.name.trim(),
+            quantity: toNumber(line.quantity),
+            unitPrice: toNumber(line.unitPrice),
+            unit_price: toNumber(line.unitPrice),
+            amountBeforeVat: line.amount,
+            amount_before_vat: line.amount,
+            vatRate: lineVatRate,
+            vat_rate: lineVatRate,
+            vatAmount: lineVatAmount,
+            vat_amount: lineVatAmount,
+            amountAfterVat: lineAmountAfterVat,
+            amount_after_vat: lineAmountAfterVat,
+            sortOrder: index * 10,
+            sort_order: index * 10,
+            metadata: {
+              unit: line.unit,
+              locked: Boolean(line.locked),
+              excludedFromTotal: line.excludedFromTotal,
+            },
+          };
+        }),
     };
 
     if (mode === 'create') {
@@ -432,14 +553,14 @@ export function QuotationForm({
 
   return (
     <form
-      className="flex min-h-[calc(100vh-72px)] flex-col bg-slate-50/60 p-6"
+      className="flex min-h-[calc(100vh-72px)] flex-col bg-slate-50/60 px-6 pt-6"
       onSubmit={(event) => {
         event.preventDefault();
         if (!isSubmitting && !missingRequiredLead) submitForm();
       }}
     >
       <PageHeader
-        title={mode === 'edit' ? 'Chỉnh sửa báo giá' : 'Thêm báo giá'}
+        title={mode === 'edit' ? 'Chỉnh sửa báo phí' : 'Thêm báo phí'}
         currentLabel={mode === 'edit' ? quotation?.quotationCode || 'Chỉnh sửa' : undefined}
         action={
           mode === 'edit' && quotation && !quotation.projectId
@@ -453,7 +574,7 @@ export function QuotationForm({
 
       <div className="grid items-start gap-6 xl:grid-cols-12">
         <div className="xl:col-span-5">
-          <FormSection title="Thông tin báo giá">
+          <FormSection title="Thông tin báo phí">
             <div className="grid gap-4 md:grid-cols-2">
               <FormSelectField
                 label="Loại khách hàng"
@@ -465,8 +586,11 @@ export function QuotationForm({
                   setLeadId('');
                   setCustomerId('');
                   setProjectId('');
+                  setSelectedCustomerOption(null);
+                  setSelectedProjectOption(null);
                   setCustomerName('');
                   setProjectName('');
+                  setProjectType('K');
                   setProjectMode('new_project');
                 }}
               >
@@ -476,7 +600,7 @@ export function QuotationForm({
 
               {customerMode === 'new_customer' ? (
                 <Autocomplete
-                  options={leads}
+                  options={unconvertedLeads}
                   value={selectedLead}
                   disabled={mode === 'edit'}
                   onChange={(_, value) => {
@@ -507,7 +631,11 @@ export function QuotationForm({
                       const nextMode = event.target.value as QuoteProjectMode;
                       setProjectMode(nextMode);
                       setProjectId('');
-                      if (nextMode === 'new_project') setProjectName('');
+                      setSelectedProjectOption(null);
+                      if (nextMode === 'new_project') {
+                        setProjectName('');
+                        setProjectType('K');
+                      }
                     }}
                   >
                     <MenuItem value="new_project">Dự án mới</MenuItem>
@@ -515,12 +643,20 @@ export function QuotationForm({
                   </FormSelectField>
 
                   {projectMode === 'existing_project' ? (
-                    <Autocomplete
+                    <ServerPaginatedAutocomplete<ProjectItem>
                       className="md:col-span-2"
-                      options={projects}
+                      endpoint="/projects"
+                      queryKey={['projects', 'quotation-autocomplete']}
+                      label="Dự án cũ"
                       value={selectedProject}
                       disabled={mode === 'edit'}
-                      onChange={(_, value) => {
+                      required
+                      error={Boolean(fieldErrors.projectId)}
+                      helperText={fieldErrors.projectId}
+                      placeholder="Nhập mã dự án, tên dự án hoặc khách hàng"
+                      onChange={(value) => {
+                        setSelectedProjectOption(value);
+                        setSelectedCustomerOption(getProjectCustomer(value));
                         setProjectId(idToString(value?.id));
                         setProjectName(value?.projectName || '');
                         setCustomerId(idToString(value?.customerId));
@@ -529,52 +665,57 @@ export function QuotationForm({
                         );
                         setLeadId(idToString(value?.customer?.leadId));
                         setSelectedServiceId(idToString(value?.serviceId));
+                        setProjectType(value?.projectType === 'M' ? 'M' : 'K');
                       }}
-                      getOptionLabel={(option) =>
-                        `${option.projectCode || ''} - ${option.customer?.customerName || option.projectName || ''}`
-                      }
-                      isOptionEqualToValue={(option, value) => option.id === value.id}
-                      renderInput={(params) => (
-                        <FormInputField {...params} required label="Dự án cũ" />
-                      )}
+                      getOptionLabel={getProjectOptionLabel}
                     />
                   ) : (
-                    <Autocomplete
-                      className="md:col-span-2"
-                      options={customers}
+                    <ServerPaginatedAutocomplete<Customer>
+                      endpoint="/customers"
+                      queryKey={['customers', 'quotation-autocomplete']}
+                      label="Khách hàng cũ"
                       value={selectedCustomer}
                       disabled={mode === 'edit'}
-                      onChange={(_, value) => {
+                      required
+                      error={Boolean(fieldErrors.customerId)}
+                      helperText={fieldErrors.customerId}
+                      placeholder="Nhập mã, tên, số điện thoại hoặc email"
+                      onChange={(value) => {
+                        setSelectedCustomerOption(value);
                         setCustomerId(idToString(value?.id));
                         setLeadId(idToString(value?.leadId));
                         setCustomerName(value?.customerName || value?.companyName || '');
                       }}
-                      getOptionLabel={(option) =>
-                        `${option.customerCode || ''} - ${option.customerName || ''}`
-                      }
-                      isOptionEqualToValue={(option, value) => option.id === value.id}
-                      renderInput={(params) => (
-                        <FormInputField {...params} required label="Khách hàng" />
-                      )}
+                      getOptionLabel={getCustomerOptionLabel}
                     />
                   )}
                 </>
               )}
 
-              <FormInputField
-                label="Khách hàng"
-                value={customerName}
-                disabled={customerMode === 'existing_customer'}
-                onChange={(event) => setCustomerName(event.target.value)}
-              />
-              <FormInputField
-                label="Tên dự án"
-                value={projectName}
-                disabled={
-                  customerMode === 'existing_customer' && projectMode === 'existing_project'
-                }
-                onChange={(event) => setProjectName(event.target.value)}
-              />
+              {customerMode === 'new_customer' ? (
+                <FormInputField
+                  label="Khách hàng"
+                  value={customerName}
+                  onChange={(event) => setCustomerName(event.target.value)}
+                />
+              ) : null}
+              {projectMode === 'new_project' ? (
+                <div className="grid grid-cols-[minmax(0,1fr)_80px] gap-3">
+                  <FormInputField
+                    label="Tên dự án"
+                    value={projectName}
+                    onChange={(event) => setProjectName(event.target.value)}
+                  />
+                  <FormSelectField
+                    label="Loại *"
+                    value={projectType}
+                    onChange={(event) => setProjectType(event.target.value as ProjectType)}
+                  >
+                    <MenuItem value="K">K</MenuItem>
+                    <MenuItem value="M">M</MenuItem>
+                  </FormSelectField>
+                </div>
+              ) : null}
             </div>
 
             <div className="grid gap-4 md:grid-cols-2">
@@ -583,39 +724,30 @@ export function QuotationForm({
                 value={duration}
                 onChange={(event) => setDuration(event.target.value)}
               />
-              <FormSelectField
-                label="Trạng thái"
-                value={status}
-                onChange={(event) => setStatus(event.target.value as QuotationStatus)}
-              >
-                <MenuItem value="draft">Nháp</MenuItem>
-                <MenuItem value="sent">Đã gửi</MenuItem>
-                <MenuItem value="won">Đã chốt</MenuItem>
-                <MenuItem value="lost">Đã hủy</MenuItem>
-              </FormSelectField>
-              <FormInputField
-                type="date"
+              <FormDatePicker
                 label="Hiệu lực đến"
                 value={validUntil}
-                onChange={(event) => setValidUntil(event.target.value)}
-                slotProps={{ inputLabel: { shrink: true } }}
-              />
-              <FormInputField
-                label="VAT (%)"
-                value={vatRate}
-                onChange={(event) => setVatRate(event.target.value)}
+                onChange={setValidUntil}
+                error={Boolean(fieldErrors.validUntil)}
+                helperText={fieldErrors.validUntil}
               />
             </div>
 
-            <div className="grid gap-4 md:grid-cols-2">
+            <div className="grid gap-4 md:grid-cols-12">
               <Autocomplete
-                className="md:col-span-2"
+                className="md:col-span-8"
                 options={serviceOptions}
                 value={selectedService}
                 onChange={(_, value) => setSelectedServiceId(idToString(value?.id))}
                 getOptionLabel={(option) => `${option.code} - ${option.pathName}`}
                 isOptionEqualToValue={(option, value) => option.id === value.id}
                 renderInput={(params) => <FormInputField {...params} label="Dịch vụ" />}
+              />
+              <FormInputField
+                className="md:col-span-4"
+                label="VAT (%)"
+                value={vatRate}
+                onChange={(event) => setVatRate(event.target.value)}
               />
               {canUseAutoQuote && (
                 <>
@@ -625,13 +757,15 @@ export function QuotationForm({
                     label="Ngân sách"
                     value={budget}
                     onValueChange={setBudget}
-                    className={compactFormFieldClassName}
+                    className={`${compactFormFieldClassName} md:col-span-6`}
                   />
                   <FormSelectField
+                    className="md:col-span-6"
                     label="Gói setup"
                     value={setupPackageKey}
                     onChange={(event) => setSetupPackageKey(event.target.value)}
                   >
+                    <MenuItem value={NO_SETUP_PACKAGE_KEY}>Không tính phí setup</MenuItem>
                     {(rootConfig?.setupPackages || []).map((item) => (
                       <MenuItem key={item.key} value={item.key}>
                         {item.label} - {formatCurrency(item.price)}
@@ -644,7 +778,7 @@ export function QuotationForm({
 
             <FormInputField
               multiline
-              minRows={3}
+              minRows={2}
               label="Ghi chú"
               value={note}
               onChange={(event) => setNote(event.target.value)}
@@ -686,7 +820,7 @@ export function QuotationForm({
 
         <div className="xl:col-span-7">
           <FormSection
-            title="Chi tiết báo giá"
+            title="Chi tiết báo phí"
             action={
               <TabActionButton startIcon={<AddRoundedIcon />} onClick={addLine}>
                 Thêm hạng mục
@@ -713,6 +847,7 @@ export function QuotationForm({
                   />
                   <MoneyInput
                     fullWidth
+                    allowNegative
                     label="Đơn giá"
                     size="small"
                     value={line.unitPrice}
@@ -750,22 +885,37 @@ export function QuotationForm({
                   {quoteLines.length === 0 ? (
                     <tr>
                       <td colSpan={6} className="px-4 py-8 text-center text-sm text-slate-500">
-                        Nhập hạng mục để xem chi tiết báo giá
+                        Nhập hạng mục để xem chi tiết báo phí
                       </td>
                     </tr>
                   ) : (
                     quoteLines.map((line) => (
                       <tr key={line.id} className={line.locked ? 'bg-emerald-50/30' : undefined}>
                         <td className="px-4 py-3 font-bold text-slate-950">{line.no}</td>
-                        <td className="px-4 py-3 text-slate-700">{line.name || '-'}</td>
+                        <td className="px-4 py-3 text-slate-700">
+                          <span>{line.name || '-'}</span>
+                          {line.excludedFromTotal ? (
+                            <span className="ml-2 whitespace-nowrap rounded bg-sky-50 px-1.5 py-0.5 text-[11px] font-bold text-sky-700 ring-1 ring-inset ring-sky-200">
+                              Không tính vào tổng
+                            </span>
+                          ) : null}
+                        </td>
                         <td className="px-4 py-3 text-slate-600">{line.unit || '-'}</td>
                         <td className="px-4 py-3 text-right text-slate-600">
                           {formatMoney(line.quantity)}
                         </td>
-                        <td className="px-4 py-3 text-right text-slate-700">
+                        <td
+                          className={`px-4 py-3 text-right ${
+                            toNumber(line.unitPrice) < 0 ? 'text-rose-600' : 'text-slate-700'
+                          }`}
+                        >
                           {formatCurrency(line.unitPrice)}
                         </td>
-                        <td className="px-4 py-3 text-right font-bold text-slate-950">
+                        <td
+                          className={`px-4 py-3 text-right font-bold ${
+                            line.amount < 0 ? 'text-rose-600' : 'text-slate-950'
+                          }`}
+                        >
                           {formatCurrency(line.amount)}
                         </td>
                       </tr>
@@ -806,7 +956,7 @@ export function QuotationForm({
 
       <FormActionBar
         cancelHref="/quotations"
-        submitLabel={mode === 'edit' ? 'Lưu thay đổi' : 'Tạo báo giá'}
+        submitLabel={mode === 'edit' ? 'Lưu thay đổi' : 'Tạo báo phí'}
         isSubmitting={isSubmitting}
         submitDisabled={missingRequiredLead}
         submitIcon={<SaveRoundedIcon />}
