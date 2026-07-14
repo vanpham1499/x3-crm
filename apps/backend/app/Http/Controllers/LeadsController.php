@@ -2,8 +2,8 @@
 
 namespace App\Http\Controllers;
 
-use App\Http\Requests\Leads\CreateLeadRequest;
 use App\Http\Requests\Leads\ConvertLeadRequest;
+use App\Http\Requests\Leads\CreateLeadRequest;
 use App\Http\Requests\Leads\UpdateLeadRequest;
 use App\Services\LeadsService;
 use Illuminate\Http\JsonResponse;
@@ -15,7 +15,7 @@ class LeadsController extends Controller
 
     public function index(Request $request): JsonResponse
     {
-        return $this->success($this->leads->findAll([
+        $filters = [
             'keyword' => $request->query('keyword'),
             'search' => $request->query('search'),
             'statusOptionId' => $request->query('status_option_id'),
@@ -31,7 +31,17 @@ class LeadsController extends Controller
             'occurredTo' => $request->query('occurred_to'),
             'closedFrom' => $request->query('closed_from'),
             'closedTo' => $request->query('closed_to'),
-        ]));
+        ];
+
+        if ($request->query->has('page') || $request->query->has('per_page')) {
+            $page = max(1, (int) $request->query('page', 1));
+            $perPage = min(100, max(1, (int) $request->query('per_page', 10)));
+            $result = $this->leads->findPaginated($filters, $perPage, $page);
+
+            return $this->success($result['data'], 200, $result['meta']);
+        }
+
+        return $this->success($this->leads->findAll($filters));
     }
 
     public function show(string $id): JsonResponse

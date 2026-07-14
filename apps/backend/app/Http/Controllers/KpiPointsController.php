@@ -14,7 +14,7 @@ class KpiPointsController extends Controller
 
     public function index(Request $request): JsonResponse
     {
-        return $this->success($this->points->findAll([
+        $filters = [
             'keyword' => $request->query('keyword'),
             'userId' => $request->query('user_id'),
             'category' => $request->query('category'),
@@ -22,7 +22,17 @@ class KpiPointsController extends Controller
             'isApproved' => $request->has('is_approved') ? $request->boolean('is_approved') : null,
             'dateFrom' => $request->query('date_from'),
             'dateTo' => $request->query('date_to'),
-        ]));
+        ];
+
+        if ($request->query->has('page') || $request->query->has('per_page')) {
+            $page = max(1, (int) $request->query('page', 1));
+            $perPage = min(100, max(1, (int) $request->query('per_page', 10)));
+            $result = $this->points->findPaginated($filters, $perPage, $page);
+
+            return $this->success($result['data'], 200, $result['meta']);
+        }
+
+        return $this->success($this->points->findAll($filters));
     }
 
     public function show(string $id): JsonResponse

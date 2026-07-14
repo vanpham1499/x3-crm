@@ -71,6 +71,7 @@ class ProjectCostsService extends BaseService
 
         $mergeableFields = [
             'project_id', 'quotation_id', 'entry_type', 'transaction_date', 'cid', 'ad_account',
+            'cid_is_dead', 'cid_spent_amount',
             'bank_account_option_id', 'partner_option_id', 'amount_before_vat', 'vat_rate',
             'discount_amount', 'status', 'acceptance_status', 'input_invoice_status', 'note',
         ];
@@ -97,10 +98,16 @@ class ProjectCostsService extends BaseService
             $data['discount_amount'] = 0;
             $data['acceptance_status'] = null;
             $data['input_invoice_status'] = null;
+            $data['cid_is_dead'] = (bool) ($data['cid_is_dead'] ?? false);
+            $data['cid_spent_amount'] = $data['cid_is_dead']
+                ? round(max(0, (float) ($data['cid_spent_amount'] ?? 0)), 2)
+                : 0;
             $data['total_amount'] = round($amountBeforeVat + $data['vat_amount'], 2);
         } else {
             $data['cid'] = null;
             $data['ad_account'] = null;
+            $data['cid_is_dead'] = false;
+            $data['cid_spent_amount'] = 0;
             $data['acceptance_status'] = $data['acceptance_status'] ?? 'pending';
             $data['input_invoice_status'] = $data['input_invoice_status'] ?? 'pending';
         }
@@ -118,6 +125,8 @@ class ProjectCostsService extends BaseService
             'entryType' => 'entry_type',
             'transactionDate' => 'transaction_date',
             'adAccount' => 'ad_account',
+            'cidIsDead' => 'cid_is_dead',
+            'cidSpentAmount' => 'cid_spent_amount',
             'bankAccountOptionId' => 'bank_account_option_id',
             'partnerOptionId' => 'partner_option_id',
             'amountBeforeVat' => 'amount_before_vat',

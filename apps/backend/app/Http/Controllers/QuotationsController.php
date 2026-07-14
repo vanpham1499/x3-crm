@@ -14,7 +14,7 @@ class QuotationsController extends Controller
 
     public function index(Request $request): JsonResponse
     {
-        return $this->success($this->quotations->findAll([
+        $filters = [
             'keyword' => $request->query('keyword'),
             'search' => $request->query('search'),
             'leadId' => $request->query('lead_id'),
@@ -23,7 +23,17 @@ class QuotationsController extends Controller
             'contractId' => $request->query('contract_id'),
             'serviceId' => $request->query('service_id'),
             'status' => $request->query('status'),
-        ]));
+        ];
+
+        if ($request->query->has('page') || $request->query->has('per_page')) {
+            $page = max(1, (int) $request->query('page', 1));
+            $perPage = min(100, max(1, (int) $request->query('per_page', 10)));
+            $result = $this->quotations->findPaginated($filters, $perPage, $page);
+
+            return $this->success($result['data'], 200, $result['meta']);
+        }
+
+        return $this->success($this->quotations->findAll($filters));
     }
 
     public function show(string $id): JsonResponse

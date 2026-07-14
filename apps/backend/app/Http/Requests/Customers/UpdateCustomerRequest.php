@@ -11,8 +11,6 @@ class UpdateCustomerRequest extends BaseRequest
     public function rules(): array
     {
         return [
-            'customer_code' => ['sometimes', 'nullable', 'string', 'max:50', Rule::unique('customers', 'customer_code')->ignore($this->route('id'))->whereNull('deleted_at')],
-            'customerCode' => ['sometimes', 'nullable', 'string', 'max:50', Rule::unique('customers', 'customer_code')->ignore($this->route('id'))->whereNull('deleted_at')],
             'lead_id' => ['sometimes', 'nullable', 'integer', Rule::exists('leads', 'id')->whereNull('deleted_at')],
             'leadId' => ['sometimes', 'nullable', 'integer', Rule::exists('leads', 'id')->whereNull('deleted_at')],
             'customer_name' => ['sometimes', 'string', 'max:255'],

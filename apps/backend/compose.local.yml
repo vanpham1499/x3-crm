@@ -1,0 +1,21 @@
+services:
+  postgres:
+    image: postgres:17-alpine
+    container_name: x3sales-postgres
+    restart: unless-stopped
+    environment:
+      POSTGRES_DB: x3crm
+      POSTGRES_USER: x3crm
+      POSTGRES_PASSWORD: ${X3CRM_DB_PASSWORD:-x3crm123}
+    ports:
+      - "${X3CRM_DB_PORT:-5433}:5432"
+    volumes:
+      - x3sales_postgres_data:/var/lib/postgresql/data
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U x3crm -d x3crm"]
+      interval: 2s
+      timeout: 3s
+      retries: 20
+
+volumes:
+  x3sales_postgres_data:

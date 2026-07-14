@@ -4,6 +4,8 @@ namespace App\Repositories;
 
 use App\Models\Customer;
 use App\Models\Option;
+use Illuminate\Contracts\Pagination\LengthAwarePaginator;
+use Illuminate\Database\Eloquent\Builder;
 use Illuminate\Database\Eloquent\Collection;
 use Symfony\Component\HttpKernel\Exception\NotFoundHttpException;
 
@@ -17,6 +19,17 @@ class CustomerRepository extends BaseRepository
     }
 
     public function findAll(array $filters = []): Collection
+    {
+        return $this->filteredQuery($filters)->get();
+    }
+
+    public function findPaginated(array $filters, int $perPage, int $page): LengthAwarePaginator
+    {
+        return $this->filteredQuery($filters)
+            ->paginate($perPage, ['*'], 'page', $page);
+    }
+
+    private function filteredQuery(array $filters): Builder
     {
         $keyword = trim((string) ($filters['keyword'] ?? $filters['search'] ?? ''));
         $customerTypeOptionId = $filters['customer_type_option_id'] ?? null;
@@ -50,15 +63,14 @@ class CustomerRepository extends BaseRepository
             ->when($industry, fn ($query) => $query->whereHas('industryOption', fn ($subQuery) => $subQuery->where('group', Option::GROUP_INDUSTRY)->where('key', $industry)))
             ->when($salesUserId, fn ($query) => $query->where('sales_user_id', $salesUserId))
             ->when($leadId, fn ($query) => $query->where('lead_id', $leadId))
-            ->orderByDesc('created_at')
-            ->get();
+            ->orderByDesc('created_at');
     }
 
     public function findWithRelationsOrFail(string $id): Customer
     {
         /** @var Customer|null $customer */
         $customer = $this->query()
-            ->with(['lead', 'customerTypeOption', 'sourceOption', 'industryOption', 'salesUser', 'projects', 'invoices', 'timelines.createdBy'])
+            ->with(['lead', 'customerTypeOption', 'sourceOption', 'industryOption', 'salesUser', 'projects', 'timelines.createdBy'])
             ->whereKey($id)
             ->first();
 

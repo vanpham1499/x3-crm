@@ -17,6 +17,27 @@ class KpiPointsService extends BaseService
         return $this->apiCollection($this->points->findAll($this->normalizeFilters($filters)), KpiPointResource::class);
     }
 
+    public function findPaginated(array $filters, int $perPage, int $page): array
+    {
+        $filters = $this->normalizeFilters($filters);
+        $result = $this->apiPaginatedCollection(
+            $this->points->findPaginated($filters, $perPage, $page),
+            KpiPointResource::class,
+        );
+        $result['meta']['summary'] = $this->points
+            ->summarizeByUser($filters)
+            ->map(fn (KpiPoint $point): array => [
+                'userId' => (int) $point->user_id,
+                'name' => $point->user?->name ?: 'NV #'.$point->user_id,
+                'total' => (float) $point->total_score,
+                'count' => (int) $point->point_count,
+            ])
+            ->values()
+            ->all();
+
+        return $result;
+    }
+
     public function findOne(string $id): array
     {
         return $this->apiResource($this->points->findWithRelationsOrFail($id), KpiPointResource::class);

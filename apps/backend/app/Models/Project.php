@@ -14,6 +14,7 @@ class Project extends BaseModel
         'quotation_id',
         'service_id',
         'project_name',
+        'project_type',
         'status_id',
         'status_option_id',
         'manager_user_id',

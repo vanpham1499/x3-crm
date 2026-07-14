@@ -4,6 +4,8 @@ namespace App\Repositories;
 
 use App\Models\Lead;
 use App\Models\Option;
+use Illuminate\Contracts\Pagination\LengthAwarePaginator;
+use Illuminate\Database\Eloquent\Builder;
 use Illuminate\Database\Eloquent\Collection;
 use Symfony\Component\HttpKernel\Exception\NotFoundHttpException;
 
@@ -17,6 +19,17 @@ class LeadRepository extends BaseRepository
     }
 
     public function findAll(array $filters = []): Collection
+    {
+        return $this->filteredQuery($filters)->get();
+    }
+
+    public function findPaginated(array $filters, int $perPage, int $page): LengthAwarePaginator
+    {
+        return $this->filteredQuery($filters)
+            ->paginate($perPage, ['*'], 'page', $page);
+    }
+
+    private function filteredQuery(array $filters): Builder
     {
         $keyword = trim((string) ($filters['keyword'] ?? $filters['search'] ?? ''));
         $statusOptionId = $filters['status_option_id'] ?? null;
@@ -64,8 +77,7 @@ class LeadRepository extends BaseRepository
             ->when($closedFrom, fn ($query) => $query->whereDate('closed_date', '>=', $closedFrom))
             ->when($closedTo, fn ($query) => $query->whereDate('closed_date', '<=', $closedTo))
             ->orderByDesc('occurred_date')
-            ->orderByDesc('created_at')
-            ->get();
+            ->orderByDesc('created_at');
     }
 
     public function findWithRelationsOrFail(string $id): Lead

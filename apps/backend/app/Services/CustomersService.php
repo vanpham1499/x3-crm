@@ -22,6 +22,14 @@ class CustomersService extends BaseService
         return $this->apiCollection($this->customers->findAll($this->normalizeKeys($filters)), CustomerResource::class);
     }
 
+    public function findPaginated(array $filters, int $perPage, int $page): array
+    {
+        return $this->apiPaginatedCollection(
+            $this->customers->findPaginated($this->normalizeKeys($filters), $perPage, $page),
+            CustomerResource::class,
+        );
+    }
+
     public function findOne(string $id): array
     {
         return $this->apiResource($this->customers->findWithRelationsOrFail($id), CustomerResource::class);
@@ -31,7 +39,8 @@ class CustomersService extends BaseService
     {
         return $this->transaction(function () use ($data, $linkLead): array {
             $data = $this->normalizePayload($data);
-            $data['customer_code'] = $data['customer_code'] ?? $this->generateCustomerCode();
+            unset($data['customer_code']);
+            $data['customer_code'] = $this->generateCustomerCode();
             $lead = $linkLead ? $this->lockLeadForConversion($data['lead_id'] ?? null) : null;
 
             /** @var Customer $customer */
@@ -51,6 +60,7 @@ class CustomersService extends BaseService
     {
         return $this->transaction(function () use ($id, $data): array {
             $data = $this->normalizePayload($data);
+            unset($data['customer_code']);
             $before = $this->loadCustomerRelations($this->customers->findWithRelationsOrFail($id));
 
             /** @var Customer $customer */
@@ -167,6 +177,15 @@ class CustomersService extends BaseService
             ]);
 
         DB::table('payments')
+            ->whereIn('quotation_id', $quotationIds)
+            ->whereNull('customer_id')
+            ->whereNull('deleted_at')
+            ->update([
+                'customer_id' => $customer->id,
+                'updated_at' => now(),
+            ]);
+
+        DB::table('payment_allocations')
             ->whereIn('quotation_id', $quotationIds)
             ->whereNull('customer_id')
             ->whereNull('deleted_at')
@@ -332,6 +351,10 @@ class CustomersService extends BaseService
 
     private function generateCustomerCode(): string
     {
+        if (DB::getDriverName() === 'pgsql') {
+            DB::selectOne("SELECT pg_advisory_xact_lock(hashtext('x3crm.customer_code'))");
+        }
+
         $lastNumber = DB::table('customers')
             ->whereNotNull('customer_code')
             ->whereRaw("customer_code ~ '^[0-9]+$'")

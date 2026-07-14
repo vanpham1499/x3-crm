@@ -11,8 +11,6 @@ class UpdateProjectRequest extends BaseRequest
     public function rules(): array
     {
         return [
-            'project_code' => ['sometimes', 'nullable', 'string', 'max:100', Rule::unique('projects', 'project_code')->ignore($this->route('id'))->whereNull('deleted_at')],
-            'projectCode' => ['sometimes', 'nullable', 'string', 'max:100', Rule::unique('projects', 'project_code')->ignore($this->route('id'))->whereNull('deleted_at')],
             'customer_id' => ['sometimes', 'integer', Rule::exists('customers', 'id')->whereNull('deleted_at')],
             'customerId' => ['sometimes', 'integer', Rule::exists('customers', 'id')->whereNull('deleted_at')],
             'quotation_id' => ['sometimes', 'nullable', 'integer', Rule::exists('quotations', 'id')->whereNull('deleted_at')],
@@ -21,6 +19,8 @@ class UpdateProjectRequest extends BaseRequest
             'serviceId' => ['sometimes', 'integer', Rule::exists('services', 'id')->whereNull('deleted_at')],
             'project_name' => ['sometimes', 'string', 'max:255'],
             'projectName' => ['sometimes', 'string', 'max:255'],
+            'project_type' => ['sometimes', Rule::in(['K', 'M'])],
+            'projectType' => ['sometimes', Rule::in(['K', 'M'])],
             'status_option_id' => ['sometimes', 'nullable', 'integer', Rule::exists('options', 'id')->where('group', Option::GROUP_PROJECT_STATUS)->whereNull('deleted_at')],
             'statusOptionId' => ['sometimes', 'nullable', 'integer', Rule::exists('options', 'id')->where('group', Option::GROUP_PROJECT_STATUS)->whereNull('deleted_at')],
             'manager_user_id' => ['sometimes', 'nullable', 'integer', Rule::exists('users', 'id')->whereNull('deleted_at')],
