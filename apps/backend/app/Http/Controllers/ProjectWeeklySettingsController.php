@@ -7,6 +7,7 @@ use App\Http\Requests\WeeklySettings\UpdateProjectWeeklySettingRequest;
 use App\Services\ProjectWeeklySettingsService;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Http\Request;
+use Illuminate\Validation\Rule;
 
 class ProjectWeeklySettingsController extends Controller
 {
@@ -24,6 +25,21 @@ class ProjectWeeklySettingsController extends Controller
     public function show(string $id): JsonResponse
     {
         return $this->success($this->settings->findOne($id));
+    }
+
+    public function assignmentSummary(Request $request): JsonResponse
+    {
+        $data = $request->validate([
+            'report_owner_user_id' => ['required', 'integer', Rule::exists('users', 'id')->whereNull('deleted_at')],
+            'report_weekday' => ['required', 'integer', 'min:1', 'max:7'],
+            'exclude_project_id' => ['nullable', 'integer', Rule::exists('projects', 'id')->whereNull('deleted_at')],
+        ]);
+
+        return $this->success($this->settings->assignmentSummary(
+            (int) $data['report_owner_user_id'],
+            (int) $data['report_weekday'],
+            isset($data['exclude_project_id']) ? (int) $data['exclude_project_id'] : null,
+        ));
     }
 
     public function store(CreateProjectWeeklySettingRequest $request): JsonResponse

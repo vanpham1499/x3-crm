@@ -12,6 +12,7 @@ class KpiPointResource extends JsonResource
         return [
             'id' => $this->id,
             'userId' => $this->user_id,
+            'projectId' => $this->project_id,
             'entryDate' => $this->entry_date?->toDateString(),
             'category' => $this->category,
             'categoryLabel' => $this->categoryOption?->label ?: $this->category,
@@ -26,6 +27,11 @@ class KpiPointResource extends JsonResource
                 'id' => $this->user->id,
                 'code' => $this->user->code,
                 'name' => $this->user->name,
+            ] : null),
+            'project' => $this->whenLoaded('project', fn () => $this->project ? [
+                'id' => $this->project->id,
+                'projectCode' => $this->project->project_code,
+                'projectName' => $this->project->project_name,
             ] : null),
             'approver' => $this->whenLoaded('approver', fn () => $this->approver ? [
                 'id' => $this->approver->id,

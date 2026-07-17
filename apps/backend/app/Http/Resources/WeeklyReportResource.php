@@ -16,6 +16,7 @@ class WeeklyReportResource extends JsonResource
             'reporterUserId' => $this->reporter_user_id,
             'weekStartDate' => $this->week_start_date?->toDateString(),
             'weekEndDate' => $this->week_end_date?->toDateString(),
+            'dueDate' => $this->week_end_date?->copy()->addDay()->toDateString(),
             'reportDate' => $this->report_date?->toDateString(),
             'projectStatus' => $this->project_status,
             'weeklyCondition' => $this->weekly_condition,

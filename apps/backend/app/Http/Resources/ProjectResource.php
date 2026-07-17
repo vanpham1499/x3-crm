@@ -53,6 +53,12 @@ class ProjectResource extends JsonResource
                 'name' => $this->salesUser->name,
                 'email' => $this->salesUser->email,
             ] : null),
+            'weeklySetting' => $this->whenLoaded('weeklySetting', fn () => $this->weeklySetting ? [
+                'id' => $this->weeklySetting->id,
+                'reportOwnerUserId' => $this->weeklySetting->report_owner_user_id,
+                'reportWeekday' => $this->weeklySetting->report_weekday,
+                'isActive' => (bool) $this->weeklySetting->is_active,
+            ] : null),
             'contracts' => ContractResource::collection($this->whenLoaded('contracts')),
             'payments' => PaymentResource::collection($this->whenLoaded('payments')),
             'timelines' => CustomerTimelineResource::collection($this->whenLoaded('timelines')),

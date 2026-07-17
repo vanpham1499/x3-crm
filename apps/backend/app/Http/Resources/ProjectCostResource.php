@@ -30,6 +30,23 @@ class ProjectCostResource extends JsonResource
             'acceptanceStatus' => $this->acceptance_status,
             'inputInvoiceStatus' => $this->input_invoice_status,
             'note' => $this->note,
+            'reconciledAt' => $this->reconciled_at?->toISOString(),
+            'reconciledBy' => $this->whenLoaded('reconciledBy', fn () => $this->reconciledBy ? [
+                'id' => $this->reconciledBy->id,
+                'code' => $this->reconciledBy->code,
+                'name' => $this->reconciledBy->name,
+            ] : null),
+            'project' => $this->whenLoaded('project', fn () => $this->project ? [
+                'id' => $this->project->id,
+                'projectCode' => $this->project->project_code,
+                'projectName' => $this->project->project_name,
+                'projectType' => $this->project->project_type,
+                'customer' => $this->project->relationLoaded('customer') && $this->project->customer ? [
+                    'id' => $this->project->customer->id,
+                    'customerCode' => $this->project->customer->customer_code,
+                    'customerName' => $this->project->customer->customer_name,
+                ] : null,
+            ] : null),
             'quotation' => $this->whenLoaded('quotation', fn () => $this->quotation ? [
                 'id' => $this->quotation->id,
                 'quotationCode' => $this->quotation->quotation_code,

@@ -45,6 +45,7 @@ class PaymentResource extends JsonResource
             'collectionReceivedAmount' => $this->collection_received_amount,
             'collectionOutstandingAmount' => $this->collection_outstanding_amount,
             'collectionExcessAmount' => $this->collection_excess_amount,
+            'collectionDifferenceAmount' => $this->collection_difference_amount,
             'collectionStatus' => $this->collection_status,
             'collectionTransactionCount' => $this->collection_transaction_count,
             'customerCodeText' => $this->customer_code_text,

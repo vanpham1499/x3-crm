@@ -14,6 +14,8 @@ class CreateKpiPointRequest extends BaseRequest
         return [
             'user_id' => ['required_without:userId', 'integer', Rule::exists('users', 'id')->whereNull('deleted_at')],
             'userId' => ['required_without:user_id', 'integer', Rule::exists('users', 'id')->whereNull('deleted_at')],
+            'project_id' => ['nullable', 'integer', Rule::exists('projects', 'id')->whereNull('deleted_at')],
+            'projectId' => ['nullable', 'integer', Rule::exists('projects', 'id')->whereNull('deleted_at')],
             'entry_date' => ['required_without:entryDate', 'date'],
             'entryDate' => ['required_without:entry_date', 'date'],
             'category' => [

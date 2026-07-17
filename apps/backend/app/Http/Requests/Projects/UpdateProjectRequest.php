@@ -27,6 +27,8 @@ class UpdateProjectRequest extends BaseRequest
             'managerUserId' => ['sometimes', 'nullable', 'integer', Rule::exists('users', 'id')->whereNull('deleted_at')],
             'sales_user_id' => ['sometimes', 'nullable', 'integer', Rule::exists('users', 'id')->whereNull('deleted_at')],
             'salesUserId' => ['sometimes', 'nullable', 'integer', Rule::exists('users', 'id')->whereNull('deleted_at')],
+            'report_weekday' => ['sometimes', 'nullable', 'integer', 'min:1', 'max:7'],
+            'reportWeekday' => ['sometimes', 'nullable', 'integer', 'min:1', 'max:7'],
             'zalo_group' => ['sometimes', 'nullable', 'string'],
             'zaloGroup' => ['sometimes', 'nullable', 'string'],
             'plan_link' => ['sometimes', 'nullable', 'string'],

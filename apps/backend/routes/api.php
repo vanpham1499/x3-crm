@@ -88,6 +88,7 @@ Route::middleware(['auth:sanctum', 'active'])->group(function (): void {
 
     Route::get('/project-costs', [ProjectCostsController::class, 'index']);
     Route::post('/project-costs', [ProjectCostsController::class, 'store']);
+    Route::post('/project-costs/{id}/reconcile', [ProjectCostsController::class, 'reconcile']);
     Route::get('/project-costs/{id}', [ProjectCostsController::class, 'show']);
     Route::put('/project-costs/{id}', [ProjectCostsController::class, 'update']);
     Route::patch('/project-costs/{id}', [ProjectCostsController::class, 'update']);
@@ -108,12 +109,14 @@ Route::middleware(['auth:sanctum', 'active'])->group(function (): void {
     Route::delete('/contracts/{id}', [ContractsController::class, 'destroy']);
 
     Route::get('/project-weekly-settings', [ProjectWeeklySettingsController::class, 'index']);
+    Route::get('/project-weekly-settings/assignment-summary', [ProjectWeeklySettingsController::class, 'assignmentSummary']);
     Route::post('/project-weekly-settings', [ProjectWeeklySettingsController::class, 'store']);
     Route::get('/project-weekly-settings/{id}', [ProjectWeeklySettingsController::class, 'show']);
     Route::put('/project-weekly-settings/{id}', [ProjectWeeklySettingsController::class, 'update']);
     Route::patch('/project-weekly-settings/{id}', [ProjectWeeklySettingsController::class, 'update']);
     Route::delete('/project-weekly-settings/{id}', [ProjectWeeklySettingsController::class, 'destroy']);
 
+    Route::get('/weekly-reports/board', [WeeklyReportsController::class, 'board']);
     Route::get('/weekly-reports', [WeeklyReportsController::class, 'index']);
     Route::post('/weekly-reports', [WeeklyReportsController::class, 'store']);
     Route::get('/weekly-reports/{id}', [WeeklyReportsController::class, 'show']);
@@ -122,6 +125,7 @@ Route::middleware(['auth:sanctum', 'active'])->group(function (): void {
     Route::delete('/weekly-reports/{id}', [WeeklyReportsController::class, 'destroy']);
     Route::post('/weekly-reports/{id}/submit', [WeeklyReportsController::class, 'submit']);
     Route::post('/weekly-reports/{id}/approve', [WeeklyReportsController::class, 'approve'])->middleware('role:ADMIN,LEADER');
+    Route::post('/weekly-reports/{id}/return-to-draft', [WeeklyReportsController::class, 'returnToDraft'])->middleware('role:ADMIN,LEADER');
     Route::post('/weekly-reports/{id}/attachments', [WeeklyReportAttachmentsController::class, 'store']);
     Route::delete('/weekly-report-attachments/{id}', [WeeklyReportAttachmentsController::class, 'destroy']);
 

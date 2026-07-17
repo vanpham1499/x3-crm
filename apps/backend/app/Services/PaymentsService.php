@@ -300,6 +300,7 @@ class PaymentsService extends BaseService
             'receiptType' => 'receipt_type',
             'dateFrom' => 'date_from',
             'dateTo' => 'date_to',
+            'groupByQuotation' => 'group_by_quotation',
         ];
 
         foreach ($map as $from => $to) {
