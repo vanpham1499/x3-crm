@@ -26,6 +26,23 @@ export type ProjectCost = {
   acceptanceStatus?: ProjectAcceptanceStatus | null;
   inputInvoiceStatus?: ProjectInputInvoiceStatus | null;
   note?: string | null;
+  reconciledAt?: string | null;
+  reconciledBy?: {
+    id: number;
+    code?: string | null;
+    name?: string | null;
+  } | null;
+  project?: {
+    id: number;
+    projectCode?: string | null;
+    projectName?: string | null;
+    projectType?: string | null;
+    customer?: {
+      id: number;
+      customerCode?: string | null;
+      customerName?: string | null;
+    } | null;
+  } | null;
   quotation?: {
     id: number;
     quotationCode?: string | null;
@@ -34,6 +51,15 @@ export type ProjectCost = {
   partnerOption?: AppOption | null;
   createdAt?: string;
   updatedAt?: string;
+};
+
+export type ProjectCostFilters = {
+  keyword: string;
+  entry_type: '' | ProjectCostEntryType;
+  status: '' | ProjectCostStatus;
+  reconciled_status: '' | 'matched' | 'unmatched';
+  date_from: string;
+  date_to: string;
 };
 
 export type ProjectCostFormValues = {

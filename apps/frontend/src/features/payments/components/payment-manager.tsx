@@ -25,6 +25,7 @@ import { FormInputField } from '@/components/form/form-input-field';
 import { FormSelectField } from '@/components/form/form-select-field';
 import { MoneyInput } from '@/components/form/money-input';
 import { ServerPaginatedAutocomplete } from '@/components/form/server-paginated-autocomplete';
+import { getPaymentDisplayStatus } from '@/lib/payment-display-status';
 import { PageHeader } from '@/components/shell/page-header';
 import { AppDataTable } from '@/components/table/app-data-table';
 import { EntityTableLink } from '@/components/table/entity-table-link';
@@ -57,25 +58,6 @@ type PaymentManagerProps = {
   onRefund: (paymentId: number, values: PaymentRefundInput) => Promise<Payment>;
   onLink: (paymentId: number, values: PaymentLinkInput) => Promise<Payment>;
   onRemoveAllocation: (paymentId: number, allocationId: number) => Promise<Payment>;
-};
-
-const statusLabels: Record<string, string> = {
-  unmatched: 'Chờ đối soát',
-  unallocated: 'Chưa phân bổ',
-  matched_customer: 'Đã gắn khách hàng',
-  matched_quotation: 'Đã gắn báo phí',
-  matched_project: 'Đã gắn dự án',
-  partially_allocated: 'Đã phân bổ + chuyển thừa',
-  allocated: 'Đã phân bổ hết',
-  partially_refunded: 'Đã hoàn một phần',
-  allocated_and_refunded: 'Đã phân bổ & hoàn dư',
-  refunded: 'Đã hoàn toàn bộ',
-  non_customer: 'Không phải khoản thu',
-  applied: 'Đã phân bổ',
-  partial: 'Đã phân bổ',
-  paid: 'Đã phân bổ hết',
-  paid_with_excess: 'Đã phân bổ + chuyển thừa',
-  overpaid: 'Chuyển thừa',
 };
 
 const reconciledStatusLabels: Record<string, string> = {
@@ -124,6 +106,15 @@ function formatDateTime(value?: string | null) {
 }
 
 function statusClass(status?: string | null) {
+  if (status === 'collection_partial' || status === 'collection_unpaid') {
+    return 'bg-amber-50 text-amber-700 ring-amber-200';
+  }
+  if (status === 'collection_paid') {
+    return 'bg-emerald-50 text-emerald-700 ring-emerald-200';
+  }
+  if (status === 'collection_overpaid') {
+    return 'bg-violet-50 text-violet-700 ring-violet-200';
+  }
   if (status === 'unmatched' || status === 'unallocated') {
     return 'bg-amber-50 text-amber-700 ring-amber-200';
   }
@@ -146,14 +137,6 @@ function statusClass(status?: string | null) {
     return 'bg-blue-50 text-blue-700 ring-blue-200';
   }
   return 'bg-slate-100 text-slate-700 ring-slate-200';
-}
-
-function getAllocationStatus(payment: Payment) {
-  return payment.allocationStatus || payment.status || '';
-}
-
-function getAllocationLabel(payment: Payment) {
-  return statusLabels[getAllocationStatus(payment)] || getAllocationStatus(payment) || '-';
 }
 
 function DetailRow({ label, value }: { label: string; value?: ReactNode }) {
@@ -191,17 +174,31 @@ function PaymentMetric({
 
 function paymentQuotations(payment: Payment) {
   const allocations = payment.allocations || [];
-  if (allocations.length > 0) return allocations;
+  const quotations = new Map<
+    number,
+    {
+      quotationId: number;
+      quotation: PaymentAllocation['quotation'] | Payment['quotation'];
+    }
+  >();
 
-  return payment.quotation
-    ? [
-        {
-          id: -payment.quotation.id,
-          quotationId: payment.quotation.id,
-          quotation: payment.quotation,
-        },
-      ]
-    : [];
+  allocations.forEach((allocation) => {
+    if (!quotations.has(allocation.quotationId)) {
+      quotations.set(allocation.quotationId, {
+        quotationId: allocation.quotationId,
+        quotation: allocation.quotation,
+      });
+    }
+  });
+
+  if (payment.quotation && !quotations.has(payment.quotation.id)) {
+    quotations.set(payment.quotation.id, {
+      quotationId: payment.quotation.id,
+      quotation: payment.quotation,
+    });
+  }
+
+  return [...quotations.values()];
 }
 
 function paymentProjects(payment: Payment) {
@@ -212,6 +209,71 @@ function paymentProjects(payment: Payment) {
   if (payment.project) projects.unshift(payment.project);
 
   return [...new Map(projects.map((project) => [project.id, project])).values()];
+}
+
+type PaymentTableGroup = {
+  key: string;
+  payments: Payment[];
+};
+
+function paymentQuotationIds(payment: Payment) {
+  return [
+    ...new Set(
+      [
+        ...(payment.allocations || []).map((allocation) => allocation.quotationId),
+        payment.quotationId,
+        payment.quotation?.id,
+      ].filter((id): id is number => Boolean(id)),
+    ),
+  ];
+}
+
+function groupPaymentsByQuotation(payments: Payment[]): PaymentTableGroup[] {
+  const groups = new Map<string, PaymentTableGroup>();
+
+  payments.forEach((payment) => {
+    const quotationIds = paymentQuotationIds(payment);
+    const key =
+      quotationIds.length === 1 ? `quotation:${quotationIds[0]}` : `payment:${payment.id}`;
+    const group = groups.get(key);
+
+    if (group) {
+      group.payments.push(payment);
+    } else {
+      groups.set(key, { key, payments: [payment] });
+    }
+  });
+
+  return [...groups.values()];
+}
+
+function groupCollectionStatus(group: PaymentTableGroup, differenceAmount: number | null) {
+  if (group.key.startsWith('quotation:') && differenceAmount !== null) {
+    if (differenceAmount > 0.01) {
+      return { key: 'collection_overpaid', label: 'Chuyển thừa' };
+    }
+    if (differenceAmount < -0.01) {
+      return { key: 'collection_partial', label: 'Đang thiếu' };
+    }
+
+    return { key: 'collection_paid', label: 'Đã thu đủ' };
+  }
+
+  return getPaymentDisplayStatus(group.payments[0]);
+}
+
+function formatDifference(value: number | null) {
+  if (value === null) return '-';
+  if (Math.abs(value) <= 0.01) return formatCurrency(0);
+
+  return `${value > 0 ? '+' : '-'}${formatCurrency(Math.abs(value))}`;
+}
+
+function differenceClass(value: number | null) {
+  if (value === null) return 'text-slate-400';
+  if (value > 0.01) return 'text-violet-700';
+  if (value < -0.01) return 'text-amber-700';
+  return 'text-emerald-700';
 }
 
 function PaymentDetailDialog({
@@ -238,6 +300,7 @@ function PaymentDetailDialog({
   const refunds = payment.refunds || [];
   const availableAmount = Number(payment.availableAmount ?? payment.unallocatedAmount) || 0;
   const canHandleBalance = payment.receiptType !== 'internal' && payment.receiptType !== 'other';
+  const displayStatus = getPaymentDisplayStatus(payment);
 
   return (
     <AppDetailDialog
@@ -382,13 +445,22 @@ function PaymentDetailDialog({
               }
             />
             <DetailRow
-              label="Trạng thái"
+              label={
+                displayStatus.key.startsWith('collection_') ? 'Công nợ báo phí' : 'Trạng thái xử lý'
+              }
               value={
-                <span
-                  className={`inline-flex rounded-md px-2 py-1 text-xs font-bold ring-1 ${statusClass(getAllocationStatus(payment))}`}
-                >
-                  {getAllocationLabel(payment)}
-                </span>
+                <div className="flex flex-wrap items-center gap-2">
+                  <span
+                    className={`inline-flex rounded-md px-2 py-1 text-xs font-bold ring-1 ${statusClass(displayStatus.key)}`}
+                  >
+                    {displayStatus.label}
+                  </span>
+                  {displayStatus.outstandingAmount ? (
+                    <span className="whitespace-nowrap text-xs font-bold tabular-nums text-amber-700">
+                      Còn {formatCurrency(displayStatus.outstandingAmount)}
+                    </span>
+                  ) : null}
+                </div>
               }
             />
             <DetailRow label="Đối soát lúc" value={formatDateTime(payment.matchedAt)} />
@@ -829,6 +901,7 @@ export function PaymentManager({
   } | null>(null);
   const [menuAnchorEl, setMenuAnchorEl] = useState<HTMLElement | null>(null);
   const [activePayment, setActivePayment] = useState<Payment | null>(null);
+  const paymentGroups = groupPaymentsByQuotation(payments);
 
   const openActionMenu = (event: MouseEvent<HTMLButtonElement>, payment: Payment) => {
     setMenuAnchorEl(event.currentTarget);
@@ -868,7 +941,7 @@ export function PaymentManager({
               { value: 'matched_project', label: 'Đã gắn dự án' },
               { value: 'paid_with_excess', label: 'Đã phân bổ + chuyển thừa' },
               { value: 'overpaid', label: 'Chuyển thừa' },
-              { value: 'allocated', label: 'Đã phân bổ hết' },
+              { value: 'allocated', label: 'Đã phân bổ giao dịch' },
               { value: 'partially_refunded', label: 'Đã hoàn một phần' },
               { value: 'allocated_and_refunded', label: 'Đã phân bổ & hoàn dư' },
               { value: 'refunded', label: 'Đã hoàn toàn bộ' },
@@ -904,102 +977,161 @@ export function PaymentManager({
             { key: 'time', label: 'Thời gian', className: 'sticky left-0 z-20 w-52 bg-slate-100' },
             { key: 'amount', label: 'Số tiền', className: 'w-44 text-right' },
             { key: 'content', label: 'Nội dung chuyển khoản', className: 'w-72' },
-            { key: 'quotation', label: 'Báo phí', className: 'w-64' },
-            { key: 'project', label: 'Dự án', className: 'w-60' },
-            { key: 'status', label: 'Trạng thái', className: 'w-44' },
+            { key: 'quotation', label: 'Báo phí', className: 'w-60' },
+            { key: 'project', label: 'Dự án', className: 'w-56' },
+            { key: 'difference', label: 'Chênh lệch', className: 'w-40 text-right' },
+            { key: 'status', label: 'Công nợ / xử lý', className: 'w-40' },
             { key: 'actions', className: 'w-24' },
           ]}
           isLoading={isFetching}
           isEmpty={payments.length === 0}
           emptyText="Chưa có giao dịch thanh toán"
-          minWidthClassName="min-w-[1280px]"
+          minWidthClassName="min-w-[1440px]"
         >
-          {payments.map((payment) => {
-            const transferMoment = getTransferMoment(payment);
-            const quotations = paymentQuotations(payment);
-            const projects = paymentProjects(payment);
+          {paymentGroups.map((group) => {
+            const quotations = [
+              ...new Map(
+                group.payments
+                  .flatMap((payment) => paymentQuotations(payment))
+                  .map((quotation) => [quotation.quotationId, quotation]),
+              ).values(),
+            ];
+            const projects = [
+              ...new Map(
+                group.payments
+                  .flatMap((payment) => paymentProjects(payment))
+                  .map((project) => [project.id, project]),
+              ).values(),
+            ];
             const primaryQuotation = quotations[0]?.quotation;
             const primaryProject = projects[0];
+            const differenceSource = group.key.startsWith('quotation:')
+              ? group.payments.find(
+                  (payment) =>
+                    payment.collectionDifferenceAmount !== null &&
+                    payment.collectionDifferenceAmount !== undefined,
+                )
+              : undefined;
+            const differenceAmount = differenceSource
+              ? Number(differenceSource.collectionDifferenceAmount) || 0
+              : null;
+            const displayStatus = groupCollectionStatus(group, differenceAmount);
+            const rowSpan = group.payments.length;
 
-            return (
-              <tr key={payment.id} className="group hover:bg-slate-50/80">
-                <td className="sticky left-0 z-10 bg-white px-3 py-3.5 font-semibold tabular-nums text-slate-800 group-hover:bg-slate-50">
-                  <span className="whitespace-nowrap">{transferMoment.full}</span>
-                </td>
-                <td className="px-3 py-3.5 text-right font-extrabold tabular-nums text-emerald-700">
-                  {formatCurrency(payment.amount)}
-                </td>
-                <td className="px-3 py-3.5">
-                  <p
-                    className="truncate font-mono text-[13px] font-semibold text-slate-700"
-                    title={payment.transactionContent || ''}
-                  >
-                    {payment.transactionContent || '-'}
-                  </p>
-                </td>
-                <td className="px-3 py-3.5">
-                  {primaryQuotation ? (
-                    <div className="flex min-w-0 items-center gap-2">
-                      <EntityTableLink href={`/quotations/${primaryQuotation.id}`} tone="primary">
-                        {primaryQuotation.quotationCode || '-'}
-                      </EntityTableLink>
-                      {quotations.length > 1 ? (
-                        <span className="shrink-0 rounded-full bg-emerald-50 px-2 py-0.5 text-xs font-bold text-emerald-700">
-                          +{quotations.length - 1}
-                        </span>
-                      ) : null}
-                    </div>
-                  ) : (
-                    <span className="whitespace-nowrap font-semibold text-amber-700">
-                      Chưa xác định
-                    </span>
-                  )}
-                </td>
-                <td className="px-3 py-3.5">
-                  {primaryProject ? (
-                    <div className="flex min-w-0 items-center gap-2">
-                      <EntityTableLink href={`/projects/${primaryProject.id}`} tone="blue">
-                        {primaryProject.projectCode || '-'}
-                      </EntityTableLink>
-                      {projects.length > 1 ? (
-                        <span className="shrink-0 rounded-full bg-blue-50 px-2 py-0.5 text-xs font-bold text-blue-700">
-                          +{projects.length - 1}
-                        </span>
-                      ) : null}
-                    </div>
-                  ) : (
-                    <span className="whitespace-nowrap text-slate-400">Chưa gắn dự án</span>
-                  )}
-                </td>
-                <td className="px-3 py-3.5">
-                  <span
-                    className={`inline-flex whitespace-nowrap rounded-md px-2 py-1 text-xs font-bold ring-1 ${statusClass(getAllocationStatus(payment))}`}
-                  >
-                    {getAllocationLabel(payment)}
-                  </span>
-                </td>
-                <td className="py-3.5">
-                  <div className="flex items-center justify-end gap-1 pr-3">
-                    <IconButton
-                      size="small"
-                      title="Xem chi tiết"
-                      aria-label={`Xem chi tiết giao dịch ${payment.reference || payment.id}`}
-                      onClick={() => setViewTarget(payment)}
+            return group.payments.map((payment, rowIndex) => {
+              const transferMoment = getTransferMoment(payment);
+              const isFirstRow = rowIndex === 0;
+
+              return (
+                <tr
+                  key={payment.id}
+                  className={
+                    isFirstRow
+                      ? 'group border-t-2 border-slate-200 first:border-t-0 hover:bg-slate-50/80'
+                      : 'group hover:bg-slate-50/80'
+                  }
+                >
+                  <td className="sticky left-0 z-10 bg-white px-3 py-3.5 font-semibold tabular-nums text-slate-800 group-hover:bg-slate-50">
+                    <span className="whitespace-nowrap">{transferMoment.full}</span>
+                  </td>
+                  <td className="px-3 py-3.5 text-right font-extrabold tabular-nums text-emerald-700">
+                    {formatCurrency(payment.amount)}
+                  </td>
+                  <td className="px-3 py-3.5">
+                    <p
+                      className="truncate font-mono text-[13px] font-semibold text-slate-700"
+                      title={payment.transactionContent || ''}
                     >
-                      <VisibilityRoundedIcon fontSize="small" />
-                    </IconButton>
-                    <IconButton
-                      size="small"
-                      title="Tác vụ"
-                      aria-label={`Tác vụ giao dịch ${payment.reference || payment.id}`}
-                      onClick={(event) => openActionMenu(event, payment)}
-                    >
-                      <MoreVertRoundedIcon fontSize="small" />
-                    </IconButton>
-                  </div>
-                </td>
-              </tr>
-            );
+                      {payment.transactionContent || '-'}
+                    </p>
+                  </td>
+                  {isFirstRow ? (
+                    <>
+                      <td
+                        rowSpan={rowSpan}
+                        className="border-l border-slate-100 bg-slate-50/50 px-3 py-3.5 align-middle"
+                      >
+                        {primaryQuotation ? (
+                          <div className="flex min-w-0 items-center gap-2">
+                            <EntityTableLink
+                              href={`/quotations/${primaryQuotation.id}`}
+                              tone="primary"
+                            >
+                              {primaryQuotation.quotationCode || '-'}
+                            </EntityTableLink>
+                            {quotations.length > 1 ? (
+                              <span className="shrink-0 rounded-full bg-emerald-50 px-2 py-0.5 text-xs font-bold text-emerald-700">
+                                +{quotations.length - 1}
+                              </span>
+                            ) : null}
+                          </div>
+                        ) : (
+                          <span className="whitespace-nowrap font-semibold text-amber-700">
+                            Chưa xác định
+                          </span>
+                        )}
+                        {rowSpan > 1 ? (
+                          <p className="mt-1 text-[11px] font-semibold text-slate-500">
+                            {rowSpan} giao dịch
+                          </p>
+                        ) : null}
+                      </td>
+                      <td rowSpan={rowSpan} className="bg-slate-50/50 px-3 py-3.5 align-middle">
+                        {primaryProject ? (
+                          <div className="flex min-w-0 items-center gap-2">
+                            <EntityTableLink href={`/projects/${primaryProject.id}`} tone="blue">
+                              {primaryProject.projectCode || '-'}
+                            </EntityTableLink>
+                            {projects.length > 1 ? (
+                              <span className="shrink-0 rounded-full bg-blue-50 px-2 py-0.5 text-xs font-bold text-blue-700">
+                                +{projects.length - 1}
+                              </span>
+                            ) : null}
+                          </div>
+                        ) : (
+                          <span className="whitespace-nowrap text-slate-400">Chưa gắn dự án</span>
+                        )}
+                      </td>
+                      <td
+                        rowSpan={rowSpan}
+                        className={`bg-slate-50/50 px-3 py-3.5 text-right align-middle font-extrabold tabular-nums ${differenceClass(differenceAmount)}`}
+                      >
+                        <span className="whitespace-nowrap">
+                          {formatDifference(differenceAmount)}
+                        </span>
+                      </td>
+                      <td rowSpan={rowSpan} className="bg-slate-50/50 px-3 py-3.5 align-middle">
+                        <span
+                          className={`inline-flex whitespace-nowrap rounded-md px-2 py-1 text-xs font-bold ring-1 ${statusClass(displayStatus.key)}`}
+                        >
+                          {displayStatus.label}
+                        </span>
+                      </td>
+                    </>
+                  ) : null}
+                  <td className="py-3.5">
+                    <div className="flex items-center justify-end gap-1 pr-3">
+                      <IconButton
+                        size="small"
+                        title="Xem chi tiết"
+                        aria-label={`Xem chi tiết giao dịch ${payment.reference || payment.id}`}
+                        onClick={() => setViewTarget(payment)}
+                      >
+                        <VisibilityRoundedIcon fontSize="small" />
+                      </IconButton>
+                      <IconButton
+                        size="small"
+                        title="Tác vụ"
+                        aria-label={`Tác vụ giao dịch ${payment.reference || payment.id}`}
+                        onClick={(event) => openActionMenu(event, payment)}
+                      >
+                        <MoreVertRoundedIcon fontSize="small" />
+                      </IconButton>
+                    </div>
+                  </td>
+                </tr>
+              );
+            });
           })}
         </AppDataTable>
 
@@ -1010,6 +1142,8 @@ export function PaymentManager({
           pageSize={pageSize}
           onPageChange={onPageChange}
           onPageSizeChange={onPageSizeChange}
+          rangeLabel="Hiển thị nhóm"
+          pageSizeLabel="Số nhóm"
         />
       </section>
 

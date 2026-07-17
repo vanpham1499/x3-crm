@@ -1,31 +1,45 @@
 'use client';
 
-import { useEffect, useMemo, useState } from 'react';
+import { useEffect, useState } from 'react';
+import DashboardCustomizeOutlinedIcon from '@mui/icons-material/DashboardCustomizeOutlined';
+import HistoryRoundedIcon from '@mui/icons-material/HistoryRounded';
 import { keepPreviousData, useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import { useAppNotification } from '@/components/feedback/notification-provider';
-import { ContentLoading } from '@/components/shell/content-loading';
-import { WeeklyReportManager } from '@/features/weekly-reports/components/weekly-report-manager';
-import { WeeklySettingsDialog } from '@/features/weekly-reports/components/weekly-settings-dialog';
-import { getApiErrorMessage } from '@/lib/api-error';
+import { IconTabs } from '@/components/navigation/icon-tabs';
+import { PageHeader } from '@/components/shell/page-header';
+import { WeeklyCycleNavigator } from '@/features/weekly-reports/components/weekly-cycle-navigator';
 import {
-  getCurrentIsoWeekMondayString,
-  getCurrentIsoWeekSundayString,
-  getIsoWeekday,
-} from '@/lib/weekly-report-schedule';
-import { useAuthStore } from '@/stores/auth-store';
+  WeeklyReportBoard,
+  WeeklyReportSummary,
+} from '@/features/weekly-reports/components/weekly-report-board';
+import { WeeklyReportManager } from '@/features/weekly-reports/components/weekly-report-manager';
+import { useServerListState } from '@/hooks/use-server-list-state';
+import { getApiErrorMessage } from '@/lib/api-error';
+import { getCurrentIsoWeekMondayString } from '@/lib/weekly-report-schedule';
 import api from '@/services/api/client';
-import type { ProjectItem } from '@/types/project';
+import { useAuthStore } from '@/stores/auth-store';
 import type { PaginatedResponse } from '@/types/pagination';
+import type { ProjectItem } from '@/types/project';
 import type { User } from '@/types/user';
 import type {
-  ProjectWeeklySetting,
-  ProjectWeeklySettingFormValues,
   WeeklyReport,
+  WeeklyReportBoardFilters,
+  WeeklyReportBoardResponse,
   WeeklyReportFilters,
 } from '@/types/weekly-report';
 
 const WEEKLY_REPORTS_PAGE_SIZE = 10;
 const WEEKLY_REPORTS_LIST_QUERY_KEY = ['weekly-reports', 'list'] as const;
+const WEEKLY_REPORTS_BOARD_QUERY_KEY = ['weekly-reports', 'board'] as const;
+
+const INITIAL_BOARD_FILTERS: WeeklyReportBoardFilters = {
+  keyword: '',
+  reportOwnerUserId: '',
+  reportWeekday: '',
+  dueStatus: '',
+  progressStatus: '',
+  weeklyCondition: '',
+};
 
 function reportParams(filters: WeeklyReportFilters) {
   return {
@@ -39,10 +53,19 @@ export default function WeeklyReportsPage() {
   const notify = useAppNotification();
   const currentUser = useAuthStore((state) => state.user);
   const canApprove = currentUser?.role === 'ADMIN' || currentUser?.role === 'LEADER';
-  const [page, setPage] = useState(1);
-  const [pageSize, setPageSize] = useState(WEEKLY_REPORTS_PAGE_SIZE);
-  const [filters, setFilters] = useState<WeeklyReportFilters>({ projectId: '', status: '' });
-  const [settingsOpen, setSettingsOpen] = useState(false);
+  const [activeTab, setActiveTab] = useState(0);
+  const [selectedWeekStart, setSelectedWeekStart] = useState(getCurrentIsoWeekMondayString());
+  const [historyPage, setHistoryPage] = useState(1);
+  const [historyPageSize, setHistoryPageSize] = useState(WEEKLY_REPORTS_PAGE_SIZE);
+  const [historyFilters, setHistoryFilters] = useState<WeeklyReportFilters>({
+    projectId: '',
+    status: '',
+  });
+  const boardState = useServerListState<WeeklyReportBoardFilters>({
+    initialFilters: INITIAL_BOARD_FILTERS,
+    queryKey: WEEKLY_REPORTS_BOARD_QUERY_KEY,
+    pageSize: WEEKLY_REPORTS_PAGE_SIZE,
+  });
 
   const { data: projects = [] } = useQuery<ProjectItem[]>({
     queryKey: ['projects', 'weekly-report-options'],
@@ -54,19 +77,27 @@ export default function WeeklyReportsPage() {
     queryFn: () => api.get('/users').then((response) => response.data),
   });
 
-  const {
-    data: reportsPage,
-    isFetching,
-    isLoading,
-  } = useQuery<PaginatedResponse<WeeklyReport>>({
-    queryKey: [...WEEKLY_REPORTS_LIST_QUERY_KEY, filters, page, pageSize],
+  const { data: boardResponse, isFetching: isBoardFetching } = useQuery<WeeklyReportBoardResponse>({
+    queryKey: [
+      ...WEEKLY_REPORTS_BOARD_QUERY_KEY,
+      selectedWeekStart,
+      boardState.requestFilters,
+      boardState.page,
+      boardState.pageSize,
+    ],
     queryFn: ({ signal }) =>
       api
-        .get<PaginatedResponse<WeeklyReport>>('/weekly-reports', {
+        .get<WeeklyReportBoardResponse>('/weekly-reports/board', {
           params: {
-            ...reportParams(filters),
-            page,
-            per_page: pageSize,
+            week_start: selectedWeekStart,
+            keyword: boardState.requestFilters.keyword || undefined,
+            report_owner_user_id: boardState.requestFilters.reportOwnerUserId || undefined,
+            report_weekday: boardState.requestFilters.reportWeekday || undefined,
+            due_status: boardState.requestFilters.dueStatus || undefined,
+            progress_status: boardState.requestFilters.progressStatus || undefined,
+            weekly_condition: boardState.requestFilters.weeklyCondition || undefined,
+            page: boardState.page,
+            per_page: boardState.pageSize,
           },
           signal,
         })
@@ -74,93 +105,65 @@ export default function WeeklyReportsPage() {
     placeholderData: keepPreviousData,
   });
 
-  const reports = reportsPage?.data || [];
-  const pagination = reportsPage?.meta || {
-    currentPage: page,
+  const { data: reportsPage, isFetching: isHistoryFetching } = useQuery<
+    PaginatedResponse<WeeklyReport>
+  >({
+    queryKey: [...WEEKLY_REPORTS_LIST_QUERY_KEY, historyFilters, historyPage, historyPageSize],
+    queryFn: ({ signal }) =>
+      api
+        .get<PaginatedResponse<WeeklyReport>>('/weekly-reports', {
+          params: {
+            ...reportParams(historyFilters),
+            page: historyPage,
+            per_page: historyPageSize,
+          },
+          signal,
+        })
+        .then((response) => response.data),
+    placeholderData: keepPreviousData,
+    enabled: activeTab === 1,
+  });
+
+  const boardMeta = boardResponse?.meta || {
+    currentPage: boardState.page,
     lastPage: 1,
-    perPage: pageSize,
+    perPage: boardState.pageSize,
+    total: 0,
+    from: null,
+    to: null,
+    weekStart: selectedWeekStart,
+    weekEnd: selectedWeekStart,
+    summary: { total: 0, dueToday: 0, overdue: 0, waitingApproval: 0, completed: 0 },
+  };
+  const historyMeta = reportsPage?.meta || {
+    currentPage: historyPage,
+    lastPage: 1,
+    perPage: historyPageSize,
     total: 0,
     from: null,
     to: null,
   };
 
   useEffect(() => {
-    if (page > pagination.lastPage) {
-      setPage(Math.max(1, pagination.lastPage));
+    if (boardState.page > boardMeta.lastPage) {
+      boardState.setPage(Math.max(1, boardMeta.lastPage));
     }
-  }, [page, pagination.lastPage]);
+  }, [boardMeta.lastPage, boardState]);
 
-  const handlePageSizeChange = (nextPageSize: number) => {
-    void queryClient.cancelQueries({ queryKey: WEEKLY_REPORTS_LIST_QUERY_KEY });
-    setPage(1);
-    setPageSize(nextPageSize);
+  useEffect(() => {
+    if (historyPage > historyMeta.lastPage) {
+      setHistoryPage(Math.max(1, historyMeta.lastPage));
+    }
+  }, [historyMeta.lastPage, historyPage]);
+
+  const refreshReports = () => {
+    queryClient.invalidateQueries({ queryKey: ['weekly-reports'] });
   };
-
-  const { data: projectSettings } = useQuery<ProjectWeeklySetting[]>({
-    queryKey: ['project-weekly-settings', filters.projectId],
-    queryFn: () =>
-      api
-        .get<ProjectWeeklySetting[]>('/project-weekly-settings', {
-          params: { project_id: filters.projectId },
-        })
-        .then((response) => response.data),
-    enabled: Boolean(filters.projectId) && settingsOpen,
-  });
-
-  const currentWeekMonday = getCurrentIsoWeekMondayString();
-  const currentWeekSunday = getCurrentIsoWeekSundayString();
-  const todayIsoWeekday = getIsoWeekday(new Date());
-
-  const { data: activeSettings = [], isLoading: isActiveSettingsLoading } = useQuery<
-    ProjectWeeklySetting[]
-  >({
-    queryKey: ['project-weekly-settings', 'active'],
-    queryFn: () =>
-      api
-        .get<ProjectWeeklySetting[]>('/project-weekly-settings', { params: { is_active: 1 } })
-        .then((response) => response.data),
-  });
-
-  const { data: allReports = [], isLoading: isAllReportsLoading } = useQuery<WeeklyReport[]>({
-    queryKey: ['weekly-reports', 'all-for-overdue-check'],
-    queryFn: () => api.get<WeeklyReport[]>('/weekly-reports').then((response) => response.data),
-  });
-
-  // Wait for both datasets before computing, so the banner doesn't briefly
-  // flash a false-positive list while only one of the two queries has resolved.
-  const isOverdueDataReady = !isActiveSettingsLoading && !isAllReportsLoading;
-
-  const overdueSettings = useMemo(() => {
-    if (!isOverdueDataReady) return [];
-
-    const reportedProjectIds = new Set(
-      allReports
-        .filter(
-          (report) =>
-            report.weekStartDate <= currentWeekSunday && report.weekEndDate >= currentWeekMonday,
-        )
-        .map((report) => report.projectId),
-    );
-
-    return activeSettings.filter(
-      (setting) =>
-        setting.reportWeekday &&
-        todayIsoWeekday >= setting.reportWeekday &&
-        !reportedProjectIds.has(setting.projectId),
-    );
-  }, [
-    isOverdueDataReady,
-    activeSettings,
-    allReports,
-    currentWeekMonday,
-    currentWeekSunday,
-    todayIsoWeekday,
-  ]);
 
   const deleteMutation = useMutation({
     mutationFn: (report: WeeklyReport) => api.delete(`/weekly-reports/${report.id}`),
     onSuccess: () => {
-      queryClient.invalidateQueries({ queryKey: ['weekly-reports'] });
+      refreshReports();
       notify.success('Xóa báo cáo tuần thành công');
     },
     onError: (error) => notify.error(getApiErrorMessage(error, 'Xóa báo cáo tuần thất bại')),
@@ -169,7 +172,7 @@ export default function WeeklyReportsPage() {
   const submitMutation = useMutation({
     mutationFn: (report: WeeklyReport) => api.post(`/weekly-reports/${report.id}/submit`),
     onSuccess: () => {
-      queryClient.invalidateQueries({ queryKey: ['weekly-reports'] });
+      refreshReports();
       notify.success('Đã gửi báo cáo để duyệt');
     },
     onError: (error) => notify.error(getApiErrorMessage(error, 'Gửi báo cáo thất bại')),
@@ -178,75 +181,111 @@ export default function WeeklyReportsPage() {
   const approveMutation = useMutation({
     mutationFn: (report: WeeklyReport) => api.post(`/weekly-reports/${report.id}/approve`),
     onSuccess: () => {
-      queryClient.invalidateQueries({ queryKey: ['weekly-reports'] });
+      refreshReports();
       notify.success('Đã duyệt báo cáo tuần');
     },
     onError: (error) => notify.error(getApiErrorMessage(error, 'Duyệt báo cáo thất bại')),
   });
 
-  const settingsMutation = useMutation({
-    mutationFn: (values: ProjectWeeklySettingFormValues) =>
-      api.post<ProjectWeeklySetting>('/project-weekly-settings', {
-        projectId: Number(filters.projectId),
-        project_id: Number(filters.projectId),
-        reportOwnerUserId: values.reportOwnerUserId ? Number(values.reportOwnerUserId) : null,
-        report_owner_user_id: values.reportOwnerUserId ? Number(values.reportOwnerUserId) : null,
-        reportWeekday: Number(values.reportWeekday),
-        report_weekday: Number(values.reportWeekday),
-        monthlyBudget: Number(values.monthlyBudget) || 0,
-        monthly_budget: Number(values.monthlyBudget) || 0,
-        managementFeeRate: Number(values.managementFeeRate) || 0,
-        management_fee_rate: Number(values.managementFeeRate) || 0,
-        isActive: values.isActive,
-        is_active: values.isActive,
-      }),
+  const returnMutation = useMutation({
+    mutationFn: (report: WeeklyReport) => api.post(`/weekly-reports/${report.id}/return-to-draft`),
     onSuccess: () => {
-      queryClient.invalidateQueries({ queryKey: ['project-weekly-settings'] });
-      notify.success('Đã lưu cấu hình báo cáo tuần');
+      refreshReports();
+      notify.success('Đã trả báo cáo về nháp');
     },
-    onError: (error) => notify.error(getApiErrorMessage(error, 'Lưu cấu hình thất bại')),
+    onError: (error) => notify.error(getApiErrorMessage(error, 'Trả báo cáo về nháp thất bại')),
   });
 
-  if (isLoading) {
-    return <ContentLoading />;
-  }
+  const commonActionProps = {
+    isDeleting: deleteMutation.isPending,
+    isSubmitting: submitMutation.isPending,
+    isApproving: approveMutation.isPending,
+    isReturning: returnMutation.isPending,
+    canApprove,
+    onDelete: (report: WeeklyReport) => deleteMutation.mutate(report),
+    onSubmit: (report: WeeklyReport) => submitMutation.mutate(report),
+    onApprove: (report: WeeklyReport) => approveMutation.mutate(report),
+    onReturnToDraft: (report: WeeklyReport) => returnMutation.mutate(report),
+  };
 
   return (
-    <>
-      <WeeklyReportManager
-        reports={reports}
-        projects={projects}
-        overdueSettings={overdueSettings}
-        filters={filters}
-        isFetching={isFetching}
-        isDeleting={deleteMutation.isPending}
-        isSubmitting={submitMutation.isPending}
-        isApproving={approveMutation.isPending}
-        canApprove={canApprove}
-        page={page}
-        totalPages={pagination.lastPage}
-        totalItems={pagination.total}
-        pageSize={pageSize}
-        onPageChange={setPage}
-        onPageSizeChange={handlePageSizeChange}
-        onFiltersChange={(nextFilters) => {
-          setPage(1);
-          setFilters(nextFilters);
+    <div className="min-h-[calc(100vh-72px)] w-full bg-slate-50/60 p-6">
+      <PageHeader title="Báo cáo tuần" />
+
+      <WeeklyReportSummary
+        filters={boardState.filters}
+        summary={boardMeta.summary}
+        onFiltersChange={(filters) => {
+          setActiveTab(0);
+          boardState.onFiltersChange(filters);
         }}
-        onDelete={(report) => deleteMutation.mutate(report)}
-        onSubmit={(report) => submitMutation.mutate(report)}
-        onApprove={(report) => approveMutation.mutate(report)}
-        onOpenSettings={() => setSettingsOpen(true)}
       />
 
-      <WeeklySettingsDialog
-        open={settingsOpen}
-        setting={projectSettings?.[0]}
-        users={users}
-        isSubmitting={settingsMutation.isPending}
-        onClose={() => setSettingsOpen(false)}
-        onSubmit={(values) => settingsMutation.mutateAsync(values)}
-      />
-    </>
+      <div className="mb-4 flex items-center justify-between gap-4 overflow-x-auto rounded-xl border border-slate-200 bg-white pr-3 shadow-sm no-border-tabs">
+        <div className="min-w-max flex-1">
+          <IconTabs
+            value={activeTab}
+            ariaLabel="Điều hướng báo cáo tuần"
+            items={[
+              { label: 'Theo dõi tuần', icon: <DashboardCustomizeOutlinedIcon /> },
+              { label: 'Lịch sử báo cáo', icon: <HistoryRoundedIcon /> },
+            ]}
+            onChange={setActiveTab}
+          />
+        </div>
+        <div className="shrink-0 py-1.5">
+          <WeeklyCycleNavigator
+            weekStart={selectedWeekStart}
+            maxWeekStart={getCurrentIsoWeekMondayString()}
+            onChange={(weekStart) => {
+              void queryClient.cancelQueries({ queryKey: WEEKLY_REPORTS_BOARD_QUERY_KEY });
+              setActiveTab(0);
+              boardState.setPage(1);
+              setSelectedWeekStart(weekStart);
+            }}
+          />
+        </div>
+      </div>
+
+      {activeTab === 0 ? (
+        <WeeklyReportBoard
+          rows={boardResponse?.data || []}
+          users={users}
+          filters={boardState.filters}
+          weekStart={selectedWeekStart}
+          isFetching={isBoardFetching}
+          page={boardMeta.currentPage}
+          totalPages={boardMeta.lastPage}
+          totalItems={boardMeta.total}
+          pageSize={boardState.pageSize}
+          onPageChange={boardState.setPage}
+          onPageSizeChange={boardState.setPageSize}
+          onFiltersChange={boardState.onFiltersChange}
+          {...commonActionProps}
+        />
+      ) : (
+        <WeeklyReportManager
+          reports={reportsPage?.data || []}
+          projects={projects}
+          filters={historyFilters}
+          isFetching={isHistoryFetching}
+          page={historyMeta.currentPage}
+          totalPages={historyMeta.lastPage}
+          totalItems={historyMeta.total}
+          pageSize={historyPageSize}
+          onPageChange={setHistoryPage}
+          onPageSizeChange={(pageSize) => {
+            void queryClient.cancelQueries({ queryKey: WEEKLY_REPORTS_LIST_QUERY_KEY });
+            setHistoryPage(1);
+            setHistoryPageSize(pageSize);
+          }}
+          onFiltersChange={(filters) => {
+            setHistoryPage(1);
+            setHistoryFilters(filters);
+          }}
+          {...commonActionProps}
+        />
+      )}
+    </div>
   );
 }

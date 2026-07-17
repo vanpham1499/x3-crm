@@ -27,8 +27,16 @@ Nguyên tắc cập nhật:
 ### Chi Phí Dự Án
 
 - `GET /api/project-costs?project_id=<id>`: lấy toàn bộ khoản chi của một Project.
+- Trang `/costs` là sổ đối soát chi phí, dùng
+  `GET /api/project-costs?page=&per_page=&group_by_project=1` để hiển thị chung `ad_spend` và
+  `partner_cost`. Màn này không hiển thị Báo phí. API hỗ trợ `keyword`, `entry_type`, `status`,
+  `reconciled_status=matched|unmatched`, `date_from`, `date_to`; phân trang theo nhóm Project để
+  toàn bộ khoản chi cùng Project luôn nằm cạnh nhau và không bị cắt qua hai trang.
 - `POST /api/project-costs`: tạo khoản chi; `PUT/PATCH /api/project-costs/:id`: cập nhật;
   `DELETE /api/project-costs/:id`: xóa mềm.
+- `POST /api/project-costs/:id/reconcile`: xác nhận khoản chi đã khớp sau bước hỏi lại người dùng.
+  Backend lưu `reconciledAt`, `reconciledBy`; sau khi đã khớp, mọi yêu cầu cập nhật hoặc xóa khoản
+  chi đều bị từ chối. Tab Tài chính của Project thay nút sửa/xóa bằng trạng thái khóa `Đã khớp`.
 - `entryType=ad_spend` dùng cho nhóm 2.1; `entryType=partner_cost` dùng cho nhóm 2.2.
 - Số tiền được backend tính lại, không tin tổng tiền do frontend gửi:
   - 2.1: `totalAmount = amountBeforeVat + vatAmount`.
@@ -187,14 +195,61 @@ Nguyên tắc cập nhật:
 
 ### Chi Phí Theo Nhóm 2.1 Và 2.2
 
+- Tab Tài chính dùng lưới 12 cột trên desktop: `Báo phí & tiền thu` và `Tiền vào` xếp dọc trong cột
+  trái rộng 5/12; sổ chi phí nằm ở cột phải rộng 7/12. Bảng Báo phí chỉ thể hiện công nợ tổng hợp,
+  còn bảng Tiền vào chỉ thể hiện từng giao dịch và kết quả đối soát để tránh lặp dữ liệu.
 - Project nhóm 2.1 hiển thị sổ `Chi phí nạp quảng cáo`: ngày nạp/hủy, báo phí liên quan, mã CID, tài
-  khoản quảng cáo, tài khoản ngân hàng nạp QC, ngân sách, VAT, ngân sách + VAT và tình trạng.
+  khoản quảng cáo, tài khoản ngân hàng nạp QC, một cột `Ngân sách + VAT` và tình trạng. Số tiền nhập
+  cho lần nạp là số cuối cùng đã gồm VAT, không tách lại thành hai cột ngân sách và VAT.
+- Với Project loại M,
+  `Số tiền có thể nạp = Σ (Ngân sách báo phí + Ngân sách báo phí × VAT%) - Σ số tiền nạp đã sử dụng`.
+  Không chặn kết quả ở 0; nếu đã nạp vượt hạn mức thì metric và thông báo trong popup phải hiển thị
+  số âm để nhận biết phần vượt.
 - Project nhóm 2.2 hiển thị sổ `Chi phí đối tác`: ngày chi/hủy, báo phí liên quan, đối tác, tài
   khoản công ty chi, chi phí đối tác, voucher/khuyến mại/chiết khấu, VAT, thực chi, nghiệm thu, hóa
   đơn đầu vào và tình trạng.
 - `pending` chưa tính vào chi phí thực nhận; `completed` được tính; `cancelled` bị loại khỏi KPI.
 - Một Project có nhiều khoản chi qua nhiều tháng, tương tự việc Project có nhiều Báo phí và nhiều
   Payment.
+
+### Lịch Báo Cáo Tuần Của Dự Án
+
+- Form thêm/sửa Project bắt buộc chọn Ngày bắt đầu, Trạng thái, Người quản lý, Sales phụ trách và
+  Thứ báo cáo ở frontend. Backend Project vẫn giữ các trường phụ trách ở dạng nullable để không ảnh
+  hưởng các luồng API khác.
+- Select `Thứ báo cáo` lưu trực tiếp ISO weekday (Thứ 2 = 1 đến Chủ nhật = 7) trong
+  `project_weekly_settings.report_weekday`. Sales phụ trách đồng thời là `report_owner_user_id` của
+  cấu hình báo cáo tuần.
+- `GET /api/project-weekly-settings/assignment-summary?report_owner_user_id=&report_weekday=&exclude_project_id=`
+  trả số Project đang được phân công cho Sales vào cùng ngày. Form sửa truyền `exclude_project_id`
+  để không tính chính Project hiện tại.
+- Tạo/cập nhật Project đồng bộ cấu hình báo cáo tuần trong cùng transaction; không tạo thêm cột ngày
+  báo cáo trùng lặp ở bảng `projects`.
+- `/weekly-reports` có hai tab: `Theo dõi tuần` là bảng điều phối từ toàn bộ cấu hình Project đang
+  áp dụng; `Lịch sử báo cáo` chỉ hiển thị các báo cáo đã được tạo.
+- Báo cáo được tạo từ đúng dòng Project/kỳ trên bảng điều phối; trường Project trong form luôn chỉ
+  đọc và hiển thị chung mã, tên, loại, trạng thái Project. Form chia hai cột: thông tin báo cáo ở
+  trái, tệp đính kèm và repeater vấn đề/hành động ở phải. Phí quản lý lấy từ cấu hình Project nên
+  không nhập lại trên báo cáo. Mỗi dòng repeater chỉ giữ `Loại`, `Nội dung`, `Trạng thái`; không
+  nhập lại người phụ trách, ưu tiên hoặc hạn xử lý.
+- `GET /api/weekly-reports/board?week_start=&keyword=&report_owner_user_id=&report_weekday=&due_status=&progress_status=&weekly_condition=&page=&per_page=`
+  trả danh sách điều phối, metric và phân trang từ backend. Frontend không tải toàn bộ cấu hình và
+  báo cáo để tự tính quá hạn.
+- `Thứ báo cáo` là hạn nộp. Hạn đầu tiên phải sau Ngày bắt đầu Project; nếu ngày báo cáo của tuần
+  bắt đầu đã qua thì chuyển sang đúng thứ đó ở tuần kế tiếp. Kỳ đầu cắt từ Ngày bắt đầu Project đến
+  một ngày trước hạn; các kỳ sau gồm đủ 7 ngày. Ví dụ Project bắt đầu Thứ 3 nhưng báo cáo Thứ 2 thì
+  hạn đầu là Thứ 2 tuần sau và dữ liệu kỳ đầu tính từ Thứ 3 đến Chủ nhật. Form chỉ chọn tuần chứa
+  hạn; backend tự tính `week_start_date` và `week_end_date`, không nhận khoảng ngày tùy ý từ giao
+  diện.
+- Chỉ được tạo báo cáo cho tuần hiện tại hoặc tuần trong quá khứ. Bộ chọn tuần khóa chiều đi tới khi
+  đang ở tuần hiện tại; frontend ép query tuần tương lai về tuần hiện tại và backend tiếp tục từ
+  chối mọi request tuần tương lai để không thể tạo trước báo cáo cho cả năm.
+- Trong đúng ngày đến hạn, trạng thái hạn là `Đến hạn hôm nay`; từ ngày kế tiếp mới là `Quá hạn`.
+  Tiến độ báo cáo được tách riêng thành `Chưa tạo`, `Nháp`, `Chờ duyệt`, `Đã duyệt`.
+- Mỗi Project chỉ được có một báo cáo cho một kỳ. Báo cáo `draft` được sửa, xóa, đổi tệp và gửi
+  duyệt; `submitted` bị khóa nội dung, có thể được duyệt hoặc trả về nháp; `approved` chỉ được xem.
+- Sales phụ trách và Thứ báo cáo chỉ cấu hình từ form Project. `/weekly-reports` không còn popup sửa
+  hai giá trị này để tránh hai nguồn dữ liệu.
 
 ### Ràng Buộc Phạm Vi Hiện Tại
 
@@ -220,8 +275,7 @@ Nguyên tắc cập nhật:
   nhiều Báo phí và một Báo phí có thể nhận nhiều giao dịch.
 - Tiền hoàn được ghi riêng tại `payment_refunds`; thao tác trên CRM chỉ ghi nhận khoản đã hoàn,
   không tự thực hiện lệnh chuyển tiền tại ngân hàng.
-- Công thức bắt buộc:
-  `Số dư chưa xử lý = Tiền nhận - Tổng phân bổ - Tổng đã hoàn`.
+- Công thức bắt buộc: `Số dư chưa xử lý = Tiền nhận - Tổng phân bổ - Tổng đã hoàn`.
 - Chỉ số `Đã thu` của Báo phí/Dự án chỉ cộng `payment_allocations.amount`, không cộng toàn bộ
   `payments.amount`. Vì vậy một giao dịch gộp không bị tính lặp cho hai Dự án.
 - Khi webhook nhận diện được mã Báo phí, hệ thống tự phân bổ tối đa bằng số còn phải thu. Phần vượt
@@ -229,6 +283,17 @@ Nguyên tắc cập nhật:
 - `Đã gắn báo phí` chỉ mô tả quan hệ nhận diện. Nếu Báo phí đã thu đủ mà giao dịch đến sau vẫn còn
   toàn bộ số dư chưa xử lý thì trạng thái tiền phải là `Chuyển thừa`; nếu giao dịch đã phân bổ một
   phần và vẫn còn dư thì hiển thị `Đã phân bổ + chuyển thừa`. Mã Báo phí vẫn được giữ để truy vết.
+- `Đã phân bổ giao dịch` là trạng thái kỹ thuật của số tiền vào, không đồng nghĩa Báo phí đã thu đủ.
+  Trên tab Tài chính của Dự án và `/payments`, nếu giao dịch chỉ gắn với một Báo phí thì UI ưu tiên
+  trạng thái công nợ của Báo phí: `Đang thiếu` kèm số còn thiếu, `Đã thu đủ`, hoặc `Chuyển thừa`.
+- Danh sách `/payments` gửi `group_by_quotation=1`: backend xếp toàn bộ giao dịch cùng Báo phí liền
+  nhau và xếp nhóm có giao dịch mới nhất lên trước. Trên bảng, Báo phí, Dự án, Chênh lệch và trạng
+  thái công nợ được gộp ô theo nhóm, chỉ hiển thị một lần. Phân trang theo nhóm Báo phí (giao dịch
+  chưa xác định hoặc chia cho nhiều Báo phí là một nhóm độc lập) để không cắt đôi một nhóm giữa hai
+  trang.
+- `Chênh lệch = Tổng tiền thực nhận của nhóm - Tổng báo phí - Tổng đã hoàn`. Số âm là còn thiếu, số
+  dương là chuyển thừa, `0` là đã khớp. Giao dịch được phân bổ cho nhiều Báo phí chỉ tính phần phân
+  bổ của từng Báo phí, không lấy toàn bộ tiền giao dịch để tránh tính trùng.
 - Không cho tổng phân bổ và hoàn tiền vượt số tiền giao dịch; không cho phân bổ vượt số còn phải thu
   của Báo phí. Muốn hoàn phần đã phân bổ phải hủy phân bổ trước.
 - Hủy phân bổ dùng soft delete để giữ lịch sử, đồng thời tính lại trạng thái Báo phí và trả tiền về
@@ -239,12 +304,18 @@ Nguyên tắc cập nhật:
   số thu xuống dưới tổng phải thu thì tự quay về `draft`/`Báo phí`.
 - Báo phí đã có phân bổ không được đổi tổng tiền hoặc xóa. Giao dịch đã có phân bổ/hoàn tiền cũng
   không được xóa trực tiếp.
-- API thao tác chính:
-  `POST /payments/{id}/allocations`,
-  `DELETE /payments/{paymentId}/allocations/{allocationId}`,
-  `POST /payments/{id}/refunds`,
+- API thao tác chính: `POST /payments/{id}/allocations`,
+  `DELETE /payments/{paymentId}/allocations/{allocationId}`, `POST /payments/{id}/refunds`,
   `POST /payments/{id}/link`.
 - Migration `2026_07_15_000100_create_payment_allocation_ledger.php` tạo hai sổ mới và chuyển phần
   tiền đã áp dụng của dữ liệu cũ sang `payment_allocations` mà không thay đổi giao dịch webhook gốc.
 - Migration `2026_07_15_000200_reclassify_excess_payments.php` phân loại lại giao dịch đã gắn vào
   Báo phí thu đủ thành `Chuyển thừa` mà không làm mất liên kết đối soát.
+
+### Xem nhanh chi tiết Báo phí
+
+- Danh sách `/quotations` và bảng `Báo phí & tiền thu` trong tab Tài chính của Dự án đều có nút con
+  mắt mở popup chi tiết, không điều hướng khỏi màn hiện tại.
+- Popup và màn thêm/sửa Báo phí dùng chung bảng hạng mục: STT, hạng mục, đơn vị tính, số lượng, đơn
+  giá, thành tiền, tổng trước thuế, VAT và tổng thanh toán. Dòng giảm giá âm và cờ
+  `Không tính vào tổng` phải hiển thị giống nhau ở cả hai nơi.

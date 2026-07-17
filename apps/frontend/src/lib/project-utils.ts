@@ -47,6 +47,8 @@ export function getProjectDefaults(
     statusOptionId: idToString(project?.statusOptionId) || defaults?.statusOptionId || '',
     managerUserId: idToString(project?.managerUserId) || defaults?.managerUserId || '',
     salesUserId: idToString(project?.salesUserId) || defaults?.salesUserId || '',
+    weeklyReportWeekday:
+      idToString(project?.weeklySetting?.reportWeekday) || defaults?.weeklyReportWeekday || '',
     zaloGroup: project?.zaloGroup || defaults?.zaloGroup || '',
     planLink: project?.planLink || defaults?.planLink || '',
     startDate:
@@ -69,6 +71,7 @@ export function toProjectPayload(values: ProjectFormValues) {
     statusOptionId: values.statusOptionId || null,
     managerUserId: values.managerUserId || null,
     salesUserId: values.salesUserId || null,
+    reportWeekday: values.weeklyReportWeekday ? Number(values.weeklyReportWeekday) : null,
     zaloGroup: values.zaloGroup.trim() || null,
     planLink: values.planLink.trim() || null,
     startDate: values.startDate || null,

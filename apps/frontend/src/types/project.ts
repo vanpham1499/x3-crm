@@ -37,6 +37,12 @@ export type ProjectItem = {
   statusOption?: AppOption | null;
   managerUser?: ProjectUserSummary | null;
   salesUser?: ProjectUserSummary | null;
+  weeklySetting?: {
+    id: number;
+    reportOwnerUserId?: number | null;
+    reportWeekday?: number | null;
+    isActive?: boolean;
+  } | null;
   contracts?: Contract[];
   payments?: ProjectPaymentSummary[];
   createdAt?: string;
@@ -75,6 +81,7 @@ export type ProjectFormValues = {
   statusOptionId: string;
   managerUserId: string;
   salesUserId: string;
+  weeklyReportWeekday: string;
   zaloGroup: string;
   planLink: string;
   startDate: string;

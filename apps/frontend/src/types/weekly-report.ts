@@ -1,6 +1,7 @@
 import type { ProjectItem } from '@/types/project';
 import type { Customer } from '@/types/customer';
 import type { User } from '@/types/user';
+import type { PaginationMeta } from '@/types/pagination';
 
 export type WeeklyReportStatus = 'draft' | 'submitted' | 'approved';
 
@@ -34,6 +35,7 @@ export type WeeklyReport = {
   reporterUserId?: number | null;
   weekStartDate: string;
   weekEndDate: string;
+  dueDate?: string | null;
   reportDate?: string | null;
   projectStatus?: string | null;
   weeklyCondition?: string | null;
@@ -61,15 +63,69 @@ export type WeeklyReportFilters = {
   status: string;
 };
 
+export type WeeklyReportDueStatus = 'not_due' | 'due_today' | 'overdue' | 'on_time' | 'late';
+
+export type WeeklyReportProgressStatus = WeeklyReportStatus | 'not_created';
+
+export type WeeklyReportBoardFilters = {
+  keyword: string;
+  reportOwnerUserId: string;
+  reportWeekday: string;
+  dueStatus: string;
+  progressStatus: string;
+  weeklyCondition: string;
+};
+
+export type WeeklyReportBoardRow = {
+  settingId: number;
+  projectId: number;
+  reportOwnerUserId?: number | null;
+  reportWeekday: number;
+  dueDate: string;
+  periodStartDate: string;
+  periodEndDate: string;
+  dueStatus: WeeklyReportDueStatus;
+  progressStatus: WeeklyReportProgressStatus;
+  weeklyCondition?: string | null;
+  project: {
+    id: number;
+    projectCode?: string | null;
+    projectName?: string | null;
+    startDate?: string | null;
+    customer?: {
+      id: number;
+      customerCode?: string | null;
+      customerName?: string | null;
+    } | null;
+  };
+  reportOwner?: Pick<User, 'id' | 'code' | 'name'> | null;
+  report?: WeeklyReport | null;
+};
+
+export type WeeklyReportBoardSummary = {
+  total: number;
+  dueToday: number;
+  overdue: number;
+  waitingApproval: number;
+  completed: number;
+};
+
+export type WeeklyReportBoardMeta = PaginationMeta & {
+  weekStart: string;
+  weekEnd: string;
+  summary: WeeklyReportBoardSummary;
+};
+
+export type WeeklyReportBoardResponse = {
+  data: WeeklyReportBoardRow[];
+  meta: WeeklyReportBoardMeta;
+};
+
 export type WeeklyReportItemFormValue = {
   id: number;
   itemType: string;
-  title: string;
   content: string;
-  priority: string;
   status: string;
-  dueDate: string;
-  assigneeUserId: string;
 };
 
 export type ProjectWeeklySetting = {
@@ -92,4 +148,10 @@ export type ProjectWeeklySettingFormValues = {
   monthlyBudget: string;
   managementFeeRate: string;
   isActive: boolean;
+};
+
+export type WeeklyAssignmentSummary = {
+  reportOwnerUserId: number;
+  reportWeekday: number;
+  projectCount: number;
 };

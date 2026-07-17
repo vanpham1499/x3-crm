@@ -2,6 +2,7 @@
 
 import { useParams } from 'next/navigation';
 import CheckCircleOutlineRoundedIcon from '@mui/icons-material/CheckCircleOutlineRounded';
+import ReplayRoundedIcon from '@mui/icons-material/ReplayRounded';
 import SendRoundedIcon from '@mui/icons-material/SendRounded';
 import { Alert } from '@mui/material';
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
@@ -13,12 +14,11 @@ import { getApiErrorMessage } from '@/lib/api-error';
 import { useAuthStore } from '@/stores/auth-store';
 import api from '@/services/api/client';
 import type { ProjectItem } from '@/types/project';
-import type { User } from '@/types/user';
 import type { WeeklyReport } from '@/types/weekly-report';
 
 const STATUS_LABELS: Record<string, string> = {
   draft: 'Nháp',
-  submitted: 'Đã gửi',
+  submitted: 'Chờ duyệt',
   approved: 'Đã duyệt',
 };
 
@@ -30,20 +30,16 @@ export default function EditWeeklyReportPage() {
   const currentUser = useAuthStore((state) => state.user);
   const canApprove = currentUser?.role === 'ADMIN' || currentUser?.role === 'LEADER';
 
-  const { data: projects = [], isLoading: isProjectsLoading } = useQuery<ProjectItem[]>({
-    queryKey: ['projects', 'weekly-report-form-options'],
-    queryFn: () => api.get('/projects').then((response) => response.data),
-  });
-
-  const { data: users = [], isLoading: isUsersLoading } = useQuery<User[]>({
-    queryKey: ['users', 'weekly-report-form-options'],
-    queryFn: () => api.get('/users').then((response) => response.data),
-  });
-
   const { data: report, isLoading: isReportLoading } = useQuery<WeeklyReport>({
     queryKey: ['weekly-reports', id],
     queryFn: () => api.get(`/weekly-reports/${id}`).then((response) => response.data),
     enabled: Boolean(id),
+  });
+
+  const { data: project, isLoading: isProjectLoading } = useQuery<ProjectItem>({
+    queryKey: ['projects', 'weekly-report-form', report?.projectId],
+    queryFn: () => api.get(`/projects/${report?.projectId}`).then((response) => response.data),
+    enabled: Boolean(report?.projectId),
   });
 
   const updateMutation = useMutation({
@@ -77,7 +73,18 @@ export default function EditWeeklyReportPage() {
     onError: (error) => notify.error(getApiErrorMessage(error, 'Duyệt báo cáo thất bại')),
   });
 
-  if (isProjectsLoading || isUsersLoading || isReportLoading) {
+  const returnMutation = useMutation({
+    mutationFn: () =>
+      api.post<WeeklyReport>(`/weekly-reports/${id}/return-to-draft`).then((r) => r.data),
+    onSuccess: (updatedReport) => {
+      queryClient.setQueryData(['weekly-reports', id], updatedReport);
+      queryClient.invalidateQueries({ queryKey: ['weekly-reports'] });
+      notify.success('Đã trả báo cáo về nháp');
+    },
+    onError: (error) => notify.error(getApiErrorMessage(error, 'Trả báo cáo về nháp thất bại')),
+  });
+
+  if (isReportLoading || (report?.projectId && isProjectLoading)) {
     return <ContentLoading />;
   }
 
@@ -93,8 +100,7 @@ export default function EditWeeklyReportPage() {
     <WeeklyReportForm
       mode="edit"
       report={report}
-      projects={projects}
-      users={users}
+      projects={project ? [project] : []}
       isSubmitting={updateMutation.isPending}
       onSubmit={(payload) => updateMutation.mutateAsync(payload)}
       headerActions={
@@ -113,13 +119,23 @@ export default function EditWeeklyReportPage() {
             </PrimaryActionButton>
           )}
           {report.status === 'submitted' && canApprove && (
-            <PrimaryActionButton
-              startIcon={<CheckCircleOutlineRoundedIcon />}
-              disabled={approveMutation.isPending}
-              onClick={() => approveMutation.mutate()}
-            >
-              {approveMutation.isPending ? 'Đang duyệt...' : 'Duyệt báo cáo'}
-            </PrimaryActionButton>
+            <>
+              <PrimaryActionButton
+                tone="secondary"
+                startIcon={<ReplayRoundedIcon />}
+                disabled={returnMutation.isPending}
+                onClick={() => returnMutation.mutate()}
+              >
+                {returnMutation.isPending ? 'Đang trả về...' : 'Trả về nháp'}
+              </PrimaryActionButton>
+              <PrimaryActionButton
+                startIcon={<CheckCircleOutlineRoundedIcon />}
+                disabled={approveMutation.isPending}
+                onClick={() => approveMutation.mutate()}
+              >
+                {approveMutation.isPending ? 'Đang duyệt...' : 'Duyệt báo cáo'}
+              </PrimaryActionButton>
+            </>
           )}
         </div>
       }

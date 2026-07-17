@@ -217,6 +217,10 @@
   }
 }
 
+.no-border-tabs .border-b {
+  border: 0 !important;
+}
+
 @keyframes x3-splash-logo-breathe {
   0%,
   100% {

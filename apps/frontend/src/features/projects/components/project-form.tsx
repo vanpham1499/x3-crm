@@ -1,13 +1,13 @@
 'use client';
 
 import { useMemo, useState } from 'react';
+import InfoOutlinedIcon from '@mui/icons-material/InfoOutlined';
 import SaveRoundedIcon from '@mui/icons-material/SaveRounded';
 import { Autocomplete, MenuItem } from '@mui/material';
-import { DatePicker } from '@mui/x-date-pickers/DatePicker';
-import dayjs from 'dayjs';
+import { useQuery } from '@tanstack/react-query';
 import { Controller, useForm, useWatch } from 'react-hook-form';
 import { FormActionBar } from '@/components/form/form-action-bar';
-import { compactFormFieldClassName } from '@/components/form/form-field-styles';
+import { FormDatePicker } from '@/components/form/form-date-picker';
 import { FormInputField } from '@/components/form/form-input-field';
 import { FormSection } from '@/components/form/form-section';
 import { FormSelectField } from '@/components/form/form-select-field';
@@ -26,12 +26,15 @@ import {
 } from '@/lib/service-quote-config';
 import { flattenServices } from '@/lib/service-utils';
 import { formatCurrency } from '@/lib/utils';
+import { getReportWeekdayLabel } from '@/lib/weekly-report-schedule';
+import api from '@/services/api/client';
 import type { Customer } from '@/types/customer';
 import type { AppOption } from '@/types/option';
 import type { ProjectFormValues, ProjectItem } from '@/types/project';
 import type { Quotation } from '@/types/quotation';
 import type { ServiceItem } from '@/types/service';
 import type { User } from '@/types/user';
+import type { WeeklyAssignmentSummary } from '@/types/weekly-report';
 
 type ProjectFormProps = {
   mode: 'create' | 'edit';
@@ -52,31 +55,6 @@ type CustomerOption = Pick<
   Customer,
   'id' | 'customerCode' | 'customerName' | 'companyName' | 'phone' | 'email' | 'leadId'
 >;
-
-function ProjectDatePicker({
-  label,
-  value,
-  onChange,
-}: {
-  label: string;
-  value: string;
-  onChange: (value: string) => void;
-}) {
-  return (
-    <DatePicker
-      label={label}
-      value={value ? dayjs(value) : null}
-      onChange={(nextValue) => onChange(nextValue?.isValid() ? nextValue.format('YYYY-MM-DD') : '')}
-      slotProps={{
-        textField: {
-          fullWidth: true,
-          size: 'small',
-          className: compactFormFieldClassName,
-        },
-      }}
-    />
-  );
-}
 
 function customerLabel(customer: CustomerOption) {
   return [customer.customerCode, customer.customerName || customer.companyName]
@@ -145,6 +123,34 @@ export function ProjectForm({
   const selectedServiceId = useWatch({ control, name: 'serviceId' }) || '';
   const projectName = useWatch({ control, name: 'projectName' }) || '';
   const projectType = useWatch({ control, name: 'projectType' }) || 'K';
+  const selectedSalesUserId = useWatch({ control, name: 'salesUserId' }) || '';
+  const weeklyReportWeekday = useWatch({ control, name: 'weeklyReportWeekday' }) || '';
+  const reportWeekday = weeklyReportWeekday ? Number(weeklyReportWeekday) : null;
+  const selectedSalesUser = users.find((user) => String(user.id) === selectedSalesUserId);
+  const {
+    data: weeklyAssignmentSummary,
+    isFetching: isWeeklyAssignmentLoading,
+    isError: isWeeklyAssignmentError,
+  } = useQuery<WeeklyAssignmentSummary>({
+    queryKey: [
+      'project-weekly-settings',
+      'assignment-summary',
+      selectedSalesUserId,
+      reportWeekday,
+      project?.id || null,
+    ],
+    queryFn: () =>
+      api
+        .get<WeeklyAssignmentSummary>('/project-weekly-settings/assignment-summary', {
+          params: {
+            report_owner_user_id: selectedSalesUserId,
+            report_weekday: reportWeekday,
+            exclude_project_id: project?.id || undefined,
+          },
+        })
+        .then((response) => response.data),
+    enabled: Boolean(selectedSalesUserId && reportWeekday),
+  });
   const selectedQuotation = quotations.find(
     (quotation) => String(quotation.id) === selectedQuotationId,
   );
@@ -359,10 +365,14 @@ export function ProjectForm({
               <Controller
                 name="startDate"
                 control={control}
+                rules={{ required: 'Vui lòng chọn ngày bắt đầu dự án' }}
                 render={({ field }) => (
-                  <ProjectDatePicker
-                    label="Ngày bắt đầu"
+                  <FormDatePicker
+                    label="Ngày bắt đầu *"
                     value={field.value}
+                    required
+                    error={Boolean(errors.startDate)}
+                    helperText={errors.startDate?.message}
                     onChange={field.onChange}
                   />
                 )}
@@ -371,7 +381,7 @@ export function ProjectForm({
                 name="endDate"
                 control={control}
                 render={({ field }) => (
-                  <ProjectDatePicker
+                  <FormDatePicker
                     label="Ngày kết thúc"
                     value={field.value}
                     onChange={field.onChange}
@@ -478,8 +488,15 @@ export function ProjectForm({
             <Controller
               name="statusOptionId"
               control={control}
+              rules={{ required: 'Vui lòng chọn trạng thái' }}
               render={({ field }) => (
-                <FormSelectField label="Trạng thái" {...field}>
+                <FormSelectField
+                  label="Trạng thái *"
+                  required
+                  error={Boolean(errors.statusOptionId)}
+                  helperText={errors.statusOptionId?.message}
+                  {...field}
+                >
                   <MenuItem value="">Chưa chọn</MenuItem>
                   {statuses.map((status) => (
                     <MenuItem key={status.id} value={String(status.id)}>
@@ -493,8 +510,15 @@ export function ProjectForm({
             <Controller
               name="managerUserId"
               control={control}
+              rules={{ required: 'Vui lòng chọn người quản lý' }}
               render={({ field }) => (
-                <FormSelectField label="Người quản lý" {...field}>
+                <FormSelectField
+                  label="Người quản lý *"
+                  required
+                  error={Boolean(errors.managerUserId)}
+                  helperText={errors.managerUserId?.message}
+                  {...field}
+                >
                   <MenuItem value="">Chưa chọn</MenuItem>
                   {users.map((user) => (
                     <MenuItem key={user.id} value={String(user.id)}>
@@ -508,8 +532,15 @@ export function ProjectForm({
             <Controller
               name="salesUserId"
               control={control}
+              rules={{ required: 'Vui lòng chọn Sales phụ trách' }}
               render={({ field }) => (
-                <FormSelectField label="Sales phụ trách" {...field}>
+                <FormSelectField
+                  label="Sales phụ trách *"
+                  required
+                  error={Boolean(errors.salesUserId)}
+                  helperText={errors.salesUserId?.message}
+                  {...field}
+                >
                   <MenuItem value="">Chưa chọn</MenuItem>
                   {users.map((user) => (
                     <MenuItem key={user.id} value={String(user.id)}>
@@ -519,6 +550,62 @@ export function ProjectForm({
                 </FormSelectField>
               )}
             />
+
+            <Controller
+              name="weeklyReportWeekday"
+              control={control}
+              rules={{ required: 'Vui lòng chọn thứ báo cáo' }}
+              render={({ field }) => (
+                <FormSelectField
+                  label="Thứ báo cáo *"
+                  required
+                  error={Boolean(errors.weeklyReportWeekday)}
+                  helperText={errors.weeklyReportWeekday?.message}
+                  {...field}
+                >
+                  <MenuItem value="">Chưa chọn</MenuItem>
+                  {[1, 2, 3, 4, 5, 6, 7].map((weekday) => (
+                    <MenuItem key={weekday} value={String(weekday)}>
+                      {getReportWeekdayLabel(weekday)}
+                    </MenuItem>
+                  ))}
+                </FormSelectField>
+              )}
+            />
+
+            {selectedSalesUserId && reportWeekday ? (
+              <div
+                role="status"
+                className={`flex items-start gap-2 rounded-lg border px-3 py-2.5 text-sm ${
+                  isWeeklyAssignmentError
+                    ? 'border-rose-200 bg-rose-50 text-rose-700'
+                    : 'border-sky-200 bg-sky-50 text-sky-800'
+                }`}
+              >
+                <InfoOutlinedIcon className="mt-0.5 !text-[18px] shrink-0" />
+                <p className="leading-5">
+                  {isWeeklyAssignmentLoading ? (
+                    'Đang kiểm tra lịch báo cáo...'
+                  ) : isWeeklyAssignmentError ? (
+                    'Không thể kiểm tra số dự án đã được phân công.'
+                  ) : (
+                    <>
+                      <strong>
+                        {selectedSalesUser?.name ||
+                          selectedSalesUser?.email ||
+                          `Sales #${selectedSalesUserId}`}
+                      </strong>{' '}
+                      hiện đã được phân công báo cáo{' '}
+                      <strong>
+                        {weeklyAssignmentSummary?.projectCount || 0}{' '}
+                        {mode === 'edit' ? 'dự án khác' : 'dự án'}
+                      </strong>{' '}
+                      vào <strong>{getReportWeekdayLabel(reportWeekday)}</strong>.
+                    </>
+                  )}
+                </p>
+              </div>
+            ) : null}
           </FormSection>
         </div>
       </div>

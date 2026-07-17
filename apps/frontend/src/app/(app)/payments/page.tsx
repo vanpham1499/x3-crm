@@ -34,6 +34,7 @@ function paymentParams(filters: PaymentFilters) {
     reconciled_status: filters.reconciled_status || undefined,
     date_from: filters.date_from || undefined,
     date_to: filters.date_to || undefined,
+    group_by_quotation: 1,
   };
 }
 
