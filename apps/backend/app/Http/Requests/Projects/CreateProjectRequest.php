@@ -27,6 +27,8 @@ class CreateProjectRequest extends BaseRequest
             'managerUserId' => ['nullable', 'integer', Rule::exists('users', 'id')->whereNull('deleted_at')],
             'sales_user_id' => ['nullable', 'integer', Rule::exists('users', 'id')->whereNull('deleted_at')],
             'salesUserId' => ['nullable', 'integer', Rule::exists('users', 'id')->whereNull('deleted_at')],
+            'report_weekday' => ['nullable', 'integer', 'min:1', 'max:7'],
+            'reportWeekday' => ['nullable', 'integer', 'min:1', 'max:7'],
             'zalo_group' => ['nullable', 'string'],
             'zaloGroup' => ['nullable', 'string'],
             'plan_link' => ['nullable', 'string'],

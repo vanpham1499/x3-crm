@@ -3,6 +3,7 @@
 namespace App\Repositories;
 
 use App\Models\WeeklyReport;
+use Carbon\CarbonImmutable;
 use Illuminate\Contracts\Pagination\LengthAwarePaginator;
 use Illuminate\Database\Eloquent\Builder;
 use Illuminate\Database\Eloquent\Collection;
@@ -26,6 +27,46 @@ class WeeklyReportRepository extends BaseRepository
     {
         return $this->filteredQuery($filters)
             ->paginate($perPage, ['*'], 'page', $page);
+    }
+
+    public function findForBoardPeriods(
+        array $projectIds,
+        string $minimumPeriodStart,
+        string $maximumPeriodStart,
+    ): Collection {
+        if ($projectIds === []) {
+            return new Collection;
+        }
+
+        return $this->query()
+            ->with(['project', 'customer', 'reporter', 'approver'])
+            ->whereIn('project_id', $projectIds)
+            ->whereBetween('week_start_date', [$minimumPeriodStart, $maximumPeriodStart])
+            ->orderByDesc('created_at')
+            ->get();
+    }
+
+    public function existsForPeriod(int $projectId, string $periodStart, string $periodEnd): bool
+    {
+        $dueDate = CarbonImmutable::parse($periodEnd)->addDay();
+        $cycleWeekStart = $dueDate->startOfWeek(CarbonImmutable::MONDAY);
+        $cycleWeekEnd = $cycleWeekStart->addDays(6);
+
+        return $this->query()
+            ->where('project_id', $projectId)
+            ->where(function ($query) use ($periodStart, $periodEnd, $cycleWeekStart, $cycleWeekEnd): void {
+                $query
+                    ->where(function ($periodQuery) use ($periodStart, $periodEnd): void {
+                        $periodQuery
+                            ->whereDate('week_start_date', $periodStart)
+                            ->whereDate('week_end_date', $periodEnd);
+                    })
+                    ->orWhereBetween('report_date', [
+                        $cycleWeekStart->toDateString(),
+                        $cycleWeekEnd->toDateString(),
+                    ]);
+            })
+            ->exists();
     }
 
     private function filteredQuery(array $filters): Builder

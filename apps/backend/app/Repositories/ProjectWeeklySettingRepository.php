@@ -34,6 +34,53 @@ class ProjectWeeklySettingRepository extends BaseRepository
             ->first();
     }
 
+    public function findActiveForBoard(array $filters = []): Collection
+    {
+        return $this->query()
+            ->with(['project.customer', 'project.statusOption', 'reportOwner'])
+            ->where('is_active', true)
+            ->whereHas('project')
+            ->when($filters['keyword'] ?? null, function ($query, string $keyword): void {
+                $keyword = trim($keyword);
+
+                $query->whereHas('project', function ($projectQuery) use ($keyword): void {
+                    $projectQuery
+                        ->where('project_code', 'like', "%{$keyword}%")
+                        ->orWhere('project_name', 'like', "%{$keyword}%")
+                        ->orWhereHas('customer', function ($customerQuery) use ($keyword): void {
+                            $customerQuery
+                                ->where('customer_code', 'like', "%{$keyword}%")
+                                ->orWhere('customer_name', 'like', "%{$keyword}%");
+                        });
+                });
+            })
+            ->when(
+                $filters['report_owner_user_id'] ?? null,
+                fn ($query, $value) => $query->where('report_owner_user_id', $value),
+            )
+            ->when(
+                $filters['report_weekday'] ?? null,
+                fn ($query, $value) => $query->where('report_weekday', $value),
+            )
+            ->orderBy('report_weekday')
+            ->orderBy('project_id')
+            ->get();
+    }
+
+    public function countAssignments(
+        int $reportOwnerUserId,
+        int $reportWeekday,
+        ?int $excludeProjectId = null,
+    ): int {
+        return $this->query()
+            ->where('report_owner_user_id', $reportOwnerUserId)
+            ->where('report_weekday', $reportWeekday)
+            ->where('is_active', true)
+            ->when($excludeProjectId, fn ($query) => $query->where('project_id', '!=', $excludeProjectId))
+            ->whereHas('project')
+            ->count();
+    }
+
     public function findWithRelationsOrFail(string $id): ProjectWeeklySetting
     {
         /** @var ProjectWeeklySetting|null $setting */

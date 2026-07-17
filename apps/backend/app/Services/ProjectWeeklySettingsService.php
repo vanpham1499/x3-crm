@@ -20,6 +20,22 @@ class ProjectWeeklySettingsService extends BaseService
         return $this->apiResource($this->settings->findWithRelationsOrFail($id), ProjectWeeklySettingResource::class);
     }
 
+    public function assignmentSummary(
+        int $reportOwnerUserId,
+        int $reportWeekday,
+        ?int $excludeProjectId = null,
+    ): array {
+        return [
+            'reportOwnerUserId' => $reportOwnerUserId,
+            'reportWeekday' => $reportWeekday,
+            'projectCount' => $this->settings->countAssignments(
+                $reportOwnerUserId,
+                $reportWeekday,
+                $excludeProjectId,
+            ),
+        ];
+    }
+
     public function upsertForProject(array $data): array
     {
         return $this->transaction(function () use ($data): array {

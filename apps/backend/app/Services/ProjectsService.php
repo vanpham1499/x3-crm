@@ -7,6 +7,7 @@ use App\Models\Contract;
 use App\Models\CustomerTimeline;
 use App\Models\Option;
 use App\Models\Project;
+use App\Models\ProjectWeeklySetting;
 use App\Models\User;
 use App\Repositories\ProjectRepository;
 use Illuminate\Support\Facades\DB;
@@ -45,6 +46,9 @@ class ProjectsService extends BaseService
             unset($data['contract']);
 
             $data = $this->normalizePayload($data);
+            $hasReportWeekday = array_key_exists('report_weekday', $data);
+            $reportWeekday = $hasReportWeekday ? (int) $data['report_weekday'] : null;
+            unset($data['report_weekday']);
             unset($data['project_code']);
             $this->validateQuotationLink($data);
             $data['project_type'] = $data['project_type'] ?? 'K';
@@ -55,6 +59,7 @@ class ProjectsService extends BaseService
 
             /** @var Project $project */
             $project = $this->projects->create($data);
+            $this->syncWeeklySetting($project, $reportWeekday, $hasReportWeekday);
             $project = $this->loadProjectRelations($project);
             $this->recordTimeline($project, 'create', $this->buildCreatedTimelineContent($project));
             $contract = is_array($contractData) ? $this->syncProjectContract($project, $contractData) : null;
@@ -75,6 +80,10 @@ class ProjectsService extends BaseService
             unset($data['contract']);
 
             $data = $this->normalizePayload($data);
+            $hasReportWeekday = array_key_exists('report_weekday', $data);
+            $reportWeekday = $hasReportWeekday ? (int) $data['report_weekday'] : null;
+            unset($data['report_weekday']);
+            $shouldSyncWeeklySetting = $hasReportWeekday || array_key_exists('sales_user_id', $data);
             unset($data['project_code']);
             $before = $this->loadProjectRelations($this->projects->findWithRelationsOrFail($id));
             $this->validateQuotationLink($data, $before);
@@ -92,6 +101,9 @@ class ProjectsService extends BaseService
 
             /** @var Project $project */
             $project = $this->projects->update($id, $data);
+            if ($shouldSyncWeeklySetting) {
+                $this->syncWeeklySetting($project, $reportWeekday, $hasReportWeekday);
+            }
             $project = $this->loadProjectRelations($project);
             $changes = $this->describeProjectChanges($before, $project, $data);
 
@@ -148,6 +160,7 @@ class ProjectsService extends BaseService
             'statusOptionId' => 'status_option_id',
             'managerUserId' => 'manager_user_id',
             'salesUserId' => 'sales_user_id',
+            'reportWeekday' => 'report_weekday',
             'zaloGroup' => 'zalo_group',
             'planLink' => 'plan_link',
             'startDate' => 'start_date',
@@ -200,7 +213,54 @@ class ProjectsService extends BaseService
 
     private function loadProjectRelations(Project $project): Project
     {
-        return $project->load(['customer', 'quotation', 'service', 'statusOption', 'managerUser', 'salesUser', 'contracts.contractStatus', 'contracts.contractStatusOption', 'payments', 'timelines.createdBy']);
+        return $project->load(['customer', 'quotation', 'service', 'statusOption', 'managerUser', 'salesUser', 'weeklySetting.reportOwner', 'contracts.contractStatus', 'contracts.contractStatusOption', 'payments', 'timelines.createdBy']);
+    }
+
+    private function syncWeeklySetting(
+        Project $project,
+        ?int $reportWeekday,
+        bool $hasReportWeekday,
+    ): void {
+        $setting = ProjectWeeklySetting::withTrashed()
+            ->where('project_id', $project->id)
+            ->first();
+        $effectiveWeekday = $hasReportWeekday ? $reportWeekday : $setting?->report_weekday;
+
+        if (! $project->sales_user_id || ! $effectiveWeekday) {
+            if ($setting && ! $setting->trashed()) {
+                $setting->update([
+                    'is_active' => false,
+                    'updated_by' => $this->currentUser()?->id,
+                ]);
+            }
+
+            return;
+        }
+
+        $values = [
+            'report_owner_user_id' => $project->sales_user_id,
+            'report_weekday' => $effectiveWeekday,
+            'is_active' => true,
+            'updated_by' => $this->currentUser()?->id,
+            'deleted_by' => null,
+        ];
+
+        if ($setting) {
+            if ($setting->trashed()) {
+                $setting->restore();
+            }
+
+            $setting->fill($values)->save();
+
+            return;
+        }
+
+        ProjectWeeklySetting::query()->create(array_merge($values, [
+            'project_id' => $project->id,
+            'monthly_budget' => 0,
+            'management_fee_rate' => 0,
+            'created_by' => $this->currentUser()?->id,
+        ]));
     }
 
     private function syncProjectContract(Project $project, array $data): ?Contract

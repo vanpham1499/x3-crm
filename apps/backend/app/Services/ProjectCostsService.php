@@ -17,6 +17,14 @@ class ProjectCostsService extends BaseService
         return $this->apiCollection($this->costs->findAll($this->normalizeKeys($filters)), ProjectCostResource::class);
     }
 
+    public function findPaginated(array $filters, int $perPage, int $page): array
+    {
+        return $this->apiPaginatedCollection(
+            $this->costs->findPaginated($this->normalizeKeys($filters), $perPage, $page),
+            ProjectCostResource::class,
+        );
+    }
+
     public function findOne(string $id): array
     {
         return $this->apiResource($this->costs->findWithRelationsOrFail($id), ProjectCostResource::class);
@@ -37,7 +45,8 @@ class ProjectCostsService extends BaseService
     {
         return $this->transaction(function () use ($id, $data): array {
             /** @var ProjectCost $existing */
-            $existing = $this->costs->findOrFail($id);
+            $existing = $this->costs->findForUpdateOrFail($id);
+            $this->ensureNotReconciled($existing);
             $data = $this->preparePayload($data, $existing);
             $this->costs->update($id, $data);
 
@@ -48,9 +57,30 @@ class ProjectCostsService extends BaseService
     public function remove(string $id): array
     {
         return $this->transaction(function () use ($id): array {
+            $cost = $this->costs->findForUpdateOrFail($id);
+            $this->ensureNotReconciled($cost);
             $this->costs->delete($id);
 
             return ['message' => 'Xóa chi phí dự án thành công'];
+        });
+    }
+
+    public function reconcile(string $id): array
+    {
+        return $this->transaction(function () use ($id): array {
+            $cost = $this->costs->findForUpdateOrFail($id);
+
+            if (! $cost->reconciled_at) {
+                $this->costs->update($id, [
+                    'reconciled_at' => now(),
+                    'reconciled_by' => auth()->id(),
+                ]);
+            }
+
+            return $this->apiResource(
+                $this->costs->findWithRelationsOrFail($id),
+                ProjectCostResource::class,
+            );
         });
     }
 
@@ -95,6 +125,8 @@ class ProjectCostsService extends BaseService
 
         if (($data['entry_type'] ?? null) === ProjectCost::TYPE_AD_SPEND) {
             $data['partner_option_id'] = null;
+            $data['vat_rate'] = 0;
+            $data['vat_amount'] = 0;
             $data['discount_amount'] = 0;
             $data['acceptance_status'] = null;
             $data['input_invoice_status'] = null;
@@ -102,7 +134,7 @@ class ProjectCostsService extends BaseService
             $data['cid_spent_amount'] = $data['cid_is_dead']
                 ? round(max(0, (float) ($data['cid_spent_amount'] ?? 0)), 2)
                 : 0;
-            $data['total_amount'] = round($amountBeforeVat + $data['vat_amount'], 2);
+            $data['total_amount'] = round($amountBeforeVat, 2);
         } else {
             $data['cid'] = null;
             $data['ad_account'] = null;
@@ -136,6 +168,10 @@ class ProjectCostsService extends BaseService
             'totalAmount' => 'total_amount',
             'acceptanceStatus' => 'acceptance_status',
             'inputInvoiceStatus' => 'input_invoice_status',
+            'dateFrom' => 'date_from',
+            'dateTo' => 'date_to',
+            'groupByProject' => 'group_by_project',
+            'reconciledStatus' => 'reconciled_status',
         ];
 
         foreach ($map as $from => $to) {
@@ -146,6 +182,17 @@ class ProjectCostsService extends BaseService
         }
 
         return $data;
+    }
+
+    private function ensureNotReconciled(ProjectCost $cost): void
+    {
+        if (! $cost->reconciled_at) {
+            return;
+        }
+
+        throw ValidationException::withMessages([
+            'cost' => ['Khoản chi đã được đối soát nên không thể chỉnh sửa hoặc xóa.'],
+        ]);
     }
 
     private function validateQuotationProject(array $data): void

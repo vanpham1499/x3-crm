@@ -36,6 +36,8 @@ class ProjectCost extends BaseModel
         'acceptance_status',
         'input_invoice_status',
         'note',
+        'reconciled_at',
+        'reconciled_by',
         'created_by',
         'updated_by',
         'deleted_by',
@@ -50,6 +52,7 @@ class ProjectCost extends BaseModel
         'vat_amount' => 'decimal:2',
         'discount_amount' => 'decimal:2',
         'total_amount' => 'decimal:2',
+        'reconciled_at' => 'datetime',
         'created_at' => 'datetime',
         'updated_at' => 'datetime',
         'deleted_at' => 'datetime',
@@ -73,5 +76,10 @@ class ProjectCost extends BaseModel
     public function partnerOption(): BelongsTo
     {
         return $this->belongsTo(Option::class, 'partner_option_id');
+    }
+
+    public function reconciledBy(): BelongsTo
+    {
+        return $this->belongsTo(User::class, 'reconciled_by');
     }
 }

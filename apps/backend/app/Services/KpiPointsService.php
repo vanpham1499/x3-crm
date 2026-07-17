@@ -5,6 +5,7 @@ namespace App\Services;
 use App\Http\Resources\KpiPointResource;
 use App\Models\KpiPoint;
 use App\Models\Option;
+use App\Models\User;
 use App\Repositories\KpiPointRepository;
 use Symfony\Component\HttpKernel\Exception\UnprocessableEntityHttpException;
 
@@ -24,16 +25,27 @@ class KpiPointsService extends BaseService
             $this->points->findPaginated($filters, $perPage, $page),
             KpiPointResource::class,
         );
-        $result['meta']['summary'] = $this->points
+        $summary = $this->points
             ->summarizeByUser($filters)
             ->map(fn (KpiPoint $point): array => [
                 'userId' => (int) $point->user_id,
+                'code' => $point->user?->code,
                 'name' => $point->user?->name ?: 'NV #'.$point->user_id,
+                'bonusScore' => (float) $point->bonus_score,
+                'penaltyScore' => (float) $point->penalty_score,
                 'total' => (float) $point->total_score,
                 'count' => (int) $point->point_count,
+                'pendingCount' => (int) $point->pending_count,
             ])
-            ->values()
-            ->all();
+            ->values();
+
+        $result['meta']['summary'] = $summary->all();
+        $result['meta']['overview'] = [
+            'bonusScore' => (float) $summary->sum('bonusScore'),
+            'penaltyScore' => (float) $summary->sum('penaltyScore'),
+            'netScore' => (float) $summary->sum('total'),
+            'pendingCount' => (int) $summary->sum('pendingCount'),
+        ];
 
         return $result;
     }
@@ -52,7 +64,7 @@ class KpiPointsService extends BaseService
             /** @var KpiPoint $point */
             $point = $this->points->create($data);
 
-            return $this->apiResource($point->load(['user', 'approver']), KpiPointResource::class);
+            return $this->apiResource($point->load(['user', 'project', 'approver']), KpiPointResource::class);
         });
     }
 
@@ -65,7 +77,7 @@ class KpiPointsService extends BaseService
             /** @var KpiPoint $point */
             $point = $this->points->update($id, $data);
 
-            return $this->apiResource($point->load(['user', 'approver']), KpiPointResource::class);
+            return $this->apiResource($point->load(['user', 'project', 'approver']), KpiPointResource::class);
         });
     }
 
@@ -88,7 +100,7 @@ class KpiPointsService extends BaseService
                 'approved_at' => now(),
             ]);
 
-            return $this->apiResource($point->load(['user', 'approver']), KpiPointResource::class);
+            return $this->apiResource($point->load(['user', 'project', 'approver']), KpiPointResource::class);
         });
     }
 
@@ -121,6 +133,7 @@ class KpiPointsService extends BaseService
     {
         $map = [
             'userId' => 'user_id',
+            'projectId' => 'project_id',
             'entryDate' => 'entry_date',
             'customerRef' => 'customer_ref',
             'isApproved' => 'is_approved',
@@ -138,7 +151,7 @@ class KpiPointsService extends BaseService
         return $data;
     }
 
-    private function currentUser(): ?\App\Models\User
+    private function currentUser(): ?User
     {
         return request()->user();
     }

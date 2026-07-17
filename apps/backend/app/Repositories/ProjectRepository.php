@@ -70,7 +70,7 @@ class ProjectRepository extends BaseRepository
     {
         /** @var Project|null $project */
         $project = $this->query()
-            ->with(['customer', 'quotation', 'service', 'statusOption', 'managerUser', 'salesUser', 'timelines.createdBy'])
+            ->with(['customer', 'quotation', 'service', 'statusOption', 'managerUser', 'salesUser', 'weeklySetting.reportOwner', 'timelines.createdBy'])
             ->whereKey($id)
             ->first();
 

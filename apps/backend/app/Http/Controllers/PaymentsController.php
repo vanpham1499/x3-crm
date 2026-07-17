@@ -30,6 +30,7 @@ class PaymentsController extends Controller
             'reconciledStatus' => $request->query('reconciled_status'),
             'dateFrom' => $request->query('date_from'),
             'dateTo' => $request->query('date_to'),
+            'groupByQuotation' => $request->boolean('group_by_quotation'),
         ];
 
         if ($request->query->has('page') || $request->query->has('per_page')) {

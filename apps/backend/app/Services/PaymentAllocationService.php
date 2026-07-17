@@ -364,7 +364,9 @@ class PaymentAllocationService
             'refunds',
         ]);
         $quotationIds = $payments
-            ->flatMap(fn (Payment $payment) => $payment->allocations->pluck('quotation_id'))
+            ->flatMap(fn (Payment $payment) => $payment->allocations
+                ->pluck('quotation_id')
+                ->push($payment->quotation_id))
             ->filter()
             ->unique()
             ->values();
@@ -372,12 +374,51 @@ class PaymentAllocationService
             ->whereIn('id', $quotationIds)
             ->get(['id', 'total_amount'])
             ->keyBy(fn (Quotation $quotation): string => (string) $quotation->id);
-        $summaries = PaymentAllocation::query()
-            ->whereIn('quotation_id', $quotationIds)
-            ->selectRaw('quotation_id, COUNT(DISTINCT payment_id) AS transaction_count, COALESCE(SUM(amount), 0) AS received_amount')
-            ->groupBy('quotation_id')
-            ->get()
-            ->keyBy(fn (PaymentAllocation $allocation): string => (string) $allocation->quotation_id);
+        $collectionPayments = $quotationIds->isEmpty()
+            ? new Collection
+            : Payment::query()
+                ->with([
+                    'allocations:id,payment_id,quotation_id,amount',
+                    'refunds:id,payment_id,amount',
+                ])
+                ->where(fn ($query) => $query
+                    ->whereIn('quotation_id', $quotationIds)
+                    ->orWhereHas('allocations', fn ($relation) => $relation
+                        ->whereIn('quotation_id', $quotationIds)))
+                ->where(fn ($query) => $query
+                    ->whereNull('receipt_type')
+                    ->orWhere('receipt_type', 'customer'))
+                ->get(['id', 'quotation_id', 'amount', 'receipt_type']);
+        $receivedByQuotation = [];
+        $paymentIdsByQuotation = [];
+
+        foreach ($collectionPayments as $collectionPayment) {
+            $linkedQuotationIds = $collectionPayment->allocations
+                ->pluck('quotation_id')
+                ->push($collectionPayment->quotation_id)
+                ->filter()
+                ->unique()
+                ->values();
+
+            if ($linkedQuotationIds->count() === 1) {
+                $quotationId = (string) $linkedQuotationIds->first();
+                $netAmount = max(
+                    0,
+                    (float) $collectionPayment->amount - (float) $collectionPayment->refunds->sum('amount'),
+                );
+                $receivedByQuotation[$quotationId] = ($receivedByQuotation[$quotationId] ?? 0) + $netAmount;
+                $paymentIdsByQuotation[$quotationId][$collectionPayment->id] = true;
+
+                continue;
+            }
+
+            foreach ($collectionPayment->allocations->groupBy('quotation_id') as $quotationId => $allocations) {
+                $quotationId = (string) $quotationId;
+                $receivedByQuotation[$quotationId] = ($receivedByQuotation[$quotationId] ?? 0)
+                    + (float) $allocations->sum('amount');
+                $paymentIdsByQuotation[$quotationId][$collectionPayment->id] = true;
+            }
+        }
 
         foreach ($payments as $payment) {
             $allocatedAmount = round((float) $payment->allocations->sum('amount'), 2);
@@ -389,23 +430,29 @@ class PaymentAllocationService
             $payment->setAttribute('allocation_count', $payment->allocations->count());
             $payment->setAttribute('refund_count', $payment->refunds->count());
 
-            $primaryAllocation = $payment->allocations->first();
+            $primaryQuotationId = $payment->allocations->first()?->quotation_id
+                ?? $payment->quotation_id;
 
-            if (! $primaryAllocation) {
+            if (! $primaryQuotationId) {
                 continue;
             }
 
-            $quotation = $quotations->get((string) $primaryAllocation->quotation_id);
-            $summary = $summaries->get((string) $primaryAllocation->quotation_id);
+            $quotationId = (string) $primaryQuotationId;
+            $quotation = $quotations->get($quotationId);
             $totalAmount = (float) ($quotation?->total_amount ?? 0);
-            $receivedAmount = (float) ($summary?->received_amount ?? 0);
+            $receivedAmount = (float) ($receivedByQuotation[$quotationId] ?? 0);
+            $differenceAmount = round($receivedAmount - $totalAmount, 2);
 
             $payment->setAttribute('collection_total_amount', round($totalAmount, 2));
             $payment->setAttribute('collection_received_amount', round($receivedAmount, 2));
             $payment->setAttribute('collection_outstanding_amount', round(max(0, $totalAmount - $receivedAmount), 2));
             $payment->setAttribute('collection_excess_amount', round(max(0, $receivedAmount - $totalAmount), 2));
+            $payment->setAttribute('collection_difference_amount', $differenceAmount);
             $payment->setAttribute('collection_status', $this->collectionStatus($receivedAmount, $totalAmount));
-            $payment->setAttribute('collection_transaction_count', (int) ($summary?->transaction_count ?? 0));
+            $payment->setAttribute(
+                'collection_transaction_count',
+                count($paymentIdsByQuotation[$quotationId] ?? []),
+            );
         }
     }
 

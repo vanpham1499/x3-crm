@@ -6,6 +6,7 @@ use App\Models\Payment;
 use Illuminate\Contracts\Pagination\LengthAwarePaginator;
 use Illuminate\Database\Eloquent\Builder;
 use Illuminate\Database\Eloquent\Collection;
+use Illuminate\Support\Facades\DB;
 use Symfony\Component\HttpKernel\Exception\NotFoundHttpException;
 
 class PaymentRepository extends BaseRepository
@@ -24,8 +25,59 @@ class PaymentRepository extends BaseRepository
 
     public function findPaginated(array $filters, int $perPage, int $page): LengthAwarePaginator
     {
-        return $this->filteredQuery($filters)
+        if (! filter_var($filters['group_by_quotation'] ?? false, FILTER_VALIDATE_BOOL)) {
+            return $this->filteredQuery($filters)
+                ->paginate($perPage, ['*'], 'page', $page);
+        }
+
+        $groupPaginator = DB::query()
+            ->fromSub($this->filteredQuery($filters)->toBase(), 'ordered_payments')
+            ->select('quotation_group_id')
+            ->selectRaw('MAX(quotation_group_latest_at) AS quotation_group_latest_at')
+            ->groupBy('quotation_group_id')
+            ->orderByDesc('quotation_group_latest_at')
+            ->orderByDesc('quotation_group_id')
             ->paginate($perPage, ['*'], 'page', $page);
+        $groupIds = collect($groupPaginator->items())
+            ->pluck('quotation_group_id')
+            ->values();
+
+        if ($groupIds->isEmpty()) {
+            return $groupPaginator->setCollection(new Collection);
+        }
+
+        $paymentIds = DB::query()
+            ->fromSub($this->filteredQuery($filters)->toBase(), 'ordered_payments')
+            ->whereIn('quotation_group_id', $groupIds)
+            ->orderByDesc('quotation_group_latest_at')
+            ->orderByDesc('quotation_group_id')
+            ->orderByRaw('transaction_at DESC NULLS LAST')
+            ->orderByDesc('transaction_date')
+            ->orderByDesc('created_at')
+            ->pluck('id');
+        $payments = $this->query()
+            ->with([
+                'quotation',
+                'lead',
+                'customer',
+                'project',
+                'contract',
+                'allocations.quotation.customer',
+                'allocations.quotation.project',
+                'refunds',
+            ])
+            ->whereIn('id', $paymentIds)
+            ->get()
+            ->keyBy(fn (Payment $payment): string => (string) $payment->id);
+        $orderedPayments = new Collection(
+            $paymentIds
+                ->map(fn ($paymentId) => $payments->get((string) $paymentId))
+                ->filter()
+                ->values()
+                ->all(),
+        );
+
+        return $groupPaginator->setCollection($orderedPayments);
     }
 
     private function filteredQuery(array $filters): Builder
@@ -34,7 +86,7 @@ class PaymentRepository extends BaseRepository
         $dateFrom = $filters['date_from'] ?? null;
         $dateTo = $filters['date_to'] ?? null;
 
-        return $this->query()
+        $query = $this->query()
             ->with([
                 'quotation',
                 'lead',
@@ -103,7 +155,36 @@ class PaymentRepository extends BaseRepository
                     ->orWhere(fn ($fallback) => $fallback
                         ->whereNull('transaction_at')
                         ->whereDate('transaction_date', '<=', $dateTo));
-            }))
+            }));
+
+        if (! filter_var($filters['group_by_quotation'] ?? false, FILTER_VALIDATE_BOOL)) {
+            return $query
+                ->orderByRaw('transaction_at DESC NULLS LAST')
+                ->orderByDesc('transaction_date')
+                ->orderByDesc('created_at');
+        }
+
+        $allocationGroups = DB::table('payment_allocations')
+            ->select('payment_id')
+            ->selectRaw('MIN(quotation_id) AS grouped_quotation_id')
+            ->selectRaw('COUNT(DISTINCT quotation_id) AS quotation_count')
+            ->whereNull('deleted_at')
+            ->groupBy('payment_id');
+        $groupExpression = <<<'SQL'
+            CASE
+                WHEN COALESCE(allocation_group.quotation_count, 0) > 1 THEN -payments.id
+                ELSE COALESCE(allocation_group.grouped_quotation_id, payments.quotation_id, -payments.id)
+            END
+            SQL;
+
+        return $query
+            ->leftJoinSub($allocationGroups, 'allocation_group', fn ($join) => $join
+                ->on('allocation_group.payment_id', '=', 'payments.id'))
+            ->select('payments.*')
+            ->selectRaw("{$groupExpression} AS quotation_group_id")
+            ->selectRaw("MAX(COALESCE(payments.transaction_at, payments.transaction_date::timestamp, payments.created_at)) OVER (PARTITION BY {$groupExpression}) AS quotation_group_latest_at")
+            ->orderByDesc('quotation_group_latest_at')
+            ->orderByDesc('quotation_group_id')
             ->orderByRaw('transaction_at DESC NULLS LAST')
             ->orderByDesc('transaction_date')
             ->orderByDesc('created_at');

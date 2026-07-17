@@ -12,6 +12,7 @@ class KpiPoint extends BaseModel
 
     protected $fillable = [
         'user_id',
+        'project_id',
         'entry_date',
         'category',
         'type',
@@ -39,6 +40,11 @@ class KpiPoint extends BaseModel
     public function user(): BelongsTo
     {
         return $this->belongsTo(User::class);
+    }
+
+    public function project(): BelongsTo
+    {
+        return $this->belongsTo(Project::class);
     }
 
     public function approver(): BelongsTo

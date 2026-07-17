@@ -20,7 +20,7 @@ class KpiPointRepository extends BaseRepository
     public function findAll(array $filters = []): Collection
     {
         return $this->filteredQuery($filters)
-            ->with(['user', 'approver', 'categoryOption'])
+            ->with(['user', 'project', 'approver', 'categoryOption'])
             ->orderByDesc('entry_date')
             ->orderByDesc('created_at')
             ->get();
@@ -29,7 +29,7 @@ class KpiPointRepository extends BaseRepository
     public function findPaginated(array $filters, int $perPage, int $page): LengthAwarePaginator
     {
         return $this->filteredQuery($filters)
-            ->with(['user', 'approver', 'categoryOption'])
+            ->with(['user', 'project', 'approver', 'categoryOption'])
             ->orderByDesc('entry_date')
             ->orderByDesc('created_at')
             ->paginate($perPage, ['*'], 'page', $page);
@@ -38,9 +38,17 @@ class KpiPointRepository extends BaseRepository
     public function summarizeByUser(array $filters): Collection
     {
         return $this->filteredQuery($filters)
-            ->selectRaw('user_id, SUM(score) as total_score, COUNT(*) as point_count')
+            ->selectRaw(
+                'user_id,
+                SUM(CASE WHEN type = ? THEN score ELSE 0 END) as bonus_score,
+                SUM(CASE WHEN type = ? THEN score ELSE 0 END) as penalty_score,
+                SUM(score) as total_score,
+                COUNT(*) as point_count,
+                SUM(CASE WHEN is_approved = false THEN 1 ELSE 0 END) as pending_count',
+                [KpiPoint::TYPE_BONUS, KpiPoint::TYPE_PENALTY],
+            )
             ->groupBy('user_id')
-            ->with('user:id,name')
+            ->with('user:id,code,name')
             ->orderByDesc('total_score')
             ->get();
     }
@@ -53,7 +61,10 @@ class KpiPointRepository extends BaseRepository
             ->when($keyword !== '', fn ($query) => $query->where(function ($query) use ($keyword): void {
                 $query
                     ->where('customer_ref', 'ilike', "%{$keyword}%")
-                    ->orWhere('note', 'ilike', "%{$keyword}%");
+                    ->orWhere('note', 'ilike', "%{$keyword}%")
+                    ->orWhereHas('project', fn ($projectQuery) => $projectQuery
+                        ->where('project_code', 'ilike', "%{$keyword}%")
+                        ->orWhere('project_name', 'ilike', "%{$keyword}%"));
             }))
             ->when($filters['user_id'] ?? null, fn ($query, $value) => $query->where('user_id', $value))
             ->when($filters['category'] ?? null, fn ($query, $value) => $query->where('category', $value))
@@ -67,7 +78,7 @@ class KpiPointRepository extends BaseRepository
     {
         /** @var KpiPoint|null $point */
         $point = $this->query()
-            ->with(['user', 'approver', 'categoryOption'])
+            ->with(['user', 'project', 'approver', 'categoryOption'])
             ->whereKey($id)
             ->first();
 
