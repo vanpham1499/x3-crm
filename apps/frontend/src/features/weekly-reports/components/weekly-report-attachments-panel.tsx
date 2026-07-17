@@ -51,6 +51,7 @@ function PanelShell({
   onPickFiles,
   inputRef,
   onInputChange,
+  readOnly = false,
   children,
 }: {
   title: string;
@@ -59,32 +60,37 @@ function PanelShell({
   onPickFiles: () => void;
   inputRef: React.RefObject<HTMLInputElement | null>;
   onInputChange: (files: FileList) => void;
+  readOnly?: boolean;
   children: React.ReactNode;
 }) {
   return (
     <section className="h-full overflow-hidden rounded-2xl border border-slate-200 bg-white shadow-sm">
       <div className="flex min-h-14 flex-wrap items-center justify-between gap-3 border-b border-slate-200 px-5 py-3.5">
         <h2 className="text-base font-bold text-slate-950">{title}</h2>
-        <TabActionButton
-          startIcon={
-            isBusy ? <CircularProgress size={16} color="inherit" /> : <UploadFileRoundedIcon />
-          }
-          disabled={isBusy}
-          onClick={onPickFiles}
-        >
-          {isBusy ? 'Đang tải lên...' : 'Tải tệp lên'}
-        </TabActionButton>
-        <input
-          ref={inputRef}
-          type="file"
-          multiple
-          className="hidden"
-          accept={ACCEPT}
-          onChange={(event) => {
-            if (event.target.files?.length) onInputChange(event.target.files);
-            event.target.value = '';
-          }}
-        />
+        {!readOnly ? (
+          <>
+            <TabActionButton
+              startIcon={
+                isBusy ? <CircularProgress size={16} color="inherit" /> : <UploadFileRoundedIcon />
+              }
+              disabled={isBusy}
+              onClick={onPickFiles}
+            >
+              {isBusy ? 'Đang tải lên...' : 'Tải tệp lên'}
+            </TabActionButton>
+            <input
+              ref={inputRef}
+              type="file"
+              multiple
+              className="hidden"
+              accept={ACCEPT}
+              onChange={(event) => {
+                if (event.target.files?.length) onInputChange(event.target.files);
+                event.target.value = '';
+              }}
+            />
+          </>
+        ) : null}
       </div>
 
       {isBusy && <LinearProgress color="primary" />}
@@ -109,7 +115,7 @@ function AttachmentRow({
   mimeType?: string | null;
   previewUrl: string;
   meta: string;
-  onRemove: () => void;
+  onRemove?: () => void;
   isRemoving?: boolean;
 }) {
   return (
@@ -146,9 +152,11 @@ function AttachmentRow({
         <p className="mt-0.5 text-xs text-slate-400">{meta}</p>
       </div>
 
-      <IconButton size="small" title="Xóa tệp" disabled={isRemoving} onClick={onRemove}>
-        <DeleteOutlineRoundedIcon fontSize="small" />
-      </IconButton>
+      {onRemove ? (
+        <IconButton size="small" title="Xóa tệp" disabled={isRemoving} onClick={onRemove}>
+          <DeleteOutlineRoundedIcon fontSize="small" />
+        </IconButton>
+      ) : null}
     </div>
   );
 }
@@ -157,6 +165,7 @@ type ExistingModeProps = {
   mode: 'existing';
   reportId: number;
   attachments: WeeklyReportAttachment[];
+  readOnly?: boolean;
 };
 
 type PendingModeProps = {
@@ -173,7 +182,7 @@ export function WeeklyReportAttachmentsPanel(props: ExistingModeProps | PendingM
   return <ExistingAttachmentsPanel {...props} />;
 }
 
-function ExistingAttachmentsPanel({ reportId, attachments }: ExistingModeProps) {
+function ExistingAttachmentsPanel({ reportId, attachments, readOnly = false }: ExistingModeProps) {
   const inputRef = useRef<HTMLInputElement | null>(null);
   const queryClient = useQueryClient();
   const notify = useAppNotification();
@@ -225,6 +234,7 @@ function ExistingAttachmentsPanel({ reportId, attachments }: ExistingModeProps) 
       onPickFiles={() => inputRef.current?.click()}
       inputRef={inputRef}
       onInputChange={uploadFiles}
+      readOnly={readOnly}
     >
       {attachments.length === 0 ? (
         <EmptyState />
@@ -237,7 +247,7 @@ function ExistingAttachmentsPanel({ reportId, attachments }: ExistingModeProps) 
               mimeType={attachment.mimeType}
               previewUrl={getMediaPreviewUrl(attachment.fileUrl)}
               meta={`${attachment.uploadedBy?.name || '-'} · ${formatDate(attachment.createdAt)}`}
-              onRemove={() => deleteMutation.mutate(attachment)}
+              onRemove={readOnly ? undefined : () => deleteMutation.mutate(attachment)}
               isRemoving={deleteMutation.isPending}
             />
           ))}

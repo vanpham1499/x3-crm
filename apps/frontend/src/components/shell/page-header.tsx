@@ -37,6 +37,7 @@ const ROUTE_LABELS: Record<string, string> = {
   partners: 'Đối tác',
   quotations: 'Báo phí',
   payments: 'Thanh toán',
+  costs: 'Chi phí',
   'weekly-reports': 'Báo cáo tuần',
   kpi: 'KPI',
   'kpi-categories': 'Hạng mục KPI',

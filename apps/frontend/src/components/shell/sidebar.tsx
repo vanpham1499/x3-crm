@@ -24,6 +24,7 @@ import PolicyRoundedIcon from '@mui/icons-material/PolicyRounded';
 import RequestQuoteRoundedIcon from '@mui/icons-material/RequestQuoteRounded';
 import SettingsRoundedIcon from '@mui/icons-material/SettingsRounded';
 import TuneRoundedIcon from '@mui/icons-material/TuneRounded';
+import TrendingDownRoundedIcon from '@mui/icons-material/TrendingDownRounded';
 import WorkspacesRoundedIcon from '@mui/icons-material/WorkspacesRounded';
 import x3salesLogo from '@assets/logos/x3sales-logo.svg';
 
@@ -45,6 +46,7 @@ const navGroups = [
       },
       { href: '/quotations', label: 'Báo phí', icon: RequestQuoteRoundedIcon },
       { href: '/payments', label: 'Thanh toán', icon: AccountBalanceWalletRoundedIcon },
+      { href: '/costs', label: 'Chi phí', icon: TrendingDownRoundedIcon },
       { href: '/weekly-reports', label: 'Báo cáo tuần', icon: CalendarMonthRoundedIcon },
       { href: '/kpi', label: 'KPI', icon: EmojiEventsRoundedIcon },
       {

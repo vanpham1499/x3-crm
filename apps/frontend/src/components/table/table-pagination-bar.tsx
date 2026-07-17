@@ -11,6 +11,8 @@ export function TablePaginationBar({
   onPageChange,
   onPageSizeChange,
   pageSizeOptions = [10, 20, 50, 100],
+  rangeLabel = 'Hiển thị',
+  pageSizeLabel = 'Số dòng',
 }: {
   page: number;
   totalPages: number;
@@ -19,6 +21,8 @@ export function TablePaginationBar({
   onPageChange: (page: number) => void;
   onPageSizeChange?: (pageSize: number) => void;
   pageSizeOptions?: number[];
+  rangeLabel?: string;
+  pageSizeLabel?: string;
 }) {
   const pageSizeLabelId = useId();
 
@@ -30,7 +34,7 @@ export function TablePaginationBar({
   return (
     <div className="flex flex-col items-center justify-between gap-3 border-t border-slate-200 px-5 py-4 sm:flex-row">
       <p className="text-sm text-slate-500">
-        Hiển thị{' '}
+        {rangeLabel}{' '}
         <strong className="text-slate-950">
           {start}-{end}
         </strong>{' '}
@@ -40,7 +44,7 @@ export function TablePaginationBar({
         {onPageSizeChange && (
           <div className="flex items-center gap-2 whitespace-nowrap">
             <span id={pageSizeLabelId} className="text-sm font-medium text-slate-500">
-              Số dòng
+              {pageSizeLabel}
             </span>
             <Select
               size="small"

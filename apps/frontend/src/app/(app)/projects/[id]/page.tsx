@@ -258,7 +258,7 @@ export default function EditProjectPage() {
           {
             label: 'Số tiền có thể nạp',
             value: availableTopupBudget,
-            className: 'text-blue-700',
+            className: availableTopupBudget < 0 ? 'text-rose-700' : 'text-blue-700',
           },
         ]
       : []),

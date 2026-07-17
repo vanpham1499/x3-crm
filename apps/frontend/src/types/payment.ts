@@ -89,6 +89,7 @@ export type Payment = {
   collectionReceivedAmount?: string | number | null;
   collectionOutstandingAmount?: string | number | null;
   collectionExcessAmount?: string | number | null;
+  collectionDifferenceAmount?: string | number | null;
   collectionStatus?: PaymentCollectionStatus | null;
   collectionTransactionCount?: number | null;
   customerCodeText?: string | null;

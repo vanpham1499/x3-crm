@@ -5,6 +5,7 @@ import AddRoundedIcon from '@mui/icons-material/AddRounded';
 import DeleteOutlineRoundedIcon from '@mui/icons-material/DeleteOutlineRounded';
 import EditOutlinedIcon from '@mui/icons-material/EditOutlined';
 import InfoOutlinedIcon from '@mui/icons-material/InfoOutlined';
+import LockRoundedIcon from '@mui/icons-material/LockRounded';
 import WarningAmberRoundedIcon from '@mui/icons-material/WarningAmberRounded';
 import { Checkbox, FormControlLabel, IconButton, MenuItem } from '@mui/material';
 import { useMutation, useQueryClient } from '@tanstack/react-query';
@@ -74,6 +75,8 @@ function statusClass(status?: string | null) {
 }
 
 function getCostDefaults(cost?: ProjectCost | null): ProjectCostFormValues {
+  const isAdSpend = cost?.entryType === 'ad_spend';
+
   return {
     quotationId: cost?.quotationId ? String(cost.quotationId) : '',
     transactionDate: cost?.transactionDate || new Date().toISOString().slice(0, 10),
@@ -84,8 +87,12 @@ function getCostDefaults(cost?: ProjectCost | null): ProjectCostFormValues {
     cidSpentAmount: String(cost?.cidSpentAmount ?? ''),
     bankAccountOptionId: cost?.bankAccountOptionId ? String(cost.bankAccountOptionId) : '',
     partnerOptionId: cost?.partnerOptionId ? String(cost.partnerOptionId) : '',
-    amountBeforeVat: String(cost?.amountBeforeVat ?? ''),
-    vatRate: String(cost?.vatRate ?? '0'),
+    amountBeforeVat: String(
+      isAdSpend
+        ? (cost?.totalAmount ?? cost?.amountBeforeVat ?? '')
+        : (cost?.amountBeforeVat ?? ''),
+    ),
+    vatRate: String(isAdSpend ? '0' : (cost?.vatRate ?? '0')),
     discountAmount: String(cost?.discountAmount ?? '0'),
     acceptanceStatus: cost?.acceptanceStatus || 'pending',
     inputInvoiceStatus: cost?.inputInvoiceStatus || 'pending',
@@ -136,10 +143,12 @@ function CostDialog({
   const cidIsDead = watch('cidIsDead');
   const cidSpentAmount = Math.max(0, Number(watch('cidSpentAmount')) || 0);
   const currentStatus = watch('status');
-  const vatRate = Number(watch('vatRate')) || 0;
+  const vatRate = isAdSpend ? 0 : Number(watch('vatRate')) || 0;
   const discountAmount = isAdSpend ? 0 : Number(watch('discountAmount')) || 0;
   const vatAmount = Math.round((amountBeforeVat * vatRate) / 100);
-  const totalAmount = Math.max(0, amountBeforeVat + vatAmount - discountAmount);
+  const totalAmount = isAdSpend
+    ? Math.max(0, amountBeforeVat)
+    : Math.max(0, amountBeforeVat + vatAmount - discountAmount);
   const managedBudgetProject = isManagedBudgetProject({
     projectType,
     projectCode,
@@ -298,7 +307,7 @@ function CostDialog({
           <MoneyInput
             fullWidth
             size="small"
-            label={isAdSpend ? 'Ngân sách nạp *' : 'Chi phí đối tác *'}
+            label={isAdSpend ? 'Ngân sách nạp + VAT *' : 'Chi phí đối tác *'}
             value={field.value}
             onValueChange={field.onChange}
             error={Boolean(errors.amountBeforeVat)}
@@ -307,12 +316,14 @@ function CostDialog({
           />
         )}
       />
-      <FormInputField
-        type="number"
-        label="Thuế suất VAT (%)"
-        slotProps={{ htmlInput: { min: 0, step: 0.01 } }}
-        {...register('vatRate')}
-      />
+      {!isAdSpend ? (
+        <FormInputField
+          type="number"
+          label="Thuế suất VAT (%)"
+          slotProps={{ htmlInput: { min: 0, step: 0.01 } }}
+          {...register('vatRate')}
+        />
+      ) : null}
 
       {!isAdSpend ? (
         <Controller
@@ -347,16 +358,26 @@ function CostDialog({
         <div
           role="status"
           aria-live="polite"
-          className="md:col-span-2 flex min-h-9 items-center justify-between gap-3 rounded-md border border-sky-200 bg-sky-50/70 px-3 py-1.5"
+          className={`md:col-span-2 flex min-h-9 items-center justify-between gap-3 rounded-md border px-3 py-1.5 ${
+            availableBudget < 0 ? 'border-rose-200 bg-rose-50/70' : 'border-sky-200 bg-sky-50/70'
+          }`}
         >
-          <span className="inline-flex items-center gap-1.5 text-xs font-semibold text-sky-700">
+          <span
+            className={`inline-flex items-center gap-1.5 text-xs font-semibold ${
+              availableBudget < 0 ? 'text-rose-700' : 'text-sky-700'
+            }`}
+          >
             <InfoOutlinedIcon className="shrink-0 !text-[16px]" />
             {customerBudget > 0
               ? 'Ngân sách còn có thể nạp'
               : 'Chưa có ngân sách khách trong báo phí'}
           </span>
           {customerBudget > 0 ? (
-            <strong className="whitespace-nowrap text-sm font-extrabold tabular-nums text-sky-800">
+            <strong
+              className={`whitespace-nowrap text-sm font-extrabold tabular-nums ${
+                availableBudget < 0 ? 'text-rose-800' : 'text-sky-800'
+              }`}
+            >
               {formatCurrency(availableBudget)}
             </strong>
           ) : null}
@@ -455,24 +476,26 @@ function CostDialog({
         {...register('note')}
       />
 
-      <div className="md:col-span-2 grid grid-cols-3 overflow-hidden rounded-lg border border-slate-200 bg-slate-50">
-        <div className="px-3 py-2.5">
-          <p className="text-[11px] font-bold uppercase text-slate-400">VAT</p>
-          <p className="mt-1 text-sm font-bold text-slate-800">{formatCurrency(vatAmount)}</p>
+      {!isAdSpend ? (
+        <div className="md:col-span-2 grid grid-cols-3 overflow-hidden rounded-lg border border-slate-200 bg-slate-50">
+          <div className="px-3 py-2.5">
+            <p className="text-[11px] font-bold uppercase text-slate-400">VAT</p>
+            <p className="mt-1 text-sm font-bold text-slate-800">{formatCurrency(vatAmount)}</p>
+          </div>
+          <div className="border-x border-slate-200 px-3 py-2.5">
+            <p className="text-[11px] font-bold uppercase text-slate-400">Giảm trừ</p>
+            <p className="mt-1 text-sm font-bold text-slate-800">
+              {formatCurrency(discountAmount)}
+            </p>
+          </div>
+          <div className="px-3 py-2.5">
+            <p className="text-[11px] font-bold uppercase text-slate-400">Thực chi</p>
+            <p className="mt-1 text-sm font-extrabold text-slate-950">
+              {formatCurrency(totalAmount)}
+            </p>
+          </div>
         </div>
-        <div className="border-x border-slate-200 px-3 py-2.5">
-          <p className="text-[11px] font-bold uppercase text-slate-400">Giảm trừ</p>
-          <p className="mt-1 text-sm font-bold text-slate-800">{formatCurrency(discountAmount)}</p>
-        </div>
-        <div className="px-3 py-2.5">
-          <p className="text-[11px] font-bold uppercase text-slate-400">
-            {isAdSpend ? 'Ngân sách + VAT' : 'Thực chi'}
-          </p>
-          <p className="mt-1 text-sm font-extrabold text-slate-950">
-            {formatCurrency(totalAmount)}
-          </p>
-        </div>
-      </div>
+      ) : null}
     </AppFormDialog>
   );
 }
@@ -526,7 +549,7 @@ export function ProjectCostPanel({
         bankAccountOptionId: values.bankAccountOptionId ? Number(values.bankAccountOptionId) : null,
         partnerOptionId: values.partnerOptionId ? Number(values.partnerOptionId) : null,
         amountBeforeVat: Number(values.amountBeforeVat) || 0,
-        vatRate: Number(values.vatRate) || 0,
+        vatRate: entryType === 'ad_spend' ? 0 : Number(values.vatRate) || 0,
         discountAmount: Number(values.discountAmount) || 0,
         acceptanceStatus: entryType === 'partner_cost' ? values.acceptanceStatus : null,
         inputInvoiceStatus: entryType === 'partner_cost' ? values.inputInvoiceStatus : null,
@@ -565,6 +588,11 @@ export function ProjectCostPanel({
   };
 
   const openEdit = (cost: ProjectCost) => {
+    if (cost.reconciledAt) {
+      notify.warning('Khoản chi đã đối soát nên không thể chỉnh sửa.');
+      return;
+    }
+
     setEditingCost(cost);
     setDialogOpen(true);
   };
@@ -584,39 +612,37 @@ export function ProjectCostPanel({
 
       <div className="overflow-x-auto">
         {entryType === 'ad_spend' ? (
-          <table className="w-full min-w-[1280px] text-left text-sm">
+          <table className="w-full min-w-[760px] text-left text-sm">
             <thead className="border-y border-slate-200 bg-slate-100 text-sm font-bold text-slate-700">
               <tr>
-                <th className="px-4 py-3">Ngày nạp/hủy</th>
-                <th className="px-3 py-3">Báo phí</th>
-                <th className="px-3 py-3">Mã CID</th>
-                <th className="px-3 py-3">Tài khoản QC</th>
+                <th className="px-4 py-3">Lần nạp</th>
+                <th className="px-3 py-3">CID / Tài khoản QC</th>
                 <th className="px-3 py-3">TK ngân hàng nạp QC</th>
-                <th className="px-3 py-3 text-right">Ngân sách</th>
-                <th className="px-3 py-3 text-right">VAT</th>
                 <th className="px-3 py-3 text-right">Ngân sách + VAT</th>
                 <th className="px-3 py-3">Tình trạng</th>
-                <th className="w-20 px-4 py-3" />
+                <th className="w-28 px-4 py-3" />
               </tr>
             </thead>
             <tbody className="divide-y divide-slate-100">
               {visibleCosts.length === 0 ? (
                 <tr>
-                  <td colSpan={10} className="px-4 py-10 text-center font-semibold text-slate-500">
+                  <td colSpan={6} className="px-4 py-10 text-center font-semibold text-slate-500">
                     Chưa có dữ liệu nạp quảng cáo
                   </td>
                 </tr>
               ) : (
                 visibleCosts.map((cost) => (
                   <tr key={cost.id} className="hover:bg-slate-50/70">
-                    <td className="px-4 py-3 font-semibold text-slate-800">
-                      {formatDate(cost.transactionDate)}
-                    </td>
-                    <td className="px-3 py-3 font-bold text-blue-700">
-                      {cost.quotation?.quotationCode || '-'}
+                    <td className="px-4 py-3">
+                      <p className="font-semibold tabular-nums text-slate-800">
+                        {formatDate(cost.transactionDate)}
+                      </p>
+                      <p className="mt-1 truncate text-xs font-bold text-blue-700">
+                        {cost.quotation?.quotationCode || 'Không gắn báo phí'}
+                      </p>
                     </td>
                     <td className="px-3 py-3">
-                      <div className="flex items-center gap-2 whitespace-nowrap">
+                      <div className="flex items-center gap-1.5 whitespace-nowrap">
                         <span className="font-mono font-bold text-slate-800">
                           {cost.cid || '-'}
                         </span>
@@ -631,16 +657,12 @@ export function ProjectCostPanel({
                           </>
                         ) : null}
                       </div>
+                      <p className="mt-1 max-w-[220px] truncate text-xs font-medium text-slate-500">
+                        {cost.adAccount || 'Chưa có tài khoản quảng cáo'}
+                      </p>
                     </td>
-                    <td className="px-3 py-3 text-slate-700">{cost.adAccount || '-'}</td>
                     <td className="px-3 py-3 text-slate-700">
                       {bankAccountLabel(cost.bankAccountOption)}
-                    </td>
-                    <td className="px-3 py-3 text-right font-bold tabular-nums">
-                      {formatCurrency(Number(cost.amountBeforeVat) || 0)}
-                    </td>
-                    <td className="px-3 py-3 text-right tabular-nums text-slate-600">
-                      {formatCurrency(Number(cost.vatAmount) || 0)}
                     </td>
                     <td className="px-3 py-3 text-right font-extrabold tabular-nums text-slate-950">
                       {formatCurrency(Number(cost.totalAmount) || 0)}
@@ -654,12 +676,34 @@ export function ProjectCostPanel({
                     </td>
                     <td className="px-4 py-3">
                       <div className="flex justify-end">
-                        <IconButton size="small" title="Sửa" onClick={() => openEdit(cost)}>
-                          <EditOutlinedIcon fontSize="small" />
-                        </IconButton>
-                        <IconButton size="small" title="Xóa" onClick={() => setDeleteTarget(cost)}>
-                          <DeleteOutlineRoundedIcon fontSize="small" />
-                        </IconButton>
+                        {cost.reconciledAt ? (
+                          <span
+                            className="inline-flex items-center gap-1 whitespace-nowrap rounded-md bg-emerald-50 px-2 py-1 text-xs font-bold text-emerald-700 ring-1 ring-emerald-200"
+                            title="Khoản chi đã đối soát, không thể sửa hoặc xóa"
+                          >
+                            <LockRoundedIcon className="!text-[15px]" />
+                            Đã khớp
+                          </span>
+                        ) : (
+                          <>
+                            <IconButton
+                              size="small"
+                              title="Sửa"
+                              aria-label={`Sửa lần nạp ${cost.cid || cost.id}`}
+                              onClick={() => openEdit(cost)}
+                            >
+                              <EditOutlinedIcon fontSize="small" />
+                            </IconButton>
+                            <IconButton
+                              size="small"
+                              title="Xóa"
+                              aria-label={`Xóa lần nạp ${cost.cid || cost.id}`}
+                              onClick={() => setDeleteTarget(cost)}
+                            >
+                              <DeleteOutlineRoundedIcon fontSize="small" />
+                            </IconButton>
+                          </>
+                        )}
                       </div>
                     </td>
                   </tr>
@@ -682,7 +726,7 @@ export function ProjectCostPanel({
                 <th className="px-3 py-3">Nghiệm thu</th>
                 <th className="px-3 py-3">HĐ đầu vào</th>
                 <th className="px-3 py-3">Tình trạng</th>
-                <th className="w-20 px-4 py-3" />
+                <th className="w-28 px-4 py-3" />
               </tr>
             </thead>
             <tbody className="divide-y divide-slate-100">
@@ -740,12 +784,28 @@ export function ProjectCostPanel({
                     </td>
                     <td className="px-4 py-3">
                       <div className="flex justify-end">
-                        <IconButton size="small" title="Sửa" onClick={() => openEdit(cost)}>
-                          <EditOutlinedIcon fontSize="small" />
-                        </IconButton>
-                        <IconButton size="small" title="Xóa" onClick={() => setDeleteTarget(cost)}>
-                          <DeleteOutlineRoundedIcon fontSize="small" />
-                        </IconButton>
+                        {cost.reconciledAt ? (
+                          <span
+                            className="inline-flex items-center gap-1 whitespace-nowrap rounded-md bg-emerald-50 px-2 py-1 text-xs font-bold text-emerald-700 ring-1 ring-emerald-200"
+                            title="Khoản chi đã đối soát, không thể sửa hoặc xóa"
+                          >
+                            <LockRoundedIcon className="!text-[15px]" />
+                            Đã khớp
+                          </span>
+                        ) : (
+                          <>
+                            <IconButton size="small" title="Sửa" onClick={() => openEdit(cost)}>
+                              <EditOutlinedIcon fontSize="small" />
+                            </IconButton>
+                            <IconButton
+                              size="small"
+                              title="Xóa"
+                              onClick={() => setDeleteTarget(cost)}
+                            >
+                              <DeleteOutlineRoundedIcon fontSize="small" />
+                            </IconButton>
+                          </>
+                        )}
                       </div>
                     </td>
                   </tr>

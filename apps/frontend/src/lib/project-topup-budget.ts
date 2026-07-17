@@ -6,11 +6,20 @@ function quotationBudget(quotation: Quotation) {
   return Number.isFinite(budget) && budget > 0 ? budget : 0;
 }
 
-function topupBudgetUsed(cost: ProjectCost) {
-  const topupAmount = Math.max(0, Number(cost.amountBeforeVat) || 0);
-  const spentAmount = Math.max(0, Number(cost.cidSpentAmount) || 0);
+function quotationBudgetWithVat(quotation: Quotation) {
+  const budget = quotationBudget(quotation);
+  const vatRate = Math.max(0, Number(quotation.vatRate) || 0);
 
-  return cost.cidIsDead ? Math.min(topupAmount, spentAmount) : topupAmount;
+  return budget + Math.round((budget * vatRate) / 100);
+}
+
+function topupBudgetUsed(cost: ProjectCost) {
+  const topupAmount = Math.max(0, Number(cost.totalAmount) || Number(cost.amountBeforeVat) || 0);
+  const spentAmount = Math.max(0, Number(cost.cidSpentAmount) || 0);
+  const vatRate = Math.max(0, Number(cost.vatRate) || 0);
+  const spentAmountWithVat = spentAmount + Math.round((spentAmount * vatRate) / 100);
+
+  return cost.cidIsDead ? Math.min(topupAmount, spentAmountWithVat) : topupAmount;
 }
 
 export function calculateRealizedProjectCost(costs: ProjectCost[]) {
@@ -18,11 +27,7 @@ export function calculateRealizedProjectCost(costs: ProjectCost[]) {
     if (cost.status !== 'completed') return sum;
 
     if (cost.entryType === 'ad_spend' && cost.cidIsDead) {
-      const spentBeforeVat = topupBudgetUsed(cost);
-      const vatRate = Math.max(0, Number(cost.vatRate) || 0);
-      const spentVat = Math.round((spentBeforeVat * vatRate) / 100);
-
-      return sum + spentBeforeVat + spentVat;
+      return sum + topupBudgetUsed(cost);
     }
 
     return sum + (Number(cost.totalAmount) || 0);
@@ -64,7 +69,7 @@ export function calculateAvailableTopupBudget({
     ? quotations.filter((quotation) => String(quotation.id) === normalizedQuotationId)
     : quotations;
   const customerBudget = scopedQuotations.reduce(
-    (sum, quotation) => sum + quotationBudget(quotation),
+    (sum, quotation) => sum + quotationBudgetWithVat(quotation),
     0,
   );
   const savedUsedBudget = costs
@@ -82,6 +87,6 @@ export function calculateAvailableTopupBudget({
   return {
     customerBudget,
     usedBudget,
-    availableBudget: Math.max(0, customerBudget - usedBudget),
+    availableBudget: customerBudget - usedBudget,
   };
 }

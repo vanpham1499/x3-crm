@@ -9,7 +9,6 @@ import { WeeklyReportForm } from '@/features/weekly-reports/components/weekly-re
 import { getApiErrorMessage } from '@/lib/api-error';
 import api from '@/services/api/client';
 import type { ProjectItem } from '@/types/project';
-import type { User } from '@/types/user';
 import type { WeeklyReport } from '@/types/weekly-report';
 
 export default function NewWeeklyReportPage() {
@@ -18,16 +17,13 @@ export default function NewWeeklyReportPage() {
   const queryClient = useQueryClient();
   const notify = useAppNotification();
   const projectId = searchParams.get('projectId') || '';
+  const weekStart = searchParams.get('weekStart') || '';
   const [pendingFiles, setPendingFiles] = useState<File[]>([]);
 
-  const { data: projects = [], isLoading: isProjectsLoading } = useQuery<ProjectItem[]>({
-    queryKey: ['projects', 'weekly-report-form-options'],
-    queryFn: () => api.get('/projects').then((response) => response.data),
-  });
-
-  const { data: users = [], isLoading: isUsersLoading } = useQuery<User[]>({
-    queryKey: ['users', 'weekly-report-form-options'],
-    queryFn: () => api.get('/users').then((response) => response.data),
+  const { data: project, isLoading: isProjectLoading } = useQuery<ProjectItem>({
+    queryKey: ['projects', 'weekly-report-form', projectId],
+    queryFn: () => api.get(`/projects/${projectId}`).then((response) => response.data),
+    enabled: Boolean(projectId),
   });
 
   const createMutation = useMutation({
@@ -60,16 +56,16 @@ export default function NewWeeklyReportPage() {
     onError: (error) => notify.error(getApiErrorMessage(error, 'Tạo báo cáo tuần thất bại')),
   });
 
-  if (isProjectsLoading || isUsersLoading) {
+  if (projectId && isProjectLoading) {
     return <ContentLoading />;
   }
 
   return (
     <WeeklyReportForm
       mode="create"
-      projects={projects}
-      users={users}
+      projects={project ? [project] : []}
       defaultProjectId={projectId}
+      defaultWeekStart={weekStart}
       isSubmitting={createMutation.isPending}
       onSubmit={(payload) => createMutation.mutateAsync(payload)}
       pendingFiles={pendingFiles}

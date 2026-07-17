@@ -6,6 +6,7 @@ import DeleteRoundedIcon from '@mui/icons-material/DeleteRounded';
 import EditRoundedIcon from '@mui/icons-material/EditRounded';
 import MoreVertRoundedIcon from '@mui/icons-material/MoreVertRounded';
 import QrCode2RoundedIcon from '@mui/icons-material/QrCode2Rounded';
+import VisibilityRoundedIcon from '@mui/icons-material/VisibilityRounded';
 import { IconButton, Menu, MenuItem } from '@mui/material';
 import { useState, type MouseEvent } from 'react';
 import { DialogActionButton } from '@/components/actions/dialog-action-button';
@@ -19,6 +20,7 @@ import { EntityTableLink } from '@/components/table/entity-table-link';
 import { TablePaginationBar } from '@/components/table/table-pagination-bar';
 import { getQuotationPaymentContent, QUOTATION_PAYMENT_STATUS_LABELS } from '@/lib/quotation-utils';
 import type { Quotation, QuotationFilters } from '@/types/quotation';
+import { QuotationPreviewDialog } from './quotation-preview-dialog';
 
 type QuotationManagerProps = {
   quotations: Quotation[];
@@ -111,6 +113,7 @@ export function QuotationManager({
   const [activeQuotation, setActiveQuotation] = useState<Quotation | null>(null);
   const [deleteTarget, setDeleteTarget] = useState<Quotation | null>(null);
   const [qrTarget, setQrTarget] = useState<Quotation | null>(null);
+  const [previewTarget, setPreviewTarget] = useState<Quotation | null>(null);
 
   const openActionMenu = (event: MouseEvent<HTMLButtonElement>, quotation: Quotation) => {
     setMenuAnchorEl(event.currentTarget);
@@ -271,7 +274,16 @@ export function QuotationManager({
                   <div className="flex items-center justify-end gap-1 pr-3">
                     <IconButton
                       size="small"
+                      title="Xem chi tiết báo phí"
+                      aria-label={`Xem chi tiết báo phí ${quotation.quotationCode || quotation.id}`}
+                      onClick={() => setPreviewTarget(quotation)}
+                    >
+                      <VisibilityRoundedIcon fontSize="small" />
+                    </IconButton>
+                    <IconButton
+                      size="small"
                       title="Xem QR thanh toán"
+                      aria-label={`Xem QR thanh toán báo phí ${quotation.quotationCode || quotation.id}`}
                       onClick={() => setQrTarget(quotation)}
                     >
                       <QrCode2RoundedIcon fontSize="small" />
@@ -281,12 +293,14 @@ export function QuotationManager({
                       href={`/quotations/${quotation.id}`}
                       size="small"
                       title="Chỉnh sửa báo phí"
+                      aria-label={`Chỉnh sửa báo phí ${quotation.quotationCode || quotation.id}`}
                     >
                       <EditRoundedIcon fontSize="small" />
                     </IconButton>
                     <IconButton
                       size="small"
                       title="Tác vụ"
+                      aria-label={`Mở tác vụ báo phí ${quotation.quotationCode || quotation.id}`}
                       onClick={(event) => openActionMenu(event, quotation)}
                     >
                       <MoreVertRoundedIcon fontSize="small" />
@@ -309,6 +323,15 @@ export function QuotationManager({
       </section>
 
       <Menu anchorEl={menuAnchorEl} open={Boolean(menuAnchorEl)} onClose={closeActionMenu}>
+        <MenuItem
+          onClick={() => {
+            setPreviewTarget(activeQuotation);
+            closeActionMenu();
+          }}
+        >
+          <VisibilityRoundedIcon fontSize="small" className="mr-2 text-slate-500" />
+          Xem chi tiết
+        </MenuItem>
         <MenuItem
           onClick={() => {
             setQrTarget(activeQuotation);
@@ -339,6 +362,8 @@ export function QuotationManager({
         </MenuItem>
       </Menu>
 
+      <QuotationPreviewDialog quotation={previewTarget} onClose={() => setPreviewTarget(null)} />
+
       <AppDetailDialog
         open={Boolean(qrTarget)}
         title="QR thanh toán"
@@ -348,7 +373,7 @@ export function QuotationManager({
           qrTarget?.lead?.customerName ||
           'Thông tin chuyển khoản'
         }
-        maxWidth="sm"
+        maxWidth="md"
         onClose={() => setQrTarget(null)}
         actions={
           qrTarget ? (
@@ -358,14 +383,14 @@ export function QuotationManager({
           ) : null
         }
       >
-        <div className="p-5">
+        <div className="p-4 sm:p-5">
           {qrTarget && getQuotationQrUrl(qrTarget) ? (
-            <div className="grid gap-5 sm:grid-cols-[208px,minmax(0,1fr)] sm:items-start">
-              <div className="flex items-center justify-center rounded-xl border border-slate-200 bg-slate-50 p-3">
+            <div className="grid gap-5 md:grid-cols-2 md:items-stretch">
+              <div className="flex items-center justify-center rounded-xl border border-slate-200 bg-slate-50 p-4">
                 <img
                   src={getQuotationQrUrl(qrTarget)}
                   alt="Mã VietQR thanh toán báo phí"
-                  className="h-48 w-48 rounded-lg bg-white object-contain"
+                  className="aspect-square h-auto w-full max-w-[360px] rounded-xl bg-white object-contain"
                 />
               </div>
 

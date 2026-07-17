@@ -17,6 +17,7 @@ import {
   type KpiPoint,
   type KpiPointFilters,
   type KpiPointFormValues,
+  type KpiPointOverview,
   type KpiPointSummary,
 } from '@/types/kpi';
 
@@ -24,14 +25,33 @@ const KPI_PAGE_SIZE = 10;
 const KPI_LIST_QUERY_KEY = ['kpi-points', 'list'] as const;
 
 type KpiPointsPage = PaginatedResponse<KpiPoint> & {
-  meta: PaginationMeta & { summary?: KpiPointSummary[] };
+  meta: PaginationMeta & {
+    summary?: KpiPointSummary[];
+    overview?: KpiPointOverview;
+  };
 };
+
+function getCurrentDate() {
+  const today = new Date();
+  return `${today.getFullYear()}-${String(today.getMonth() + 1).padStart(2, '0')}-${String(
+    today.getDate(),
+  ).padStart(2, '0')}`;
+}
+
+const initialDate = getCurrentDate();
+const initialMonthStart = `${initialDate.slice(0, 7)}-01`;
 
 function kpiParams(filters: KpiPointFilters) {
   return {
     user_id: filters.userId || undefined,
     category: filters.category || undefined,
     type: filters.type || undefined,
+    is_approved:
+      filters.approvalStatus === 'approved'
+        ? 1
+        : filters.approvalStatus === 'pending'
+          ? 0
+          : undefined,
     date_from: filters.dateFrom || undefined,
     date_to: filters.dateTo || undefined,
   };
@@ -48,8 +68,9 @@ export default function KpiPage() {
     userId: '',
     category: '',
     type: '',
-    dateFrom: '',
-    dateTo: '',
+    approvalStatus: '',
+    dateFrom: initialMonthStart,
+    dateTo: initialDate,
   });
 
   const { data: users = [], isLoading: isUsersLoading } = useQuery<User[]>({
@@ -97,6 +118,7 @@ export default function KpiPage() {
     from: null,
     to: null,
     summary: [],
+    overview: undefined,
   };
 
   useEffect(() => {
@@ -116,12 +138,12 @@ export default function KpiPage() {
       api.post<KpiPoint>('/kpi-points', {
         userId: Number(values.userId),
         user_id: Number(values.userId),
+        projectId: values.projectId ? Number(values.projectId) : null,
+        project_id: values.projectId ? Number(values.projectId) : null,
         entryDate: values.entryDate,
         entry_date: values.entryDate,
         category: values.category,
         score: Number(values.score) || 0,
-        customerRef: values.customerRef.trim() || null,
-        customer_ref: values.customerRef.trim() || null,
         note: values.note.trim() || null,
       }),
     onSuccess: () => {
@@ -157,6 +179,14 @@ export default function KpiPage() {
     <KpiManager
       points={points}
       summary={pagination.summary || []}
+      overview={
+        pagination.overview || {
+          bonusScore: 0,
+          penaltyScore: 0,
+          netScore: 0,
+          pendingCount: 0,
+        }
+      }
       users={users}
       categories={categories}
       filters={filters}

@@ -1,14 +1,13 @@
 'use client';
 
-import { useEffect, useRef, useState, type ReactNode } from 'react';
+import { useEffect, useState, type ReactNode } from 'react';
 import AddRoundedIcon from '@mui/icons-material/AddRounded';
 import DeleteRoundedIcon from '@mui/icons-material/DeleteRounded';
 import SaveRoundedIcon from '@mui/icons-material/SaveRounded';
-import { Autocomplete, IconButton, MenuItem } from '@mui/material';
+import { IconButton, MenuItem } from '@mui/material';
 import { useQuery } from '@tanstack/react-query';
 import { TabActionButton } from '@/components/actions/tab-action-button';
 import { FormActionBar } from '@/components/form/form-action-bar';
-import { FormDatePicker } from '@/components/form/form-date-picker';
 import { compactFormFieldClassName } from '@/components/form/form-field-styles';
 import { FormInputField } from '@/components/form/form-input-field';
 import { FormSection } from '@/components/form/form-section';
@@ -16,10 +15,21 @@ import { FormSelectField } from '@/components/form/form-select-field';
 import { MoneyInput } from '@/components/form/money-input';
 import { PageHeader } from '@/components/shell/page-header';
 import { WeeklyReportAttachmentsPanel } from '@/features/weekly-reports/components/weekly-report-attachments-panel';
+import { WeeklyCycleNavigator } from '@/features/weekly-reports/components/weekly-cycle-navigator';
 import { getApiFieldErrors } from '@/lib/api-error';
+import {
+  addDaysToDateString,
+  getCurrentIsoWeekMondayString,
+  getFirstEligibleReportWeekStart,
+  getIsoWeekMondayString,
+  getIsoWeekdayFromDateString,
+  getReportWeekdayLabel,
+  getTodayDateString,
+  getWeeklyReportCycle,
+} from '@/lib/weekly-report-schedule';
+import { formatDate } from '@/lib/utils';
 import api from '@/services/api/client';
 import type { ProjectItem } from '@/types/project';
-import type { User } from '@/types/user';
 import type {
   ProjectWeeklySetting,
   WeeklyReport,
@@ -30,8 +40,8 @@ type WeeklyReportFormProps = {
   mode: 'create' | 'edit';
   report?: WeeklyReport | null;
   projects: ProjectItem[];
-  users: User[];
   defaultProjectId?: string;
+  defaultWeekStart?: string;
   isSubmitting: boolean;
   onSubmit: (payload: Record<string, unknown>) => Promise<unknown>;
   pendingFiles?: File[];
@@ -54,12 +64,6 @@ const ITEM_TYPE_LABELS: Record<string, string> = {
   note: 'Ghi chú',
 };
 
-const PRIORITY_LABELS: Record<string, string> = {
-  low: 'Thấp',
-  medium: 'Trung bình',
-  high: 'Cao',
-};
-
 const ITEM_STATUS_LABELS: Record<string, string> = {
   open: 'Đang mở',
   in_progress: 'Đang xử lý',
@@ -70,12 +74,8 @@ function emptyItem(): WeeklyReportItemFormValue {
   return {
     id: createItemId(),
     itemType: 'problem',
-    title: '',
     content: '',
-    priority: 'medium',
     status: 'open',
-    dueDate: '',
-    assigneeUserId: '',
   };
 }
 
@@ -83,33 +83,32 @@ export function WeeklyReportForm({
   mode,
   report,
   projects,
-  users,
   defaultProjectId,
+  defaultWeekStart,
   isSubmitting,
   onSubmit,
   pendingFiles,
   onPendingFilesChange,
   headerActions,
 }: WeeklyReportFormProps) {
+  const currentWeekStart = getCurrentIsoWeekMondayString();
+  const requestedWeekStart = getIsoWeekMondayString(defaultWeekStart || currentWeekStart);
   const [projectId, setProjectId] = useState(defaultProjectId || '');
-  const [weekStartDate, setWeekStartDate] = useState('');
-  const [weekEndDate, setWeekEndDate] = useState('');
-  const [projectStatus, setProjectStatus] = useState('');
+  const [cycleWeekStart, setCycleWeekStart] = useState(
+    requestedWeekStart > currentWeekStart ? currentWeekStart : requestedWeekStart,
+  );
   const [weeklyCondition, setWeeklyCondition] = useState('');
   const [monthlyBudget, setMonthlyBudget] = useState('0');
-  const [managementFeeRate, setManagementFeeRate] = useState('0');
-  const [problemSolution, setProblemSolution] = useState('');
   const [summary, setSummary] = useState('');
-  const [nextAction, setNextAction] = useState('');
   const [items, setItems] = useState<WeeklyReportItemFormValue[]>([emptyItem()]);
-  const [defaultAssigneeUserId, setDefaultAssigneeUserId] = useState('');
   const [fieldErrors, setFieldErrors] = useState<Record<string, string>>({});
-  const previousDefaultAssigneeRef = useRef('');
 
   const selectedProject = projects.find((project) => String(project.id) === projectId) || null;
-  const isReadOnly = report?.status === 'approved';
+  const isReadOnly = Boolean(report && report.status !== 'draft');
 
-  const { data: projectSettings } = useQuery<ProjectWeeklySetting[]>({
+  const { data: projectSettings, isFetching: isProjectSettingsLoading } = useQuery<
+    ProjectWeeklySetting[]
+  >({
     queryKey: ['project-weekly-settings', 'form', projectId],
     queryFn: () =>
       api
@@ -119,6 +118,22 @@ export function WeeklyReportForm({
         .then((response) => response.data),
     enabled: mode === 'create' && Boolean(projectId),
   });
+  const selectedSetting = projectSettings?.find((setting) => setting.isActive !== false);
+  const projectStartDate = selectedProject?.startDate || '';
+  const createCycle = projectStartDate
+    ? getWeeklyReportCycle(cycleWeekStart, selectedSetting?.reportWeekday, projectStartDate)
+    : null;
+  const reportDueDate =
+    report?.dueDate || (report?.weekEndDate ? addDaysToDateString(report.weekEndDate, 1) : '');
+  const displayedCycle = report
+    ? {
+        weekStart: reportDueDate ? getIsoWeekMondayString(reportDueDate) : '',
+        weekEnd: reportDueDate ? addDaysToDateString(getIsoWeekMondayString(reportDueDate), 6) : '',
+        dueDate: reportDueDate,
+        periodStartDate: report.weekStartDate,
+        periodEndDate: report.weekEndDate,
+      }
+    : createCycle;
 
   useEffect(() => {
     if (mode !== 'create') return;
@@ -126,58 +141,44 @@ export function WeeklyReportForm({
     const setting = projectId ? projectSettings?.[0] : undefined;
 
     setMonthlyBudget(String(setting?.monthlyBudget ?? '0'));
-    setManagementFeeRate(String(setting?.managementFeeRate ?? '0'));
-    setDefaultAssigneeUserId(setting?.reportOwnerUserId ? String(setting.reportOwnerUserId) : '');
   }, [mode, projectId, projectSettings]);
 
   useEffect(() => {
-    if (mode !== 'create') return;
+    if (mode !== 'create' || !selectedSetting?.reportWeekday || !projectStartDate) return;
 
-    setProjectStatus(selectedProject?.statusOption?.label || '');
-  }, [mode, selectedProject]);
-
-  useEffect(() => {
-    if (mode !== 'create') return;
-
-    const previousDefault = previousDefaultAssigneeRef.current;
-    setItems((current) =>
-      current.map((item) =>
-        item.assigneeUserId === previousDefault
-          ? { ...item, assigneeUserId: defaultAssigneeUserId }
-          : item,
-      ),
+    const firstEligibleWeek = getFirstEligibleReportWeekStart(
+      cycleWeekStart,
+      selectedSetting.reportWeekday,
+      projectStartDate,
     );
-    previousDefaultAssigneeRef.current = defaultAssigneeUserId;
-  }, [mode, defaultAssigneeUserId]);
+    const allowedWeek = firstEligibleWeek > currentWeekStart ? currentWeekStart : firstEligibleWeek;
+
+    if (allowedWeek !== cycleWeekStart) {
+      setCycleWeekStart(allowedWeek);
+    }
+  }, [currentWeekStart, cycleWeekStart, mode, projectStartDate, selectedSetting?.reportWeekday]);
 
   useEffect(() => {
     if (!report) return;
 
     setProjectId(idToString(report.projectId));
-    setWeekStartDate(report.weekStartDate || '');
-    setWeekEndDate(report.weekEndDate || '');
-    setProjectStatus(report.projectStatus || '');
+    if (reportDueDate) {
+      setCycleWeekStart(getIsoWeekMondayString(reportDueDate));
+    }
     setWeeklyCondition(report.weeklyCondition || '');
     setMonthlyBudget(String(report.monthlyBudget ?? '0'));
-    setManagementFeeRate(String(report.managementFeeRate ?? '0'));
-    setProblemSolution(report.problemSolution || '');
     setSummary(report.summary || '');
-    setNextAction(report.nextAction || '');
     setItems(
       report.items && report.items.length > 0
         ? report.items.map((item) => ({
             id: item.id || createItemId(),
             itemType: item.itemType || 'problem',
-            title: item.title || '',
-            content: item.content || '',
-            priority: item.priority || 'medium',
+            content: item.title || item.content || '',
             status: item.status || 'open',
-            dueDate: item.dueDate || '',
-            assigneeUserId: idToString(item.assigneeUserId),
           }))
         : [emptyItem()],
     );
-  }, [report]);
+  }, [report, reportDueDate]);
 
   const updateItem = (itemId: number, values: Partial<WeeklyReportItemFormValue>) => {
     setItems((current) =>
@@ -186,10 +187,7 @@ export function WeeklyReportForm({
   };
 
   const addItem = () => {
-    setItems((current) => [
-      ...current,
-      { ...emptyItem(), assigneeUserId: mode === 'create' ? defaultAssigneeUserId : '' },
-    ]);
+    setItems((current) => [...current, emptyItem()]);
   };
 
   const deleteItem = (itemId: number) => {
@@ -201,34 +199,24 @@ export function WeeklyReportForm({
 
   const submitForm = async () => {
     const payload: Record<string, unknown> = {
-      weekStartDate: weekStartDate || null,
-      weekEndDate: weekEndDate || null,
-      projectStatus: projectStatus.trim() || null,
       weeklyCondition: weeklyCondition.trim() || null,
       monthlyBudget: Number(monthlyBudget) || 0,
-      managementFeeRate: Number(managementFeeRate) || 0,
-      problemSolution: problemSolution.trim() || null,
       summary: summary.trim() || null,
-      nextAction: nextAction.trim() || null,
       items: items
         .filter((item) => item.content.trim())
         .map((item) => ({
           itemType: item.itemType,
           item_type: item.itemType,
-          title: item.title.trim() || null,
           content: item.content.trim(),
-          priority: item.priority,
           status: item.status,
-          dueDate: item.dueDate || null,
-          due_date: item.dueDate || null,
-          assigneeUserId: item.assigneeUserId ? Number(item.assigneeUserId) : null,
-          assignee_user_id: item.assigneeUserId ? Number(item.assigneeUserId) : null,
         })),
     };
 
     if (mode === 'create') {
       payload.projectId = projectId ? Number(projectId) : null;
       payload.project_id = projectId ? Number(projectId) : null;
+      payload.cycleWeekStart = cycleWeekStart;
+      payload.cycle_week_start = cycleWeekStart;
     }
 
     try {
@@ -244,71 +232,58 @@ export function WeeklyReportForm({
       className="flex min-h-[calc(100vh-72px)] flex-col bg-slate-50/60 px-6 pt-6"
       onSubmit={(event) => {
         event.preventDefault();
-        if (!isSubmitting && !isReadOnly && (mode === 'edit' || projectId)) submitForm();
+        if (
+          !isSubmitting &&
+          !isReadOnly &&
+          (mode === 'edit' || (projectId && selectedSetting && displayedCycle))
+        ) {
+          submitForm();
+        }
       }}
     >
       <PageHeader
-        title={mode === 'edit' ? 'Chỉnh sửa báo cáo tuần' : 'Thêm báo cáo tuần'}
-        currentLabel={mode === 'edit' ? 'Chỉnh sửa' : undefined}
+        title={
+          mode === 'edit'
+            ? isReadOnly
+              ? 'Chi tiết báo cáo tuần'
+              : 'Chỉnh sửa báo cáo tuần'
+            : 'Thêm báo cáo tuần'
+        }
+        currentLabel={mode === 'edit' ? (isReadOnly ? 'Chi tiết' : 'Chỉnh sửa') : undefined}
         actions={headerActions}
       />
 
-      <div className="grid items-start gap-6 xl:grid-cols-12">
-        <div className="xl:col-span-7">
-          <FormSection title="Thông tin báo cáo">
-            <Autocomplete
-              options={projects}
-              value={selectedProject}
-              disabled={mode === 'edit'}
-              onChange={(_, value) => setProjectId(idToString(value?.id))}
-              getOptionLabel={(option) =>
-                option.projectCode || option.projectName || `Dự án #${option.id}`
-              }
-              isOptionEqualToValue={(option, value) => option.id === value.id}
-              noOptionsText="Không tìm thấy dự án"
-              renderInput={(params) => (
-                <FormInputField
-                  {...params}
-                  required
-                  label="Dự án"
-                  placeholder="Tìm theo mã dự án"
-                  error={Boolean(fieldErrors.projectId)}
-                  helperText={fieldErrors.projectId}
-                />
-              )}
-            />
-
-            <div className="flex min-h-10 items-center justify-between gap-3 rounded-lg border border-slate-200 bg-slate-50 px-3 py-2">
-              <span className="text-sm font-semibold text-slate-500">Trạng thái dự án</span>
-              <span className="truncate text-sm font-bold text-slate-800">
-                {!selectedProject
-                  ? 'Chưa chọn dự án'
-                  : selectedProject.statusOption?.label || 'Chưa có trạng thái'}
-              </span>
-            </div>
-            {fieldErrors.projectStatus && (
-              <p className="text-xs font-semibold text-red-600">{fieldErrors.projectStatus}</p>
-            )}
-
-            <div className="grid gap-4 md:grid-cols-2">
-              <FormDatePicker
-                label="Từ ngày"
-                value={weekStartDate}
-                required
-                disabled={isReadOnly}
-                error={Boolean(fieldErrors.weekStartDate)}
-                helperText={fieldErrors.weekStartDate}
-                onChange={setWeekStartDate}
-              />
-              <FormDatePicker
-                label="Đến ngày"
-                value={weekEndDate}
-                required
-                disabled={isReadOnly}
-                error={Boolean(fieldErrors.weekEndDate)}
-                helperText={fieldErrors.weekEndDate}
-                onChange={setWeekEndDate}
-              />
+      <div className="grid items-start gap-6 xl:grid-cols-2">
+        <FormSection title="Thông tin báo cáo">
+          <div className="grid gap-3 md:grid-cols-[minmax(0,1.5fr)_minmax(150px,0.8fr)_minmax(170px,0.8fr)]">
+            <div
+              className={`min-h-10 rounded-lg border bg-slate-50 px-3 py-2 ${
+                fieldErrors.projectId ? 'border-rose-400' : 'border-slate-200'
+              }`}
+            >
+              <span className="block text-[11px] font-semibold text-slate-500">Dự án</span>
+              <div className="mt-1 flex min-w-0 flex-wrap items-center gap-1.5">
+                <strong
+                  className="min-w-0 flex-1 truncate text-sm text-slate-900"
+                  title={
+                    [selectedProject?.projectCode, selectedProject?.projectName]
+                      .filter(Boolean)
+                      .join(' - ') || undefined
+                  }
+                >
+                  {[selectedProject?.projectCode, selectedProject?.projectName]
+                    .filter(Boolean)
+                    .join(' - ') || (projectId ? `Dự án #${projectId}` : 'Chưa xác định dự án')}
+                </strong>
+                <span className="whitespace-nowrap rounded-md bg-sky-50 px-1.5 py-0.5 text-[11px] font-bold text-sky-700 ring-1 ring-sky-200">
+                  Loại {selectedProject?.projectType || '-'}
+                </span>
+                <span className="whitespace-nowrap rounded-md bg-white px-1.5 py-0.5 text-[11px] font-bold text-slate-600 ring-1 ring-slate-200">
+                  {selectedProject?.statusOption?.label ||
+                    report?.projectStatus ||
+                    'Chưa có trạng thái'}
+                </span>
+              </div>
             </div>
 
             <FormSelectField
@@ -323,59 +298,114 @@ export function WeeklyReportForm({
               <MenuItem value="Rủi ro">Rủi ro</MenuItem>
             </FormSelectField>
 
-            <div className="grid gap-4 md:grid-cols-2">
-              <MoneyInput
-                fullWidth
-                size="small"
-                label="Ngân sách / tháng"
-                value={monthlyBudget}
-                disabled={isReadOnly}
-                onValueChange={setMonthlyBudget}
-                className={compactFormFieldClassName}
-              />
-              <FormInputField
-                type="number"
-                label="Phí quản lý (%)"
-                value={managementFeeRate}
-                disabled={isReadOnly}
-                onChange={(event) => setManagementFeeRate(event.target.value)}
-                slotProps={{ htmlInput: { min: 0, step: 0.01 } }}
-              />
+            <MoneyInput
+              fullWidth
+              size="small"
+              label="Ngân sách / tháng"
+              value={monthlyBudget}
+              disabled={isReadOnly}
+              onValueChange={setMonthlyBudget}
+              className={compactFormFieldClassName}
+            />
+          </div>
+          {fieldErrors.projectId ? (
+            <p role="alert" className="-mt-2 text-xs font-semibold text-rose-600">
+              {fieldErrors.projectId}
+            </p>
+          ) : null}
+
+          <div className="rounded-xl border border-slate-200 bg-slate-50/60 p-3">
+            <div className="mb-3 flex items-center justify-between gap-3">
+              <span className="text-sm font-bold text-slate-800">Kỳ báo cáo</span>
+              {mode === 'create' &&
+              displayedCycle &&
+              displayedCycle.dueDate < getTodayDateString() ? (
+                <span className="rounded-full bg-amber-50 px-2 py-1 text-xs font-bold text-amber-700 ring-1 ring-amber-200">
+                  Báo cáo bù
+                </span>
+              ) : null}
             </div>
 
-            <FormInputField
-              multiline
-              minRows={3}
-              label="Vấn đề - Giải pháp"
-              value={problemSolution}
-              disabled={isReadOnly}
-              onChange={(event) => setProblemSolution(event.target.value)}
+            <WeeklyCycleNavigator
+              weekStart={displayedCycle?.weekStart || cycleWeekStart}
+              disabled={mode === 'edit' || isReadOnly}
+              maxWeekStart={currentWeekStart}
+              onChange={(weekStart) => {
+                const eligibleWeek = getFirstEligibleReportWeekStart(
+                  weekStart,
+                  selectedSetting?.reportWeekday,
+                  projectStartDate,
+                );
+                setCycleWeekStart(
+                  eligibleWeek > currentWeekStart ? currentWeekStart : eligibleWeek,
+                );
+              }}
             />
-            <FormInputField
-              multiline
-              minRows={2}
-              label="Tóm tắt"
-              value={summary}
-              disabled={isReadOnly}
-              onChange={(event) => setSummary(event.target.value)}
-            />
-            <FormInputField
-              multiline
-              minRows={2}
-              label="Hành động tiếp theo"
-              value={nextAction}
-              disabled={isReadOnly}
-              onChange={(event) => setNextAction(event.target.value)}
-            />
-          </FormSection>
-        </div>
 
-        <div className="xl:col-span-5">
+            {selectedProject && mode === 'create' && isProjectSettingsLoading ? (
+              <p className="mt-3 text-sm font-semibold text-slate-500">
+                Đang tải lịch báo cáo của dự án...
+              </p>
+            ) : selectedProject && mode === 'create' && !selectedSetting ? (
+              <p role="alert" className="mt-3 text-sm font-semibold text-rose-600">
+                Dự án chưa có lịch báo cáo tuần. Vui lòng cập nhật Sales phụ trách và Thứ báo cáo
+                trong dự án trước.
+              </p>
+            ) : selectedProject && mode === 'create' && !projectStartDate ? (
+              <p role="alert" className="mt-3 text-sm font-semibold text-rose-600">
+                Dự án chưa có ngày bắt đầu. Vui lòng cập nhật ngày bắt đầu dự án trước khi tạo báo
+                cáo tuần.
+              </p>
+            ) : selectedProject && mode === 'create' && !displayedCycle ? (
+              <p role="alert" className="mt-3 text-sm font-semibold text-amber-700">
+                Dự án chưa phát sinh kỳ báo cáo có thể tạo tính đến tuần hiện tại.
+              </p>
+            ) : displayedCycle ? (
+              <div className="mt-3 grid gap-2 text-sm md:grid-cols-2">
+                <div className="rounded-lg border border-slate-200 bg-white px-3 py-2">
+                  <span className="text-slate-500">Hạn báo cáo</span>{' '}
+                  <strong className="text-slate-900">
+                    {getReportWeekdayLabel(
+                      selectedSetting?.reportWeekday ||
+                        getIsoWeekdayFromDateString(displayedCycle.dueDate),
+                    )}{' '}
+                    · {formatDate(displayedCycle.dueDate)}
+                  </strong>
+                </div>
+                <div className="rounded-lg border border-slate-200 bg-white px-3 py-2">
+                  <span className="text-slate-500">Dữ liệu</span>{' '}
+                  <strong className="text-slate-900">
+                    {formatDate(displayedCycle.periodStartDate)} –{' '}
+                    {formatDate(displayedCycle.periodEndDate)}
+                  </strong>
+                </div>
+              </div>
+            ) : null}
+
+            {fieldErrors.cycleWeekStart ? (
+              <p role="alert" className="mt-2 text-xs font-semibold text-rose-600">
+                {fieldErrors.cycleWeekStart}
+              </p>
+            ) : null}
+          </div>
+
+          <FormInputField
+            multiline
+            minRows={3}
+            label="Tóm tắt báo cáo"
+            value={summary}
+            disabled={isReadOnly}
+            onChange={(event) => setSummary(event.target.value)}
+          />
+        </FormSection>
+
+        <div className="space-y-6">
           {mode === 'edit' && report ? (
             <WeeklyReportAttachmentsPanel
               mode="existing"
               reportId={report.id}
               attachments={report.attachments || []}
+              readOnly={isReadOnly}
             />
           ) : (
             <WeeklyReportAttachmentsPanel
@@ -384,117 +414,73 @@ export function WeeklyReportForm({
               onFilesChange={onPendingFilesChange || (() => {})}
             />
           )}
-        </div>
-      </div>
-
-      <div className="mt-6">
-        <FormSection
-          title="Chi tiết vấn đề / hành động"
-          action={
-            !isReadOnly ? (
-              <TabActionButton startIcon={<AddRoundedIcon />} onClick={addItem}>
-                Thêm dòng
-              </TabActionButton>
-            ) : undefined
-          }
-        >
-          <div className="space-y-3">
-            {items.map((item) => (
-              <div key={item.id} className="rounded-xl border border-slate-200 bg-slate-50/30 p-4">
-                <div className="grid items-start gap-3 lg:grid-cols-[140px_minmax(220px,1fr)_130px_150px_36px]">
-                  <FormSelectField
-                    label="Loại"
-                    value={item.itemType}
-                    disabled={isReadOnly}
-                    onChange={(event) => updateItem(item.id, { itemType: event.target.value })}
-                  >
-                    {Object.entries(ITEM_TYPE_LABELS).map(([value, label]) => (
-                      <MenuItem key={value} value={value}>
-                        {label}
-                      </MenuItem>
-                    ))}
-                  </FormSelectField>
-                  <FormInputField
-                    label="Tiêu đề"
-                    value={item.title}
-                    disabled={isReadOnly}
-                    onChange={(event) => updateItem(item.id, { title: event.target.value })}
-                  />
-                  <FormSelectField
-                    label="Ưu tiên"
-                    value={item.priority}
-                    disabled={isReadOnly}
-                    onChange={(event) => updateItem(item.id, { priority: event.target.value })}
-                  >
-                    {Object.entries(PRIORITY_LABELS).map(([value, label]) => (
-                      <MenuItem key={value} value={value}>
-                        {label}
-                      </MenuItem>
-                    ))}
-                  </FormSelectField>
-                  <FormSelectField
-                    label="Trạng thái"
-                    value={item.status}
-                    disabled={isReadOnly}
-                    onChange={(event) => updateItem(item.id, { status: event.target.value })}
-                  >
-                    {Object.entries(ITEM_STATUS_LABELS).map(([value, label]) => (
-                      <MenuItem key={value} value={value}>
-                        {label}
-                      </MenuItem>
-                    ))}
-                  </FormSelectField>
-                  {!isReadOnly ? (
-                    <IconButton
-                      size="small"
-                      color="error"
-                      disabled={items.length === 1}
-                      onClick={() => deleteItem(item.id)}
-                      title="Xóa dòng"
-                      aria-label="Xóa dòng báo cáo"
+          <FormSection
+            title="Chi tiết vấn đề / hành động"
+            action={
+              !isReadOnly ? (
+                <TabActionButton startIcon={<AddRoundedIcon />} onClick={addItem}>
+                  Thêm dòng
+                </TabActionButton>
+              ) : undefined
+            }
+          >
+            <div className="space-y-3">
+              {items.map((item) => (
+                <div
+                  key={item.id}
+                  className="rounded-xl border border-slate-200 bg-slate-50/40 p-3"
+                >
+                  <div className="grid items-start gap-3 sm:grid-cols-[130px_minmax(0,1fr)_145px_36px]">
+                    <FormSelectField
+                      label="Loại"
+                      value={item.itemType}
+                      disabled={isReadOnly}
+                      onChange={(event) => updateItem(item.id, { itemType: event.target.value })}
                     >
-                      <DeleteRoundedIcon fontSize="small" />
-                    </IconButton>
-                  ) : (
-                    <span />
-                  )}
+                      {Object.entries(ITEM_TYPE_LABELS).map(([value, label]) => (
+                        <MenuItem key={value} value={value}>
+                          {label}
+                        </MenuItem>
+                      ))}
+                    </FormSelectField>
+                    <FormInputField
+                      label="Nội dung"
+                      value={item.content}
+                      disabled={isReadOnly}
+                      onChange={(event) => updateItem(item.id, { content: event.target.value })}
+                    />
+                    <FormSelectField
+                      label="Trạng thái"
+                      value={item.status}
+                      disabled={isReadOnly}
+                      onChange={(event) => updateItem(item.id, { status: event.target.value })}
+                    >
+                      {Object.entries(ITEM_STATUS_LABELS).map(([value, label]) => (
+                        <MenuItem key={value} value={value}>
+                          {label}
+                        </MenuItem>
+                      ))}
+                    </FormSelectField>
+                    {!isReadOnly ? (
+                      <IconButton
+                        size="small"
+                        color="error"
+                        disabled={items.length === 1}
+                        onClick={() => deleteItem(item.id)}
+                        title="Xóa dòng"
+                        aria-label="Xóa dòng báo cáo"
+                      >
+                        <DeleteRoundedIcon fontSize="small" />
+                      </IconButton>
+                    ) : (
+                      <span />
+                    )}
+                  </div>
                 </div>
-
-                <div className="mt-3 grid items-start gap-3 lg:grid-cols-[minmax(0,1fr)_220px_180px]">
-                  <FormInputField
-                    multiline
-                    minRows={2}
-                    label="Nội dung"
-                    value={item.content}
-                    disabled={isReadOnly}
-                    onChange={(event) => updateItem(item.id, { content: event.target.value })}
-                  />
-                  <FormSelectField
-                    label="Người phụ trách"
-                    value={item.assigneeUserId}
-                    disabled={isReadOnly}
-                    onChange={(event) =>
-                      updateItem(item.id, { assigneeUserId: event.target.value })
-                    }
-                  >
-                    <MenuItem value="">Chưa chọn</MenuItem>
-                    {users.map((user) => (
-                      <MenuItem key={user.id} value={String(user.id)}>
-                        {user.name}
-                      </MenuItem>
-                    ))}
-                  </FormSelectField>
-                  <FormDatePicker
-                    label="Hạn xử lý"
-                    value={item.dueDate}
-                    disabled={isReadOnly}
-                    onChange={(dueDate) => updateItem(item.id, { dueDate })}
-                  />
-                </div>
-              </div>
-            ))}
-          </div>
-        </FormSection>
+              ))}
+            </div>
+          </FormSection>
+        </div>
       </div>
 
       {!isReadOnly && (
@@ -502,7 +488,10 @@ export function WeeklyReportForm({
           cancelHref="/weekly-reports"
           submitLabel={mode === 'create' ? 'Tạo báo cáo' : 'Lưu thay đổi'}
           isSubmitting={isSubmitting}
-          submitDisabled={mode === 'create' && !projectId}
+          submitDisabled={
+            mode === 'create' &&
+            (!projectId || !selectedSetting || !displayedCycle || isProjectSettingsLoading)
+          }
           submitIcon={<SaveRoundedIcon />}
         />
       )}
