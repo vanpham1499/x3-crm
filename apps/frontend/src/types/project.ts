@@ -37,6 +37,7 @@ export type ProjectItem = {
   statusOption?: AppOption | null;
   managerUser?: ProjectUserSummary | null;
   salesUser?: ProjectUserSummary | null;
+  createdBy?: ProjectUserSummary | null;
   weeklySetting?: {
     id: number;
     reportOwnerUserId?: number | null;

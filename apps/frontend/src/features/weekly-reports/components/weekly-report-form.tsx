@@ -44,8 +44,8 @@ type WeeklyReportFormProps = {
   defaultWeekStart?: string;
   isSubmitting: boolean;
   onSubmit: (payload: Record<string, unknown>) => Promise<unknown>;
-  pendingFiles?: File[];
-  onPendingFilesChange?: (files: File[]) => void;
+  pendingImageUrls?: string[];
+  onPendingImageUrlsChange?: (urls: string[]) => void;
   headerActions?: ReactNode;
 };
 
@@ -87,8 +87,8 @@ export function WeeklyReportForm({
   defaultWeekStart,
   isSubmitting,
   onSubmit,
-  pendingFiles,
-  onPendingFilesChange,
+  pendingImageUrls,
+  onPendingImageUrlsChange,
   headerActions,
 }: WeeklyReportFormProps) {
   const currentWeekStart = getCurrentIsoWeekMondayString();
@@ -301,7 +301,7 @@ export function WeeklyReportForm({
             <MoneyInput
               fullWidth
               size="small"
-              label="Ngân sách / tháng"
+              label="Chi tiêu / tuần"
               value={monthlyBudget}
               disabled={isReadOnly}
               onValueChange={setMonthlyBudget}
@@ -410,8 +410,8 @@ export function WeeklyReportForm({
           ) : (
             <WeeklyReportAttachmentsPanel
               mode="pending"
-              files={pendingFiles || []}
-              onFilesChange={onPendingFilesChange || (() => {})}
+              imageUrls={pendingImageUrls || []}
+              onImageUrlsChange={onPendingImageUrlsChange || (() => {})}
             />
           )}
           <FormSection

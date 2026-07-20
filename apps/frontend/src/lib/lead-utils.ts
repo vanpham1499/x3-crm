@@ -1,5 +1,48 @@
 import type { Lead, LeadFilters, LeadFormValues, LeadStatus } from '@/types/lead';
 
+function formatLocalDate(date: Date) {
+  const year = date.getFullYear();
+  const month = String(date.getMonth() + 1).padStart(2, '0');
+  const day = String(date.getDate()).padStart(2, '0');
+
+  return `${year}-${month}-${day}`;
+}
+
+function getOccurredDateRange(period: string, selectedMonth: string) {
+  const today = new Date();
+  const fromDate = new Date(today.getFullYear(), today.getMonth(), today.getDate());
+  let toDate = today;
+
+  switch (period) {
+    case '7-days':
+      fromDate.setDate(fromDate.getDate() - 6);
+      break;
+    case '14-days':
+      fromDate.setDate(fromDate.getDate() - 13);
+      break;
+    case '30-days':
+      fromDate.setDate(fromDate.getDate() - 29);
+      break;
+    case 'month': {
+      const match = /^(\d{4})-(\d{2})$/.exec(selectedMonth);
+      if (!match) return {};
+
+      const year = Number(match[1]);
+      const monthIndex = Number(match[2]) - 1;
+      fromDate.setFullYear(year, monthIndex, 1);
+      toDate = new Date(year, monthIndex + 1, 0);
+      break;
+    }
+    default:
+      return {};
+  }
+
+  return {
+    occurred_from: formatLocalDate(fromDate),
+    occurred_to: formatLocalDate(toDate),
+  };
+}
+
 export function getLeadParams(filters: LeadFilters) {
   return {
     keyword: filters.keyword.trim() || undefined,
@@ -9,6 +52,7 @@ export function getLeadParams(filters: LeadFilters) {
     industry_option_id: filters.industry_option_id || undefined,
     interested_service_option_id:
       filters.interested_service_option_id || filters.interested_service_id || undefined,
+    ...getOccurredDateRange(filters.period, filters.selected_month),
   };
 }
 
@@ -28,7 +72,7 @@ export function getLeadDefaults(lead?: Lead | null): LeadFormValues {
     sourceName: lead?.sourceOption?.label || lead?.source?.name || '',
     interestedServiceOptionId: idToString(lead?.interestedServiceOptionId),
     interestedServiceOptionIds:
-      lead?.interestedServiceOptionIds ||
+      lead?.interestedServiceOptionIds?.map(idToString) ||
       lead?.interestedServiceOptions?.map((service) => idToString(service.id)) ||
       (lead?.interestedServiceOptionId ? [idToString(lead.interestedServiceOptionId)] : []),
     interestedServiceId: idToString(lead?.interestedServiceId),
@@ -103,4 +147,16 @@ export function getUniqueLeadStatuses(leads: Lead[]) {
   });
 
   return Array.from(map.values()).sort((a, b) => (a.sortOrder || 0) - (b.sortOrder || 0));
+}
+
+export function mergeLeadStatuses(...groups: LeadStatus[][]) {
+  const statuses = new Map<number, LeadStatus>();
+
+  groups.flat().forEach((status) => {
+    if (!statuses.has(status.id)) statuses.set(status.id, status);
+  });
+
+  return Array.from(statuses.values()).sort(
+    (first, second) => (first.sortOrder || 0) - (second.sortOrder || 0),
+  );
 }

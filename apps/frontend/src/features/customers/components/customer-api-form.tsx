@@ -1,15 +1,18 @@
 'use client';
 
+import { useState } from 'react';
 import SaveRoundedIcon from '@mui/icons-material/SaveRounded';
 import { MenuItem } from '@mui/material';
 import { DatePicker } from '@mui/x-date-pickers/DatePicker';
 import dayjs from 'dayjs';
 import { Controller, useForm } from 'react-hook-form';
 import { FormActionBar } from '@/components/form/form-action-bar';
+import { ExternalLinkAdornment } from '@/components/form/external-link-adornment';
 import { compactFormFieldClassName } from '@/components/form/form-field-styles';
 import { FormInputField } from '@/components/form/form-input-field';
 import { FormSection } from '@/components/form/form-section';
 import { FormSelectField } from '@/components/form/form-select-field';
+import { MultiImageUpload } from '@/components/upload/multi-image-upload';
 import { applyApiErrorsToForm } from '@/lib/api-error';
 import type { Customer, CustomerFormValues } from '@/types/customer';
 import type { AppOption } from '@/types/option';
@@ -69,13 +72,16 @@ export function CustomerApiForm({
   readOnly = false,
   onSubmit,
 }: CustomerApiFormProps) {
+  const [isUploadingIdentityImages, setIsUploadingIdentityImages] = useState(false);
   const {
     control,
     register,
     handleSubmit,
     setError,
+    watch,
     formState: { errors },
   } = useForm<CustomerFormValues>({ values: defaultValues });
+  const websiteValue = watch('website');
 
   const submitForm = handleSubmit(async (values) => {
     try {
@@ -86,7 +92,7 @@ export function CustomerApiForm({
   });
 
   return (
-    <form className="flex w-full flex-1 flex-col" onSubmit={submitForm}>
+    <form noValidate className="flex w-full flex-1 flex-col" onSubmit={submitForm}>
       <div className="grid w-full items-start gap-6 xl:grid-cols-12">
         <div className="xl:col-span-8">
           <FormSection title="Thông tin khách hàng">
@@ -101,7 +107,11 @@ export function CustomerApiForm({
                 helperText={errors.customerName?.message}
                 {...register('customerName', { required: 'Vui lòng nhập tên khách hàng' })}
               />
-              <FormInputField label="Tên công ty" disabled={readOnly} {...register('companyName')} />
+              <FormInputField
+                label="Tên công ty"
+                disabled={readOnly}
+                {...register('companyName')}
+              />
             </div>
             <div className="grid gap-4 md:grid-cols-2">
               <FormInputField
@@ -113,11 +123,43 @@ export function CustomerApiForm({
             </div>
 
             <div className="grid gap-4 md:grid-cols-2">
-              <FormInputField type="email" label="Email" disabled={readOnly} {...register('email')} />
-              <FormInputField label="Website" disabled={readOnly} {...register('website')} />
+              <FormInputField
+                type="email"
+                label="Email"
+                disabled={readOnly}
+                {...register('email')}
+              />
+              <FormInputField
+                type="email"
+                label="Email nhận hóa đơn"
+                disabled={readOnly}
+                error={Boolean(errors.invoiceEmail)}
+                helperText={errors.invoiceEmail?.message}
+                {...register('invoiceEmail', {
+                  pattern: {
+                    value: /^[^\s@]+@[^\s@]+\.[^\s@]+$/,
+                    message: 'Email nhận hóa đơn không hợp lệ',
+                  },
+                })}
+              />
             </div>
 
-            <div className="grid gap-4 md:grid-cols-2">
+            <div className="grid gap-4 md:grid-cols-3">
+              <FormInputField
+                label="Website"
+                disabled={readOnly}
+                slotProps={{
+                  input: {
+                    endAdornment: (
+                      <ExternalLinkAdornment
+                        value={websiteValue}
+                        ariaLabel="Mở Website trong tab mới"
+                      />
+                    ),
+                  },
+                }}
+                {...register('website')}
+              />
               <FormInputField label="Ngành" disabled={readOnly} {...register('industry')} />
               <FormInputField label="Mã số thuế" disabled={readOnly} {...register('taxCode')} />
             </div>
@@ -138,22 +180,42 @@ export function CustomerApiForm({
               />
             </div>
 
-            <FormInputField
-              multiline
-              minRows={2}
-              label="Địa chỉ"
-              disabled={readOnly}
-              {...register('address')}
-            />
+            <div className="grid items-start gap-4 md:grid-cols-2">
+              <div className="space-y-4">
+                <FormInputField
+                  multiline
+                  minRows={2}
+                  label="Địa chỉ"
+                  disabled={readOnly}
+                  {...register('address')}
+                />
 
-            <FormInputField
-              multiline
-              minRows={5}
-              label="Ghi chú"
-              placeholder="Nhu cầu, lịch sử trao đổi, lưu ý khi chăm sóc..."
-              disabled={readOnly}
-              {...register('note')}
-            />
+                <FormInputField
+                  multiline
+                  minRows={5}
+                  label="Ghi chú"
+                  placeholder="Nhu cầu, lịch sử trao đổi, lưu ý khi chăm sóc..."
+                  disabled={readOnly}
+                  {...register('note')}
+                />
+              </div>
+
+              <Controller
+                name="identityImageUrls"
+                control={control}
+                render={({ field }) => (
+                  <div>
+                    <p className="mb-2 text-sm font-bold text-slate-700">Ảnh CCCD</p>
+                    <MultiImageUpload
+                      value={field.value || []}
+                      disabled={readOnly}
+                      onChange={field.onChange}
+                      onUploadingChange={setIsUploadingIdentityImages}
+                    />
+                  </div>
+                )}
+              />
+            </div>
           </FormSection>
         </div>
 
@@ -169,8 +231,16 @@ export function CustomerApiForm({
             <Controller
               name="customerTypeOptionId"
               control={control}
+              rules={{ required: 'Vui lòng chọn loại khách hàng' }}
               render={({ field }) => (
-                <FormSelectField label="Loại khách hàng" disabled={readOnly} {...field}>
+                <FormSelectField
+                  required
+                  label="Loại khách hàng"
+                  disabled={readOnly}
+                  error={Boolean(errors.customerTypeOptionId)}
+                  helperText={errors.customerTypeOptionId?.message}
+                  {...field}
+                >
                   <MenuItem value="">Chưa chọn</MenuItem>
                   {customerTypes.map((option) => (
                     <MenuItem key={option.id} value={String(option.id)}>
@@ -184,8 +254,16 @@ export function CustomerApiForm({
             <Controller
               name="sourceOptionId"
               control={control}
+              rules={{ required: 'Vui lòng chọn nguồn phát sinh' }}
               render={({ field }) => (
-                <FormSelectField label="Nguồn phát sinh" disabled={readOnly} {...field}>
+                <FormSelectField
+                  required
+                  label="Nguồn phát sinh"
+                  disabled={readOnly}
+                  error={Boolean(errors.sourceOptionId)}
+                  helperText={errors.sourceOptionId?.message}
+                  {...field}
+                >
                   <MenuItem value="">Chưa chọn</MenuItem>
                   {sources.map((option) => (
                     <MenuItem key={option.id} value={String(option.id)}>
@@ -199,8 +277,16 @@ export function CustomerApiForm({
             <Controller
               name="salesUserId"
               control={control}
+              rules={{ required: 'Vui lòng chọn nhân sự phụ trách' }}
               render={({ field }) => (
-                <FormSelectField label="Nhân sự sales" disabled={readOnly} {...field}>
+                <FormSelectField
+                  required
+                  label="Nhân sự phụ trách"
+                  disabled={readOnly}
+                  error={Boolean(errors.salesUserId)}
+                  helperText={errors.salesUserId?.message}
+                  {...field}
+                >
                   <MenuItem value="">Chưa chọn</MenuItem>
                   {users.map((user) => (
                     <MenuItem key={user.id} value={String(user.id)}>
@@ -217,8 +303,8 @@ export function CustomerApiForm({
       <FormActionBar
         cancelHref={cancelHref}
         submitLabel={mode === 'create' ? 'Tạo khách hàng' : 'Lưu thay đổi'}
-        isSubmitting={isSubmitting}
-        submitDisabled={readOnly}
+        isSubmitting={isSubmitting || isUploadingIdentityImages}
+        submitDisabled={readOnly || isUploadingIdentityImages}
         submitIcon={<SaveRoundedIcon />}
       />
     </form>

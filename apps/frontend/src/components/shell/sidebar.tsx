@@ -18,6 +18,7 @@ import KeyboardArrowDownRoundedIcon from '@mui/icons-material/KeyboardArrowDownR
 import KeyboardArrowLeftRoundedIcon from '@mui/icons-material/KeyboardArrowLeftRounded';
 import KeyboardArrowRightRoundedIcon from '@mui/icons-material/KeyboardArrowRightRounded';
 import ManageAccountsRoundedIcon from '@mui/icons-material/ManageAccountsRounded';
+import PhotoLibraryRoundedIcon from '@mui/icons-material/PhotoLibraryRounded';
 import PeopleRoundedIcon from '@mui/icons-material/PeopleRounded';
 import PersonSearchRoundedIcon from '@mui/icons-material/PersonSearchRounded';
 import PolicyRoundedIcon from '@mui/icons-material/PolicyRounded';
@@ -48,10 +49,7 @@ const navGroups = [
         label: 'Dự án',
         icon: WorkspacesRoundedIcon,
         permissions: ['project.view'],
-        children: [
-          { href: '/projects/services', label: 'Dịch vụ', icon: DesignServicesRoundedIcon },
-          { href: '/projects/partners', label: 'Đối tác', icon: HandshakeRoundedIcon },
-        ],
+        children: [{ href: '/projects/partners', label: 'Đối tác', icon: HandshakeRoundedIcon }],
       },
       {
         href: '/quotations',
@@ -73,13 +71,19 @@ const navGroups = [
         permissions: ['weeklyreport.view'],
       },
       { href: '/kpi', label: 'KPI', icon: EmojiEventsRoundedIcon, permissions: ['kpipoint.view'] },
+      { href: '/media-library', label: 'Thư viện', icon: PhotoLibraryRoundedIcon },
       {
         href: '/users',
         label: 'Tài khoản',
         icon: ManageAccountsRoundedIcon,
         permissions: ['user.view', 'role.view'],
         children: [
-          { href: '/users', label: 'Người dùng', icon: PeopleRoundedIcon, permissions: ['user.view'] },
+          {
+            href: '/users',
+            label: 'Người dùng',
+            icon: PeopleRoundedIcon,
+            permissions: ['user.view'],
+          },
           {
             href: '/users/roles',
             label: 'Vai trò',
@@ -100,6 +104,7 @@ const navGroups = [
         icon: SettingsRoundedIcon,
         permissions: ['option.manage'],
         children: [
+          { href: '/projects/services', label: 'Dịch vụ', icon: DesignServicesRoundedIcon },
           {
             href: '/settings/bank-accounts',
             label: 'Tài khoản nhận tiền',
@@ -152,6 +157,10 @@ function isActivePath(pathname: string, href: string) {
   if (href === '/users') return isSettingsUserPath(pathname);
 
   return pathname === href || pathname.startsWith(`${href}/`);
+}
+
+function isProjectSettingsPath(pathname: string) {
+  return pathname === '/projects/services' || pathname.startsWith('/projects/services/');
 }
 
 export function Sidebar() {
@@ -224,7 +233,9 @@ export function Sidebar() {
                 );
                 const active =
                   pathname === item.href ||
-                  (item.href !== '/dashboard' && pathname.startsWith(`${item.href}/`)) ||
+                  (item.href !== '/dashboard' &&
+                    pathname.startsWith(`${item.href}/`) &&
+                    !(item.href === '/projects' && isProjectSettingsPath(pathname))) ||
                   childActive;
                 const isOpen = openNavItems[item.href] ?? active;
 

@@ -617,7 +617,7 @@ export function ServiceManager({
       <ConfirmDialog
         open={Boolean(deleteTarget)}
         title="Xóa dịch vụ?"
-        description={`Dịch vụ "${deleteTarget?.name || ''}" sẽ bị xóa nếu chưa có dịch vụ con, dự án hoặc doanh thu liên quan.`}
+        description={`Dịch vụ "${deleteTarget?.name || ''}" sẽ bị xóa nếu chưa có dịch vụ con hoặc dự án liên quan.`}
         confirmText="Xóa dịch vụ"
         loading={isDeleting}
         onClose={() => setDeleteTarget(null)}

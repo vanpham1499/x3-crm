@@ -30,6 +30,7 @@ import type {
 } from '@/types/weekly-report';
 
 type WeeklyReportBoardProps = {
+  embedded?: boolean;
   rows: WeeklyReportBoardRow[];
   users: User[];
   filters: WeeklyReportBoardFilters;
@@ -161,6 +162,7 @@ export function WeeklyReportSummary({
 }
 
 export function WeeklyReportBoard({
+  embedded = false,
   rows,
   users,
   filters,
@@ -204,8 +206,12 @@ export function WeeklyReportBoard({
 
   return (
     <div>
-      <section className="overflow-hidden rounded-2xl border border-slate-200 bg-white shadow-sm">
-        <div className="grid gap-3 p-4 md:grid-cols-2 xl:grid-cols-[minmax(260px,1fr)_180px_150px_170px_160px_170px]">
+      <section
+        className={`overflow-hidden bg-white ${
+          embedded ? '' : 'rounded-2xl border border-slate-200 shadow-sm'
+        }`}
+      >
+        <div className="p-4 grid gap-3 md:grid-cols-2 xl:grid-cols-[minmax(240px,1fr)_repeat(5,176px)]">
           <CompactSearchField
             label="Từ khóa"
             placeholder="Mã dự án, tên dự án, khách hàng..."
@@ -213,7 +219,7 @@ export function WeeklyReportBoard({
             onChange={(keyword) => updateFilters({ keyword })}
           />
           <CompactSelectField
-            label="Sales phụ trách"
+            label="Nhân sự"
             value={filters.reportOwnerUserId}
             options={users.map((user) => ({ value: String(user.id), label: user.name }))}
             onChange={(reportOwnerUserId) => updateFilters({ reportOwnerUserId })}
@@ -230,7 +236,10 @@ export function WeeklyReportBoard({
           <CompactSelectField
             label="Hạn báo cáo"
             value={filters.dueStatus}
-            options={Object.entries(DUE_STATUS_LABELS).map(([value, label]) => ({ value, label }))}
+            options={Object.entries(DUE_STATUS_LABELS).map(([value, label]) => ({
+              value,
+              label,
+            }))}
             onChange={(dueStatus) => updateFilters({ dueStatus })}
           />
           <CompactSelectField
@@ -257,7 +266,7 @@ export function WeeklyReportBoard({
         <AppDataTable
           columns={[
             { key: 'project', label: 'Dự án', className: 'w-[250px]' },
-            { key: 'sales', label: 'Sales phụ trách', className: 'w-[180px]' },
+            { key: 'sales', label: 'Nhân sự', className: 'w-[180px]' },
             { key: 'due', label: 'Hạn báo cáo', className: 'w-[240px]' },
             { key: 'period', label: 'Kỳ dữ liệu', className: 'w-[190px]' },
             { key: 'progress', label: 'Tiến độ', className: 'w-[130px]' },

@@ -22,6 +22,7 @@ import type { User } from '@/types/user';
 import type { WeeklyReport, WeeklyReportFilters } from '@/types/weekly-report';
 
 type WeeklyReportManagerProps = {
+  embedded?: boolean;
   reports: WeeklyReport[];
   projects: ProjectItem[];
   filters: WeeklyReportFilters;
@@ -64,6 +65,7 @@ function conditionClass(condition?: string | null) {
 }
 
 export function WeeklyReportManager({
+  embedded = false,
   reports,
   projects,
   filters,
@@ -105,7 +107,11 @@ export function WeeklyReportManager({
   };
 
   return (
-    <section className="overflow-hidden rounded-2xl border border-slate-200 bg-white shadow-sm">
+    <section
+      className={`overflow-hidden bg-white ${
+        embedded ? '' : 'rounded-2xl border border-slate-200 shadow-sm'
+      }`}
+    >
       <div className="grid gap-3 p-4 lg:grid-cols-[minmax(280px,1fr)_190px]">
         <CompactAutocompleteField
           label="Dự án"
@@ -222,7 +228,8 @@ export function WeeklyReportManager({
             Gửi duyệt
           </MenuItem>
         ) : null}
-        {activeReport?.status === 'submitted' && canApproveWeeklyReport(currentUser, activeReport) ? (
+        {activeReport?.status === 'submitted' &&
+        canApproveWeeklyReport(currentUser, activeReport) ? (
           <MenuItem
             disabled={isApproving}
             onClick={() => {
@@ -234,7 +241,8 @@ export function WeeklyReportManager({
             Duyệt báo cáo
           </MenuItem>
         ) : null}
-        {activeReport?.status === 'submitted' && canApproveWeeklyReport(currentUser, activeReport) ? (
+        {activeReport?.status === 'submitted' &&
+        canApproveWeeklyReport(currentUser, activeReport) ? (
           <MenuItem
             disabled={isReturning}
             onClick={() => {

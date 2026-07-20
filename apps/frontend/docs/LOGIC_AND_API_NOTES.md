@@ -248,6 +248,10 @@ Nguyên tắc cập nhật:
   Tiến độ báo cáo được tách riêng thành `Chưa tạo`, `Nháp`, `Chờ duyệt`, `Đã duyệt`.
 - Mỗi Project chỉ được có một báo cáo cho một kỳ. Báo cáo `draft` được sửa, xóa, đổi tệp và gửi
   duyệt; `submitted` bị khóa nội dung, có thể được duyệt hoặc trả về nháp; `approved` chỉ được xem.
+- Form tạo và chỉnh sửa báo cáo chỉ dùng `Hình ảnh`; không còn uploader tài liệu. Ảnh dùng thư viện
+  media chung nên hỗ trợ tìm kiếm, phân trang, tải ảnh mới và dán ảnh bằng Ctrl+V có bước xem trước.
+  Khi gắn ảnh thư viện, backend xác minh ảnh thuộc người đang thao tác và chỉ sao chép metadata/URL,
+  không lưu thêm một bản file trùng lặp. Báo cáo đã gửi hoặc đã duyệt chỉ được xem ảnh.
 - Sales phụ trách và Thứ báo cáo chỉ cấu hình từ form Project. `/weekly-reports` không còn popup sửa
   hai giá trị này để tránh hai nguồn dữ liệu.
 
@@ -304,6 +308,10 @@ Nguyên tắc cập nhật:
   số thu xuống dưới tổng phải thu thì tự quay về `draft`/`Báo phí`.
 - Báo phí đã có phân bổ không được đổi tổng tiền hoặc xóa. Giao dịch đã có phân bổ/hoàn tiền cũng
   không được xóa trực tiếp.
+- Khi tổng `payment_allocations.amount` của Báo phí đạt tổng phải thu (sai số tối đa `0,01`), Báo
+  phí được khóa toàn bộ dữ liệu nghiệp vụ; màn chỉnh sửa chỉ mở trường `Ghi chú`. Backend áp dụng
+  cùng quy tắc và từ chối mọi payload có trường khác ngoài `note`. Nếu hủy phân bổ làm số thu xuống
+  dưới tổng phải thu, Báo phí tự mở khóa cùng lúc với việc quay về trạng thái `draft`.
 - API thao tác chính: `POST /payments/{id}/allocations`,
   `DELETE /payments/{paymentId}/allocations/{allocationId}`, `POST /payments/{id}/refunds`,
   `POST /payments/{id}/link`.
@@ -319,3 +327,15 @@ Nguyên tắc cập nhật:
 - Popup và màn thêm/sửa Báo phí dùng chung bảng hạng mục: STT, hạng mục, đơn vị tính, số lượng, đơn
   giá, thành tiền, tổng trước thuế, VAT và tổng thanh toán. Dòng giảm giá âm và cờ
   `Không tính vào tổng` phải hiển thị giống nhau ở cả hai nơi.
+
+### Upload và thư viện ảnh dùng chung
+
+- `ImageUpload` là component dùng chung cho avatar, ảnh CCCD và ảnh đối soát Báo phí. Ngoài chọn
+  file, người dùng có thể bấm `Dán ảnh (Ctrl+V)` hoặc nhấn trực tiếp `Ctrl+V` khi popup thư viện đang
+  mở. Ảnh trong clipboard luôn được hiển thị để xem trước; chỉ upload sau khi người dùng bấm
+  `Chọn ảnh`, còn `Hủy ảnh` sẽ loại bỏ bản xem trước.
+- Ảnh dán dùng chung API `POST /media/upload`, cùng giới hạn định dạng JPG/PNG/GIF/WEBP và dung
+  lượng tối đa 3 MB như ảnh chọn từ máy.
+- Thư viện gọi `GET /media` với `page`, `per_page` và `keyword`; tìm kiếm được debounce 300 ms và
+  request cũ được hủy khi đổi từ khóa/trang. Mặc định hiển thị 12 ảnh, có thể chọn 12/24/48 ảnh mỗi
+  trang. API không truyền tham số phân trang vẫn trả mảng cũ để giữ tương thích.

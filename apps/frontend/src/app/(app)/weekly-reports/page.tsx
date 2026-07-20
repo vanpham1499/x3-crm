@@ -220,71 +220,75 @@ export default function WeeklyReportsPage() {
         }}
       />
 
-      <div className="mb-4 flex items-center justify-between gap-4 overflow-x-auto rounded-xl border border-slate-200 bg-white pr-3 shadow-sm no-border-tabs">
-        <div className="min-w-max flex-1">
-          <IconTabs
-            value={activeTab}
-            ariaLabel="Điều hướng báo cáo tuần"
-            items={[
-              { label: 'Theo dõi tuần', icon: <DashboardCustomizeOutlinedIcon /> },
-              { label: 'Lịch sử báo cáo', icon: <HistoryRoundedIcon /> },
-            ]}
-            onChange={setActiveTab}
-          />
+      <section className="w-full overflow-hidden rounded-2xl border border-slate-200 bg-white shadow-sm">
+        <div className="flex items-center justify-between gap-4 overflow-x-auto border-b border-slate-200 pr-3 no-border-tabs">
+          <div className="min-w-max flex-1">
+            <IconTabs
+              value={activeTab}
+              ariaLabel="Điều hướng báo cáo tuần"
+              items={[
+                { label: 'Theo dõi tuần', icon: <DashboardCustomizeOutlinedIcon /> },
+                { label: 'Lịch sử báo cáo', icon: <HistoryRoundedIcon /> },
+              ]}
+              onChange={setActiveTab}
+            />
+          </div>
+          <div className="shrink-0">
+            <WeeklyCycleNavigator
+              weekStart={selectedWeekStart}
+              maxWeekStart={getCurrentIsoWeekMondayString()}
+              onChange={(weekStart) => {
+                void queryClient.cancelQueries({ queryKey: WEEKLY_REPORTS_BOARD_QUERY_KEY });
+                setActiveTab(0);
+                boardState.setPage(1);
+                setSelectedWeekStart(weekStart);
+              }}
+            />
+          </div>
         </div>
-        <div className="shrink-0 py-1.5">
-          <WeeklyCycleNavigator
-            weekStart={selectedWeekStart}
-            maxWeekStart={getCurrentIsoWeekMondayString()}
-            onChange={(weekStart) => {
-              void queryClient.cancelQueries({ queryKey: WEEKLY_REPORTS_BOARD_QUERY_KEY });
-              setActiveTab(0);
-              boardState.setPage(1);
-              setSelectedWeekStart(weekStart);
-            }}
-          />
-        </div>
-      </div>
 
-      {activeTab === 0 ? (
-        <WeeklyReportBoard
-          rows={boardResponse?.data || []}
-          users={users}
-          filters={boardState.filters}
-          weekStart={selectedWeekStart}
-          isFetching={isBoardFetching}
-          page={boardMeta.currentPage}
-          totalPages={boardMeta.lastPage}
-          totalItems={boardMeta.total}
-          pageSize={boardState.pageSize}
-          onPageChange={boardState.setPage}
-          onPageSizeChange={boardState.setPageSize}
-          onFiltersChange={boardState.onFiltersChange}
-          {...commonActionProps}
-        />
-      ) : (
-        <WeeklyReportManager
-          reports={reportsPage?.data || []}
-          projects={projects}
-          filters={historyFilters}
-          isFetching={isHistoryFetching}
-          page={historyMeta.currentPage}
-          totalPages={historyMeta.lastPage}
-          totalItems={historyMeta.total}
-          pageSize={historyPageSize}
-          onPageChange={setHistoryPage}
-          onPageSizeChange={(pageSize) => {
-            void queryClient.cancelQueries({ queryKey: WEEKLY_REPORTS_LIST_QUERY_KEY });
-            setHistoryPage(1);
-            setHistoryPageSize(pageSize);
-          }}
-          onFiltersChange={(filters) => {
-            setHistoryPage(1);
-            setHistoryFilters(filters);
-          }}
-          {...commonActionProps}
-        />
-      )}
+        {activeTab === 0 ? (
+          <WeeklyReportBoard
+            embedded
+            rows={boardResponse?.data || []}
+            users={users}
+            filters={boardState.filters}
+            weekStart={selectedWeekStart}
+            isFetching={isBoardFetching}
+            page={boardMeta.currentPage}
+            totalPages={boardMeta.lastPage}
+            totalItems={boardMeta.total}
+            pageSize={boardState.pageSize}
+            onPageChange={boardState.setPage}
+            onPageSizeChange={boardState.setPageSize}
+            onFiltersChange={boardState.onFiltersChange}
+            {...commonActionProps}
+          />
+        ) : (
+          <WeeklyReportManager
+            embedded
+            reports={reportsPage?.data || []}
+            projects={projects}
+            filters={historyFilters}
+            isFetching={isHistoryFetching}
+            page={historyMeta.currentPage}
+            totalPages={historyMeta.lastPage}
+            totalItems={historyMeta.total}
+            pageSize={historyPageSize}
+            onPageChange={setHistoryPage}
+            onPageSizeChange={(pageSize) => {
+              void queryClient.cancelQueries({ queryKey: WEEKLY_REPORTS_LIST_QUERY_KEY });
+              setHistoryPage(1);
+              setHistoryPageSize(pageSize);
+            }}
+            onFiltersChange={(filters) => {
+              setHistoryPage(1);
+              setHistoryFilters(filters);
+            }}
+            {...commonActionProps}
+          />
+        )}
+      </section>
     </div>
   );
 }

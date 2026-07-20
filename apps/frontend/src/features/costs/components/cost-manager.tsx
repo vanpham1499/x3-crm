@@ -54,12 +54,6 @@ const ENTRY_TYPE_LABELS: Record<ProjectCostEntryType, string> = {
   partner_cost: 'Chi phí đối tác',
 };
 
-const STATUS_LABELS: Record<ProjectCostStatus, string> = {
-  pending: 'Chờ xử lý',
-  completed: 'Hoàn thành',
-  cancelled: 'Đã hủy',
-};
-
 const ACCEPTANCE_LABELS: Record<string, string> = {
   pending: 'Chờ nghiệm thu',
   accepted: 'Đã nghiệm thu',
@@ -108,6 +102,15 @@ function statusClass(status: ProjectCostStatus) {
   if (status === 'completed') return 'bg-emerald-50 text-emerald-700 ring-emerald-200';
   if (status === 'cancelled') return 'bg-rose-50 text-rose-700 ring-rose-200';
   return 'bg-amber-50 text-amber-700 ring-amber-200';
+}
+
+function costStatusLabel(cost: ProjectCost) {
+  if (cost.status === 'completed') {
+    return cost.entryType === 'ad_spend' ? 'Đã nạp' : 'Đã chi';
+  }
+
+  if (cost.status === 'cancelled') return 'Đã hủy';
+  return cost.entryType === 'ad_spend' ? 'Chờ nạp' : 'Chờ chi';
 }
 
 function entryTypeClass(entryType: ProjectCostEntryType) {
@@ -195,7 +198,7 @@ function CostDetailDialog({ cost, onClose }: { cost: ProjectCost | null; onClose
             <span
               className={`mt-1.5 inline-flex rounded-md px-2 py-1 text-xs font-bold ring-1 ${statusClass(cost.status)}`}
             >
-              {STATUS_LABELS[cost.status]}
+              {costStatusLabel(cost)}
             </span>
           </div>
         </section>
@@ -289,59 +292,63 @@ export function CostManager({
       <PageHeader title="Chi phí" />
 
       <section className="w-full overflow-hidden rounded-2xl border border-slate-200 bg-white shadow-sm">
-        <div className="grid gap-3 p-4 md:grid-cols-2 xl:grid-cols-[minmax(260px,1fr)_160px_152px_152px_150px_150px]">
-          <CompactSearchField
-            label="Từ khóa"
-            placeholder="Dự án, CID, đối tác, ngân hàng, ghi chú..."
-            value={filters.keyword}
-            onChange={(keyword) => updateFilters({ keyword })}
-          />
-          <CompactSelectField
-            label="Loại chi phí"
-            value={filters.entry_type}
-            options={[
-              { value: 'ad_spend', label: 'Nạp quảng cáo' },
-              { value: 'partner_cost', label: 'Chi phí đối tác' },
-            ]}
-            onChange={(entry_type) =>
-              updateFilters({ entry_type: entry_type as ProjectCostFilters['entry_type'] })
-            }
-          />
-          <CompactSelectField
-            label="Trạng thái"
-            value={filters.status}
-            options={[
-              { value: 'pending', label: 'Chờ xử lý' },
-              { value: 'completed', label: 'Hoàn thành' },
-              { value: 'cancelled', label: 'Đã hủy' },
-            ]}
-            onChange={(status) => updateFilters({ status: status as ProjectCostFilters['status'] })}
-          />
-          <CompactSelectField
-            label="Đối soát"
-            value={filters.reconciled_status}
-            options={[
-              { value: 'unmatched', label: 'Chưa khớp' },
-              { value: 'matched', label: 'Đã khớp' },
-            ]}
-            onChange={(reconciled_status) =>
-              updateFilters({
-                reconciled_status: reconciled_status as ProjectCostFilters['reconciled_status'],
-              })
-            }
-          />
-          <FormDatePicker
-            label="Từ ngày"
-            value={filters.date_from}
-            max={filters.date_to || undefined}
-            onChange={(date_from) => updateFilters({ date_from })}
-          />
-          <FormDatePicker
-            label="Đến ngày"
-            value={filters.date_to}
-            min={filters.date_from || undefined}
-            onChange={(date_to) => updateFilters({ date_to })}
-          />
+        <div className="border-slate-200 p-4">
+          <div className="grid gap-3 md:grid-cols-2 xl:grid-cols-[minmax(240px,1fr)_repeat(5,176px)]">
+            <CompactSearchField
+              label="Từ khóa"
+              placeholder="Dự án, CID, đối tác, ngân hàng, ghi chú..."
+              value={filters.keyword}
+              onChange={(keyword) => updateFilters({ keyword })}
+            />
+            <CompactSelectField
+              label="Loại chi phí"
+              value={filters.entry_type}
+              options={[
+                { value: 'ad_spend', label: 'Nạp quảng cáo' },
+                { value: 'partner_cost', label: 'Chi phí đối tác' },
+              ]}
+              onChange={(entry_type) =>
+                updateFilters({ entry_type: entry_type as ProjectCostFilters['entry_type'] })
+              }
+            />
+            <CompactSelectField
+              label="Trạng thái"
+              value={filters.status}
+              options={[
+                { value: 'pending', label: 'Chờ xử lý' },
+                { value: 'completed', label: 'Hoàn thành' },
+                { value: 'cancelled', label: 'Đã hủy' },
+              ]}
+              onChange={(status) =>
+                updateFilters({ status: status as ProjectCostFilters['status'] })
+              }
+            />
+            <CompactSelectField
+              label="Đối soát"
+              value={filters.reconciled_status}
+              options={[
+                { value: 'unmatched', label: 'Chưa khớp' },
+                { value: 'matched', label: 'Đã khớp' },
+              ]}
+              onChange={(reconciled_status) =>
+                updateFilters({
+                  reconciled_status: reconciled_status as ProjectCostFilters['reconciled_status'],
+                })
+              }
+            />
+            <FormDatePicker
+              label="Từ ngày"
+              value={filters.date_from}
+              max={filters.date_to || undefined}
+              onChange={(date_from) => updateFilters({ date_from })}
+            />
+            <FormDatePicker
+              label="Đến ngày"
+              value={filters.date_to}
+              min={filters.date_from || undefined}
+              onChange={(date_to) => updateFilters({ date_to })}
+            />
+          </div>
         </div>
 
         <AppDataTable
@@ -434,7 +441,7 @@ export function CostManager({
                     <span
                       className={`inline-flex whitespace-nowrap rounded-md px-2 py-1 text-xs font-bold ring-1 ${statusClass(cost.status)}`}
                     >
-                      {STATUS_LABELS[cost.status]}
+                      {costStatusLabel(cost)}
                     </span>
                   </td>
                   <td className="px-3 py-3.5 text-center">
@@ -526,7 +533,7 @@ export function CostManager({
         title="Xác nhận khớp giao dịch?"
         description={
           reconcileTarget
-            ? `Bạn có chắc đã khớp giao dịch ${formatCurrency(reconcileTarget.totalAmount)} chưa? Sau khi xác nhận, khoản chi này sẽ không thể chỉnh sửa hoặc xóa.`
+            ? `Bạn có chắc đã khớp giao dịch ${formatCurrency(reconcileTarget.totalAmount)} chưa? Trạng thái sẽ chuyển thành “${reconcileTarget.entryType === 'ad_spend' ? 'Đã nạp' : 'Đã chi'}” và khoản chi sẽ không thể chỉnh sửa hoặc xóa.`
             : ''
         }
         confirmText="Xác nhận đã khớp"

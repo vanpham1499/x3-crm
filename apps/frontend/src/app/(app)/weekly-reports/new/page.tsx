@@ -18,7 +18,7 @@ export default function NewWeeklyReportPage() {
   const notify = useAppNotification();
   const projectId = searchParams.get('projectId') || '';
   const weekStart = searchParams.get('weekStart') || '';
-  const [pendingFiles, setPendingFiles] = useState<File[]>([]);
+  const [pendingImageUrls, setPendingImageUrls] = useState<string[]>([]);
 
   const { data: project, isLoading: isProjectLoading } = useQuery<ProjectItem>({
     queryKey: ['projects', 'weekly-report-form', projectId],
@@ -33,21 +33,16 @@ export default function NewWeeklyReportPage() {
       queryClient.invalidateQueries({ queryKey: ['weekly-reports'] });
       notify.success('Tạo báo cáo tuần thành công');
 
-      if (pendingFiles.length > 0) {
+      if (pendingImageUrls.length > 0) {
         const results = await Promise.allSettled(
-          pendingFiles.map((file) => {
-            const formData = new FormData();
-            formData.append('file', file);
-
-            return api.post(`/weekly-reports/${report.id}/attachments`, formData, {
-              headers: { 'Content-Type': 'multipart/form-data' },
-            });
-          }),
+          pendingImageUrls.map((mediaUrl) =>
+            api.post(`/weekly-reports/${report.id}/attachments`, { media_url: mediaUrl }),
+          ),
         );
 
         const failed = results.filter((result) => result.status === 'rejected').length;
         if (failed > 0) {
-          notify.error(`${failed}/${pendingFiles.length} tệp đính kèm tải lên thất bại`);
+          notify.error(`${failed}/${pendingImageUrls.length} ảnh đính kèm tải lên thất bại`);
         }
       }
 
@@ -68,8 +63,8 @@ export default function NewWeeklyReportPage() {
       defaultWeekStart={weekStart}
       isSubmitting={createMutation.isPending}
       onSubmit={(payload) => createMutation.mutateAsync(payload)}
-      pendingFiles={pendingFiles}
-      onPendingFilesChange={setPendingFiles}
+      pendingImageUrls={pendingImageUrls}
+      onPendingImageUrlsChange={setPendingImageUrls}
     />
   );
 }

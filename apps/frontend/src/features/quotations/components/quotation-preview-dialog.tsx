@@ -3,6 +3,7 @@
 import EditRoundedIcon from '@mui/icons-material/EditRounded';
 import { DialogActionButton } from '@/components/actions/dialog-action-button';
 import { AppDetailDialog } from '@/components/dialog/app-detail-dialog';
+import { getMediaPreviewUrl } from '@/lib/media-url';
 import type { Quotation, QuotationItem } from '@/types/quotation';
 import { QuotationItemsTable, type QuotationTableLine } from './quotation-items-table';
 
@@ -58,6 +59,7 @@ function InfoCell({ label, value }: { label: string; value: string }) {
 export function QuotationPreviewDialog({ quotation, onClose }: QuotationPreviewDialogProps) {
   if (!quotation) return null;
 
+  const reconciliationImages = quotation.accountReconciliationImageUrls || [];
   const partyName =
     quotation.customer?.customerName || quotation.lead?.customerName || 'Chưa xác định khách hàng';
   const statusLabel = quotation.status === 'won' ? 'Đã thanh toán' : 'Báo phí';
@@ -68,7 +70,7 @@ export function QuotationPreviewDialog({ quotation, onClose }: QuotationPreviewD
       title="Chi tiết báo phí"
       eyebrow={quotation.quotationCode || `Báo phí #${quotation.id}`}
       subtitle={partyName}
-      maxWidth="lg"
+      maxWidth="md"
       onClose={onClose}
       actions={
         <DialogActionButton href={`/quotations/${quotation.id}`} startIcon={<EditRoundedIcon />}>
@@ -93,9 +95,53 @@ export function QuotationPreviewDialog({ quotation, onClose }: QuotationPreviewD
             subtotal={quotation.subtotalAmount}
             vatRate={quotation.vatRate}
             vatAmount={quotation.vatAmount}
+            deposit={quotation.depositAmount}
             total={quotation.totalAmount}
           />
         </section>
+
+        {reconciliationImages.length > 0 ? (
+          <section className="rounded-xl border border-slate-200 bg-white p-4">
+            <div className="mb-3 flex items-center gap-2">
+              <h3 className="text-sm font-bold text-slate-950">
+                Ảnh đối soát chi tiết tài khoản quảng cáo
+              </h3>
+              <span className="rounded-full bg-slate-100 px-2 py-0.5 text-xs font-bold text-slate-600">
+                {reconciliationImages.length}
+              </span>
+            </div>
+
+            <div className="grid grid-cols-1 gap-3 sm:grid-cols-3">
+              {reconciliationImages.map((imageUrl, index) => {
+                const previewUrl = getMediaPreviewUrl(imageUrl) || imageUrl;
+
+                return (
+                  <a
+                    key={`${imageUrl}-${index}`}
+                    href={previewUrl}
+                    target="_blank"
+                    rel="noreferrer"
+                    title={`Mở ảnh đối soát ${index + 1}`}
+                    className="group min-w-0 overflow-hidden rounded-xl border border-slate-200 bg-slate-50 shadow-sm transition hover:border-primary focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary/30"
+                  >
+                    <span className="block aspect-[1.586/1] overflow-hidden">
+                      {/* eslint-disable-next-line @next/next/no-img-element */}
+                      <img
+                        src={previewUrl}
+                        alt={`Ảnh đối soát tài khoản quảng cáo ${index + 1}`}
+                        loading="lazy"
+                        className="h-full w-full object-cover transition-transform duration-200 group-hover:scale-105"
+                      />
+                    </span>
+                    <span className="block truncate border-t border-slate-200 bg-white px-3 py-2 text-xs font-semibold text-slate-600">
+                      Ảnh {index + 1}
+                    </span>
+                  </a>
+                );
+              })}
+            </div>
+          </section>
+        ) : null}
 
         {quotation.note ? (
           <section className="rounded-xl border border-slate-200 bg-white px-4 py-3">

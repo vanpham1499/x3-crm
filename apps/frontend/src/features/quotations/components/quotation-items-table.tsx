@@ -17,6 +17,7 @@ type QuotationItemsTableProps = {
   subtotal: string | number | null | undefined;
   vatRate: string | number | null | undefined;
   vatAmount: string | number | null | undefined;
+  deposit: string | number | null | undefined;
   total: string | number | null | undefined;
   emptyText?: string;
 };
@@ -38,6 +39,7 @@ export function QuotationItemsTable({
   subtotal,
   vatRate,
   vatAmount,
+  deposit,
   total,
   emptyText = 'Chưa có hạng mục báo phí',
 }: QuotationItemsTableProps) {
@@ -113,6 +115,16 @@ export function QuotationItemsTable({
               {formatCurrency(vatAmount)}
             </td>
           </tr>
+          {toNumber(deposit) > 0 ? (
+            <tr>
+              <td colSpan={5} className="px-4 py-3 text-right font-bold text-slate-700">
+                Cọc <span className="font-medium text-slate-500">(không tính VAT)</span>
+              </td>
+              <td className="px-4 py-3 text-right font-extrabold tabular-nums text-slate-950">
+                {formatCurrency(deposit)}
+              </td>
+            </tr>
+          ) : null}
           <tr>
             <td colSpan={5} className="px-4 py-4 text-right font-extrabold text-slate-950">
               Tổng thanh toán

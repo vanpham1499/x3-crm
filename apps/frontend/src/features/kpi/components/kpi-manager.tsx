@@ -405,7 +405,7 @@ export function KpiManager({
           ]}
         />
 
-        <div className="grid items-center gap-3 p-4 lg:grid-cols-2 xl:grid-cols-[190px_190px_minmax(180px,1fr)_minmax(220px,1.2fr)_140px_150px]">
+        <div className="grid items-center gap-3 p-4 xl:grid-cols-[repeat(6,minmax(0,1fr))]">
           <FormDatePicker
             label="Ngày bắt đầu"
             value={filters.dateFrom}

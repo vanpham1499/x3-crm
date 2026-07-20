@@ -115,6 +115,35 @@ export default function ProjectsPage() {
     },
   });
 
+  const statusMutation = useMutation({
+    mutationFn: ({ project, statusOptionId }: { project: ProjectItem; statusOptionId: number }) =>
+      api
+        .patch<ProjectItem>(`/projects/${project.id}`, {
+          statusOptionId,
+          status_option_id: statusOptionId,
+        })
+        .then((response) => response.data),
+    onSuccess: (updatedProject) => {
+      queryClient.setQueriesData<PaginatedResponse<ProjectItem>>(
+        { queryKey: PROJECTS_LIST_QUERY_KEY },
+        (currentPage) =>
+          currentPage
+            ? {
+                ...currentPage,
+                data: currentPage.data.map((project) =>
+                  project.id === updatedProject.id ? updatedProject : project,
+                ),
+              }
+            : currentPage,
+      );
+      void queryClient.invalidateQueries({ queryKey: ['projects'] });
+      notify.success('Cập nhật trạng thái dự án thành công');
+    },
+    onError: (error) => {
+      notify.error(getApiErrorMessage(error, 'Cập nhật trạng thái dự án thất bại'));
+    },
+  });
+
   if (isLoading) {
     return <ContentLoading />;
   }
@@ -133,11 +162,17 @@ export default function ProjectsPage() {
       pageSize={pageSize}
       isFetching={isFetching}
       isDeleting={deleteMutation.isPending}
+      updatingStatusProjectId={
+        statusMutation.isPending ? statusMutation.variables?.project.id || null : null
+      }
       currentUser={currentUser}
       onPageChange={setPage}
       onPageSizeChange={setPageSize}
       onFiltersChange={onFiltersChange}
       onDelete={(project) => deleteMutation.mutate(project)}
+      onStatusChange={(project, statusOptionId) =>
+        statusMutation.mutate({ project, statusOptionId })
+      }
     />
   );
 }

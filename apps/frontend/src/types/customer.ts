@@ -26,9 +26,11 @@ export type Customer = {
   representativeName?: string | null;
   taxCode?: string | null;
   identityNo?: string | null;
+  identityImageUrls?: string[];
   address?: string | null;
   phone?: string | null;
   email?: string | null;
+  invoiceEmail?: string | null;
   website?: string | null;
   industry?: string | null;
   industryOptionId?: number | null;
@@ -41,6 +43,7 @@ export type Customer = {
   sourceOption?: AppOption | null;
   industryOption?: AppOption | null;
   salesUser?: Pick<User, 'id' | 'code' | 'name' | 'email'> | null;
+  createdBy?: Pick<User, 'id' | 'code' | 'name' | 'email'> | null;
   projectsCount?: number;
   createdAt?: string;
   updatedAt?: string;
@@ -73,9 +76,11 @@ export type CustomerFormValues = {
   representativeName: string;
   taxCode: string;
   identityNo: string;
+  identityImageUrls: string[];
   address: string;
   phone: string;
   email: string;
+  invoiceEmail: string;
   website: string;
   industry: string;
   industryOptionId: string;
@@ -94,9 +99,11 @@ export type CustomerPayload = {
   representativeName?: string | null;
   taxCode?: string | null;
   identityNo?: string | null;
+  identityImageUrls?: string[];
   address?: string | null;
   phone?: string | null;
   email?: string | null;
+  invoiceEmail?: string | null;
   website?: string | null;
   industry?: string | null;
   industryOptionId?: string | null;
