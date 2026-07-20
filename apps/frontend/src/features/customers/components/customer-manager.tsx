@@ -22,7 +22,9 @@ import { PageHeader } from '@/components/shell/page-header';
 import { AppDataTable } from '@/components/table/app-data-table';
 import { EntityTableLink } from '@/components/table/entity-table-link';
 import { TablePaginationBar } from '@/components/table/table-pagination-bar';
+import { UserDateTimeCell } from '@/components/table/user-date-time-cell';
 import { canCreateProjectForCustomer, canDeleteCustomer, canEditCustomer } from '@/lib/ownership';
+import { getMediaPreviewUrl } from '@/lib/media-url';
 import api from '@/services/api/client';
 import type { Customer, CustomerFilters } from '@/types/customer';
 import type { AppOption } from '@/types/option';
@@ -144,7 +146,8 @@ function CustomerViewDialog({
                 <CustomerDetailRow label="Tên khách hàng" value={customer.customerName} />
                 <CustomerDetailRow label="Tên công ty" value={customer.companyName} />
                 <CustomerDetailRow label="Số điện thoại" value={customer.phone} />
-                <CustomerDetailRow label="Email" value={customer.email} />
+                <CustomerDetailRow label="Email liên hệ" value={customer.email} />
+                <CustomerDetailRow label="Email nhận HĐ" value={customer.invoiceEmail} />
                 <CustomerDetailRow label="Người đại diện" value={customer.representativeName} />
                 <CustomerDetailRow
                   label="Loại khách"
@@ -159,6 +162,46 @@ function CustomerViewDialog({
               <div className="mt-5 grid gap-4 border-t border-slate-100 pt-5 md:grid-cols-2">
                 <CustomerDetailRow label="Địa chỉ" value={customer.address} />
                 <CustomerDetailRow label="Ghi chú" value={customer.note} />
+              </div>
+
+              <div className="mt-5 border-t border-slate-100 pt-5">
+                <div className="mb-3 flex items-center justify-between gap-3">
+                  <h3 className="text-sm font-bold text-slate-800">Ảnh CCCD</h3>
+                  <span className="text-xs font-semibold text-slate-400">
+                    {customer.identityImageUrls?.length || 0} ảnh
+                  </span>
+                </div>
+
+                {customer.identityImageUrls?.length ? (
+                  <div className="grid grid-cols-3 gap-3">
+                    {customer.identityImageUrls.map((imageUrl, index) => (
+                      <a
+                        key={`${imageUrl}-${index}`}
+                        href={getMediaPreviewUrl(imageUrl) || imageUrl}
+                        target="_blank"
+                        rel="noreferrer"
+                        title={`Mở ảnh CCCD ${index + 1}`}
+                        className="group overflow-hidden rounded-xl border border-slate-200 bg-slate-50 shadow-sm"
+                      >
+                        <span className="block aspect-[1.586/1] overflow-hidden">
+                          {/* eslint-disable-next-line @next/next/no-img-element */}
+                          <img
+                            src={getMediaPreviewUrl(imageUrl) || imageUrl}
+                            alt={`Ảnh CCCD ${index + 1}`}
+                            className="h-full w-full object-cover transition-transform group-hover:scale-105"
+                          />
+                        </span>
+                        <span className="block border-t border-slate-200 bg-white px-2 py-1.5 text-xs font-semibold text-slate-600">
+                          Ảnh {index + 1}
+                        </span>
+                      </a>
+                    ))}
+                  </div>
+                ) : (
+                  <div className="rounded-lg border border-dashed border-slate-200 px-4 py-5 text-center text-sm text-slate-400">
+                    Chưa có ảnh CCCD
+                  </div>
+                )}
               </div>
             </section>
           </div>
@@ -335,12 +378,13 @@ export function CustomerManager({
             { key: 'email', label: 'Email', className: 'w-56' },
             { key: 'representative', label: 'Người đại diện', className: 'w-48' },
             { key: 'sales', label: 'Người phụ trách', className: 'w-44' },
+            { key: 'created', label: 'Người tạo', className: 'w-40' },
             { key: 'actions', className: 'w-36' },
           ]}
           isLoading={isFetching}
           isEmpty={customers.length === 0}
           emptyText="Không có dữ liệu khách hàng"
-          minWidthClassName="min-w-[1320px]"
+          minWidthClassName="min-w-[1480px]"
         >
           {customers.map((customer) => {
             const customerIdentity = getCustomerIdentity(customer);
@@ -377,6 +421,12 @@ export function CustomerManager({
                   <InfoPill
                     value={customer.salesUser?.name}
                     className="bg-sky-50 text-sky-700 ring-sky-100"
+                  />
+                </td>
+                <td className="px-3 py-4">
+                  <UserDateTimeCell
+                    userName={customer.createdBy?.name}
+                    dateTime={customer.createdAt}
                   />
                 </td>
                 <td className="py-4">
@@ -442,7 +492,9 @@ export function CustomerManager({
           <MenuItem
             onClick={deleteActiveCustomer}
             className="text-rose-600"
-            disabled={isDeleting || !activeCustomer || !canDeleteCustomer(currentUser, activeCustomer)}
+            disabled={
+              isDeleting || !activeCustomer || !canDeleteCustomer(currentUser, activeCustomer)
+            }
           >
             <DeleteRoundedIcon fontSize="small" className="mr-2" />
             Xóa

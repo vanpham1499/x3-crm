@@ -933,50 +933,52 @@ export function PaymentManager({
       <PageHeader title="Thanh toán" />
 
       <section className="w-full overflow-hidden rounded-2xl border border-slate-200 bg-white shadow-sm">
-        <div className="grid gap-3 p-4 md:grid-cols-2 xl:grid-cols-[minmax(280px,1fr)_176px_176px_160px_160px]">
-          <CompactSearchField
-            label="Từ khóa"
-            placeholder="Nội dung, mã báo phí, dự án, tham chiếu..."
-            value={filters.keyword}
-            onChange={(keyword) => updateFilters({ keyword })}
-          />
-          <CompactSelectField
-            label="Trạng thái xử lý"
-            value={filters.status}
-            options={[
-              { value: 'unmatched', label: 'Chờ đối soát' },
-              { value: 'matched_project', label: 'Đã gắn dự án' },
-              { value: 'paid_with_excess', label: 'Đã phân bổ + chuyển thừa' },
-              { value: 'overpaid', label: 'Chuyển thừa' },
-              { value: 'allocated', label: 'Đã phân bổ giao dịch' },
-              { value: 'partially_refunded', label: 'Đã hoàn một phần' },
-              { value: 'allocated_and_refunded', label: 'Đã phân bổ & hoàn dư' },
-              { value: 'refunded', label: 'Đã hoàn toàn bộ' },
-              { value: 'non_customer', label: 'Không phải khoản thu' },
-            ]}
-            onChange={(status) => updateFilters({ status })}
-          />
-          <CompactSelectField
-            label="Đối soát"
-            value={filters.reconciled_status}
-            options={Object.entries(reconciledStatusLabels).map(([value, label]) => ({
-              value,
-              label,
-            }))}
-            onChange={(reconciled_status) => updateFilters({ reconciled_status })}
-          />
-          <FormDatePicker
-            label="Từ ngày"
-            value={filters.date_from}
-            max={filters.date_to || undefined}
-            onChange={(date_from) => updateFilters({ date_from })}
-          />
-          <FormDatePicker
-            label="Đến ngày"
-            value={filters.date_to}
-            min={filters.date_from || undefined}
-            onChange={(date_to) => updateFilters({ date_to })}
-          />
+        <div className="border-slate-200 p-4">
+          <div className="grid gap-3 md:grid-cols-2 xl:grid-cols-[minmax(240px,1fr)_repeat(4,176px)]">
+            <CompactSearchField
+              label="Từ khóa"
+              placeholder="Nội dung, mã báo phí, dự án, tham chiếu..."
+              value={filters.keyword}
+              onChange={(keyword) => updateFilters({ keyword })}
+            />
+            <CompactSelectField
+              label="Trạng thái xử lý"
+              value={filters.status}
+              options={[
+                { value: 'unmatched', label: 'Chờ đối soát' },
+                { value: 'matched_project', label: 'Đã gắn dự án' },
+                { value: 'paid_with_excess', label: 'Đã phân bổ + chuyển thừa' },
+                { value: 'overpaid', label: 'Chuyển thừa' },
+                { value: 'allocated', label: 'Đã phân bổ giao dịch' },
+                { value: 'partially_refunded', label: 'Đã hoàn một phần' },
+                { value: 'allocated_and_refunded', label: 'Đã phân bổ & hoàn dư' },
+                { value: 'refunded', label: 'Đã hoàn toàn bộ' },
+                { value: 'non_customer', label: 'Không phải khoản thu' },
+              ]}
+              onChange={(status) => updateFilters({ status })}
+            />
+            <CompactSelectField
+              label="Đối soát"
+              value={filters.reconciled_status}
+              options={Object.entries(reconciledStatusLabels).map(([value, label]) => ({
+                value,
+                label,
+              }))}
+              onChange={(reconciled_status) => updateFilters({ reconciled_status })}
+            />
+            <FormDatePicker
+              label="Từ ngày"
+              value={filters.date_from}
+              max={filters.date_to || undefined}
+              onChange={(date_from) => updateFilters({ date_from })}
+            />
+            <FormDatePicker
+              label="Đến ngày"
+              value={filters.date_to}
+              min={filters.date_from || undefined}
+              onChange={(date_to) => updateFilters({ date_to })}
+            />
+          </div>
         </div>
 
         <AppDataTable

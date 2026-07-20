@@ -7,7 +7,7 @@ import { ContentLoading } from '@/components/shell/content-loading';
 import { PageHeader } from '@/components/shell/page-header';
 import { LeadForm } from '@/features/leads/components/lead-form';
 import { getApiErrorMessage } from '@/lib/api-error';
-import { getUniqueLeadStatuses, toLeadPayload } from '@/lib/lead-utils';
+import { getUniqueLeadStatuses, mergeLeadStatuses, toLeadPayload } from '@/lib/lead-utils';
 import api from '@/services/api/client';
 import type { Lead, LeadFormValues } from '@/types/lead';
 import type { AppOption } from '@/types/option';
@@ -67,7 +67,11 @@ export default function NewLeadPage() {
 
       return api.post('/leads', toLeadPayload({ ...values, sourceOptionId }));
     },
-    onSuccess: () => {
+    onSuccess: async () => {
+      await Promise.all([
+        queryClient.invalidateQueries({ queryKey: ['leads', 'list'], refetchType: 'all' }),
+        queryClient.invalidateQueries({ queryKey: ['leads', 'status-options'] }),
+      ]);
       notify.success('Tạo lead thành công');
       router.push('/leads');
     },
@@ -89,14 +93,14 @@ export default function NewLeadPage() {
         users={users}
         sources={sources}
         services={services}
-        statuses={[
-          ...statuses.map((status) => ({
+        statuses={mergeLeadStatuses(
+          statuses.map((status) => ({
             id: status.id,
             name: status.label,
             sortOrder: status.sortOrder || 0,
           })),
-          ...getUniqueLeadStatuses(leads),
-        ]}
+          getUniqueLeadStatuses(leads),
+        )}
         isSubmitting={createMutation.isPending}
         onSubmit={(values) => createMutation.mutateAsync(values)}
       />

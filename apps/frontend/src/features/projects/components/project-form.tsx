@@ -8,6 +8,7 @@ import { useQuery } from '@tanstack/react-query';
 import { Controller, useForm, useWatch } from 'react-hook-form';
 import { FormActionBar } from '@/components/form/form-action-bar';
 import { FormDatePicker } from '@/components/form/form-date-picker';
+import { ExternalLinkAdornment } from '@/components/form/external-link-adornment';
 import { FormInputField } from '@/components/form/form-input-field';
 import { FormSection } from '@/components/form/form-section';
 import { FormSelectField } from '@/components/form/form-select-field';
@@ -126,6 +127,7 @@ export function ProjectForm({
   const selectedServiceId = useWatch({ control, name: 'serviceId' }) || '';
   const projectName = useWatch({ control, name: 'projectName' }) || '';
   const projectType = useWatch({ control, name: 'projectType' }) || 'K';
+  const planLinkValue = useWatch({ control, name: 'planLink' }) || '';
   const selectedSalesUserId = useWatch({ control, name: 'salesUserId' }) || '';
   const weeklyReportWeekday = useWatch({ control, name: 'weeklyReportWeekday' }) || '';
   const reportWeekday = weeklyReportWeekday ? Number(weeklyReportWeekday) : null;
@@ -242,7 +244,7 @@ export function ProjectForm({
                   <ServerPaginatedAutocomplete<CustomerOption>
                     endpoint="/customers"
                     queryKey={['customers', 'project-form-autocomplete']}
-                    label="Mã khách hàng *"
+                    label="Mã khách hàng "
                     value={selectedCustomer}
                     disabled={readOnly || Boolean(selectedQuotation)}
                     required
@@ -290,7 +292,7 @@ export function ProjectForm({
                       renderInput={(params) => (
                         <FormInputField
                           {...params}
-                          label="Dịch vụ *"
+                          label="Dịch vụ "
                           disabled={readOnly || Boolean(selectedQuotation)}
                           placeholder="Tìm theo mã hoặc tên dịch vụ"
                           error={Boolean(errors.serviceId)}
@@ -312,7 +314,7 @@ export function ProjectForm({
                   <FormInputField
                     {...field}
                     value={field.value || ''}
-                    label="Tên dự án *"
+                    label="Tên dự án "
                     disabled={readOnly}
                     error={Boolean(errors.projectName)}
                     helperText={errors.projectName?.message}
@@ -326,7 +328,7 @@ export function ProjectForm({
                 render={({ field }) => (
                   <FormSelectField
                     {...field}
-                    label="Loại *"
+                    label="Loại "
                     disabled={readOnly}
                     error={Boolean(errors.projectType)}
                     helperText={errors.projectType?.message}
@@ -359,6 +361,16 @@ export function ProjectForm({
               label="Link plan"
               placeholder="https://docs.google.com/..."
               disabled={readOnly}
+              slotProps={{
+                input: {
+                  endAdornment: (
+                    <ExternalLinkAdornment
+                      value={planLinkValue}
+                      ariaLabel="Mở link plan trong tab mới"
+                    />
+                  ),
+                },
+              }}
               {...register('planLink')}
             />
 
@@ -376,7 +388,7 @@ export function ProjectForm({
                 rules={{ required: 'Vui lòng chọn ngày bắt đầu dự án' }}
                 render={({ field }) => (
                   <FormDatePicker
-                    label="Ngày bắt đầu *"
+                    label="Ngày bắt đầu "
                     value={field.value}
                     required
                     disabled={readOnly}
@@ -503,7 +515,7 @@ export function ProjectForm({
               rules={{ required: 'Vui lòng chọn trạng thái' }}
               render={({ field }) => (
                 <FormSelectField
-                  label="Trạng thái *"
+                  label="Trạng thái "
                   required
                   disabled={readOnly}
                   error={Boolean(errors.statusOptionId)}
@@ -526,7 +538,7 @@ export function ProjectForm({
               rules={{ required: 'Vui lòng chọn người quản lý' }}
               render={({ field }) => (
                 <FormSelectField
-                  label="Người quản lý *"
+                  label="Người quản lý "
                   required
                   disabled={readOnly}
                   error={Boolean(errors.managerUserId)}
@@ -549,7 +561,7 @@ export function ProjectForm({
               rules={{ required: 'Vui lòng chọn Sales phụ trách' }}
               render={({ field }) => (
                 <FormSelectField
-                  label="Sales phụ trách *"
+                  label="Sales phụ trách "
                   required
                   disabled={readOnly}
                   error={Boolean(errors.salesUserId)}
@@ -572,7 +584,7 @@ export function ProjectForm({
               rules={{ required: 'Vui lòng chọn thứ báo cáo' }}
               render={({ field }) => (
                 <FormSelectField
-                  label="Thứ báo cáo *"
+                  label="Thứ báo cáo "
                   required
                   disabled={readOnly}
                   error={Boolean(errors.weeklyReportWeekday)}

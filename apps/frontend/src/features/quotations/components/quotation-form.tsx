@@ -3,18 +3,19 @@
 import { useEffect, useMemo, useState } from 'react';
 import AddRoundedIcon from '@mui/icons-material/AddRounded';
 import DeleteRoundedIcon from '@mui/icons-material/DeleteRounded';
+import LockRoundedIcon from '@mui/icons-material/LockRounded';
 import SaveRoundedIcon from '@mui/icons-material/SaveRounded';
 import { Autocomplete, IconButton, MenuItem } from '@mui/material';
 import { useQuery } from '@tanstack/react-query';
 import { TabActionButton } from '@/components/actions/tab-action-button';
 import { FormActionBar } from '@/components/form/form-action-bar';
-import { FormDatePicker } from '@/components/form/form-date-picker';
 import { compactFormFieldClassName } from '@/components/form/form-field-styles';
 import { FormInputField } from '@/components/form/form-input-field';
 import { FormSection } from '@/components/form/form-section';
 import { FormSelectField } from '@/components/form/form-select-field';
 import { MoneyInput } from '@/components/form/money-input';
 import { ServerPaginatedAutocomplete } from '@/components/form/server-paginated-autocomplete';
+import { MultiImageUpload } from '@/components/upload/multi-image-upload';
 import { getApiFieldErrors } from '@/lib/api-error';
 import { PageHeader } from '@/components/shell/page-header';
 import {
@@ -42,6 +43,8 @@ type QuoteCustomerMode = 'new_customer' | 'existing_customer';
 type QuoteProjectMode = 'new_project' | 'existing_project';
 
 const NO_SETUP_PACKAGE_KEY = 'none';
+const NON_TAXABLE_DEPOSIT_MODE = 'non_taxable_addition_v1';
+const VAT_RATE_OPTIONS = ['7', '8', '10'] as const;
 
 type QuotationFormProps = {
   mode: 'create' | 'edit';
@@ -146,14 +149,17 @@ export function QuotationForm({
   const [customerName, setCustomerName] = useState('');
   const [projectName, setProjectName] = useState('');
   const [projectType, setProjectType] = useState<ProjectType>('K');
-  const [duration, setDuration] = useState('1 tháng');
   const [vatRate, setVatRate] = useState('8');
-  const [validUntil, setValidUntil] = useState('');
+  const [depositAmount, setDepositAmount] = useState('0');
   const [note, setNote] = useState('');
   const [selectedServiceId, setSelectedServiceId] = useState('');
   const [selectedBankAccountId, setSelectedBankAccountId] = useState('');
   const [setupPackageKey, setSetupPackageKey] = useState('basic');
   const [budget, setBudget] = useState('0');
+  const [accountReconciliationImageUrls, setAccountReconciliationImageUrls] = useState<string[]>(
+    [],
+  );
+  const [isUploadingReconciliationImages, setIsUploadingReconciliationImages] = useState(false);
   const [manualLines, setManualLines] = useState<QuotationLineFormValue[]>([
     { id: 1, name: '', unit: 'Dịch vụ', quantity: '1', unitPrice: '0' },
   ]);
@@ -261,9 +267,16 @@ export function QuotationForm({
     0,
   );
   const vatAmount = Math.round((subtotal * toNumber(vatRate)) / 100);
-  const total = subtotal + vatAmount;
+  const deposit = toNumber(depositAmount);
+  const total = subtotal + vatAmount + deposit;
   const paymentContent = getQuotationPaymentContent(quotation);
   const missingRequiredLead = mode === 'create' && !leadId;
+  const storedTotalAmount = Number(quotation?.totalAmount) || 0;
+  const storedPaidAmount = Number(quotation?.paidAmount) || 0;
+  const isPaymentLocked =
+    mode === 'edit' &&
+    (quotation?.isPaymentLocked === true ||
+      (storedTotalAmount > 0.01 && storedPaidAmount >= storedTotalAmount - 0.01));
 
   useEffect(() => {
     if (!quotation) return;
@@ -327,14 +340,19 @@ export function QuotationForm({
     setProjectType(
       storedProjectType === 'K' || storedProjectType === 'M' ? storedProjectType : 'M',
     );
-    setDuration(getMetadataValue(metadata, 'duration') || '1 tháng');
-    setVatRate(String(quotation.vatRate ?? '0'));
-    setValidUntil(quotation.validUntil || '');
+    const storedVatRate = String(Number(quotation.vatRate ?? 8));
+    setVatRate(
+      VAT_RATE_OPTIONS.includes(storedVatRate as (typeof VAT_RATE_OPTIONS)[number])
+        ? storedVatRate
+        : '8',
+    );
+    setDepositAmount(String(quotation.depositAmount ?? '0'));
     setNote(quotation.note || '');
     setSelectedServiceId(idToString(quotation.serviceId));
     setBudget(getMetadataValue(metadata, 'budget') || '0');
     setSetupPackageKey(getMetadataValue(metadata, 'setupPackageKey') || 'basic');
     setSelectedBankAccountId(getMetadataValue(metadata, 'bankAccountOptionId'));
+    setAccountReconciliationImageUrls(quotation.accountReconciliationImageUrls || []);
 
     const nextManualLines =
       quotation.items
@@ -466,18 +484,19 @@ export function QuotationForm({
       vatRate: toNumber(vatRate),
       vatAmount,
       totalAmount: total,
-      depositAmount: total,
-      validUntil: validUntil || null,
+      depositAmount: deposit,
+      accountReconciliationImageUrls: projectType === 'K' ? accountReconciliationImageUrls : [],
       note: note.trim() || null,
       metadata: {
+        ...(quotation?.metadata || {}),
         customerMode,
         projectMode: customerMode === 'existing_customer' ? projectMode : 'new_project',
         customerName,
         projectName,
         projectType,
-        duration,
         budget,
         setupPackageKey,
+        depositMode: NON_TAXABLE_DEPOSIT_MODE,
         bankAccountOptionId: selectedBankAccount?.id || null,
         bankCode: selectedBankAccount?.bankCode || null,
         bankAccountNo: selectedBankAccount?.accountNo || null,
@@ -546,7 +565,7 @@ export function QuotationForm({
 
     try {
       setFieldErrors({});
-      await onSubmit(payload);
+      await onSubmit(isPaymentLocked ? { note: note.trim() || null } : payload);
     } catch (error) {
       setFieldErrors(getApiFieldErrors(error));
     }
@@ -557,7 +576,7 @@ export function QuotationForm({
       className="flex min-h-[calc(100vh-72px)] flex-col bg-slate-50/60 px-6 pt-6"
       onSubmit={(event) => {
         event.preventDefault();
-        if (!isSubmitting && !missingRequiredLead) submitForm();
+        if (!isSubmitting && !isUploadingReconciliationImages && !missingRequiredLead) submitForm();
       }}
     >
       <PageHeader
@@ -572,6 +591,21 @@ export function QuotationForm({
             : undefined
         }
       />
+
+      {isPaymentLocked ? (
+        <div
+          className="mb-4 flex items-start gap-3 rounded-xl border border-emerald-200 bg-emerald-50 px-4 py-3"
+          role="status"
+        >
+          <LockRoundedIcon className="mt-0.5 !text-[20px] !text-emerald-700" />
+          <div className="min-w-0">
+            <p className="text-sm font-bold text-emerald-800">Báo phí đã được khóa</p>
+            <p className="mt-0.5 text-sm font-medium text-emerald-700">
+              Báo phí đã thu đủ. Bạn chỉ có thể cập nhật ghi chú.
+            </p>
+          </div>
+        </div>
+      ) : null}
 
       <div className="grid items-start gap-6 xl:grid-cols-12">
         <div className="xl:col-span-5">
@@ -595,8 +629,8 @@ export function QuotationForm({
                   setProjectMode('new_project');
                 }}
               >
-                <MenuItem value="new_customer">Khách hàng mới</MenuItem>
-                <MenuItem value="existing_customer">Khách hàng cũ</MenuItem>
+                <MenuItem value="new_customer">Lead</MenuItem>
+                <MenuItem value="existing_customer">Khách hàng</MenuItem>
               </FormSelectField>
 
               {customerMode === 'new_customer' ? (
@@ -674,7 +708,7 @@ export function QuotationForm({
                     <ServerPaginatedAutocomplete<Customer>
                       endpoint="/customers"
                       queryKey={['customers', 'quotation-autocomplete']}
-                      label="Khách hàng cũ"
+                      label="Khách hàng"
                       value={selectedCustomer}
                       disabled={mode === 'edit'}
                       required
@@ -697,6 +731,7 @@ export function QuotationForm({
                 <FormInputField
                   label="Khách hàng"
                   value={customerName}
+                  disabled={isPaymentLocked}
                   onChange={(event) => setCustomerName(event.target.value)}
                 />
               ) : null}
@@ -705,11 +740,13 @@ export function QuotationForm({
                   <FormInputField
                     label="Tên dự án"
                     value={projectName}
+                    disabled={isPaymentLocked}
                     onChange={(event) => setProjectName(event.target.value)}
                   />
                   <FormSelectField
                     label="Loại *"
                     value={projectType}
+                    disabled={isPaymentLocked}
                     onChange={(event) => setProjectType(event.target.value as ProjectType)}
                   >
                     <MenuItem value="K">K</MenuItem>
@@ -719,36 +756,40 @@ export function QuotationForm({
               ) : null}
             </div>
 
-            <div className="grid gap-4 md:grid-cols-2">
-              <FormInputField
-                label="Thời gian"
-                value={duration}
-                onChange={(event) => setDuration(event.target.value)}
-              />
-              <FormDatePicker
-                label="Hiệu lực đến"
-                value={validUntil}
-                onChange={setValidUntil}
-                error={Boolean(fieldErrors.validUntil)}
-                helperText={fieldErrors.validUntil}
-              />
-            </div>
-
             <div className="grid gap-4 md:grid-cols-12">
               <Autocomplete
-                className="md:col-span-8"
+                className="md:col-span-6"
                 options={serviceOptions}
                 value={selectedService}
+                disabled={isPaymentLocked}
                 onChange={(_, value) => setSelectedServiceId(idToString(value?.id))}
                 getOptionLabel={(option) => `${option.code} - ${option.pathName}`}
                 isOptionEqualToValue={(option, value) => option.id === value.id}
                 renderInput={(params) => <FormInputField {...params} label="Dịch vụ" />}
               />
-              <FormInputField
-                className="md:col-span-4"
-                label="VAT (%)"
+              <FormSelectField
+                className="md:col-span-3"
+                label="VAT"
                 value={vatRate}
+                disabled={isPaymentLocked}
                 onChange={(event) => setVatRate(event.target.value)}
+              >
+                {VAT_RATE_OPTIONS.map((rate) => (
+                  <MenuItem key={rate} value={rate}>
+                    {rate}%
+                  </MenuItem>
+                ))}
+              </FormSelectField>
+              <MoneyInput
+                fullWidth
+                size="small"
+                label="Cọc"
+                value={depositAmount}
+                disabled={isPaymentLocked}
+                onValueChange={setDepositAmount}
+                error={Boolean(fieldErrors.depositAmount || fieldErrors.deposit_amount)}
+                helperText={fieldErrors.depositAmount || fieldErrors.deposit_amount}
+                className={`${compactFormFieldClassName} md:col-span-3`}
               />
               {canUseAutoQuote && (
                 <>
@@ -757,6 +798,7 @@ export function QuotationForm({
                     size="small"
                     label="Ngân sách"
                     value={budget}
+                    disabled={isPaymentLocked}
                     onValueChange={setBudget}
                     className={`${compactFormFieldClassName} md:col-span-6`}
                   />
@@ -764,6 +806,7 @@ export function QuotationForm({
                     className="md:col-span-6"
                     label="Gói setup"
                     value={setupPackageKey}
+                    disabled={isPaymentLocked}
                     onChange={(event) => setSetupPackageKey(event.target.value)}
                   >
                     <MenuItem value={NO_SETUP_PACKAGE_KEY}>Không tính phí setup</MenuItem>
@@ -782,12 +825,18 @@ export function QuotationForm({
               minRows={2}
               label="Ghi chú"
               value={note}
+              error={Boolean(fieldErrors.note)}
+              helperText={
+                fieldErrors.note ||
+                (isPaymentLocked ? 'Đây là trường duy nhất có thể cập nhật.' : undefined)
+              }
               onChange={(event) => setNote(event.target.value)}
             />
 
             <Autocomplete
               options={bankAccounts}
               value={selectedBankAccount}
+              disabled={isPaymentLocked}
               onChange={(_, value) => setSelectedBankAccountId(value?.id || '')}
               getOptionLabel={(option) =>
                 `${option.bankCode} - ${option.accountNo} - ${option.accountName}`
@@ -823,7 +872,11 @@ export function QuotationForm({
           <FormSection
             title="Chi tiết báo phí"
             action={
-              <TabActionButton startIcon={<AddRoundedIcon />} onClick={addLine}>
+              <TabActionButton
+                startIcon={<AddRoundedIcon />}
+                disabled={isPaymentLocked}
+                onClick={addLine}
+              >
                 Thêm hạng mục
               </TabActionButton>
             }
@@ -834,16 +887,19 @@ export function QuotationForm({
                   <FormInputField
                     label="Hạng mục"
                     value={line.name}
+                    disabled={isPaymentLocked}
                     onChange={(event) => updateLine(line.id, { name: event.target.value })}
                   />
                   <FormInputField
                     label="Đơn vị tính"
                     value={line.unit}
+                    disabled={isPaymentLocked}
                     onChange={(event) => updateLine(line.id, { unit: event.target.value })}
                   />
                   <FormInputField
                     label="Số lượng"
                     value={line.quantity}
+                    disabled={isPaymentLocked}
                     onChange={(event) => updateLine(line.id, { quantity: event.target.value })}
                   />
                   <MoneyInput
@@ -852,6 +908,7 @@ export function QuotationForm({
                     label="Đơn giá"
                     size="small"
                     value={line.unitPrice}
+                    disabled={isPaymentLocked}
                     onValueChange={(value) => updateLine(line.id, { unitPrice: value })}
                     className={compactFormFieldClassName}
                   />
@@ -859,7 +916,7 @@ export function QuotationForm({
                     size="small"
                     color="error"
                     aria-label="Xóa hạng mục"
-                    disabled={manualLines.length === 1}
+                    disabled={isPaymentLocked || manualLines.length === 1}
                     onClick={() => deleteLine(line.id)}
                     title="Xóa dòng"
                     className="!mt-1"
@@ -878,18 +935,38 @@ export function QuotationForm({
               subtotal={subtotal}
               vatRate={vatRate}
               vatAmount={vatAmount}
+              deposit={deposit}
               total={total}
               emptyText="Nhập hạng mục để xem chi tiết báo phí"
             />
+
+            {projectType === 'K' ? (
+              <div className="border-t border-slate-200 pt-4">
+                <p className="mb-2 text-sm font-bold text-slate-700">
+                  Ảnh đối soát chi tiết tài khoản quảng cáo
+                </p>
+                <MultiImageUpload
+                  value={accountReconciliationImageUrls}
+                  imageLabel="Ảnh đối soát"
+                  collectionLabel="báo phí"
+                  helperText="Chọn ảnh từ thư viện hoặc tải ảnh mới. Tối đa 3 ảnh đối soát."
+                  disabled={isPaymentLocked}
+                  onChange={setAccountReconciliationImageUrls}
+                  onUploadingChange={setIsUploadingReconciliationImages}
+                />
+              </div>
+            ) : null}
           </FormSection>
         </div>
       </div>
 
       <FormActionBar
         cancelHref="/quotations"
-        submitLabel={mode === 'edit' ? 'Lưu thay đổi' : 'Tạo báo phí'}
-        isSubmitting={isSubmitting}
-        submitDisabled={missingRequiredLead}
+        submitLabel={
+          isPaymentLocked ? 'Lưu ghi chú' : mode === 'edit' ? 'Lưu thay đổi' : 'Tạo báo phí'
+        }
+        isSubmitting={isSubmitting || isUploadingReconciliationImages}
+        submitDisabled={missingRequiredLead || isUploadingReconciliationImages}
         submitIcon={<SaveRoundedIcon />}
       />
     </form>

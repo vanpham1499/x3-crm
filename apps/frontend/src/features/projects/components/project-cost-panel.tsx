@@ -2,12 +2,23 @@
 
 import { useState } from 'react';
 import AddRoundedIcon from '@mui/icons-material/AddRounded';
+import CheckRoundedIcon from '@mui/icons-material/CheckRounded';
 import DeleteOutlineRoundedIcon from '@mui/icons-material/DeleteOutlineRounded';
 import EditOutlinedIcon from '@mui/icons-material/EditOutlined';
 import InfoOutlinedIcon from '@mui/icons-material/InfoOutlined';
+import KeyboardArrowDownRoundedIcon from '@mui/icons-material/KeyboardArrowDownRounded';
 import LockRoundedIcon from '@mui/icons-material/LockRounded';
+import MoreVertRoundedIcon from '@mui/icons-material/MoreVertRounded';
 import WarningAmberRoundedIcon from '@mui/icons-material/WarningAmberRounded';
-import { Checkbox, FormControlLabel, IconButton, MenuItem } from '@mui/material';
+import {
+  ButtonBase,
+  Checkbox,
+  CircularProgress,
+  FormControlLabel,
+  IconButton,
+  Menu,
+  MenuItem,
+} from '@mui/material';
 import { useMutation, useQueryClient } from '@tanstack/react-query';
 import { Controller, useForm } from 'react-hook-form';
 import { DialogActionButton } from '@/components/actions/dialog-action-button';
@@ -23,7 +34,6 @@ import { MoneyInput } from '@/components/form/money-input';
 import { applyApiErrorsToForm, getApiErrorMessage } from '@/lib/api-error';
 import { getBankAccountBankCode } from '@/lib/company-bank-account-options';
 import { canEditProject } from '@/lib/ownership';
-import { getPartnerMetaValue } from '@/lib/project-partner-options';
 import { calculateAvailableTopupBudget, isManagedBudgetProject } from '@/lib/project-topup-budget';
 import { formatCurrency } from '@/lib/utils';
 import api from '@/services/api/client';
@@ -33,27 +43,16 @@ import type {
   ProjectCost,
   ProjectCostEntryType,
   ProjectCostFormValues,
+  ProjectCostStatus,
 } from '@/types/project-cost';
 import type { ProjectItem } from '@/types/project';
 import type { Quotation } from '@/types/quotation';
 
-const COST_STATUS_LABELS: Record<string, string> = {
-  pending: 'Chờ xử lý',
-  completed: 'Hoàn thành',
-  cancelled: 'Đã hủy',
-};
-
-const ACCEPTANCE_STATUS_LABELS: Record<string, string> = {
-  pending: 'Chờ nghiệm thu',
-  accepted: 'Đã nghiệm thu',
-  not_required: 'Không yêu cầu',
-};
-
-const INPUT_INVOICE_STATUS_LABELS: Record<string, string> = {
-  pending: 'Chờ hóa đơn',
-  received: 'Đã nhận',
-  not_required: 'Không yêu cầu',
-};
+function costStatusLabel(status: string, entryType: ProjectCostEntryType) {
+  if (status === 'completed') return entryType === 'ad_spend' ? 'Đã nạp' : 'Đã chi';
+  if (status === 'cancelled') return 'Đã hủy';
+  return entryType === 'ad_spend' ? 'Chờ nạp' : 'Chờ chi';
+}
 
 function formatDate(value?: string | null) {
   if (!value) return '-';
@@ -75,6 +74,126 @@ function statusClass(status?: string | null) {
   if (status === 'completed') return 'bg-emerald-50 text-emerald-700 ring-emerald-200';
   if (status === 'cancelled') return 'bg-slate-100 text-slate-500 ring-slate-200';
   return 'bg-amber-50 text-amber-700 ring-amber-200';
+}
+
+const COST_STATUSES: ProjectCostStatus[] = ['pending', 'completed', 'cancelled'];
+
+function InlineCostStatusSelect({
+  cost,
+  entryType,
+  disabled,
+  loading,
+  onChange,
+}: {
+  cost: ProjectCost;
+  entryType: ProjectCostEntryType;
+  disabled: boolean;
+  loading: boolean;
+  onChange: (status: ProjectCostStatus) => void;
+}) {
+  const [anchorEl, setAnchorEl] = useState<HTMLElement | null>(null);
+
+  if (disabled) {
+    return (
+      <span
+        className={`inline-flex items-center gap-1 rounded-md px-2 py-1 text-xs font-bold ring-1 ${statusClass(cost.status)}`}
+        title={costStatusLabel(cost.status, entryType)}
+      >
+        {costStatusLabel(cost.status, entryType)}
+        {loading ? <CircularProgress size={13} thickness={5} className="!text-current" /> : null}
+      </span>
+    );
+  }
+
+  return (
+    <>
+      <ButtonBase
+        aria-label={`Cập nhật trạng thái ${costStatusLabel(cost.status, entryType)}`}
+        aria-haspopup="menu"
+        aria-expanded={Boolean(anchorEl)}
+        aria-busy={loading}
+        onClick={(event) => setAnchorEl(event.currentTarget)}
+        className={`!inline-flex !max-w-[132px] !rounded-md !px-2 !py-1 !text-xs !font-bold !ring-1 ${statusClass(cost.status)}`}
+      >
+        <span className="min-w-0 truncate">{costStatusLabel(cost.status, entryType)}</span>
+        <KeyboardArrowDownRoundedIcon className="!-mr-1 !ml-1 !text-[16px]" />
+      </ButtonBase>
+
+      <Menu anchorEl={anchorEl} open={Boolean(anchorEl)} onClose={() => setAnchorEl(null)}>
+        {COST_STATUSES.map((status) => {
+          const isSelected = status === cost.status;
+
+          return (
+            <MenuItem
+              key={status}
+              selected={isSelected}
+              className="!min-w-[180px] !gap-2"
+              onClick={() => {
+                setAnchorEl(null);
+                if (!isSelected) onChange(status);
+              }}
+            >
+              <span className={`size-2.5 shrink-0 rounded-full ring-1 ${statusClass(status)}`} />
+              <span className="min-w-0 flex-1 text-sm font-semibold">
+                {costStatusLabel(status, entryType)}
+              </span>
+              {isSelected ? <CheckRoundedIcon className="!text-[18px] text-primary" /> : null}
+            </MenuItem>
+          );
+        })}
+      </Menu>
+    </>
+  );
+}
+
+function CostActionMenu({
+  cost,
+  canManage,
+  onEdit,
+  onDelete,
+}: {
+  cost: ProjectCost;
+  canManage: boolean;
+  onEdit: () => void;
+  onDelete: () => void;
+}) {
+  const [anchorEl, setAnchorEl] = useState<HTMLElement | null>(null);
+  const locked = Boolean(cost.reconciledAt);
+
+  return (
+    <>
+      <IconButton
+        size="small"
+        title={locked ? 'Khoản chi đã đối soát' : 'Thao tác'}
+        aria-label={`Thao tác khoản chi ${cost.id}`}
+        disabled={!canManage || locked}
+        onClick={(event) => setAnchorEl(event.currentTarget)}
+      >
+        <MoreVertRoundedIcon fontSize="small" />
+      </IconButton>
+      <Menu anchorEl={anchorEl} open={Boolean(anchorEl)} onClose={() => setAnchorEl(null)}>
+        <MenuItem
+          onClick={() => {
+            setAnchorEl(null);
+            onEdit();
+          }}
+        >
+          <EditOutlinedIcon fontSize="small" className="mr-2 text-slate-500" />
+          Chỉnh sửa
+        </MenuItem>
+        <MenuItem
+          className="!text-rose-600"
+          onClick={() => {
+            setAnchorEl(null);
+            onDelete();
+          }}
+        >
+          <DeleteOutlineRoundedIcon fontSize="small" className="mr-2" />
+          Xóa
+        </MenuItem>
+      </Menu>
+    </>
+  );
 }
 
 function getCostDefaults(cost?: ProjectCost | null): ProjectCostFormValues {
@@ -146,12 +265,6 @@ function CostDialog({
   const cidIsDead = watch('cidIsDead');
   const cidSpentAmount = Math.max(0, Number(watch('cidSpentAmount')) || 0);
   const currentStatus = watch('status');
-  const vatRate = isAdSpend ? 0 : Number(watch('vatRate')) || 0;
-  const discountAmount = isAdSpend ? 0 : Number(watch('discountAmount')) || 0;
-  const vatAmount = Math.round((amountBeforeVat * vatRate) / 100);
-  const totalAmount = isAdSpend
-    ? Math.max(0, amountBeforeVat)
-    : Math.max(0, amountBeforeVat + vatAmount - discountAmount);
   const managedBudgetProject = isManagedBudgetProject({
     projectType,
     projectCode,
@@ -183,7 +296,7 @@ function CostDialog({
     <AppFormDialog
       open={open}
       title={cost ? 'Sửa khoản chi' : isAdSpend ? 'Thêm lần nạp quảng cáo' : 'Thêm chi phí đối tác'}
-      maxWidth="md"
+      maxWidth={isAdSpend ? 'md' : 'sm'}
       submitting={isSubmitting}
       onClose={closeDialog}
       onSubmit={handleSubmit(async (values) => {
@@ -206,20 +319,22 @@ function CostDialog({
         </>
       }
     >
-      <Controller
-        name="quotationId"
-        control={control}
-        render={({ field }) => (
-          <FormSelectField label="Báo phí liên quan" {...field}>
-            <MenuItem value="">Không gắn báo phí</MenuItem>
-            {quotations.map((quotation) => (
-              <MenuItem key={quotation.id} value={String(quotation.id)}>
-                {quotation.quotationCode || `Báo phí #${quotation.id}`}
-              </MenuItem>
-            ))}
-          </FormSelectField>
-        )}
-      />
+      {isAdSpend ? (
+        <Controller
+          name="quotationId"
+          control={control}
+          render={({ field }) => (
+            <FormSelectField label="Báo phí liên quan" {...field}>
+              <MenuItem value="">Không gắn báo phí</MenuItem>
+              {quotations.map((quotation) => (
+                <MenuItem key={quotation.id} value={String(quotation.id)}>
+                  {quotation.quotationCode || `Báo phí #${quotation.id}`}
+                </MenuItem>
+              ))}
+            </FormSelectField>
+          )}
+        />
+      ) : null}
 
       {isAdSpend ? (
         <Controller
@@ -238,13 +353,20 @@ function CostDialog({
           )}
         />
       ) : (
-        <FormInputField
-          type="date"
-          label="Ngày chi/hủy *"
-          error={Boolean(errors.transactionDate)}
-          helperText={errors.transactionDate?.message}
-          slotProps={{ inputLabel: { shrink: true } }}
-          {...register('transactionDate', { required: 'Bắt buộc' })}
+        <Controller
+          name="transactionDate"
+          control={control}
+          rules={{ required: 'Bắt buộc' }}
+          render={({ field }) => (
+            <FormDatePicker
+              label="Ngày chi"
+              value={field.value}
+              onChange={field.onChange}
+              required
+              error={Boolean(errors.transactionDate)}
+              helperText={errors.transactionDate?.message}
+            />
+          )}
         />
       )}
 
@@ -265,7 +387,7 @@ function CostDialog({
           rules={{ required: 'Bắt buộc' }}
           render={({ field }) => (
             <FormSelectField
-              label="Đối tác *"
+              label="Tên đối tác *"
               error={Boolean(errors.partnerOptionId)}
               helperText={errors.partnerOptionId?.message}
               {...field}
@@ -281,26 +403,28 @@ function CostDialog({
         />
       )}
 
-      <Controller
-        name="bankAccountOptionId"
-        control={control}
-        rules={{ required: 'Bắt buộc' }}
-        render={({ field }) => (
-          <FormSelectField
-            label={isAdSpend ? 'TK ngân hàng nạp QC *' : 'TK công ty chi *'}
-            error={Boolean(errors.bankAccountOptionId)}
-            helperText={errors.bankAccountOptionId?.message}
-            {...field}
-          >
-            <MenuItem value="">Chưa chọn</MenuItem>
-            {bankAccounts.map((account) => (
-              <MenuItem key={account.id} value={String(account.id)}>
-                {bankAccountLabel(account)} · {account.label}
-              </MenuItem>
-            ))}
-          </FormSelectField>
-        )}
-      />
+      {isAdSpend ? (
+        <Controller
+          name="bankAccountOptionId"
+          control={control}
+          rules={{ required: 'Bắt buộc' }}
+          render={({ field }) => (
+            <FormSelectField
+              label="TK ngân hàng nạp QC *"
+              error={Boolean(errors.bankAccountOptionId)}
+              helperText={errors.bankAccountOptionId?.message}
+              {...field}
+            >
+              <MenuItem value="">Chưa chọn</MenuItem>
+              {bankAccounts.map((account) => (
+                <MenuItem key={account.id} value={String(account.id)}>
+                  {bankAccountLabel(account)} · {account.label}
+                </MenuItem>
+              ))}
+            </FormSelectField>
+          )}
+        />
+      ) : null}
 
       <Controller
         name="amountBeforeVat"
@@ -319,31 +443,6 @@ function CostDialog({
           />
         )}
       />
-      {!isAdSpend ? (
-        <FormInputField
-          type="number"
-          label="Thuế suất VAT (%)"
-          slotProps={{ htmlInput: { min: 0, step: 0.01 } }}
-          {...register('vatRate')}
-        />
-      ) : null}
-
-      {!isAdSpend ? (
-        <Controller
-          name="discountAmount"
-          control={control}
-          render={({ field }) => (
-            <MoneyInput
-              fullWidth
-              size="small"
-              label="Voucher / khuyến mại / chiết khấu"
-              value={field.value}
-              onValueChange={field.onChange}
-              className={compactFormFieldClassName}
-            />
-          )}
-        />
-      ) : null}
 
       <Controller
         name="status"
@@ -385,33 +484,6 @@ function CostDialog({
             </strong>
           ) : null}
         </div>
-      ) : null}
-
-      {!isAdSpend ? (
-        <>
-          <Controller
-            name="acceptanceStatus"
-            control={control}
-            render={({ field }) => (
-              <FormSelectField label="Nghiệm thu" {...field}>
-                <MenuItem value="pending">Chờ nghiệm thu</MenuItem>
-                <MenuItem value="accepted">Đã nghiệm thu</MenuItem>
-                <MenuItem value="not_required">Không yêu cầu</MenuItem>
-              </FormSelectField>
-            )}
-          />
-          <Controller
-            name="inputInvoiceStatus"
-            control={control}
-            render={({ field }) => (
-              <FormSelectField label="Hóa đơn đầu vào" {...field}>
-                <MenuItem value="pending">Chờ hóa đơn</MenuItem>
-                <MenuItem value="received">Đã nhận</MenuItem>
-                <MenuItem value="not_required">Không yêu cầu</MenuItem>
-              </FormSelectField>
-            )}
-          />
-        </>
       ) : null}
 
       {isAdSpend && cost ? (
@@ -478,27 +550,6 @@ function CostDialog({
         className="md:col-span-2"
         {...register('note')}
       />
-
-      {!isAdSpend ? (
-        <div className="md:col-span-2 grid grid-cols-3 overflow-hidden rounded-lg border border-slate-200 bg-slate-50">
-          <div className="px-3 py-2.5">
-            <p className="text-[11px] font-bold uppercase text-slate-400">VAT</p>
-            <p className="mt-1 text-sm font-bold text-slate-800">{formatCurrency(vatAmount)}</p>
-          </div>
-          <div className="border-x border-slate-200 px-3 py-2.5">
-            <p className="text-[11px] font-bold uppercase text-slate-400">Giảm trừ</p>
-            <p className="mt-1 text-sm font-bold text-slate-800">
-              {formatCurrency(discountAmount)}
-            </p>
-          </div>
-          <div className="px-3 py-2.5">
-            <p className="text-[11px] font-bold uppercase text-slate-400">Thực chi</p>
-            <p className="mt-1 text-sm font-extrabold text-slate-950">
-              {formatCurrency(totalAmount)}
-            </p>
-          </div>
-        </div>
-      ) : null}
     </AppFormDialog>
   );
 }
@@ -545,7 +596,8 @@ export function ProjectCostPanel({
       const payload = {
         projectId,
         entryType,
-        quotationId: values.quotationId ? Number(values.quotationId) : null,
+        quotationId:
+          entryType === 'ad_spend' && values.quotationId ? Number(values.quotationId) : null,
         transactionDate: values.transactionDate || null,
         status: values.status,
         cid: values.cid.trim() || null,
@@ -553,13 +605,16 @@ export function ProjectCostPanel({
         cidIsDead: entryType === 'ad_spend' ? values.cidIsDead : false,
         cidSpentAmount:
           entryType === 'ad_spend' && values.cidIsDead ? Number(values.cidSpentAmount) || 0 : 0,
-        bankAccountOptionId: values.bankAccountOptionId ? Number(values.bankAccountOptionId) : null,
+        bankAccountOptionId:
+          entryType === 'ad_spend' && values.bankAccountOptionId
+            ? Number(values.bankAccountOptionId)
+            : null,
         partnerOptionId: values.partnerOptionId ? Number(values.partnerOptionId) : null,
         amountBeforeVat: Number(values.amountBeforeVat) || 0,
-        vatRate: entryType === 'ad_spend' ? 0 : Number(values.vatRate) || 0,
-        discountAmount: Number(values.discountAmount) || 0,
-        acceptanceStatus: entryType === 'partner_cost' ? values.acceptanceStatus : null,
-        inputInvoiceStatus: entryType === 'partner_cost' ? values.inputInvoiceStatus : null,
+        vatRate: 0,
+        discountAmount: 0,
+        acceptanceStatus: null,
+        inputInvoiceStatus: null,
         note: values.note.trim() || null,
       };
 
@@ -587,6 +642,24 @@ export function ProjectCostPanel({
       notify.success('Đã xóa khoản chi');
     },
     onError: (error) => notify.error(getApiErrorMessage(error, 'Không thể xóa khoản chi')),
+  });
+
+  const statusMutation = useMutation({
+    mutationFn: ({ cost, status }: { cost: ProjectCost; status: ProjectCostStatus }) =>
+      api
+        .patch<ProjectCost>(`/project-costs/${cost.id}`, { status })
+        .then((response) => response.data),
+    onSuccess: (updatedCost) => {
+      queryClient.setQueryData<ProjectCost[]>(
+        ['project-costs', 'by-project', String(projectId)],
+        (currentCosts) =>
+          currentCosts?.map((cost) => (cost.id === updatedCost.id ? updatedCost : cost)),
+      );
+      void queryClient.invalidateQueries({ queryKey: ['project-costs'] });
+      notify.success('Đã cập nhật trạng thái khoản chi');
+    },
+    onError: (error) =>
+      notify.error(getApiErrorMessage(error, 'Không thể cập nhật trạng thái khoản chi')),
   });
 
   const openCreate = () => {
@@ -619,15 +692,15 @@ export function ProjectCostPanel({
 
       <div className="overflow-x-auto">
         {entryType === 'ad_spend' ? (
-          <table className="w-full min-w-[760px] text-left text-sm">
+          <table className="w-full min-w-[720px] table-fixed text-left text-sm">
             <thead className="border-y border-slate-200 bg-slate-100 text-sm font-bold text-slate-700">
               <tr>
-                <th className="px-4 py-3">Lần nạp</th>
-                <th className="px-3 py-3">CID / Tài khoản QC</th>
-                <th className="px-3 py-3">TK ngân hàng nạp QC</th>
-                <th className="px-3 py-3 text-right">Ngân sách + VAT</th>
-                <th className="px-3 py-3">Tình trạng</th>
-                <th className="w-28 px-4 py-3" />
+                <th className="w-[18%] px-4 py-3">Ngày nạp</th>
+                <th className="w-[22%] px-3 py-3">CID / TK QC</th>
+                <th className="w-[17%] px-3 py-3">TK nạp QC</th>
+                <th className="w-[16%] px-3 py-3 text-right">NS nạp + VAT</th>
+                <th className="w-[22%] px-3 py-3">Trạng thái</th>
+                <th className="w-[5%] px-2 py-3" />
               </tr>
             </thead>
             <tbody className="divide-y divide-slate-100">
@@ -668,51 +741,51 @@ export function ProjectCostPanel({
                         {cost.adAccount || 'Chưa có tài khoản quảng cáo'}
                       </p>
                     </td>
-                    <td className="px-3 py-3 text-slate-700">
+                    <td
+                      className="truncate px-3 py-3 text-slate-700"
+                      title={bankAccountLabel(cost.bankAccountOption)}
+                    >
                       {bankAccountLabel(cost.bankAccountOption)}
                     </td>
                     <td className="px-3 py-3 text-right font-extrabold tabular-nums text-slate-950">
                       {formatCurrency(Number(cost.totalAmount) || 0)}
                     </td>
                     <td className="px-3 py-3">
-                      <span
-                        className={`rounded-md px-2 py-1 text-xs font-bold ring-1 ${statusClass(cost.status)}`}
-                      >
-                        {COST_STATUS_LABELS[cost.status] || cost.status}
-                      </span>
-                    </td>
-                    <td className="px-4 py-3">
-                      <div className="flex justify-end">
+                      <div className="flex items-center gap-1.5 whitespace-nowrap">
+                        <InlineCostStatusSelect
+                          cost={cost}
+                          entryType={entryType}
+                          loading={
+                            statusMutation.isPending &&
+                            statusMutation.variables?.cost.id === cost.id
+                          }
+                          disabled={
+                            !canManage ||
+                            Boolean(cost.reconciledAt) ||
+                            (statusMutation.isPending &&
+                              statusMutation.variables?.cost.id === cost.id)
+                          }
+                          onChange={(status) => statusMutation.mutate({ cost, status })}
+                        />
                         {cost.reconciledAt ? (
                           <span
-                            className="inline-flex items-center gap-1 whitespace-nowrap rounded-md bg-emerald-50 px-2 py-1 text-xs font-bold text-emerald-700 ring-1 ring-emerald-200"
-                            title="Khoản chi đã đối soát, không thể sửa hoặc xóa"
+                            className="inline-flex items-center gap-1 rounded-md bg-emerald-50 px-2 py-1 text-xs font-bold text-emerald-700 ring-1 ring-emerald-200"
+                            title="Khoản chi đã đối soát"
                           >
-                            <LockRoundedIcon className="!text-[15px]" />
+                            <LockRoundedIcon className="!text-[14px]" />
                             Đã khớp
                           </span>
-                        ) : (
-                          <>
-                            <IconButton
-                              size="small"
-                              title="Sửa"
-                              aria-label={`Sửa lần nạp ${cost.cid || cost.id}`}
-                              onClick={() => openEdit(cost)}
-                              disabled={!canManage}
-                            >
-                              <EditOutlinedIcon fontSize="small" />
-                            </IconButton>
-                            <IconButton
-                              size="small"
-                              title="Xóa"
-                              aria-label={`Xóa lần nạp ${cost.cid || cost.id}`}
-                              onClick={() => setDeleteTarget(cost)}
-                              disabled={!canManage}
-                            >
-                              <DeleteOutlineRoundedIcon fontSize="small" />
-                            </IconButton>
-                          </>
-                        )}
+                        ) : null}
+                      </div>
+                    </td>
+                    <td className="px-2 py-3">
+                      <div className="flex justify-end">
+                        <CostActionMenu
+                          cost={cost}
+                          canManage={canManage}
+                          onEdit={() => openEdit(cost)}
+                          onDelete={() => setDeleteTarget(cost)}
+                        />
                       </div>
                     </td>
                   </tr>
@@ -721,27 +794,21 @@ export function ProjectCostPanel({
             </tbody>
           </table>
         ) : (
-          <table className="w-full min-w-[1420px] text-left text-sm">
+          <table className="w-full min-w-[720px] table-fixed text-left text-sm">
             <thead className="border-y border-slate-200 bg-slate-100 text-sm font-bold text-slate-700">
               <tr>
-                <th className="px-4 py-3">Ngày chi/hủy</th>
-                <th className="px-3 py-3">Báo phí</th>
-                <th className="px-3 py-3">Đối tác</th>
-                <th className="px-3 py-3">TK công ty chi</th>
-                <th className="px-3 py-3 text-right">Chi phí đối tác</th>
-                <th className="px-3 py-3 text-right">Giảm trừ</th>
-                <th className="px-3 py-3 text-right">VAT</th>
-                <th className="px-3 py-3 text-right">Thực chi</th>
-                <th className="px-3 py-3">Nghiệm thu</th>
-                <th className="px-3 py-3">HĐ đầu vào</th>
-                <th className="px-3 py-3">Tình trạng</th>
-                <th className="w-28 px-4 py-3" />
+                <th className="w-[14%] px-4 py-3">Ngày chi</th>
+                <th className="w-[24%] px-3 py-3">Đối tác</th>
+                <th className="w-[17%] px-3 py-3 text-right">Chi phí</th>
+                <th className="w-[19%] px-3 py-3">Trạng thái</th>
+                <th className="w-[21%] px-3 py-3">Ghi chú</th>
+                <th className="w-[5%] px-2 py-3" />
               </tr>
             </thead>
             <tbody className="divide-y divide-slate-100">
               {visibleCosts.length === 0 ? (
                 <tr>
-                  <td colSpan={12} className="px-4 py-10 text-center font-semibold text-slate-500">
+                  <td colSpan={6} className="px-4 py-10 text-center font-semibold text-slate-500">
                     Chưa có chi phí đối tác
                   </td>
                 </tr>
@@ -751,76 +818,58 @@ export function ProjectCostPanel({
                     <td className="px-4 py-3 font-semibold text-slate-800">
                       {formatDate(cost.transactionDate)}
                     </td>
-                    <td className="px-3 py-3 font-bold text-blue-700">
-                      {cost.quotation?.quotationCode || '-'}
-                    </td>
                     <td className="px-3 py-3">
-                      <p className="font-bold text-slate-800">{partnerLabel(cost.partnerOption)}</p>
-                      {cost.partnerOption ? (
-                        <p className="mt-0.5 text-xs text-slate-400">
-                          {getPartnerMetaValue(cost.partnerOption, 'accountNo')} ·{' '}
-                          {getPartnerMetaValue(cost.partnerOption, 'bankName')}
-                        </p>
-                      ) : null}
-                    </td>
-                    <td className="px-3 py-3 text-slate-700">
-                      {bankAccountLabel(cost.bankAccountOption)}
-                    </td>
-                    <td className="px-3 py-3 text-right font-bold tabular-nums">
-                      {formatCurrency(Number(cost.amountBeforeVat) || 0)}
-                    </td>
-                    <td className="px-3 py-3 text-right tabular-nums text-slate-600">
-                      {formatCurrency(Number(cost.discountAmount) || 0)}
-                    </td>
-                    <td className="px-3 py-3 text-right tabular-nums text-slate-600">
-                      {formatCurrency(Number(cost.vatAmount) || 0)}
+                      <p
+                        className="truncate font-bold text-slate-800"
+                        title={partnerLabel(cost.partnerOption)}
+                      >
+                        {partnerLabel(cost.partnerOption)}
+                      </p>
                     </td>
                     <td className="px-3 py-3 text-right font-extrabold tabular-nums text-slate-950">
-                      {formatCurrency(Number(cost.totalAmount) || 0)}
-                    </td>
-                    <td className="px-3 py-3 text-xs font-semibold text-slate-700">
-                      {ACCEPTANCE_STATUS_LABELS[cost.acceptanceStatus || ''] || '-'}
-                    </td>
-                    <td className="px-3 py-3 text-xs font-semibold text-slate-700">
-                      {INPUT_INVOICE_STATUS_LABELS[cost.inputInvoiceStatus || ''] || '-'}
+                      {formatCurrency(Number(cost.amountBeforeVat) || 0)}
                     </td>
                     <td className="px-3 py-3">
-                      <span
-                        className={`rounded-md px-2 py-1 text-xs font-bold ring-1 ${statusClass(cost.status)}`}
-                      >
-                        {COST_STATUS_LABELS[cost.status] || cost.status}
-                      </span>
-                    </td>
-                    <td className="px-4 py-3">
-                      <div className="flex justify-end">
+                      <div className="flex items-center gap-1.5 whitespace-nowrap">
+                        <InlineCostStatusSelect
+                          cost={cost}
+                          entryType={entryType}
+                          loading={
+                            statusMutation.isPending &&
+                            statusMutation.variables?.cost.id === cost.id
+                          }
+                          disabled={
+                            !canManage ||
+                            Boolean(cost.reconciledAt) ||
+                            (statusMutation.isPending &&
+                              statusMutation.variables?.cost.id === cost.id)
+                          }
+                          onChange={(status) => statusMutation.mutate({ cost, status })}
+                        />
                         {cost.reconciledAt ? (
                           <span
-                            className="inline-flex items-center gap-1 whitespace-nowrap rounded-md bg-emerald-50 px-2 py-1 text-xs font-bold text-emerald-700 ring-1 ring-emerald-200"
-                            title="Khoản chi đã đối soát, không thể sửa hoặc xóa"
+                            className="inline-flex items-center gap-1 rounded-md bg-emerald-50 px-2 py-1 text-xs font-bold text-emerald-700 ring-1 ring-emerald-200"
+                            title="Khoản chi đã đối soát"
                           >
-                            <LockRoundedIcon className="!text-[15px]" />
+                            <LockRoundedIcon className="!text-[14px]" />
                             Đã khớp
                           </span>
-                        ) : (
-                          <>
-                            <IconButton
-                              size="small"
-                              title="Sửa"
-                              onClick={() => openEdit(cost)}
-                              disabled={!canManage}
-                            >
-                              <EditOutlinedIcon fontSize="small" />
-                            </IconButton>
-                            <IconButton
-                              size="small"
-                              title="Xóa"
-                              onClick={() => setDeleteTarget(cost)}
-                              disabled={!canManage}
-                            >
-                              <DeleteOutlineRoundedIcon fontSize="small" />
-                            </IconButton>
-                          </>
-                        )}
+                        ) : null}
+                      </div>
+                    </td>
+                    <td className="px-3 py-3">
+                      <p className="truncate text-slate-500" title={cost.note || ''}>
+                        {cost.note || '-'}
+                      </p>
+                    </td>
+                    <td className="px-2 py-3">
+                      <div className="flex justify-end">
+                        <CostActionMenu
+                          cost={cost}
+                          canManage={canManage}
+                          onEdit={() => openEdit(cost)}
+                          onDelete={() => setDeleteTarget(cost)}
+                        />
                       </div>
                     </td>
                   </tr>

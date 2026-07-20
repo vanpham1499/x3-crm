@@ -6,6 +6,7 @@ import { DatePicker } from '@mui/x-date-pickers/DatePicker';
 import dayjs from 'dayjs';
 import { Controller, useForm } from 'react-hook-form';
 import { FormActionBar } from '@/components/form/form-action-bar';
+import { ExternalLinkAdornment } from '@/components/form/external-link-adornment';
 import { compactFormFieldClassName } from '@/components/form/form-field-styles';
 import { FormInputField } from '@/components/form/form-input-field';
 import { FormSection } from '@/components/form/form-section';
@@ -69,6 +70,9 @@ export function LeadForm({
   onSubmit,
 }: LeadFormProps) {
   const defaults = getLeadDefaults(lead);
+  if (mode === 'create' && !defaults.statusOptionId && statuses[0]?.id !== undefined) {
+    defaults.statusOptionId = String(statuses[0].id);
+  }
   const {
     control,
     register,
@@ -80,6 +84,8 @@ export function LeadForm({
   } = useForm<LeadFormValues>({ defaultValues: defaults });
   const selectedSourceId = watch('sourceOptionId') || watch('sourceId');
   const typedSourceName = watch('sourceName');
+  const websiteValue = watch('website');
+  const planLinkValue = watch('planLink');
   const selectedSource = sources.find((source) => String(source.id) === selectedSourceId) || null;
 
   const submitForm = handleSubmit(async (values) => {
@@ -91,7 +97,7 @@ export function LeadForm({
   });
 
   return (
-    <form className="flex w-full flex-1 flex-col" onSubmit={submitForm}>
+    <form noValidate className="flex w-full flex-1 flex-col" onSubmit={submitForm}>
       <div className="grid w-full items-start gap-6 xl:grid-cols-12">
         <div className="xl:col-span-8">
           <FormSection title="Thông tin lead">
@@ -121,8 +127,18 @@ export function LeadForm({
               />
               <FormInputField
                 label="Website"
-                placeholder="https://example.com"
+                placeholder="Website, Fanpage hoặc GG Map"
                 disabled={readOnly}
+                slotProps={{
+                  input: {
+                    endAdornment: (
+                      <ExternalLinkAdornment
+                        value={websiteValue}
+                        ariaLabel="Mở Website, Fanpage hoặc Google Map"
+                      />
+                    ),
+                  },
+                }}
                 {...register('website')}
               />
             </div>
@@ -131,26 +147,38 @@ export function LeadForm({
               label="Link kế hoạch"
               placeholder="https://docs.google.com/..."
               disabled={readOnly}
+              slotProps={{
+                input: {
+                  endAdornment: (
+                    <ExternalLinkAdornment
+                      value={planLinkValue}
+                      ariaLabel="Mở link kế hoạch trong tab mới"
+                    />
+                  ),
+                },
+              }}
               {...register('planLink')}
             />
 
             <div className="grid gap-4 md:grid-cols-3">
-              <FormSelectField
-                label="Trạng thái"
-                disabled={readOnly}
-                defaultValue={
-                  defaults.statusOptionId ||
-                  defaults.statusId ||
-                  (statuses[0]?.id !== undefined ? String(statuses[0].id) : '')
-                }
-                {...register('statusOptionId')}
-              >
-                {statuses.map((status) => (
-                  <MenuItem key={status.id} value={String(status.id)}>
-                    {status.name}
-                  </MenuItem>
-                ))}
-              </FormSelectField>
+              <Controller
+                name="statusOptionId"
+                control={control}
+                render={({ field }) => (
+                  <FormSelectField
+                    label="Trạng thái"
+                    disabled={readOnly}
+                    {...field}
+                    slotProps={{ inputLabel: { shrink: true } }}
+                  >
+                    {statuses.map((status) => (
+                      <MenuItem key={status.id} value={String(status.id)}>
+                        {status.name}
+                      </MenuItem>
+                    ))}
+                  </FormSelectField>
+                )}
+              />
               <Controller
                 name="occurredDate"
                 control={control}
@@ -198,10 +226,15 @@ export function LeadForm({
         <div className="xl:col-span-4">
           <FormSection title="Phân loại & phụ trách">
             <FormSelectField
+              required
               label="Nhân sự phụ trách"
               disabled={readOnly}
               defaultValue={defaults.assignedUserId}
-              {...register('assignedUserId')}
+              error={Boolean(errors.assignedUserId)}
+              helperText={errors.assignedUserId?.message}
+              {...register('assignedUserId', {
+                required: 'Vui lòng chọn nhân sự phụ trách',
+              })}
             >
               {users.map((user) => (
                 <MenuItem key={user.id} value={String(user.id)}>
@@ -212,7 +245,12 @@ export function LeadForm({
 
             <input type="hidden" {...register('sourceId')} />
             <input type="hidden" {...register('sourceOptionId')} />
-            <input type="hidden" {...register('sourceName')} />
+            <input
+              type="hidden"
+              {...register('sourceName', {
+                validate: (value) => value.trim() !== '' || 'Vui lòng chọn nguồn phát sinh',
+              })}
+            />
             <Autocomplete
               freeSolo
               disabled={readOnly}
@@ -227,26 +265,29 @@ export function LeadForm({
                 if (typeof nextValue === 'string') {
                   setValue('sourceId', '');
                   setValue('sourceOptionId', '');
-                  setValue('sourceName', nextValue);
+                  setValue('sourceName', nextValue, { shouldValidate: true });
                   return;
                 }
 
                 setValue('sourceId', '');
                 setValue('sourceOptionId', nextValue?.id !== undefined ? String(nextValue.id) : '');
-                setValue('sourceName', nextValue?.label || '');
+                setValue('sourceName', nextValue?.label || '', { shouldValidate: true });
               }}
               onInputChange={(_, nextValue, reason) => {
                 if (reason === 'input') {
                   setValue('sourceId', '');
                   setValue('sourceOptionId', '');
-                  setValue('sourceName', nextValue);
+                  setValue('sourceName', nextValue, { shouldValidate: true });
                 }
               }}
               renderInput={(params) => (
                 <FormInputField
                   {...params}
+                  required
                   label="Nguồn phát sinh"
                   placeholder="Chọn nguồn hoặc nhập nguồn mới"
+                  error={Boolean(errors.sourceName)}
+                  helperText={errors.sourceName?.message}
                 />
               )}
             />
@@ -254,16 +295,24 @@ export function LeadForm({
             <Controller
               name="interestedServiceOptionIds"
               control={control}
+              rules={{
+                validate: (value) =>
+                  value.length > 0 || 'Vui lòng chọn ít nhất một dịch vụ quan tâm',
+              }}
               render={({ field }) => (
                 <FormSelectField
+                  required
                   label="Dịch vụ quan tâm"
                   disabled={readOnly}
                   value={field.value || []}
+                  error={Boolean(errors.interestedServiceOptionIds)}
+                  helperText={errors.interestedServiceOptionIds?.message}
                   onChange={(event) => {
                     const value = event.target.value;
                     field.onChange(typeof value === 'string' ? value.split(',') : value);
                   }}
                   slotProps={{
+                    inputLabel: { shrink: true },
                     select: {
                       multiple: true,
                       renderValue: (selected) => {

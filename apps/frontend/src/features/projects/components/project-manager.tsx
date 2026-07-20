@@ -5,13 +5,15 @@ import type { MouseEvent } from 'react';
 import Link from 'next/link';
 import { useQuery } from '@tanstack/react-query';
 import AddRoundedIcon from '@mui/icons-material/AddRounded';
+import CheckRoundedIcon from '@mui/icons-material/CheckRounded';
 import DeleteRoundedIcon from '@mui/icons-material/DeleteRounded';
 import EditRoundedIcon from '@mui/icons-material/EditRounded';
 import InfoRoundedIcon from '@mui/icons-material/InfoRounded';
+import KeyboardArrowDownRoundedIcon from '@mui/icons-material/KeyboardArrowDownRounded';
 import LinkRoundedIcon from '@mui/icons-material/LinkRounded';
 import MoreVertRoundedIcon from '@mui/icons-material/MoreVertRounded';
 import VisibilityRoundedIcon from '@mui/icons-material/VisibilityRounded';
-import { IconButton, Menu, MenuItem } from '@mui/material';
+import { ButtonBase, IconButton, Menu, MenuItem } from '@mui/material';
 import { DialogActionButton } from '@/components/actions/dialog-action-button';
 import { AppDetailDialog } from '@/components/dialog/app-detail-dialog';
 import { ConfirmDialog } from '@/components/feedback/confirm-dialog';
@@ -23,12 +25,9 @@ import { PageHeader } from '@/components/shell/page-header';
 import { AppDataTable } from '@/components/table/app-data-table';
 import { EntityTableLink } from '@/components/table/entity-table-link';
 import { TablePaginationBar } from '@/components/table/table-pagination-bar';
-import {
-  formatProjectDate,
-  getProjectExternalUrl,
-  getProjectStatusColor,
-  getRootServiceItem,
-} from '@/lib/project-utils';
+import { UserDateTimeCell } from '@/components/table/user-date-time-cell';
+import { formatProjectDate, getProjectExternalUrl, getRootServiceItem } from '@/lib/project-utils';
+import { getOptionColor } from '@/lib/option-utils';
 import {
   getConfigForRoot,
   getProjectRevenueGroupInfo,
@@ -55,20 +54,18 @@ type ProjectManagerProps = {
   pageSize: number;
   isFetching: boolean;
   isDeleting: boolean;
+  updatingStatusProjectId: number | null;
   currentUser: User | null;
   onPageChange: (page: number) => void;
   onPageSizeChange: (pageSize: number) => void;
   onFiltersChange: (filters: ProjectFilters) => void;
   onDelete: (project: ProjectItem) => void;
+  onStatusChange: (project: ProjectItem, statusOptionId: number) => void;
 };
 
 function userLabel(user?: User | null) {
   if (!user) return '-';
   return [user.code, user.name].filter(Boolean).join(' - ');
-}
-
-function projectStatusClass(project: ProjectItem) {
-  return project.statusOption ? 'text-white' : 'bg-slate-100 text-slate-600 ring-1 ring-slate-200';
 }
 
 function getProjectRevenueGroup(
@@ -81,6 +78,104 @@ function getProjectRevenueGroup(
   const config = configOption ? getServiceQuoteConfigMeta(configOption, rootService) : null;
 
   return getProjectRevenueGroupInfo(Boolean(config?.enabled));
+}
+
+function hexToRgb(hex: string) {
+  const normalized = hex.replace('#', '').trim();
+  const value =
+    normalized.length === 3
+      ? normalized
+          .split('')
+          .map((character) => character + character)
+          .join('')
+      : normalized;
+
+  if (!/^[0-9a-f]{6}$/i.test(value)) return null;
+
+  const numberValue = Number.parseInt(value, 16);
+
+  return {
+    r: (numberValue >> 16) & 255,
+    g: (numberValue >> 8) & 255,
+    b: numberValue & 255,
+  };
+}
+
+function projectStatusChipStyle(option?: AppOption | null) {
+  if (!option) return undefined;
+
+  const color = getOptionColor(option);
+  const rgb = hexToRgb(color);
+
+  if (!rgb) return undefined;
+
+  return {
+    backgroundColor: `rgba(${rgb.r}, ${rgb.g}, ${rgb.b}, 0.12)`,
+    borderColor: `rgba(${rgb.r}, ${rgb.g}, ${rgb.b}, 0.28)`,
+    color,
+  };
+}
+
+function InlineProjectStatusSelect({
+  project,
+  statuses,
+  disabled,
+  onChange,
+}: {
+  project: ProjectItem;
+  statuses: AppOption[];
+  disabled: boolean;
+  onChange: (statusOptionId: number) => void;
+}) {
+  const [anchorEl, setAnchorEl] = useState<HTMLElement | null>(null);
+  const currentStatusId = String(project.statusOptionId || project.statusOption?.id || '');
+  const selectedOption = statuses.find((status) => String(status.id) === currentStatusId);
+  const displayOption = selectedOption || project.statusOption;
+  const selectedStyle = projectStatusChipStyle(displayOption);
+
+  return (
+    <>
+      <ButtonBase
+        disabled={disabled}
+        aria-label={`Cập nhật trạng thái dự án ${project.projectCode || project.projectName}`}
+        aria-haspopup="menu"
+        aria-expanded={Boolean(anchorEl)}
+        onClick={(event) => setAnchorEl(event.currentTarget)}
+        style={selectedStyle}
+        className={`!inline-flex !h-8 !max-w-[150px] !rounded-full !border !px-2.5 !text-xs !font-bold ${
+          selectedStyle ? '' : '!border-slate-200 !bg-slate-100 !text-slate-600'
+        }`}
+      >
+        <span className="min-w-0 truncate">{displayOption?.label || 'Chưa chọn'}</span>
+        <KeyboardArrowDownRoundedIcon className="!-mr-1 !ml-1 !text-[16px]" />
+      </ButtonBase>
+
+      <Menu anchorEl={anchorEl} open={Boolean(anchorEl)} onClose={() => setAnchorEl(null)}>
+        {statuses.map((status) => {
+          const isSelected = String(status.id) === currentStatusId;
+
+          return (
+            <MenuItem
+              key={status.id}
+              selected={isSelected}
+              className="!min-w-[220px] !gap-2"
+              onClick={() => {
+                setAnchorEl(null);
+                if (!isSelected) onChange(status.id);
+              }}
+            >
+              <span
+                className="size-2.5 shrink-0 rounded-full"
+                style={{ backgroundColor: getOptionColor(status) }}
+              />
+              <span className="min-w-0 flex-1 truncate text-sm font-semibold">{status.label}</span>
+              {isSelected && <CheckRoundedIcon className="!text-[18px] text-primary" />}
+            </MenuItem>
+          );
+        })}
+      </Menu>
+    </>
+  );
 }
 
 function projectCustomerIdentity(project: ProjectItem) {
@@ -250,11 +345,13 @@ export function ProjectManager({
   pageSize,
   isFetching,
   isDeleting,
+  updatingStatusProjectId,
   currentUser,
   onPageChange,
   onPageSizeChange,
   onFiltersChange,
   onDelete,
+  onStatusChange,
 }: ProjectManagerProps) {
   const [deleteTarget, setDeleteTarget] = useState<ProjectItem | null>(null);
   const [viewTarget, setViewTarget] = useState<ProjectItem | null>(null);
@@ -312,54 +409,56 @@ export function ProjectManager({
       />
 
       <section className="w-full overflow-hidden rounded-2xl border border-slate-200 bg-white shadow-sm">
-        <div className="grid gap-3 p-4 md:grid-cols-2 xl:grid-cols-3 2xl:grid-cols-[minmax(260px,1.4fr)_repeat(4,minmax(150px,1fr))]">
-          <CompactSearchField
-            label="Từ khóa"
-            placeholder="Tìm mã, tên dự án, ghi chú..."
-            value={filters.keyword}
-            onChange={(value) => updateFilters({ keyword: value })}
-          />
+        <div className="border-slate-200 p-4">
+          <div className="grid gap-3 md:grid-cols-2 xl:grid-cols-[minmax(240px,1fr)_repeat(4,176px)]">
+            <CompactSearchField
+              label="Từ khóa"
+              placeholder="Tìm mã, tên dự án, ghi chú..."
+              value={filters.keyword}
+              onChange={(value) => updateFilters({ keyword: value })}
+            />
 
-          <CompactSelectField
-            label="Trạng thái"
-            value={filters.status_option_id}
-            options={statuses.map((status) => ({
-              value: String(status.id),
-              label: status.label,
-            }))}
-            onChange={(value) => updateFilters({ status_option_id: value })}
-          />
+            <CompactSelectField
+              label="Trạng thái"
+              value={filters.status_option_id}
+              options={statuses.map((status) => ({
+                value: String(status.id),
+                label: status.label,
+              }))}
+              onChange={(value) => updateFilters({ status_option_id: value })}
+            />
 
-          <CompactAutocompleteField
-            label="Dịch vụ"
-            value={filters.service_id}
-            options={serviceOptions.map((service) => ({
-              value: String(service.id),
-              label: `${'— '.repeat(service.depth)}${service.code} - ${service.name}`,
-            }))}
-            onChange={(value) => updateFilters({ service_id: value })}
-            noOptionsText="Không tìm thấy dịch vụ phù hợp"
-          />
+            <CompactAutocompleteField
+              label="Dịch vụ"
+              value={filters.service_id}
+              options={serviceOptions.map((service) => ({
+                value: String(service.id),
+                label: `${'— '.repeat(service.depth)}${service.code} - ${service.name}`,
+              }))}
+              onChange={(value) => updateFilters({ service_id: value })}
+              noOptionsText="Không tìm thấy dịch vụ phù hợp"
+            />
 
-          <CompactSelectField
-            label="Người quản lý"
-            value={filters.manager_user_id}
-            options={users.map((user) => ({
-              value: String(user.id),
-              label: userLabel(user),
-            }))}
-            onChange={(value) => updateFilters({ manager_user_id: value })}
-          />
+            <CompactSelectField
+              label="Người quản lý"
+              value={filters.manager_user_id}
+              options={users.map((user) => ({
+                value: String(user.id),
+                label: userLabel(user),
+              }))}
+              onChange={(value) => updateFilters({ manager_user_id: value })}
+            />
 
-          <CompactSelectField
-            label="Sales"
-            value={filters.sales_user_id}
-            options={users.map((user) => ({
-              value: String(user.id),
-              label: userLabel(user),
-            }))}
-            onChange={(value) => updateFilters({ sales_user_id: value })}
-          />
+            <CompactSelectField
+              label="Sales"
+              value={filters.sales_user_id}
+              options={users.map((user) => ({
+                value: String(user.id),
+                label: userLabel(user),
+              }))}
+              onChange={(value) => updateFilters({ sales_user_id: value })}
+            />
+          </div>
         </div>
 
         <AppDataTable
@@ -377,12 +476,13 @@ export function ProjectManager({
             { key: 'sales', label: 'Sales', className: 'w-[180px]' },
             { key: 'startDate', label: 'Bắt đầu', className: 'w-32' },
             { key: 'endDate', label: 'Kết thúc', className: 'w-32' },
+            { key: 'created', label: 'Người tạo', className: 'w-[150px]' },
             { key: 'actions', className: 'w-28' },
           ]}
           isLoading={isFetching}
           isEmpty={projects.length === 0}
           emptyText="Không có dữ liệu dự án"
-          minWidthClassName="min-w-[1780px]"
+          minWidthClassName="min-w-[1930px]"
         >
           {projects.map((project) => {
             const revenueGroup = getProjectRevenueGroup(project, services, quoteConfigs);
@@ -398,17 +498,6 @@ export function ProjectManager({
                     >
                       {project.projectCode || '-'}
                     </EntityTableLink>
-                    {project.planLink ? (
-                      <a
-                        href={getProjectExternalUrl(project.planLink)}
-                        target="_blank"
-                        rel="noreferrer"
-                        className="mt-1 inline-flex max-w-full items-center gap-1 truncate text-xs font-semibold text-blue-600 hover:text-blue-700"
-                      >
-                        <LinkRoundedIcon fontSize="inherit" />
-                        <span className="truncate">Plan</span>
-                      </a>
-                    ) : null}
                   </div>
                 </td>
                 <td className="px-3 py-4">
@@ -443,16 +532,15 @@ export function ProjectManager({
                   </span>
                 </td>
                 <td className="px-3 py-4">
-                  <span
-                    className={`rounded-md px-2 py-1 text-xs font-bold ${projectStatusClass(project)}`}
-                    style={
-                      project.statusOption
-                        ? { backgroundColor: getProjectStatusColor(project) }
-                        : undefined
+                  <InlineProjectStatusSelect
+                    project={project}
+                    statuses={statuses}
+                    disabled={
+                      updatingStatusProjectId === project.id ||
+                      !canEditProject(currentUser, project)
                     }
-                  >
-                    {project.statusOption?.label || 'Chưa chọn'}
-                  </span>
+                    onChange={(statusOptionId) => onStatusChange(project, statusOptionId)}
+                  />
                 </td>
                 <td className="px-3 py-4">
                   <p className="truncate text-slate-700" title={project.managerUser?.name || ''}>
@@ -466,6 +554,12 @@ export function ProjectManager({
                 </td>
                 <td className="px-3 py-4 text-slate-600">{formatProjectDate(project.startDate)}</td>
                 <td className="px-3 py-4 text-slate-600">{formatProjectDate(project.endDate)}</td>
+                <td className="px-3 py-4 align-middle">
+                  <UserDateTimeCell
+                    userName={project.createdBy?.name}
+                    dateTime={project.createdAt}
+                  />
+                </td>
                 <td className="py-4">
                   <div className="flex items-center justify-end gap-1 pr-3">
                     <IconButton

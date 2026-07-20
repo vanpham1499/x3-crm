@@ -26,6 +26,8 @@ export default function LeadsPage() {
     useServerListState<LeadFilters>({
       initialFilters: {
         keyword: '',
+        period: '',
+        selected_month: '',
         status_id: '',
         status_option_id: '',
         assigned_user_id: '',
@@ -102,6 +104,35 @@ export default function LeadsPage() {
     },
   });
 
+  const statusMutation = useMutation({
+    mutationFn: ({ lead, statusOptionId }: { lead: Lead; statusOptionId: number }) =>
+      api
+        .patch<Lead>(`/leads/${lead.id}`, {
+          statusOptionId,
+          status_option_id: statusOptionId,
+        })
+        .then((response) => response.data),
+    onSuccess: (updatedLead) => {
+      queryClient.setQueriesData<PaginatedResponse<Lead>>(
+        { queryKey: LEADS_LIST_QUERY_KEY },
+        (currentPage) =>
+          currentPage
+            ? {
+                ...currentPage,
+                data: currentPage.data.map((lead) =>
+                  lead.id === updatedLead.id ? updatedLead : lead,
+                ),
+              }
+            : currentPage,
+      );
+      void queryClient.invalidateQueries({ queryKey: ['leads'] });
+      notify.success('Cập nhật trạng thái lead thành công');
+    },
+    onError: (error) => {
+      notify.error(getApiErrorMessage(error, 'Cập nhật trạng thái lead thất bại'));
+    },
+  });
+
   if (isLoading) {
     return <ContentLoading />;
   }
@@ -120,11 +151,15 @@ export default function LeadsPage() {
       pageSize={pageSize}
       isFetching={isFetching}
       isDeleting={deleteMutation.isPending}
+      updatingStatusLeadId={
+        statusMutation.isPending ? statusMutation.variables?.lead.id || null : null
+      }
       currentUser={currentUser}
       onPageChange={setPage}
       onPageSizeChange={setPageSize}
       onFiltersChange={onFiltersChange}
       onDelete={(lead) => deleteMutation.mutate(lead)}
+      onStatusChange={(lead, statusOptionId) => statusMutation.mutate({ lead, statusOptionId })}
     />
   );
 }

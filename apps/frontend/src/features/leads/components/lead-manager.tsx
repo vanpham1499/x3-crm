@@ -6,27 +6,31 @@ import Link from 'next/link';
 import { useRouter } from 'next/navigation';
 import { useQuery } from '@tanstack/react-query';
 import AddRoundedIcon from '@mui/icons-material/AddRounded';
+import CheckRoundedIcon from '@mui/icons-material/CheckRounded';
 import DeleteRoundedIcon from '@mui/icons-material/DeleteRounded';
 import EditRoundedIcon from '@mui/icons-material/EditRounded';
 import HistoryRoundedIcon from '@mui/icons-material/HistoryRounded';
 import InfoRoundedIcon from '@mui/icons-material/InfoRounded';
+import KeyboardArrowDownRoundedIcon from '@mui/icons-material/KeyboardArrowDownRounded';
 import MoreVertRoundedIcon from '@mui/icons-material/MoreVertRounded';
 import OpenInNewRoundedIcon from '@mui/icons-material/OpenInNewRounded';
 import PersonAddAlt1RoundedIcon from '@mui/icons-material/PersonAddAlt1Rounded';
 import RequestQuoteRoundedIcon from '@mui/icons-material/RequestQuoteRounded';
 import VisibilityRoundedIcon from '@mui/icons-material/VisibilityRounded';
-import { Button, IconButton, Menu, MenuItem } from '@mui/material';
+import { ButtonBase, IconButton, Menu, MenuItem, Tooltip } from '@mui/material';
 import { DialogActionButton } from '@/components/actions/dialog-action-button';
 import { AppDetailDialog } from '@/components/dialog/app-detail-dialog';
 import { ConfirmDialog } from '@/components/feedback/confirm-dialog';
 import { CompactSearchField } from '@/components/form/compact-search-field';
+import { CompactMonthPicker } from '@/components/form/compact-month-picker';
 import { CompactSelectField } from '@/components/form/compact-select-field';
 import { IconTabs } from '@/components/navigation/icon-tabs';
 import { PageHeader } from '@/components/shell/page-header';
 import { AppDataTable } from '@/components/table/app-data-table';
 import { EntityTableLink } from '@/components/table/entity-table-link';
 import { TablePaginationBar } from '@/components/table/table-pagination-bar';
-import { getLeadStatusClass, getUniqueLeadStatuses } from '@/lib/lead-utils';
+import { UserDateTimeCell } from '@/components/table/user-date-time-cell';
+import { getUniqueLeadStatuses } from '@/lib/lead-utils';
 import { getOptionColor } from '@/lib/option-utils';
 import { canCreateLead, canDeleteLead, canEditLead } from '@/lib/ownership';
 import { formatDate, formatDateTime } from '@/lib/utils';
@@ -49,11 +53,13 @@ type LeadManagerProps = {
   pageSize: number;
   isFetching: boolean;
   isDeleting: boolean;
+  updatingStatusLeadId: number | null;
   currentUser: User | null;
   onPageChange: (page: number) => void;
   onPageSizeChange: (pageSize: number) => void;
   onFiltersChange: (filters: LeadFilters) => void;
   onDelete: (lead: Lead) => void;
+  onStatusChange: (lead: Lead, statusOptionId: number) => void;
 };
 
 function getLeadIdentity(lead: Lead) {
@@ -64,6 +70,10 @@ function getLeadIdentity(lead: Lead) {
   if (leadCode.toLowerCase().includes(customerName.toLowerCase())) return leadCode;
 
   return `${leadCode}.${customerName}`;
+}
+
+function formatMonthValue(date: Date) {
+  return `${date.getFullYear()}-${String(date.getMonth() + 1).padStart(2, '0')}`;
 }
 
 function hexToRgb(hex: string) {
@@ -123,6 +133,75 @@ function OptionChip({
     >
       <span className="truncate">{label}</span>
     </span>
+  );
+}
+
+function InlineLeadStatusSelect({
+  lead,
+  statuses,
+  statusOptions,
+  disabled,
+  onChange,
+}: {
+  lead: Lead;
+  statuses: AppOption[];
+  statusOptions: Array<{ id: number; name: string }>;
+  disabled: boolean;
+  onChange: (statusOptionId: number) => void;
+}) {
+  const [anchorEl, setAnchorEl] = useState<HTMLElement | null>(null);
+  const currentStatusId = String(
+    lead.statusOptionId || lead.statusOption?.id || lead.status?.id || '',
+  );
+  const selectedOption = statuses.find((status) => String(status.id) === currentStatusId);
+  const fallbackStatus = statusOptions.find((status) => String(status.id) === currentStatusId);
+  const selectedStyle = optionChipStyle(selectedOption);
+
+  return (
+    <>
+      <ButtonBase
+        disabled={disabled}
+        aria-label={`Cập nhật trạng thái ${getLeadIdentity(lead)}`}
+        aria-haspopup="menu"
+        aria-expanded={Boolean(anchorEl)}
+        onClick={(event) => setAnchorEl(event.currentTarget)}
+        style={selectedStyle}
+        className={`!inline-flex !h-8 !max-w-[142px] !rounded-full !border !px-2.5 !text-xs !font-bold ${
+          selectedStyle ? '' : '!border-amber-200 !bg-amber-50 !text-amber-700'
+        }`}
+      >
+        <span className="min-w-0 truncate">
+          {selectedOption?.label || fallbackStatus?.name || 'Mới'}
+        </span>
+        <KeyboardArrowDownRoundedIcon className="!-mr-1 !ml-1 !text-[16px]" />
+      </ButtonBase>
+
+      <Menu anchorEl={anchorEl} open={Boolean(anchorEl)} onClose={() => setAnchorEl(null)}>
+        {statusOptions.map((status) => {
+          const option = statuses.find((item) => item.id === status.id);
+          const isSelected = String(status.id) === currentStatusId;
+
+          return (
+            <MenuItem
+              key={status.id}
+              selected={isSelected}
+              className="!min-w-[220px] !gap-2"
+              onClick={() => {
+                setAnchorEl(null);
+                if (!isSelected) onChange(status.id);
+              }}
+            >
+              <span
+                className={`size-2.5 shrink-0 rounded-full ${option ? '' : 'bg-slate-500'}`}
+                style={option ? { backgroundColor: getOptionColor(option) } : undefined}
+              />
+              <span className="min-w-0 flex-1 truncate text-sm font-semibold">{status.name}</span>
+              {isSelected && <CheckRoundedIcon className="!text-[18px] text-primary" />}
+            </MenuItem>
+          );
+        })}
+      </Menu>
+    </>
   );
 }
 
@@ -614,11 +693,13 @@ export function LeadManager({
   pageSize,
   isFetching,
   isDeleting,
+  updatingStatusLeadId,
   currentUser,
   onPageChange,
   onPageSizeChange,
   onFiltersChange,
   onDelete,
+  onStatusChange,
 }: LeadManagerProps) {
   const router = useRouter();
   const [deleteTarget, setDeleteTarget] = useState<Lead | null>(null);
@@ -677,6 +758,16 @@ export function LeadManager({
     closeActionMenu();
   };
 
+  const openCustomerForActiveLead = () => {
+    if (!activeLead) return;
+
+    const href = activeLead.convertedCustomerId
+      ? `/customers/${activeLead.convertedCustomerId}`
+      : `/customers/new?leadId=${activeLead.id}`;
+    closeActionMenu();
+    router.push(href);
+  };
+
   return (
     <div className="min-h-[calc(100vh-72px)] w-full bg-slate-50/60 p-6">
       <PageHeader
@@ -690,58 +781,92 @@ export function LeadManager({
       />
 
       <section className="w-full overflow-hidden rounded-2xl border border-slate-200 bg-white shadow-sm">
-        <div className="grid gap-3  border-slate-200 p-4 lg:grid-cols-[minmax(260px,1fr)_repeat(4,176px)]">
-          <CompactSearchField
-            label="Từ khóa"
-            placeholder="Tìm lead, số điện thoại, website, ngành..."
-            value={filters.keyword}
-            onChange={(value) => updateFilters({ keyword: value })}
-          />
+        <div className="border-slate-200 p-4">
+          <div className="grid gap-3 md:grid-cols-2 xl:grid-cols-[minmax(240px,1fr)_repeat(5,176px)]">
+            <CompactSearchField
+              label="Từ khóa"
+              placeholder="Tìm lead, số điện thoại, website, ngành..."
+              value={filters.keyword}
+              onChange={(value) => updateFilters({ keyword: value })}
+            />
 
-          <CompactSelectField
-            label="Trạng thái"
-            value={filters.status_option_id || filters.status_id}
-            options={statusOptions.map((status) => ({
-              value: String(status.id),
-              label: status.name,
-            }))}
-            onChange={(value) => updateFilters({ status_option_id: value, status_id: '' })}
-          />
+            <div className="relative z-30">
+              <CompactSelectField
+                label="Thời gian"
+                value={filters.period}
+                allLabel="Tất cả thời gian"
+                options={[
+                  { value: '7-days', label: '7 ngày' },
+                  { value: '14-days', label: '14 ngày' },
+                  { value: '30-days', label: '30 ngày' },
+                  { value: 'month', label: 'Chọn tháng' },
+                ]}
+                onChange={(value) =>
+                  updateFilters({
+                    period: value,
+                    selected_month:
+                      value === 'month'
+                        ? filters.selected_month || formatMonthValue(new Date())
+                        : filters.selected_month,
+                  })
+                }
+              />
 
-          <CompactSelectField
-            label="Nhân sự"
-            value={filters.assigned_user_id}
-            options={users.map((user) => ({
-              value: String(user.id),
-              label: user.name || user.email || user.code || '-',
-            }))}
-            onChange={(value) => updateFilters({ assigned_user_id: value })}
-          />
+              {filters.period === 'month' && (
+                <div className="absolute left-0 top-full z-40 mt-2 w-full rounded-lg bg-white shadow-lg">
+                  <CompactMonthPicker
+                    value={filters.selected_month}
+                    onChange={(value) => updateFilters({ selected_month: value })}
+                  />
+                </div>
+              )}
+            </div>
 
-          <CompactSelectField
-            label="Nguồn"
-            value={filters.source_option_id || filters.source_id}
-            options={sources.map((source) => ({
-              value: String(source.id),
-              label: source.label,
-            }))}
-            onChange={(value) => updateFilters({ source_option_id: value, source_id: '' })}
-          />
+            <CompactSelectField
+              label="Trạng thái"
+              value={filters.status_option_id || filters.status_id}
+              options={statusOptions.map((status) => ({
+                value: String(status.id),
+                label: status.name,
+              }))}
+              onChange={(value) => updateFilters({ status_option_id: value, status_id: '' })}
+            />
 
-          <CompactSelectField
-            label="Dịch vụ"
-            value={filters.interested_service_option_id || filters.interested_service_id}
-            options={services.map((service) => ({
-              value: String(service.id),
-              label: service.label,
-            }))}
-            onChange={(value) =>
-              updateFilters({
-                interested_service_option_id: value,
-                interested_service_id: '',
-              })
-            }
-          />
+            <CompactSelectField
+              label="Nhân sự"
+              value={filters.assigned_user_id}
+              options={users.map((user) => ({
+                value: String(user.id),
+                label: user.name || user.email || user.code || '-',
+              }))}
+              onChange={(value) => updateFilters({ assigned_user_id: value })}
+            />
+
+            <CompactSelectField
+              label="Nguồn"
+              value={filters.source_option_id || filters.source_id}
+              options={sources.map((source) => ({
+                value: String(source.id),
+                label: source.label,
+              }))}
+              onChange={(value) => updateFilters({ source_option_id: value, source_id: '' })}
+            />
+
+            <CompactSelectField
+              label="Dịch vụ"
+              value={filters.interested_service_option_id || filters.interested_service_id}
+              options={services.map((service) => ({
+                value: String(service.id),
+                label: service.label,
+              }))}
+              onChange={(value) =>
+                updateFilters({
+                  interested_service_option_id: value,
+                  interested_service_id: '',
+                })
+              }
+            />
+          </div>
         </div>
 
         <AppDataTable
@@ -751,22 +876,23 @@ export function LeadManager({
               label: 'Lead',
               className: 'sticky left-0 z-20 w-[16%] bg-slate-100',
             },
-            { key: 'status', label: 'Trạng thái', className: 'w-[9%] text-center' },
-            { key: 'assignee', label: 'Nhân sự', className: 'w-[12%] text-center' },
-            { key: 'source', label: 'Nguồn', className: 'w-[9%] text-center' },
+            { key: 'status', label: 'Trạng thái', className: 'w-[10%] text-center' },
+            { key: 'assignee', label: 'Nhân sự', className: 'w-[10%] text-center' },
+            { key: 'source', label: 'Nguồn', className: 'w-[10%] text-center' },
             { key: 'service', label: 'Dịch vụ', className: 'w-[12%] text-center' },
             {
               key: 'occurredDate',
               label: 'Ngày phát sinh',
-              className: 'w-[11%] text-center',
+              className: 'w-[9%] text-center',
             },
-            { key: 'note', label: 'Ghi chú', className: 'w-[19%]' },
-            { key: 'actions', label: '', className: 'w-[12%] pr-5 text-right' },
+            { key: 'note', label: 'Ghi chú', className: 'w-[12%]' },
+            { key: 'created', label: 'Người tạo', className: 'w-[10%]' },
+            { key: 'actions', label: '', className: 'w-[10%] pr-4 text-right' },
           ]}
           isLoading={isFetching}
           isEmpty={leads.length === 0}
           emptyText="Không có dữ liệu lead"
-          minWidthClassName="min-w-[1240px]"
+          minWidthClassName="min-w-[1400px]"
         >
           {leads.map((lead) => {
             const serviceOptions = lead.interestedServiceOptions?.length
@@ -776,13 +902,10 @@ export function LeadManager({
                 : [];
             const fallbackServiceName =
               lead.interestedService?.name || lead.interestedServiceText || '';
-            const status = lead.statusOption
-              ? {
-                  id: lead.statusOption.id,
-                  name: lead.statusOption.label,
-                  sortOrder: lead.statusOption.sortOrder || 0,
-                }
-              : lead.status;
+            const serviceText =
+              serviceOptions.length > 0
+                ? serviceOptions.map((service) => service.label).join(', ')
+                : fallbackServiceName || '-';
             const sourceName = lead.sourceOption?.label || lead.source?.name || '-';
             const leadIdentity = getLeadIdentity(lead);
 
@@ -794,20 +917,13 @@ export function LeadManager({
                   </EntityTableLink>
                 </td>
                 <td className="px-3 py-4 text-center align-middle">
-                  {lead.statusOption ? (
-                    <OptionChip
-                      label={lead.statusOption.label}
-                      option={lead.statusOption}
-                      className="max-w-[120px]"
-                      fallbackClassName="border-amber-100 bg-amber-50 text-amber-700"
-                    />
-                  ) : (
-                    <span
-                      className={`rounded-md px-2 py-1 text-xs font-bold ring-1 ${getLeadStatusClass(status)}`}
-                    >
-                      {status?.name || 'Mới'}
-                    </span>
-                  )}
+                  <InlineLeadStatusSelect
+                    lead={lead}
+                    statuses={statuses}
+                    statusOptions={statusOptions}
+                    disabled={updatingStatusLeadId === lead.id || !canEditLead(currentUser, lead)}
+                    onChange={(statusOptionId) => onStatusChange(lead, statusOptionId)}
+                  />
                 </td>
                 <td className="px-3 py-4 text-center align-middle">
                   <span
@@ -826,25 +942,22 @@ export function LeadManager({
                   />
                 </td>
                 <td className="px-3 py-4 text-center align-middle">
-                  <div className="flex max-w-full flex-wrap justify-center gap-1.5">
-                    {serviceOptions.length > 0 ? (
-                      serviceOptions.map((service) => (
-                        <OptionChip
-                          key={service.id}
-                          label={service.label}
-                          option={service}
-                          className="max-w-[160px]"
-                          fallbackClassName="border-slate-200 bg-slate-100 text-slate-700"
-                        />
-                      ))
-                    ) : (
-                      <OptionChip
-                        label={fallbackServiceName || '-'}
-                        className="max-w-[160px]"
-                        fallbackClassName="border-slate-200 bg-slate-100 text-slate-700"
-                      />
-                    )}
-                  </div>
+                  <Tooltip title={serviceText} placement="top" arrow enterDelay={350}>
+                    <div tabIndex={0} className="mx-auto min-w-0 max-w-full outline-none">
+                      <span className="inline-block max-w-full overflow-hidden text-ellipsis whitespace-nowrap rounded-full border border-slate-200 bg-slate-50 px-2 py-1 text-xs font-bold">
+                        {serviceOptions.length > 0 ? (
+                          serviceOptions.map((service, index) => (
+                            <span key={service.id} style={{ color: getOptionColor(service) }}>
+                              {index > 0 ? ', ' : ''}
+                              {service.label}
+                            </span>
+                          ))
+                        ) : (
+                          <span className="text-slate-700">{serviceText}</span>
+                        )}
+                      </span>
+                    </div>
+                  </Tooltip>
                 </td>
                 <td className="whitespace-nowrap px-3 py-4 text-center align-middle tabular-nums text-slate-700">
                   {formatDate(lead.occurredDate || '')}
@@ -855,7 +968,10 @@ export function LeadManager({
                   </p>
                 </td>
                 <td className="px-3 py-4 align-middle">
-                  <div className="flex items-center justify-end gap-1 pr-3">
+                  <UserDateTimeCell userName={lead.createdBy?.name} dateTime={lead.createdAt} />
+                </td>
+                <td className="px-3 py-4 align-middle">
+                  <div className="flex items-center justify-end gap-0.5 pr-1">
                     <IconButton
                       size="small"
                       title="Xem chi tiết lead"
@@ -910,6 +1026,20 @@ export function LeadManager({
           <MenuItem onClick={viewActiveLead}>
             <VisibilityRoundedIcon fontSize="small" className="mr-2 text-slate-500" />
             Xem chi tiết
+          </MenuItem>
+          <MenuItem
+            onClick={openCustomerForActiveLead}
+            disabled={
+              !activeLead ||
+              (!activeLead.convertedCustomerId && !canEditLead(currentUser, activeLead))
+            }
+          >
+            {activeLead?.convertedCustomerId ? (
+              <OpenInNewRoundedIcon fontSize="small" className="mr-2 text-slate-500" />
+            ) : (
+              <PersonAddAlt1RoundedIcon fontSize="small" className="mr-2 text-slate-500" />
+            )}
+            {activeLead?.convertedCustomerId ? 'Mở khách hàng' : 'Tạo khách hàng'}
           </MenuItem>
           <MenuItem
             onClick={editActiveLead}

@@ -110,6 +110,7 @@ export type Lead = {
   status?: LeadStatus | null;
   statusOption?: AppOption | null;
   assignedUser?: LeadRelationOption | null;
+  createdBy?: LeadRelationOption | null;
   source?: LeadRelationOption | null;
   sourceOption?: AppOption | null;
   industryOption?: AppOption | null;
@@ -132,6 +133,8 @@ export type Lead = {
 
 export type LeadFilters = {
   keyword: string;
+  period: string;
+  selected_month: string;
   status_id: string;
   status_option_id: string;
   assigned_user_id: string;

@@ -28,6 +28,7 @@ export type Contract = {
   quotation?: {
     id: number;
     quotationCode?: string | null;
+    depositAmount?: string | number | null;
   } | null;
   createdAt?: string;
   updatedAt?: string;
@@ -37,10 +38,8 @@ export type ContractFormValues = {
   quotationId: string;
   contractNo: string;
   contractStatusOptionId: string;
-  depositAmount: string;
   signedDate: string;
   expiredDate: string;
-  contractMonth: string;
   fileUrl: string;
   note: string;
   invoiceRecipientType: InvoiceRecipientType;

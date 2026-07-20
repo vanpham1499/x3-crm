@@ -10,16 +10,17 @@ import MoreVertRoundedIcon from '@mui/icons-material/MoreVertRounded';
 import SwapHorizRoundedIcon from '@mui/icons-material/SwapHorizRounded';
 import { IconButton, Menu, MenuItem } from '@mui/material';
 import { useMutation, useQueryClient } from '@tanstack/react-query';
+import dayjs from 'dayjs';
 import { Controller, useForm } from 'react-hook-form';
 import { DialogActionButton } from '@/components/actions/dialog-action-button';
 import { TabActionButton } from '@/components/actions/tab-action-button';
 import { AppFormDialog } from '@/components/dialog/app-form-dialog';
 import { ConfirmDialog } from '@/components/feedback/confirm-dialog';
 import { useAppNotification } from '@/components/feedback/notification-provider';
-import { compactFormFieldClassName } from '@/components/form/form-field-styles';
+import { ExternalLinkAdornment } from '@/components/form/external-link-adornment';
+import { FormDatePicker } from '@/components/form/form-date-picker';
 import { FormInputField } from '@/components/form/form-input-field';
 import { FormSelectField } from '@/components/form/form-select-field';
-import { MoneyInput } from '@/components/form/money-input';
 import { AppDataTable } from '@/components/table/app-data-table';
 import { applyApiErrorsToForm, getApiErrorMessage } from '@/lib/api-error';
 import { canEditProject } from '@/lib/ownership';
@@ -43,7 +44,7 @@ function customerInvoiceSnapshot(customer?: Customer | null) {
     invoiceRepresentativeName: customer?.representativeName || '',
     invoiceTaxCode: customer?.taxCode || '',
     invoiceAddress: customer?.address || '',
-    invoiceEmail: customer?.email || '',
+    invoiceEmail: customer?.invoiceEmail || customer?.email || '',
     invoicePhone: customer?.phone || '',
   };
 }
@@ -73,10 +74,8 @@ function getContractDefaults({
     quotationId: idToString(defaultQuotationId),
     contractNo: contract?.contractNo || project.projectCode || '',
     contractStatusOptionId: idToString(contract?.contractStatusOptionId),
-    depositAmount: idToString(contract?.depositAmount),
-    signedDate: contract?.signedDate || '',
+    signedDate: contract ? contract.signedDate || '' : dayjs().format('YYYY-MM-DD'),
     expiredDate: contract?.expiredDate || '',
-    contractMonth: contract?.contractMonth || '',
     fileUrl: contract?.fileUrl || '',
     note: contract?.note || '',
     invoiceRecipientType: recipientType,
@@ -93,6 +92,13 @@ function formatDate(value?: string | null) {
   if (!value) return '-';
   const date = new Date(value);
   return Number.isNaN(date.getTime()) ? value : date.toLocaleDateString('vi-VN');
+}
+
+function getQuotationDeposit(contract: Contract, quotations: Quotation[]) {
+  if (!contract.quotationId) return 0;
+
+  const quotation = quotations.find((item) => item.id === contract.quotationId);
+  return Number(quotation?.depositAmount ?? contract.quotation?.depositAmount ?? 0) || 0;
 }
 
 function InfoCell({ label, value }: { label: string; value?: string | null }) {
@@ -138,6 +144,7 @@ function ContractDialog({
     values: getContractDefaults({ contract, customer, project, quotations }),
   });
   const recipientType = watch('invoiceRecipientType');
+  const fileUrlValue = watch('fileUrl');
   const customerSnapshot = customerInvoiceSnapshot(customer);
 
   const closeDialog = () => {
@@ -233,33 +240,39 @@ function ContractDialog({
             )}
           />
           <Controller
-            name="depositAmount"
+            name="signedDate"
             control={control}
             render={({ field }) => (
-              <MoneyInput
-                fullWidth
-                size="small"
-                label="Tiền đặt cọc"
+              <FormDatePicker label="Ngày ký" value={field.value} onChange={field.onChange} />
+            )}
+          />
+          <Controller
+            name="expiredDate"
+            control={control}
+            render={({ field }) => (
+              <FormDatePicker
+                label="Ngày hết hạn"
                 value={field.value}
-                onValueChange={field.onChange}
-                className={compactFormFieldClassName}
+                min={watch('signedDate') || undefined}
+                onChange={field.onChange}
               />
             )}
           />
           <FormInputField
-            type="date"
-            label="Ngày ký"
-            slotProps={{ inputLabel: { shrink: true } }}
-            {...register('signedDate')}
+            label="File hợp đồng"
+            placeholder="https://drive.google.com/..."
+            slotProps={{
+              input: {
+                endAdornment: (
+                  <ExternalLinkAdornment
+                    value={fileUrlValue}
+                    ariaLabel="Mở file hợp đồng trong tab mới"
+                  />
+                ),
+              },
+            }}
+            {...register('fileUrl')}
           />
-          <FormInputField
-            type="date"
-            label="Ngày hết hạn"
-            slotProps={{ inputLabel: { shrink: true } }}
-            {...register('expiredDate')}
-          />
-          <FormInputField label="Thời hạn hợp đồng" {...register('contractMonth')} />
-          <FormInputField label="File hợp đồng" {...register('fileUrl')} />
           <FormInputField
             multiline
             minRows={2}
@@ -307,20 +320,37 @@ function ContractDialog({
             <InfoCell label="Số điện thoại" value={watch('invoicePhone')} />
           </div>
         ) : (
-          <div className="grid gap-3 md:grid-cols-2 lg:grid-cols-3">
+          <div className="grid gap-3 md:grid-cols-2 lg:grid-cols-12">
             <FormInputField
               label="Tên chủ thể *"
+              className="lg:col-span-4"
               error={Boolean(errors.invoiceRecipientName)}
               helperText={errors.invoiceRecipientName?.message}
               {...register('invoiceRecipientName', { required: 'Bắt buộc' })}
             />
-            <FormInputField label="Người đại diện" {...register('invoiceRepresentativeName')} />
-            <FormInputField label="Mã số thuế" {...register('invoiceTaxCode')} />
-            <FormInputField label="Email nhận hóa đơn" {...register('invoiceEmail')} />
-            <FormInputField label="Số điện thoại" {...register('invoicePhone')} />
+            <FormInputField
+              label="Người đại diện"
+              className="lg:col-span-4"
+              {...register('invoiceRepresentativeName')}
+            />
+            <FormInputField
+              label="Mã số thuế"
+              className="lg:col-span-4"
+              {...register('invoiceTaxCode')}
+            />
+            <FormInputField
+              label="Email nhận hóa đơn"
+              className="lg:col-span-4"
+              {...register('invoiceEmail')}
+            />
+            <FormInputField
+              label="Số điện thoại"
+              className="lg:col-span-3"
+              {...register('invoicePhone')}
+            />
             <FormInputField
               label="Địa chỉ xuất hóa đơn"
-              className="md:col-span-2 lg:col-span-2"
+              className="lg:col-span-5"
               {...register('invoiceAddress')}
             />
           </div>
@@ -382,10 +412,8 @@ export function ProjectContractPanel({
         contractStatusOptionId: values.contractStatusOptionId
           ? Number(values.contractStatusOptionId)
           : null,
-        depositAmount: Number(values.depositAmount) || 0,
         signedDate: values.signedDate || null,
         expiredDate: values.expiredDate || null,
-        contractMonth: values.contractMonth.trim() || null,
         fileUrl: values.fileUrl.trim() || null,
         note: values.note.trim() || null,
         invoiceRecipientType: values.invoiceRecipientType,
@@ -466,38 +494,34 @@ export function ProjectContractPanel({
           {
             key: 'contract',
             label: 'Hợp đồng',
-            className: 'sticky left-0 z-20 w-[220px] bg-slate-100',
+            className: 'sticky left-0 z-20 w-[210px] bg-slate-100',
           },
-          { key: 'quotation', label: 'Báo phí', className: 'w-[150px]' },
-          { key: 'status', label: 'Tình trạng', className: 'w-[150px]' },
-          { key: 'signedDate', label: 'Ngày ký', className: 'w-[120px]' },
-          { key: 'expiredDate', label: 'Ngày hết hạn', className: 'w-[140px]' },
-          { key: 'recipient', label: 'Chủ thể nhận hóa đơn', className: 'w-[280px]' },
-          { key: 'deposit', label: 'Tiền đặt cọc', className: 'w-[160px] text-right' },
-          { key: 'file', label: 'File', className: 'w-[100px]' },
-          { key: 'actions', className: 'w-24' },
+          { key: 'quotation', label: 'Báo phí', className: 'w-[250px]' },
+          { key: 'status', label: 'Tình trạng', className: 'w-[140px]' },
+          { key: 'signedDate', label: 'Ngày ký', className: 'w-[115px]' },
+          { key: 'expiredDate', label: 'Ngày hết hạn', className: 'w-[125px]' },
+          { key: 'recipient', label: 'Chủ thể nhận hóa đơn', className: 'w-[290px]' },
+          { key: 'deposit', label: 'Tiền cọc', className: 'w-[140px] text-right' },
+          { key: 'file', label: 'File', className: 'w-[90px]' },
+          { key: 'actions', className: 'w-[88px]' },
         ]}
         isEmpty={contracts.length === 0}
         emptyText="Dự án chưa có hợp đồng"
-        minWidthClassName="min-w-[1320px]"
+        minWidthClassName="min-w-[1450px]"
       >
         {contracts.map((contract) => (
           <tr key={contract.id} className="group hover:bg-slate-50/80">
-            <td className="sticky left-0 z-10 bg-white px-3 py-4 group-hover:bg-slate-50">
+            <td className="sticky left-0 z-10 bg-white px-3 py-3 group-hover:bg-slate-50">
               <p className="truncate font-bold text-slate-950" title={contract.contractNo || ''}>
                 {contract.contractNo || `#${contract.id}`}
               </p>
-              {contract.contractMonth ? (
-                <p className="mt-1 truncate text-xs font-semibold text-slate-500">
-                  Thời hạn: {contract.contractMonth}
-                </p>
-              ) : null}
             </td>
-            <td className="px-3 py-4">
+            <td className="px-3 py-3">
               {contract.quotation ? (
                 <Link
                   href={`/quotations/${contract.quotation.id}`}
-                  className="font-bold text-blue-700 hover:underline"
+                  title={contract.quotation.quotationCode || ''}
+                  className="block truncate font-bold text-emerald-700 hover:underline"
                 >
                   {contract.quotation.quotationCode || `#${contract.quotation.id}`}
                 </Link>
@@ -505,7 +529,7 @@ export function ProjectContractPanel({
                 <span className="text-slate-500">-</span>
               )}
             </td>
-            <td className="px-3 py-4">
+            <td className="whitespace-nowrap px-3 py-3">
               <span
                 className={`rounded-md border px-2 py-1 text-xs font-bold ${
                   contract.contractStatusOption
@@ -525,23 +549,23 @@ export function ProjectContractPanel({
                 {contract.contractStatusOption?.label || 'Chưa chọn'}
               </span>
             </td>
-            <td className="px-3 py-4 font-semibold text-slate-700">
+            <td className="whitespace-nowrap px-3 py-3 font-semibold text-slate-700">
               {formatDate(contract.signedDate)}
             </td>
-            <td className="px-3 py-4 font-semibold text-slate-700">
+            <td className="whitespace-nowrap px-3 py-3 font-semibold text-slate-700">
               {formatDate(contract.expiredDate)}
             </td>
-            <td className="px-3 py-4">
-              <p
-                className="truncate font-bold text-slate-800"
-                title={contract.invoiceRecipientName || ''}
-              >
-                {contract.invoiceRecipientName ||
-                  customer?.companyName ||
-                  customer?.customerName ||
-                  '-'}
-              </p>
-              <div className="mt-1 flex min-w-0 items-center gap-2">
+            <td className="px-3 py-3">
+              <div className="flex min-w-0 items-center gap-2 overflow-hidden whitespace-nowrap">
+                <p
+                  className="min-w-0 truncate font-bold text-slate-800"
+                  title={contract.invoiceRecipientName || ''}
+                >
+                  {contract.invoiceRecipientName ||
+                    customer?.companyName ||
+                    customer?.customerName ||
+                    '-'}
+                </p>
                 <span
                   className={`shrink-0 rounded-full px-2 py-0.5 text-[11px] font-bold ${
                     contract.invoiceRecipientType === 'other'
@@ -552,16 +576,16 @@ export function ProjectContractPanel({
                   {contract.invoiceRecipientType === 'other' ? 'Chủ thể khác' : 'Theo khách hàng'}
                 </span>
                 {contract.invoiceTaxCode ? (
-                  <span className="truncate text-xs text-slate-500">
+                  <span className="min-w-0 truncate text-xs text-slate-500">
                     MST: {contract.invoiceTaxCode}
                   </span>
                 ) : null}
               </div>
             </td>
-            <td className="px-3 py-4 text-right font-extrabold tabular-nums text-slate-950">
-              {formatCurrency(Number(contract.depositAmount) || 0)}
+            <td className="whitespace-nowrap px-3 py-3 text-right font-extrabold tabular-nums text-slate-950">
+              {formatCurrency(getQuotationDeposit(contract, quotations))}
             </td>
-            <td className="px-3 py-4">
+            <td className="whitespace-nowrap px-3 py-3">
               {contract.fileUrl ? (
                 <Link
                   href={contract.fileUrl}
@@ -575,7 +599,7 @@ export function ProjectContractPanel({
                 <span className="text-slate-500">-</span>
               )}
             </td>
-            <td className="py-4">
+            <td className="py-3">
               <div className="flex items-center justify-end gap-1 pr-3">
                 <IconButton
                   size="small"

@@ -42,7 +42,9 @@ export type Quotation = {
   paidAmount?: string | number | null;
   outstandingAmount?: string | number | null;
   paymentStatus?: 'unpaid' | 'partial' | 'paid' | 'overpaid' | string | null;
+  isPaymentLocked?: boolean;
   depositAmount?: string | number | null;
+  accountReconciliationImageUrls?: string[];
   validUntil?: string | null;
   note?: string | null;
   metadata?: Record<string, unknown> | null;

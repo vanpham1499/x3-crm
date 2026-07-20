@@ -12,7 +12,7 @@ import { ContentLoading } from '@/components/shell/content-loading';
 import { PageHeader } from '@/components/shell/page-header';
 import { LeadForm } from '@/features/leads/components/lead-form';
 import { getApiErrorMessage } from '@/lib/api-error';
-import { getUniqueLeadStatuses, toLeadPayload } from '@/lib/lead-utils';
+import { getUniqueLeadStatuses, mergeLeadStatuses, toLeadPayload } from '@/lib/lead-utils';
 import { canEditLead } from '@/lib/ownership';
 import api from '@/services/api/client';
 import { useAuthStore } from '@/stores/auth-store';
@@ -160,14 +160,14 @@ export default function EditLeadPage() {
         users={users}
         sources={sources}
         services={services}
-        statuses={[
-          ...statusOptions.map((status) => ({
+        statuses={mergeLeadStatuses(
+          statusOptions.map((status) => ({
             id: status.id,
             name: status.label,
             sortOrder: status.sortOrder || 0,
           })),
-          ...getUniqueLeadStatuses([lead, ...leads]),
-        ]}
+          getUniqueLeadStatuses([lead, ...leads]),
+        )}
         isSubmitting={updateMutation.isPending}
         readOnly={!canEditLead(currentUser, lead)}
         onSubmit={(values) => updateMutation.mutateAsync(values)}
