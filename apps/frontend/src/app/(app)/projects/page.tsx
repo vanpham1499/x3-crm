@@ -10,6 +10,7 @@ import { getApiErrorMessage } from '@/lib/api-error';
 import { DEFAULT_PROJECT_FILTERS } from '@/lib/project-utils';
 import { SERVICE_QUOTE_CONFIG_GROUP } from '@/lib/service-quote-config';
 import api from '@/services/api/client';
+import { useAuthStore } from '@/stores/auth-store';
 import type { AppOption } from '@/types/option';
 import type { PaginatedResponse } from '@/types/pagination';
 import type { ProjectFilters, ProjectItem } from '@/types/project';
@@ -32,6 +33,7 @@ function getProjectParams(filters: ProjectFilters) {
 export default function ProjectsPage() {
   const queryClient = useQueryClient();
   const notify = useAppNotification();
+  const currentUser = useAuthStore((state) => state.user);
   const { filters, requestFilters, page, pageSize, setPage, setPageSize, onFiltersChange } =
     useServerListState<ProjectFilters>({
       initialFilters: DEFAULT_PROJECT_FILTERS,
@@ -131,6 +133,7 @@ export default function ProjectsPage() {
       pageSize={pageSize}
       isFetching={isFetching}
       isDeleting={deleteMutation.isPending}
+      currentUser={currentUser}
       onPageChange={setPage}
       onPageSizeChange={setPageSize}
       onFiltersChange={onFiltersChange}

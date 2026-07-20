@@ -4,11 +4,11 @@ namespace App\Services;
 
 use App\Http\Resources\ProjectResource;
 use App\Models\Contract;
+use App\Models\Customer;
 use App\Models\CustomerTimeline;
 use App\Models\Option;
 use App\Models\Project;
 use App\Models\ProjectWeeklySetting;
-use App\Models\User;
 use App\Repositories\ProjectRepository;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Str;
@@ -39,13 +39,21 @@ class ProjectsService extends BaseService
         return $this->apiResource($this->projects->findWithRelationsOrFail($id), ProjectResource::class);
     }
 
-    public function create(array $data): array
+    public function create(array $data, bool $checkAuthorization = true): array
     {
-        return $this->transaction(function () use ($data): array {
+        return $this->transaction(function () use ($data, $checkAuthorization): array {
             $contractData = $data['contract'] ?? null;
             unset($data['contract']);
 
             $data = $this->normalizePayload($data);
+
+            if ($checkAuthorization) {
+                $this->authorize('create', [
+                    Project::class,
+                    ! empty($data['customer_id']) ? Customer::query()->find($data['customer_id']) : null,
+                ]);
+            }
+
             $hasReportWeekday = array_key_exists('report_weekday', $data);
             $reportWeekday = $hasReportWeekday ? (int) $data['report_weekday'] : null;
             unset($data['report_weekday']);
@@ -86,6 +94,7 @@ class ProjectsService extends BaseService
             $shouldSyncWeeklySetting = $hasReportWeekday || array_key_exists('sales_user_id', $data);
             unset($data['project_code']);
             $before = $this->loadProjectRelations($this->projects->findWithRelationsOrFail($id));
+            $this->authorize('update', $before);
             $this->validateQuotationLink($data, $before);
             $codeData = [
                 'customer_id' => $data['customer_id'] ?? $before->customer_id,
@@ -124,6 +133,7 @@ class ProjectsService extends BaseService
     public function remove(string $id): array
     {
         return $this->transaction(function () use ($id): array {
+            $this->authorize('delete', $this->projects->findOrFail($id));
             $this->projects->delete($id);
 
             return ['message' => 'Xóa dự án thành công'];
@@ -491,13 +501,6 @@ class ProjectsService extends BaseService
     private function emptyValue(): string
     {
         return 'Trống';
-    }
-
-    private function currentUser(): ?User
-    {
-        $user = request()->user();
-
-        return $user instanceof User ? $user : null;
     }
 
     private function generateProjectCode(): string

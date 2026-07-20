@@ -17,6 +17,7 @@ import { AppDataTable } from '@/components/table/app-data-table';
 import { TablePaginationBar } from '@/components/table/table-pagination-bar';
 import { usePagination } from '@/hooks/use-pagination';
 import { getMediaPreviewUrl } from '@/lib/media-url';
+import { canCreateUsers, canDeleteUsers, canEditUsers } from '@/lib/ownership';
 import { formatDate } from '@/lib/utils';
 import {
   getUserRoleClass,
@@ -31,6 +32,7 @@ type UserListProps = {
   roles: RoleOption[];
   filters: UserFilters;
   isFetching: boolean;
+  currentUser: User | null;
   onFiltersChange: (filters: UserFilters) => void;
   onDelete: (user: User) => void;
   onBulkDelete: (userIds: number[]) => void;
@@ -123,11 +125,15 @@ export function UserList({
   roles,
   filters,
   isFetching,
+  currentUser,
   onFiltersChange,
   onDelete,
   onBulkDelete,
   isDeleting = false,
 }: UserListProps) {
+  const canCreate = canCreateUsers(currentUser);
+  const canEdit = canEditUsers(currentUser);
+  const canDelete = canDeleteUsers(currentUser);
   const [viewTarget, setViewTarget] = useState<User | null>(null);
   const [menuAnchorEl, setMenuAnchorEl] = useState<HTMLElement | null>(null);
   const [activeUser, setActiveUser] = useState<User | null>(null);
@@ -177,7 +183,12 @@ export function UserList({
     <div className="min-h-[calc(100vh-72px)] w-full bg-slate-50/60 p-6">
       <PageHeader
         title="Nhân viên"
-        action={{ label: 'Thêm nhân viên', href: '/users/new', icon: <AddRoundedIcon /> }}
+        action={{
+          label: 'Thêm nhân viên',
+          href: '/users/new',
+          icon: <AddRoundedIcon />,
+          disabled: !canCreate,
+        }}
       />
 
       <section className="w-full overflow-hidden rounded-2xl border border-slate-200 bg-white shadow-sm">
@@ -222,7 +233,7 @@ export function UserList({
             <IconButton
               size="small"
               color="success"
-              disabled={isDeleting}
+              disabled={isDeleting || !canDelete}
               onClick={() => {
                 onBulkDelete(selectedUserIds);
                 setSelectedUserIds([]);
@@ -336,6 +347,7 @@ export function UserList({
                       size="small"
                       aria-label="Chỉnh sửa nhân viên"
                       title="Chỉnh sửa nhân viên"
+                      disabled={!canEdit}
                     >
                       <EditRoundedIcon fontSize="small" />
                     </IconButton>
@@ -377,13 +389,14 @@ export function UserList({
           component={Link}
           href={activeUser ? `/users/${activeUser.id}` : '/users'}
           onClick={closeActionMenu}
+          disabled={!canEdit}
         >
           <EditRoundedIcon fontSize="small" className="mr-2 text-slate-500" />
           Chỉnh sửa
         </MenuItem>
         <MenuItem
           className="text-rose-600"
-          disabled={isDeleting}
+          disabled={isDeleting || !canDelete}
           onClick={() => {
             if (activeUser) onDelete(activeUser);
             closeActionMenu();

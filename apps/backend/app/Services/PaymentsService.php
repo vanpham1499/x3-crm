@@ -191,6 +191,7 @@ class PaymentsService extends BaseService
     public function matchProject(string $id, array $data): array
     {
         return $this->transaction(function () use ($id, $data): array {
+            $this->authorize('manage', Payment::class);
             $data = $this->normalizePayload($data);
             $quotation = ! empty($data['quotation_id'])
                 ? $this->quotations->findModel((string) $data['quotation_id'])
@@ -213,6 +214,7 @@ class PaymentsService extends BaseService
 
     public function allocate(string $id, array $data): array
     {
+        $this->authorize('manage', Payment::class);
         $this->paymentAllocations->allocate($id, $data['allocations'] ?? [], auth()->id());
 
         return $this->paymentResource($this->payments->findWithRelationsOrFail($id));
@@ -220,6 +222,7 @@ class PaymentsService extends BaseService
 
     public function removeAllocation(string $paymentId, string $allocationId): array
     {
+        $this->authorize('manage', Payment::class);
         $this->paymentAllocations->removeAllocation($paymentId, $allocationId, auth()->id());
 
         return $this->paymentResource($this->payments->findWithRelationsOrFail($paymentId));
@@ -227,6 +230,7 @@ class PaymentsService extends BaseService
 
     public function refund(string $id, array $data): array
     {
+        $this->authorize('manage', Payment::class);
         $this->paymentAllocations->refund($id, $data, auth()->id());
 
         return $this->paymentResource($this->payments->findWithRelationsOrFail($id));
@@ -234,6 +238,7 @@ class PaymentsService extends BaseService
 
     public function link(string $id, array $data): array
     {
+        $this->authorize('manage', Payment::class);
         $this->paymentAllocations->link($id, $this->normalizeKeys($data));
 
         return $this->paymentResource($this->payments->findWithRelationsOrFail($id));

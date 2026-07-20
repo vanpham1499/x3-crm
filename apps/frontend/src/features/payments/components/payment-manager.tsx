@@ -26,6 +26,7 @@ import { FormSelectField } from '@/components/form/form-select-field';
 import { MoneyInput } from '@/components/form/money-input';
 import { ServerPaginatedAutocomplete } from '@/components/form/server-paginated-autocomplete';
 import { getPaymentDisplayStatus } from '@/lib/payment-display-status';
+import { canManagePayments } from '@/lib/ownership';
 import { PageHeader } from '@/components/shell/page-header';
 import { AppDataTable } from '@/components/table/app-data-table';
 import { EntityTableLink } from '@/components/table/entity-table-link';
@@ -41,6 +42,7 @@ import type {
 } from '@/types/payment';
 import type { ProjectItem } from '@/types/project';
 import type { Quotation } from '@/types/quotation';
+import type { User } from '@/types/user';
 
 type PaymentManagerProps = {
   payments: Payment[];
@@ -51,6 +53,7 @@ type PaymentManagerProps = {
   pageSize: number;
   isFetching: boolean;
   isMutating: boolean;
+  currentUser: User | null;
   onPageChange: (page: number) => void;
   onPageSizeChange: (pageSize: number) => void;
   onFiltersChange: (filters: PaymentFilters) => void;
@@ -279,6 +282,7 @@ function differenceClass(value: number | null) {
 function PaymentDetailDialog({
   payment,
   isMutating,
+  currentUser,
   onClose,
   onAllocate,
   onRefund,
@@ -287,6 +291,7 @@ function PaymentDetailDialog({
 }: {
   payment: Payment | null;
   isMutating: boolean;
+  currentUser: User | null;
   onClose: () => void;
   onAllocate: () => void;
   onRefund: () => void;
@@ -295,6 +300,7 @@ function PaymentDetailDialog({
 }) {
   if (!payment) return null;
 
+  const canManage = canManagePayments(currentUser);
   const transferMoment = getTransferMoment(payment);
   const allocations = payment.allocations || [];
   const refunds = payment.refunds || [];
@@ -314,7 +320,7 @@ function PaymentDetailDialog({
         <>
           <DialogActionButton
             startIcon={<LinkRoundedIcon />}
-            disabled={isMutating}
+            disabled={isMutating || !canManage}
             onClick={onLink}
           >
             Gắn dự án
@@ -323,7 +329,7 @@ function PaymentDetailDialog({
             <>
               <DialogActionButton
                 startIcon={<ReplyRoundedIcon />}
-                disabled={isMutating}
+                disabled={isMutating || !canManage}
                 onClick={onRefund}
               >
                 Hoàn tiền
@@ -331,7 +337,7 @@ function PaymentDetailDialog({
               <DialogActionButton
                 tone="primary"
                 startIcon={<CallSplitRoundedIcon />}
-                disabled={isMutating}
+                disabled={isMutating || !canManage}
                 onClick={onAllocate}
               >
                 Phân bổ
@@ -390,7 +396,7 @@ function PaymentDetailDialog({
                     size="small"
                     title="Hủy phân bổ"
                     aria-label={`Hủy phân bổ ${allocation.quotation?.quotationCode || allocation.id}`}
-                    disabled={isMutating}
+                    disabled={isMutating || !canManage}
                     onClick={() => onRemoveAllocation(allocation)}
                   >
                     <DeleteOutlineRoundedIcon fontSize="small" />
@@ -883,6 +889,7 @@ export function PaymentManager({
   pageSize,
   isFetching,
   isMutating,
+  currentUser,
   onPageChange,
   onPageSizeChange,
   onFiltersChange,
@@ -1161,6 +1168,7 @@ export function PaymentManager({
         activePayment?.receiptType !== 'other' &&
         Number(activePayment?.availableAmount ?? activePayment?.unallocatedAmount) > 0 ? (
           <MenuItem
+            disabled={!canManagePayments(currentUser)}
             onClick={() => {
               setAllocationTarget(activePayment);
               closeActionMenu();
@@ -1171,6 +1179,7 @@ export function PaymentManager({
           </MenuItem>
         ) : null}
         <MenuItem
+          disabled={!canManagePayments(currentUser)}
           onClick={() => {
             setLinkTarget(activePayment);
             closeActionMenu();
@@ -1183,6 +1192,7 @@ export function PaymentManager({
         activePayment?.receiptType !== 'other' &&
         Number(activePayment?.availableAmount ?? activePayment?.unallocatedAmount) > 0 ? (
           <MenuItem
+            disabled={!canManagePayments(currentUser)}
             onClick={() => {
               setRefundTarget(activePayment);
               closeActionMenu();
@@ -1225,6 +1235,7 @@ export function PaymentManager({
       <PaymentDetailDialog
         payment={viewTarget}
         isMutating={isMutating}
+        currentUser={currentUser}
         onClose={() => setViewTarget(null)}
         onAllocate={() => setAllocationTarget(viewTarget)}
         onRefund={() => setRefundTarget(viewTarget)}

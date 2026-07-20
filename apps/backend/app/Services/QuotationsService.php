@@ -3,6 +3,7 @@
 namespace App\Services;
 
 use App\Http\Resources\QuotationResource;
+use App\Models\Lead;
 use App\Models\Quotation;
 use App\Repositories\PaymentRepository;
 use App\Repositories\QuotationRepository;
@@ -45,6 +46,16 @@ class QuotationsService extends BaseService
 
             $data = $this->normalizePayload($data);
             unset($data['quotation_code']);
+            $this->authorize('create', Quotation::class);
+
+            if (! empty($data['lead_id'])) {
+                $lead = Lead::query()->find($data['lead_id']);
+
+                if ($lead) {
+                    $this->authorize('update', $lead);
+                }
+            }
+
             $quotationVatRate = array_key_exists('vat_rate', $data)
                 ? (float) $data['vat_rate']
                 : null;
@@ -71,6 +82,7 @@ class QuotationsService extends BaseService
     {
         return $this->transaction(function () use ($id, $data): array {
             $currentQuotation = $this->quotations->findWithRelationsOrFail($id);
+            $this->authorize('update', $currentQuotation);
             $hasItems = array_key_exists('items', $data);
             $items = $data['items'] ?? [];
             unset($data['items']);
@@ -114,6 +126,7 @@ class QuotationsService extends BaseService
     {
         return $this->transaction(function () use ($id): array {
             $quotation = $this->quotations->findWithRelationsOrFail($id);
+            $this->authorize('delete', $quotation);
 
             if ($quotation->paymentAllocations->isNotEmpty()) {
                 throw ValidationException::withMessages([

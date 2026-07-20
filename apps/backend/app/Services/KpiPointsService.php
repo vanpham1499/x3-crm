@@ -5,7 +5,6 @@ namespace App\Services;
 use App\Http\Resources\KpiPointResource;
 use App\Models\KpiPoint;
 use App\Models\Option;
-use App\Models\User;
 use App\Repositories\KpiPointRepository;
 use Symfony\Component\HttpKernel\Exception\UnprocessableEntityHttpException;
 
@@ -59,6 +58,7 @@ class KpiPointsService extends BaseService
     {
         return $this->transaction(function () use ($data): array {
             $data = $this->preparePayload($data);
+            $this->authorize('create', [KpiPoint::class, $data['project_id'] ?? null]);
             $data['created_by'] = $this->currentUser()?->id;
 
             /** @var KpiPoint $point */
@@ -93,6 +93,8 @@ class KpiPointsService extends BaseService
     public function approve(string $id): array
     {
         return $this->transaction(function () use ($id): array {
+            $this->authorize('approve', $this->points->findWithRelationsOrFail($id));
+
             /** @var KpiPoint $point */
             $point = $this->points->update($id, [
                 'is_approved' => true,
@@ -149,10 +151,5 @@ class KpiPointsService extends BaseService
         }
 
         return $data;
-    }
-
-    private function currentUser(): ?User
-    {
-        return request()->user();
     }
 }

@@ -42,17 +42,21 @@ class QuotationResource extends JsonResource
                 'id' => $this->lead->id,
                 'leadCode' => $this->lead->lead_code,
                 'customerName' => $this->lead->customer_name,
+                'assignedUserId' => $this->lead->assigned_user_id,
             ] : null),
             'customer' => $this->whenLoaded('customer', fn () => $this->customer ? [
                 'id' => $this->customer->id,
                 'customerCode' => $this->customer->customer_code,
                 'customerName' => $this->customer->customer_name,
+                'salesUserId' => $this->customer->sales_user_id,
             ] : null),
             'project' => $this->whenLoaded('project', fn () => $this->project ? [
                 'id' => $this->project->id,
                 'projectCode' => $this->project->project_code,
                 'projectName' => $this->project->project_name,
                 'projectType' => $this->project->project_type,
+                'managerUserId' => $this->project->manager_user_id,
+                'salesUserId' => $this->project->sales_user_id,
             ] : null),
             'contract' => $this->whenLoaded('contract', fn () => $this->contract ? [
                 'id' => $this->contract->id,

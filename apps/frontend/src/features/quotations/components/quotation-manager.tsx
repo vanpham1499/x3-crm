@@ -18,8 +18,10 @@ import { PageHeader } from '@/components/shell/page-header';
 import { AppDataTable } from '@/components/table/app-data-table';
 import { EntityTableLink } from '@/components/table/entity-table-link';
 import { TablePaginationBar } from '@/components/table/table-pagination-bar';
+import { canCreateQuotation, canDeleteQuotation, canEditQuotation } from '@/lib/ownership';
 import { getQuotationPaymentContent, QUOTATION_PAYMENT_STATUS_LABELS } from '@/lib/quotation-utils';
 import type { Quotation, QuotationFilters } from '@/types/quotation';
+import type { User } from '@/types/user';
 import { QuotationPreviewDialog } from './quotation-preview-dialog';
 
 type QuotationManagerProps = {
@@ -31,6 +33,7 @@ type QuotationManagerProps = {
   pageSize: number;
   isFetching: boolean;
   isDeleting: boolean;
+  currentUser: User | null;
   onPageChange: (page: number) => void;
   onPageSizeChange: (pageSize: number) => void;
   onFiltersChange: (filters: QuotationFilters) => void;
@@ -104,6 +107,7 @@ export function QuotationManager({
   pageSize,
   isFetching,
   isDeleting,
+  currentUser,
   onPageChange,
   onPageSizeChange,
   onFiltersChange,
@@ -133,7 +137,12 @@ export function QuotationManager({
     <div className="min-h-[calc(100vh-72px)] w-full bg-slate-50/60 p-6">
       <PageHeader
         title="Báo phí"
-        action={{ label: 'Thêm báo phí', href: '/quotations/new', icon: <AddRoundedIcon /> }}
+        action={{
+          label: 'Thêm báo phí',
+          href: '/quotations/new',
+          icon: <AddRoundedIcon />,
+          disabled: !canCreateQuotation(currentUser),
+        }}
       />
 
       <section className="w-full overflow-hidden rounded-2xl border border-slate-200 bg-white shadow-sm">
@@ -294,6 +303,7 @@ export function QuotationManager({
                       size="small"
                       title="Chỉnh sửa báo phí"
                       aria-label={`Chỉnh sửa báo phí ${quotation.quotationCode || quotation.id}`}
+                      disabled={!canEditQuotation(currentUser, quotation)}
                     >
                       <EditRoundedIcon fontSize="small" />
                     </IconButton>
@@ -345,13 +355,14 @@ export function QuotationManager({
           component={Link}
           href={activeQuotation ? `/quotations/${activeQuotation.id}` : '/quotations'}
           onClick={closeActionMenu}
+          disabled={!activeQuotation || !canEditQuotation(currentUser, activeQuotation)}
         >
           <EditRoundedIcon fontSize="small" className="mr-2 text-slate-500" />
           Chỉnh sửa
         </MenuItem>
         <MenuItem
           className="text-rose-600"
-          disabled={isDeleting}
+          disabled={isDeleting || !activeQuotation || !canDeleteQuotation(currentUser, activeQuotation)}
           onClick={() => {
             setDeleteTarget(activeQuotation);
             closeActionMenu();

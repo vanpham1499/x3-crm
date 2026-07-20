@@ -40,7 +40,7 @@ export type KpiPoint = {
   approvedBy?: number | null;
   approvedAt?: string | null;
   user?: Pick<User, 'id' | 'name' | 'code'> | null;
-  project?: Pick<ProjectItem, 'id' | 'projectCode' | 'projectName'> | null;
+  project?: Pick<ProjectItem, 'id' | 'projectCode' | 'projectName' | 'managerUserId'> | null;
   approver?: Pick<User, 'id' | 'name'> | null;
   createdAt?: string;
   updatedAt?: string;

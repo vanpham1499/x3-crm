@@ -8,6 +8,7 @@ import { QuotationManager } from '@/features/quotations/components/quotation-man
 import { useServerListState } from '@/hooks/use-server-list-state';
 import { getApiErrorMessage } from '@/lib/api-error';
 import api from '@/services/api/client';
+import { useAuthStore } from '@/stores/auth-store';
 import type { PaginatedResponse } from '@/types/pagination';
 import type { Quotation, QuotationFilters } from '@/types/quotation';
 
@@ -25,6 +26,7 @@ function quotationParams(filters: QuotationFilters) {
 export default function QuotationsPage() {
   const queryClient = useQueryClient();
   const notify = useAppNotification();
+  const currentUser = useAuthStore((state) => state.user);
   const { filters, requestFilters, page, pageSize, setPage, setPageSize, onFiltersChange } =
     useServerListState<QuotationFilters>({
       initialFilters: DEFAULT_QUOTATION_FILTERS,
@@ -93,6 +95,7 @@ export default function QuotationsPage() {
       pageSize={pageSize}
       isFetching={isFetching}
       isDeleting={deleteMutation.isPending}
+      currentUser={currentUser}
       onPageChange={setPage}
       onPageSizeChange={setPageSize}
       onFiltersChange={onFiltersChange}

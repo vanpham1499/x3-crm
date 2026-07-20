@@ -18,6 +18,7 @@ import { ProjectCustomerPanel } from '@/features/projects/components/project-cus
 import { ProjectFinancePanel } from '@/features/projects/components/project-finance-panel';
 import { ProjectForm } from '@/features/projects/components/project-form';
 import { getApiErrorMessage } from '@/lib/api-error';
+import { canEditProject } from '@/lib/ownership';
 import {
   calculateAvailableTopupBudget,
   calculateRealizedProjectCost,
@@ -32,6 +33,7 @@ import {
 } from '@/lib/service-quote-config';
 import { formatCurrency } from '@/lib/utils';
 import api from '@/services/api/client';
+import { useAuthStore } from '@/stores/auth-store';
 import type { Contract } from '@/types/contract';
 import type { Customer } from '@/types/customer';
 import type { AppOption } from '@/types/option';
@@ -65,6 +67,7 @@ export default function EditProjectPage() {
   const id = params.id as string;
   const queryClient = useQueryClient();
   const notify = useAppNotification();
+  const currentUser = useAuthStore((state) => state.user);
   const [activeTab, setActiveTab] = useState<ProjectTab>('info');
 
   const { data: services = [] } = useQuery<ServiceItem[]>({
@@ -360,6 +363,7 @@ export default function EditProjectPage() {
             statuses={statuses}
             quoteConfigs={quoteConfigs}
             isSubmitting={updateMutation.isPending}
+            readOnly={!canEditProject(currentUser, project)}
             onSubmit={(values) => updateMutation.mutateAsync(values)}
           />
         ) : null}
@@ -372,6 +376,7 @@ export default function EditProjectPage() {
             payments={payments}
           >
             <ProjectCostPanel
+              project={project}
               projectId={project.id}
               projectType={project.projectType}
               projectCode={project.projectCode}

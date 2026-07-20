@@ -46,9 +46,12 @@ export type Quotation = {
   validUntil?: string | null;
   note?: string | null;
   metadata?: Record<string, unknown> | null;
-  lead?: Pick<Lead, 'id' | 'leadCode' | 'customerName'> | null;
-  customer?: Pick<Customer, 'id' | 'customerCode' | 'customerName'> | null;
-  project?: Pick<ProjectItem, 'id' | 'projectCode' | 'projectName' | 'projectType'> | null;
+  lead?: Pick<Lead, 'id' | 'leadCode' | 'customerName' | 'assignedUserId'> | null;
+  customer?: Pick<Customer, 'id' | 'customerCode' | 'customerName' | 'salesUserId'> | null;
+  project?: Pick<
+    ProjectItem,
+    'id' | 'projectCode' | 'projectName' | 'projectType' | 'managerUserId' | 'salesUserId'
+  > | null;
   contract?: {
     id: number;
     contractNo?: string | null;

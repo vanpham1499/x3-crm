@@ -221,6 +221,20 @@
   border: 0 !important;
 }
 
+/* Ensure disabled MUI actionable elements always read as disabled: dimmed and
+   non-interactive, even when rendered via `component={Link}` (a real <a> tag,
+   whose default cursor/click behavior MUI's `disabled` prop alone can't fully
+   suppress). */
+.MuiButtonBase-root.Mui-disabled,
+.MuiIconButton-root.Mui-disabled,
+.MuiButton-root.Mui-disabled,
+.MuiMenuItem-root.Mui-disabled,
+.MuiTab-root.Mui-disabled {
+  opacity: 0.45 !important;
+  pointer-events: none !important;
+  cursor: not-allowed !important;
+}
+
 @keyframes x3-splash-logo-breathe {
   0%,
   100% {

@@ -19,6 +19,8 @@ import { AppDataTable } from '@/components/table/app-data-table';
 import { TablePaginationBar } from '@/components/table/table-pagination-bar';
 import { usePagination } from '@/hooks/use-pagination';
 import { applyApiErrorsToForm } from '@/lib/api-error';
+import { canManageCatalog } from '@/lib/ownership';
+import { useAuthStore } from '@/stores/auth-store';
 import {
   getPartnerMetaValue,
   getProjectPartnerDefaults,
@@ -135,6 +137,8 @@ export function PartnerManager({
   onSubmit,
   onDelete,
 }: PartnerManagerProps) {
+  const currentUser = useAuthStore((state) => state.user);
+  const canManage = canManageCatalog(currentUser);
   const [dialogState, setDialogState] = useState<DialogState | null>(null);
   const [deleteTarget, setDeleteTarget] = useState<AppOption | null>(null);
   const [menuAnchorEl, setMenuAnchorEl] = useState<HTMLElement | null>(null);
@@ -166,6 +170,7 @@ export function PartnerManager({
           label: 'Thêm đối tác',
           icon: <AddRoundedIcon />,
           onClick: () => setDialogState({ mode: 'create' }),
+          disabled: !canManage,
         }}
       />
 
@@ -230,6 +235,7 @@ export function PartnerManager({
                     size="small"
                     title="Chỉnh sửa đối tác"
                     onClick={() => setDialogState({ mode: 'edit', partner })}
+                    disabled={!canManage}
                   >
                     <EditRoundedIcon fontSize="small" />
                   </IconButton>
@@ -247,7 +253,11 @@ export function PartnerManager({
         </AppDataTable>
 
         <Menu anchorEl={menuAnchorEl} open={Boolean(menuAnchorEl)} onClose={closeActionMenu}>
-          <MenuItem onClick={deleteActivePartner} className="text-rose-600" disabled={isDeleting}>
+          <MenuItem
+            onClick={deleteActivePartner}
+            className="text-rose-600"
+            disabled={isDeleting || !canManage}
+          >
             <DeleteRoundedIcon fontSize="small" className="mr-2" />
             Xóa
           </MenuItem>

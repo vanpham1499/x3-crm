@@ -40,6 +40,7 @@ class ProjectWeeklySettingsService extends BaseService
     {
         return $this->transaction(function () use ($data): array {
             $data = $this->normalizeKeys($data);
+            $this->authorizeProjectOwnership($data['project_id'] ?? null);
             $existing = $this->settings->findByProject((string) $data['project_id']);
 
             /** @var ProjectWeeklySetting $setting */
@@ -54,6 +55,9 @@ class ProjectWeeklySettingsService extends BaseService
     public function update(string $id, array $data): array
     {
         return $this->transaction(function () use ($id, $data): array {
+            $existing = $this->settings->findOrFail($id);
+            $this->authorizeProjectOwnership($existing->project_id);
+
             /** @var ProjectWeeklySetting $setting */
             $setting = $this->settings->update($id, $this->normalizeKeys($data));
 
@@ -64,6 +68,8 @@ class ProjectWeeklySettingsService extends BaseService
     public function remove(string $id): array
     {
         return $this->transaction(function () use ($id): array {
+            $existing = $this->settings->findOrFail($id);
+            $this->authorizeProjectOwnership($existing->project_id);
             $this->settings->delete($id);
 
             return ['message' => 'Xóa cấu hình báo cáo tuần thành công'];

@@ -9,6 +9,7 @@ import { CustomerManager } from '@/features/customers/components/customer-manage
 import { useServerListState } from '@/hooks/use-server-list-state';
 import { getApiErrorMessage } from '@/lib/api-error';
 import api from '@/services/api/client';
+import { useAuthStore } from '@/stores/auth-store';
 import type { Customer, CustomerFilters } from '@/types/customer';
 import type { AppOption } from '@/types/option';
 import type { PaginatedResponse } from '@/types/pagination';
@@ -31,6 +32,7 @@ function getCustomerParams(filters: CustomerFilters) {
 export default function CustomersPage() {
   const queryClient = useQueryClient();
   const notify = useAppNotification();
+  const currentUser = useAuthStore((state) => state.user);
   const [deleteTarget, setDeleteTarget] = useState<Customer | null>(null);
   const { filters, requestFilters, page, pageSize, setPage, setPageSize, onFiltersChange } =
     useServerListState<CustomerFilters>({
@@ -130,6 +132,7 @@ export default function CustomersPage() {
         pageSize={pageSize}
         isFetching={isFetching}
         isDeleting={deleteMutation.isPending}
+        currentUser={currentUser}
         onPageChange={setPage}
         onPageSizeChange={setPageSize}
         onFiltersChange={onFiltersChange}

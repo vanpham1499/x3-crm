@@ -26,6 +26,7 @@ class ContractsService extends BaseService
     {
         return $this->transaction(function () use ($data): array {
             $data = $this->normalizePayload($data);
+            $this->authorizeProjectOwnership($data['project_id'] ?? null);
 
             /** @var Contract $contract */
             $contract = $this->contracts->create($data);
@@ -39,6 +40,7 @@ class ContractsService extends BaseService
     {
         return $this->transaction(function () use ($id, $data): array {
             $existing = $this->contracts->findWithRelationsOrFail($id);
+            $this->authorizeProjectOwnership($existing->project_id);
             /** @var Contract $contract */
             $contract = $this->contracts->update($id, $this->normalizePayload($data, $existing));
             $this->syncQuotationLinks($contract, $existing->quotation_id);
@@ -51,6 +53,7 @@ class ContractsService extends BaseService
     {
         return $this->transaction(function () use ($id): array {
             $contract = $this->contracts->findWithRelationsOrFail($id);
+            $this->authorizeProjectOwnership($contract->project_id);
             $this->clearQuotationLinks($contract);
             $this->contracts->delete($id);
 

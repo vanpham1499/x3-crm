@@ -8,6 +8,7 @@ import { PaymentManager } from '@/features/payments/components/payment-manager';
 import { useServerListState } from '@/hooks/use-server-list-state';
 import { getApiErrorMessage } from '@/lib/api-error';
 import api from '@/services/api/client';
+import { useAuthStore } from '@/stores/auth-store';
 import type { PaginatedResponse } from '@/types/pagination';
 import type {
   Payment,
@@ -41,6 +42,7 @@ function paymentParams(filters: PaymentFilters) {
 export default function PaymentsPage() {
   const queryClient = useQueryClient();
   const notify = useAppNotification();
+  const currentUser = useAuthStore((state) => state.user);
   const { filters, requestFilters, page, pageSize, setPage, setPageSize, onFiltersChange } =
     useServerListState<PaymentFilters>({
       initialFilters: DEFAULT_PAYMENT_FILTERS,
@@ -165,6 +167,7 @@ export default function PaymentsPage() {
         linkMutation.isPending ||
         removeAllocationMutation.isPending
       }
+      currentUser={currentUser}
       onPageChange={setPage}
       onPageSizeChange={setPageSize}
       onFiltersChange={onFiltersChange}

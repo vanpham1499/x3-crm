@@ -7,6 +7,7 @@ use Illuminate\Database\Eloquent\Relations\BelongsTo;
 use Illuminate\Database\Eloquent\Relations\HasMany;
 use Illuminate\Foundation\Auth\User as Authenticatable;
 use Illuminate\Database\Eloquent\SoftDeletes;
+use Illuminate\Support\Collection;
 
 class User extends Authenticatable
 {
@@ -58,6 +59,33 @@ class User extends Authenticatable
     public function roleRef(): BelongsTo
     {
         return $this->belongsTo(Role::class, 'role_id');
+    }
+
+    public function isAdmin(): bool
+    {
+        return $this->role === self::ROLE_ADMIN;
+    }
+
+    public function isLeader(): bool
+    {
+        return $this->role === self::ROLE_LEADER;
+    }
+
+    private ?Collection $permissionCodesCache = null;
+
+    /**
+     * Whether the user's role has been granted this permission code, via role_permissions.
+     * Role-agnostic by design: callers should never branch on role name, only on permission code.
+     */
+    public function hasPermission(string $code): bool
+    {
+        if ($this->permissionCodesCache === null) {
+            $this->permissionCodesCache = $this->role_id
+                ? Role::query()->find($this->role_id)?->permissions()->pluck('code') ?? collect()
+                : collect();
+        }
+
+        return $this->permissionCodesCache->contains($code);
     }
 
     public function department(): BelongsTo

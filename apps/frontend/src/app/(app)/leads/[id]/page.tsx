@@ -13,7 +13,9 @@ import { PageHeader } from '@/components/shell/page-header';
 import { LeadForm } from '@/features/leads/components/lead-form';
 import { getApiErrorMessage } from '@/lib/api-error';
 import { getUniqueLeadStatuses, toLeadPayload } from '@/lib/lead-utils';
+import { canEditLead } from '@/lib/ownership';
 import api from '@/services/api/client';
+import { useAuthStore } from '@/stores/auth-store';
 import type { Customer } from '@/types/customer';
 import type { Lead, LeadFormValues } from '@/types/lead';
 import type { AppOption } from '@/types/option';
@@ -24,6 +26,7 @@ export default function EditLeadPage() {
   const router = useRouter();
   const queryClient = useQueryClient();
   const notify = useAppNotification();
+  const currentUser = useAuthStore((state) => state.user);
   const id = params.id;
 
   const { data: lead, isLoading: leadLoading } = useQuery<Lead>({
@@ -144,6 +147,7 @@ export default function EditLeadPage() {
               convertedCustomerId ? <ArrowForwardRoundedIcon /> : <AddBusinessRoundedIcon />
             }
             className="brand-blue-action"
+            disabled={!convertedCustomerId && !canEditLead(currentUser, lead)}
           >
             {convertedCustomerId ? 'Mở khách hàng' : 'Chuyển thành khách hàng'}
           </Button>
@@ -165,6 +169,7 @@ export default function EditLeadPage() {
           ...getUniqueLeadStatuses([lead, ...leads]),
         ]}
         isSubmitting={updateMutation.isPending}
+        readOnly={!canEditLead(currentUser, lead)}
         onSubmit={(values) => updateMutation.mutateAsync(values)}
       />
     </div>

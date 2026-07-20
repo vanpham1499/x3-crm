@@ -51,6 +51,11 @@ class Lead extends BaseModel
         return $this->belongsTo(User::class, 'assigned_user_id');
     }
 
+    public function isAssignedTo(User $user): bool
+    {
+        return $this->assigned_user_id === $user->id;
+    }
+
     public function sourceOption(): BelongsTo
     {
         return $this->belongsTo(Option::class, 'source_option_id');
