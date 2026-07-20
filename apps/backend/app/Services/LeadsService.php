@@ -50,7 +50,7 @@ class LeadsService extends BaseService
     public function create(array $data): array
     {
         return $this->transaction(function () use ($data): array {
-            $this->authorize('create', \App\Models\Lead::class);
+            $this->authorize('create', Lead::class);
             $serviceOptionIds = $this->extractServiceOptionIds($data);
             $data = $this->normalizePayload($data);
             $data['lead_code'] = $this->generateLeadCode();
@@ -381,7 +381,7 @@ class LeadsService extends BaseService
 
     private function loadLeadRelations(Lead $lead): Lead
     {
-        return $lead->load(['statusOption', 'assignedUser', 'sourceOption', 'industryOption', 'interestedServiceOption', 'interestedServiceOptions', 'interestedService', 'convertedCustomer', 'timelines.createdBy']);
+        return $lead->load(['statusOption', 'assignedUser', 'createdBy', 'sourceOption', 'industryOption', 'interestedServiceOption', 'interestedServiceOptions', 'interestedService', 'convertedCustomer', 'timelines.createdBy']);
     }
 
     private function recordTimeline(Lead $lead, string $type, array $content): void

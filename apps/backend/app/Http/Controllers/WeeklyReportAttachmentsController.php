@@ -16,7 +16,12 @@ class WeeklyReportAttachmentsController extends Controller
         /** @var User $user */
         $user = $request->user();
 
-        return $this->success($this->attachments->upload($id, $request->file('file'), $user), 201);
+        return $this->success($this->attachments->upload(
+            $id,
+            $request->file('file'),
+            $user,
+            $request->validatedData('media_url'),
+        ), 201);
     }
 
     public function destroy(string $id): JsonResponse

@@ -11,7 +11,7 @@ class FileUploadStorage
     {
         return rtrim(
             env('MEDIA_PUBLIC_PATH', base_path('../frontend/public')),
-            DIRECTORY_SEPARATOR . '/'
+            DIRECTORY_SEPARATOR.'/'
         );
     }
 
@@ -25,8 +25,8 @@ class FileUploadStorage
         $now = now();
         $directory = sprintf('uploads/%s/%s/%s', $subdir, $now->format('Y'), $now->format('m'));
         $absoluteDirectory = self::getFrontendPublicPath()
-            . DIRECTORY_SEPARATOR
-            . str_replace('/', DIRECTORY_SEPARATOR, $directory);
+            .DIRECTORY_SEPARATOR
+            .str_replace('/', DIRECTORY_SEPARATOR, $directory);
 
         if (! is_dir($absoluteDirectory)) {
             mkdir($absoluteDirectory, 0775, true);
@@ -43,10 +43,26 @@ class FileUploadStorage
 
         return [
             'fileName' => $fileName,
-            'fileUrl' => '/' . $directory . '/' . $fileName,
+            'fileUrl' => '/'.$directory.'/'.$fileName,
             'originalName' => $originalName,
             'mimeType' => $mimeType,
             'fileSize' => $fileSize,
         ];
+    }
+
+    public static function delete(?string $fileUrl): bool
+    {
+        $path = parse_url((string) $fileUrl, PHP_URL_PATH);
+        $relativePath = ltrim((string) $path, '/');
+
+        if (! str_starts_with($relativePath, 'uploads/') || str_contains($relativePath, '..')) {
+            return false;
+        }
+
+        $absolutePath = self::getFrontendPublicPath()
+            .DIRECTORY_SEPARATOR
+            .str_replace('/', DIRECTORY_SEPARATOR, $relativePath);
+
+        return ! is_file($absolutePath) || unlink($absolutePath);
     }
 }

@@ -121,6 +121,8 @@ class CustomersService extends BaseService
             'representativeName' => 'representative_name',
             'taxCode' => 'tax_code',
             'identityNo' => 'identity_no',
+            'identityImageUrls' => 'identity_image_urls',
+            'invoiceEmail' => 'invoice_email',
             'industryOptionId' => 'industry_option_id',
             'sourceOptionId' => 'source_option_id',
             'salesUserId' => 'sales_user_id',
@@ -138,7 +140,7 @@ class CustomersService extends BaseService
 
     private function loadCustomerRelations(Customer $customer): Customer
     {
-        return $customer->load(['lead', 'customerTypeOption', 'sourceOption', 'industryOption', 'salesUser', 'projects', 'timelines.createdBy']);
+        return $customer->load(['lead', 'customerTypeOption', 'sourceOption', 'industryOption', 'salesUser', 'createdBy', 'projects', 'timelines.createdBy']);
     }
 
     private function lockLeadForConversion(mixed $leadId): ?Lead
@@ -280,9 +282,11 @@ class CustomersService extends BaseService
             'representative_name' => 'Người đại diện',
             'tax_code' => 'Mã số thuế',
             'identity_no' => 'CCCD/CMND',
+            'identity_image_urls' => 'Ảnh CCCD',
             'address' => 'Địa chỉ',
             'phone' => 'Số điện thoại',
             'email' => 'Email',
+            'invoice_email' => 'Email nhận hóa đơn',
             'website' => 'Website',
             'industry' => 'Ngành nghề text',
             'industry_option_id' => 'Ngành nghề',
@@ -326,6 +330,7 @@ class CustomersService extends BaseService
             'industry_option_id' => $this->displayOption($customer->industryOption),
             'sales_user_id' => $customer->salesUser?->name ?: $this->emptyValue(),
             'birthday' => $customer->birthday?->toDateString() ?: $this->emptyValue(),
+            'identity_image_urls' => count($customer->identity_image_urls ?? []).' ảnh',
             default => $this->stringValue($customer->{$field}),
         };
     }

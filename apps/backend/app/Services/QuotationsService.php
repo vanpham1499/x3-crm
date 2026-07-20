@@ -81,8 +81,29 @@ class QuotationsService extends BaseService
     public function update(string $id, array $data): array
     {
         return $this->transaction(function () use ($id, $data): array {
-            $currentQuotation = $this->quotations->findWithRelationsOrFail($id);
+            $currentQuotation = $this->quotations->findForUpdateOrFail($id);
             $this->authorize('update', $currentQuotation);
+
+            if ($this->isPaymentLocked($currentQuotation)) {
+                $requestedData = $this->normalizeKeys($data);
+                $blockedFields = array_diff(array_keys($requestedData), ['note']);
+
+                if ($blockedFields !== []) {
+                    throw ValidationException::withMessages([
+                        'quotation' => ['Báo phí đã thu đủ nên đã được khóa. Chỉ có thể chỉnh sửa ghi chú.'],
+                    ]);
+                }
+
+                if (array_key_exists('note', $requestedData)) {
+                    $this->quotations->update($id, ['note' => $requestedData['note']]);
+                }
+
+                return $this->apiResource(
+                    $this->quotations->findWithRelationsOrFail($id),
+                    QuotationResource::class,
+                );
+            }
+
             $hasItems = array_key_exists('items', $data);
             $items = $data['items'] ?? [];
             unset($data['items']);
@@ -170,7 +191,14 @@ class QuotationsService extends BaseService
             ]);
         $this->paymentAllocations->reconcileQuotation($quotationId);
 
-        return $quotation->refresh()->load(['lead', 'customer', 'project', 'contract', 'service']);
+        return $quotation->refresh()->load([
+            'lead',
+            'customer',
+            'project',
+            'contract',
+            'service',
+            'paymentAllocations',
+        ]);
     }
 
     public function findModel(string $id): Quotation
@@ -211,11 +239,20 @@ class QuotationsService extends BaseService
 
         $subtotal = (float) ($data['subtotal_amount'] ?? 0);
         $vatRate = (float) ($data['vat_rate'] ?? 0);
+        $depositAmount = (float) ($data['deposit_amount'] ?? 0);
         $data['vat_amount'] = $data['vat_amount'] ?? round($subtotal * $vatRate / 100, 2);
-        $data['total_amount'] = $data['total_amount'] ?? round($subtotal + (float) $data['vat_amount'], 2);
-        $data['deposit_amount'] = $data['deposit_amount'] ?? $data['total_amount'];
+        $data['deposit_amount'] = round($depositAmount, 2);
+        $data['total_amount'] = round($subtotal + (float) $data['vat_amount'] + $depositAmount, 2);
 
         return $data;
+    }
+
+    private function isPaymentLocked(Quotation $quotation): bool
+    {
+        $paidAmount = (float) $quotation->paymentAllocations->sum('amount');
+        $totalAmount = (float) $quotation->total_amount;
+
+        return $totalAmount > 0.01 && $paidAmount >= $totalAmount - 0.01;
     }
 
     private function normalizeKeys(array $data): array
@@ -234,6 +271,7 @@ class QuotationsService extends BaseService
             'vatAmount' => 'vat_amount',
             'totalAmount' => 'total_amount',
             'depositAmount' => 'deposit_amount',
+            'accountReconciliationImageUrls' => 'account_reconciliation_image_urls',
             'validUntil' => 'valid_until',
         ];
 
@@ -411,8 +449,8 @@ class QuotationsService extends BaseService
 
         $data['subtotal_amount'] = round($subtotal, 2);
         $data['vat_amount'] = round($vat, 2);
-        $data['total_amount'] = round($subtotal + $vat, 2);
-        $data['deposit_amount'] = $data['deposit_amount'] ?? $data['total_amount'];
+        $data['deposit_amount'] = round((float) ($data['deposit_amount'] ?? 0), 2);
+        $data['total_amount'] = round($subtotal + $vat + (float) $data['deposit_amount'], 2);
 
         return $data;
     }

@@ -18,7 +18,7 @@ class ContractResource extends JsonResource
             'contractNo' => $this->contract_no,
             'contractStatusId' => $this->contract_status_id,
             'contractStatusOptionId' => $this->contract_status_option_id,
-            'depositAmount' => $this->deposit_amount,
+            'depositAmount' => $this->quotation?->deposit_amount ?? 0,
             'signedDate' => $this->signed_date?->toDateString(),
             'expiredDate' => $this->expired_date?->toDateString(),
             'contractMonth' => $this->contract_month,
@@ -40,6 +40,7 @@ class ContractResource extends JsonResource
             'quotation' => $this->whenLoaded('quotation', fn () => $this->quotation ? [
                 'id' => $this->quotation->id,
                 'quotationCode' => $this->quotation->quotation_code,
+                'depositAmount' => $this->quotation->deposit_amount,
             ] : null),
             'customer' => $this->whenLoaded('customer', fn () => $this->customer ? [
                 'id' => $this->customer->id,

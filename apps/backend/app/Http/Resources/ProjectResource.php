@@ -53,6 +53,12 @@ class ProjectResource extends JsonResource
                 'name' => $this->salesUser->name,
                 'email' => $this->salesUser->email,
             ] : null),
+            'createdBy' => $this->whenLoaded('createdBy', fn () => $this->createdBy ? [
+                'id' => $this->createdBy->id,
+                'code' => $this->createdBy->code,
+                'name' => $this->createdBy->name,
+                'email' => $this->createdBy->email,
+            ] : null),
             'weeklySetting' => $this->whenLoaded('weeklySetting', fn () => $this->weeklySetting ? [
                 'id' => $this->weeklySetting->id,
                 'reportOwnerUserId' => $this->weeklySetting->report_owner_user_id,

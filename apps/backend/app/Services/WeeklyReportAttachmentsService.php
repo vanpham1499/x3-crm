@@ -3,6 +3,7 @@
 namespace App\Services;
 
 use App\Http\Resources\WeeklyReportAttachmentResource;
+use App\Models\Attachment;
 use App\Models\User;
 use App\Models\WeeklyReport;
 use App\Models\WeeklyReportAttachment;
@@ -15,12 +16,18 @@ class WeeklyReportAttachmentsService extends BaseService
 {
     public function __construct(private readonly WeeklyReportRepository $reports) {}
 
-    public function upload(string $weeklyReportId, UploadedFile $file, User $user): array
-    {
-        return $this->transaction(function () use ($weeklyReportId, $file, $user): array {
+    public function upload(
+        string $weeklyReportId,
+        ?UploadedFile $file,
+        User $user,
+        ?string $mediaUrl = null,
+    ): array {
+        return $this->transaction(function () use ($weeklyReportId, $file, $user, $mediaUrl): array {
             $report = $this->reports->findOrFail($weeklyReportId);
             $this->assertDraft($report);
-            $stored = FileUploadStorage::store($file, 'weekly-reports');
+            $stored = $file
+                ? FileUploadStorage::store($file, 'weekly-reports')
+                : $this->resolveMediaLibraryImage($mediaUrl, $user);
 
             /** @var WeeklyReportAttachment $attachment */
             $attachment = $report->attachments()->create([
@@ -33,6 +40,29 @@ class WeeklyReportAttachmentsService extends BaseService
 
             return $this->apiResource($attachment->load('uploadedBy'), WeeklyReportAttachmentResource::class);
         });
+    }
+
+    private function resolveMediaLibraryImage(?string $mediaUrl, User $user): array
+    {
+        /** @var Attachment|null $media */
+        $media = Attachment::query()
+            ->where('entity_type', 'media_library')
+            ->where('uploaded_by', $user->id)
+            ->where('file_url', trim((string) $mediaUrl))
+            ->where('file_type', 'like', 'image/%')
+            ->first();
+
+        if (! $media) {
+            throw ValidationException::withMessages([
+                'media_url' => ['Ảnh không tồn tại trong thư viện của bạn.'],
+            ]);
+        }
+
+        return [
+            'fileName' => $media->original_name ?: $media->file_name,
+            'fileUrl' => $media->file_url,
+            'mimeType' => $media->mime_type ?: $media->file_type,
+        ];
     }
 
     public function remove(string $id): array

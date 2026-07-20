@@ -37,6 +37,8 @@ Route::middleware(['auth:sanctum', 'active'])->group(function (): void {
 
     Route::get('/media', [MediaController::class, 'index']);
     Route::post('/media/upload', [MediaController::class, 'upload']);
+    Route::patch('/media/{id}', [MediaController::class, 'update']);
+    Route::delete('/media/{id}', [MediaController::class, 'destroy']);
 
     Route::get('/options', [OptionsController::class, 'index']);
     Route::get('/options/{id}', [OptionsController::class, 'show']);

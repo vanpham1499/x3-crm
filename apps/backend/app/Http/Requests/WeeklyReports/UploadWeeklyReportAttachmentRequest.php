@@ -10,11 +10,13 @@ class UploadWeeklyReportAttachmentRequest extends BaseRequest
     {
         return [
             'file' => [
-                'required',
+                'nullable',
+                'required_without:media_url',
                 'file',
-                'mimes:jpeg,jpg,png,gif,webp,pdf,doc,docx,xls,xlsx,csv,zip',
-                'max:10240',
+                'mimes:jpeg,jpg,png,gif,webp',
+                'max:3072',
             ],
+            'media_url' => ['nullable', 'required_without:file', 'string', 'max:500'],
         ];
     }
 }

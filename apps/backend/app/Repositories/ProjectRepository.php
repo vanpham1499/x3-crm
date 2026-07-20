@@ -40,7 +40,7 @@ class ProjectRepository extends BaseRepository
         $salesUserId = $filters['sales_user_id'] ?? null;
 
         return $this->query()
-            ->with(['customer', 'quotation', 'service', 'statusOption', 'managerUser', 'salesUser'])
+            ->with(['customer', 'quotation', 'service', 'statusOption', 'managerUser', 'salesUser', 'createdBy'])
             ->when($keyword !== '', function ($query) use ($keyword): void {
                 $query->where(function ($query) use ($keyword): void {
                     $query
@@ -70,7 +70,7 @@ class ProjectRepository extends BaseRepository
     {
         /** @var Project|null $project */
         $project = $this->query()
-            ->with(['customer', 'quotation', 'service', 'statusOption', 'managerUser', 'salesUser', 'weeklySetting.reportOwner', 'timelines.createdBy'])
+            ->with(['customer', 'quotation', 'service', 'statusOption', 'managerUser', 'salesUser', 'createdBy', 'weeklySetting.reportOwner', 'timelines.createdBy'])
             ->whereKey($id)
             ->first();
 

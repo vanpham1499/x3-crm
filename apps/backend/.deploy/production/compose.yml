@@ -1,0 +1,80 @@
+name: x3crm
+
+x-logging: &default-logging
+  driver: json-file
+  options:
+    max-size: "10m"
+    max-file: "3"
+
+services:
+  db:
+    image: postgres:17-alpine
+    restart: unless-stopped
+    env_file: .env
+    environment:
+      POSTGRES_DB: ${DB_DATABASE}
+      POSTGRES_USER: ${DB_USERNAME}
+      POSTGRES_PASSWORD: ${DB_PASSWORD}
+    volumes:
+      - db_data:/var/lib/postgresql/data
+    ports:
+      # Chỉ mở trên loopback của VPS; máy ngoài phải đi qua SSH tunnel.
+      - "127.0.0.1:5432:5432"
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U ${DB_USERNAME} -d ${DB_DATABASE}"]
+      interval: 5s
+      timeout: 5s
+      retries: 20
+    logging: *default-logging
+
+  backend:
+    image: x3crm-backend:deploy
+    restart: unless-stopped
+    env_file: .env
+    environment:
+      DB_CONNECTION: pgsql
+      DB_USE_URL: "false"
+      DB_HOST: db
+      DB_PORT: 5432
+      MEDIA_PUBLIC_PATH: /app/public
+      PORT: 4000
+    volumes:
+      - uploads_data:/app/public/uploads
+    depends_on:
+      db:
+        condition: service_healthy
+    command: >-
+      sh -lc "php artisan migrate --force &&
+      php artisan optimize &&
+      exec php -S 0.0.0.0:4000 -t public public/index.php"
+    logging: *default-logging
+
+  frontend:
+    image: x3crm-frontend:deploy
+    restart: unless-stopped
+    environment:
+      NODE_ENV: production
+      PORT: 3000
+      HOSTNAME: 0.0.0.0
+    depends_on:
+      - backend
+    logging: *default-logging
+
+  nginx:
+    image: nginx:1.27-alpine
+    restart: unless-stopped
+    ports:
+      - "80:80"
+    volumes:
+      - ./nginx.conf:/etc/nginx/conf.d/default.conf:ro
+      - uploads_data:/usr/share/nginx/html/uploads:ro
+    depends_on:
+      - frontend
+      - backend
+    logging: *default-logging
+
+volumes:
+  db_data:
+  uploads_data:
+    external: true
+    name: x3crm_uploads_data

@@ -2,6 +2,7 @@
 
 namespace App\Http\Resources;
 
+use App\Models\Quotation;
 use App\Support\QuotationReference;
 use Illuminate\Http\Request;
 use Illuminate\Http\Resources\Json\JsonResource;
@@ -14,6 +15,15 @@ class QuotationResource extends JsonResource
             ? (float) $this->paymentAllocations->sum('amount')
             : 0.0;
         $totalAmount = (float) $this->total_amount;
+        $isPaymentLocked = $totalAmount > 0.01 && $paidAmount >= $totalAmount - 0.01;
+        $storedDepositAmount = (float) $this->deposit_amount;
+        $metadata = is_array($this->metadata) ? $this->metadata : [];
+        $expectedTotalWithDeposit = (float) $this->subtotal_amount
+            + (float) $this->vat_amount
+            + $storedDepositAmount;
+        $usesNonTaxableDeposit = ($metadata['depositMode'] ?? null) === Quotation::DEPOSIT_MODE_NON_TAXABLE_ADDITION
+            || ($storedDepositAmount > 0
+                && abs($totalAmount - $expectedTotalWithDeposit) < 0.01);
 
         return [
             'id' => $this->id,
@@ -34,7 +44,9 @@ class QuotationResource extends JsonResource
             'paidAmount' => round($paidAmount, 2),
             'outstandingAmount' => round(max(0, $totalAmount - $paidAmount), 2),
             'paymentStatus' => $this->paymentStatus($paidAmount, $totalAmount),
-            'depositAmount' => $this->deposit_amount,
+            'isPaymentLocked' => $isPaymentLocked,
+            'depositAmount' => $usesNonTaxableDeposit ? $this->deposit_amount : 0,
+            'accountReconciliationImageUrls' => $this->account_reconciliation_image_urls ?? [],
             'validUntil' => $this->valid_until?->toDateString(),
             'note' => $this->note,
             'metadata' => $this->metadata,
