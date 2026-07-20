@@ -71,10 +71,6 @@ class ServicesService extends BaseService
                 throw new ConflictHttpException('Không thể xóa dịch vụ đang được gán với dự án');
             }
 
-            if ($service->revenueItems()->exists()) {
-                throw new ConflictHttpException('Không thể xóa dịch vụ đang được gán với doanh thu');
-            }
-
             $service->delete();
 
             return ['message' => 'Xóa dịch vụ thành công'];

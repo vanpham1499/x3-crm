@@ -11,6 +11,8 @@ class Quotation extends BaseModel
 
     public const STATUS_WON = 'won';
 
+    public const DEPOSIT_MODE_NON_TAXABLE_ADDITION = 'non_taxable_addition_v1';
+
     protected $fillable = [
         'quotation_code',
         'lead_id',
@@ -26,6 +28,7 @@ class Quotation extends BaseModel
         'vat_amount',
         'total_amount',
         'deposit_amount',
+        'account_reconciliation_image_urls',
         'valid_until',
         'note',
         'metadata',
@@ -40,6 +43,7 @@ class Quotation extends BaseModel
         'vat_amount' => 'decimal:2',
         'total_amount' => 'decimal:2',
         'deposit_amount' => 'decimal:2',
+        'account_reconciliation_image_urls' => 'array',
         'valid_until' => 'date',
         'metadata' => 'array',
         'created_at' => 'datetime',

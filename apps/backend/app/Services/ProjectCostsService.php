@@ -74,12 +74,18 @@ class ProjectCostsService extends BaseService
             $this->authorizeAccounting();
             $cost = $this->costs->findForUpdateOrFail($id);
 
+            $updates = [
+                'status' => ProjectCost::STATUS_COMPLETED,
+            ];
+
             if (! $cost->reconciled_at) {
-                $this->costs->update($id, [
+                $updates = array_merge($updates, [
                     'reconciled_at' => now(),
                     'reconciled_by' => auth()->id(),
                 ]);
             }
+
+            $this->costs->update($id, $updates);
 
             return $this->apiResource(
                 $this->costs->findWithRelationsOrFail($id),
@@ -90,8 +96,8 @@ class ProjectCostsService extends BaseService
 
     /**
      * Merges submitted fields onto the record's current values (when updating) before
-     * recalculating derived amounts, so a partial PATCH cannot silently reset fields that
-     * were not part of the request (status, VAT/total amounts, acceptance/invoice status).
+     * recalculating derived amounts, then normalizes fields according to each cost type.
+     * Partner costs intentionally keep only partner, amount, date, status and note data.
      */
     private function preparePayload(array $data, ?ProjectCost $existing = null): array
     {
@@ -140,12 +146,18 @@ class ProjectCostsService extends BaseService
                 : 0;
             $data['total_amount'] = round($amountBeforeVat, 2);
         } else {
+            $data['quotation_id'] = null;
+            $data['bank_account_option_id'] = null;
             $data['cid'] = null;
             $data['ad_account'] = null;
             $data['cid_is_dead'] = false;
             $data['cid_spent_amount'] = 0;
-            $data['acceptance_status'] = $data['acceptance_status'] ?? 'pending';
-            $data['input_invoice_status'] = $data['input_invoice_status'] ?? 'pending';
+            $data['vat_rate'] = 0;
+            $data['vat_amount'] = 0;
+            $data['discount_amount'] = 0;
+            $data['total_amount'] = round($amountBeforeVat, 2);
+            $data['acceptance_status'] = null;
+            $data['input_invoice_status'] = null;
         }
 
         $this->validateQuotationProject($data);

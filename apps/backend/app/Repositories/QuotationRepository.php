@@ -74,6 +74,29 @@ class QuotationRepository extends BaseRepository
         return $quotation;
     }
 
+    public function findForUpdateOrFail(string $id): Quotation
+    {
+        /** @var Quotation|null $quotation */
+        $quotation = $this->query()
+            ->whereKey($id)
+            ->lockForUpdate()
+            ->first();
+
+        if (! $quotation) {
+            throw new NotFoundHttpException($this->notFoundMessage);
+        }
+
+        return $quotation->load([
+            'lead',
+            'customer',
+            'project',
+            'contract',
+            'service',
+            'items.service',
+            'paymentAllocations',
+        ]);
+    }
+
     public function findByCode(?string $code): ?Quotation
     {
         if (! $code) {

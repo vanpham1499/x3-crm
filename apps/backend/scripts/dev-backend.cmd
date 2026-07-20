@@ -24,6 +24,12 @@ if not exist "%PHP%" (
 
 cd /d "%ROOT%"
 
+set "ACTIVE_DB_PROFILE=%DB_PROFILE%"
+if "!ACTIVE_DB_PROFILE!"=="" (
+  for /f "tokens=1,* delims==" %%A in ('findstr /B "DB_PROFILE=" ".env" 2^>nul') do set "ACTIVE_DB_PROFILE=%%B"
+)
+if "!ACTIVE_DB_PROFILE!"=="" set "ACTIVE_DB_PROFILE=default"
+
 if not exist "vendor\autoload.php" (
   if not exist "%COMPOSER_PHAR%" (
     echo [dev:backend] Composer not found: %COMPOSER_PHAR%
@@ -37,9 +43,13 @@ if not exist "vendor\autoload.php" (
 )
 
 if not "%SKIP_DB_SETUP%"=="1" (
-  echo [dev:backend] Running migrations and seeders...
-  "%PHP%" -d extension=pdo_pgsql -d extension=pgsql artisan migrate --seed --force
-  if errorlevel 1 exit /b %errorlevel%
+  if /I "!ACTIVE_DB_PROFILE!"=="server" (
+    echo [dev:backend] DB_PROFILE=server - skipping automatic migrations and seeders.
+  ) else (
+    echo [dev:backend] Running migrations and seeders on !ACTIVE_DB_PROFILE! database...
+    "%PHP%" -d extension=pdo_pgsql -d extension=pgsql artisan migrate --seed --force
+    if errorlevel 1 exit /b %errorlevel%
+  )
 )
 
 if not "%START_NGROK%"=="0" (

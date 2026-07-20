@@ -223,7 +223,7 @@ class ProjectsService extends BaseService
 
     private function loadProjectRelations(Project $project): Project
     {
-        return $project->load(['customer', 'quotation', 'service', 'statusOption', 'managerUser', 'salesUser', 'weeklySetting.reportOwner', 'contracts.contractStatus', 'contracts.contractStatusOption', 'payments', 'timelines.createdBy']);
+        return $project->load(['customer', 'quotation', 'service', 'statusOption', 'managerUser', 'salesUser', 'createdBy', 'weeklySetting.reportOwner', 'contracts.contractStatus', 'contracts.contractStatusOption', 'payments', 'timelines.createdBy']);
     }
 
     private function syncWeeklySetting(

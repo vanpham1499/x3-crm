@@ -10,6 +10,7 @@ class UploadMediaRequest extends BaseRequest
     {
         return [
             'file' => ['required', 'file', 'image', 'mimes:jpeg,jpg,png,gif,webp', 'max:3072'],
+            'name' => ['nullable', 'string', 'max:255'],
         ];
     }
 }

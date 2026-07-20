@@ -17,9 +17,11 @@ class Customer extends BaseModel
         'representative_name',
         'tax_code',
         'identity_no',
+        'identity_image_urls',
         'address',
         'phone',
         'email',
+        'invoice_email',
         'website',
         'industry',
         'industry_option_id',
@@ -35,6 +37,7 @@ class Customer extends BaseModel
 
     protected $casts = [
         'birthday' => 'date',
+        'identity_image_urls' => 'array',
         'created_at' => 'datetime',
         'updated_at' => 'datetime',
         'deleted_at' => 'datetime',

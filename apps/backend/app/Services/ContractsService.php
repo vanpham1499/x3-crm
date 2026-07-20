@@ -65,6 +65,12 @@ class ContractsService extends BaseService
     {
         $data = $this->normalizeKeys($data);
         $projectId = $data['project_id'] ?? $existing?->project_id;
+        $quotationId = array_key_exists('quotation_id', $data)
+            ? $data['quotation_id']
+            : $existing?->quotation_id;
+
+        // Tiền cọc thuộc báo phí, không cho hợp đồng lưu một giá trị độc lập dễ bị lệch.
+        unset($data['deposit_amount']);
 
         if ($projectId) {
             $project = DB::table('projects')->where('id', $projectId)->whereNull('deleted_at')->first();
@@ -72,8 +78,8 @@ class ContractsService extends BaseService
             $data['contract_no'] = $data['contract_no'] ?? $existing?->contract_no ?? $project?->project_code;
         }
 
-        if (! empty($data['quotation_id'])) {
-            $quotation = DB::table('quotations')->where('id', $data['quotation_id'])->whereNull('deleted_at')->first();
+        if (! empty($quotationId)) {
+            $quotation = DB::table('quotations')->where('id', $quotationId)->whereNull('deleted_at')->first();
 
             if ($quotation?->project_id && (string) $quotation->project_id !== (string) $projectId) {
                 throw ValidationException::withMessages([
@@ -83,6 +89,9 @@ class ContractsService extends BaseService
 
             $data['lead_id'] = $data['lead_id'] ?? $existing?->lead_id ?? $quotation?->lead_id;
             $data['customer_id'] = $data['customer_id'] ?? $quotation?->customer_id;
+            $data['deposit_amount'] = $quotation?->deposit_amount ?? 0;
+        } else {
+            $data['deposit_amount'] = 0;
         }
 
         $modeProvided = array_key_exists('invoice_recipient_type', $data);
@@ -102,7 +111,7 @@ class ContractsService extends BaseService
                 $data['invoice_representative_name'] = $customer->representative_name;
                 $data['invoice_tax_code'] = $customer->tax_code;
                 $data['invoice_address'] = $customer->address;
-                $data['invoice_email'] = $customer->email;
+                $data['invoice_email'] = $customer->invoice_email ?: $customer->email;
                 $data['invoice_phone'] = $customer->phone;
             }
         }

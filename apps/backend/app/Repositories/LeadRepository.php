@@ -47,7 +47,7 @@ class LeadRepository extends BaseRepository
         $closedTo = $filters['closed_to'] ?? null;
 
         return $this->query()
-            ->with(['statusOption', 'assignedUser', 'sourceOption', 'industryOption', 'interestedServiceOption', 'interestedServiceOptions', 'interestedService', 'convertedCustomer'])
+            ->with(['statusOption', 'assignedUser', 'createdBy', 'sourceOption', 'industryOption', 'interestedServiceOption', 'interestedServiceOptions', 'interestedService', 'convertedCustomer'])
             ->when($keyword !== '', function ($query) use ($keyword): void {
                 $query->where(function ($query) use ($keyword): void {
                     $query
@@ -84,7 +84,7 @@ class LeadRepository extends BaseRepository
     {
         /** @var Lead|null $lead */
         $lead = $this->query()
-            ->with(['statusOption', 'assignedUser', 'sourceOption', 'industryOption', 'interestedServiceOption', 'interestedServiceOptions', 'interestedService', 'convertedCustomer', 'timelines.createdBy'])
+            ->with(['statusOption', 'assignedUser', 'createdBy', 'sourceOption', 'industryOption', 'interestedServiceOption', 'interestedServiceOptions', 'interestedService', 'convertedCustomer', 'timelines.createdBy'])
             ->whereKey($id)
             ->first();
 

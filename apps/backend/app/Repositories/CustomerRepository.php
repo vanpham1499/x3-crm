@@ -42,7 +42,7 @@ class CustomerRepository extends BaseRepository
         $leadId = $filters['lead_id'] ?? null;
 
         return $this->query()
-            ->with(['lead', 'customerTypeOption', 'sourceOption', 'industryOption', 'salesUser'])
+            ->with(['lead', 'customerTypeOption', 'sourceOption', 'industryOption', 'salesUser', 'createdBy'])
             ->when($keyword !== '', function ($query) use ($keyword): void {
                 $query->where(function ($query) use ($keyword): void {
                     $query
@@ -70,7 +70,7 @@ class CustomerRepository extends BaseRepository
     {
         /** @var Customer|null $customer */
         $customer = $this->query()
-            ->with(['lead', 'customerTypeOption', 'sourceOption', 'industryOption', 'salesUser', 'projects', 'timelines.createdBy'])
+            ->with(['lead', 'customerTypeOption', 'sourceOption', 'industryOption', 'salesUser', 'createdBy', 'projects', 'timelines.createdBy'])
             ->whereKey($id)
             ->first();
 

@@ -190,17 +190,30 @@ class DatabaseSeeder extends Seeder
         ];
 
         foreach ($users as $user) {
-            User::query()->updateOrCreate(
-                ['email' => $user['email']],
-                [
-                    'code' => $user['code'],
-                    'name' => $user['name'],
-                    'password' => Hash::make($user['password']),
-                    'role' => $user['role'],
-                    'role_id' => $roleIds[$user['role']],
-                    'is_active' => true,
-                ],
-            );
+            $record = User::query()
+                ->withTrashed()
+                ->where('code', $user['code'])
+                ->orWhere('email', $user['email'])
+                ->first();
+
+            $payload = [
+                'code' => $user['code'],
+                'name' => $user['name'],
+                'email' => $user['email'],
+                'password' => Hash::make($user['password']),
+                'role' => $user['role'],
+                'role_id' => $roleIds[$user['role']],
+                'is_active' => true,
+                'deleted_at' => null,
+            ];
+
+            if ($record) {
+                $record->forceFill($payload)->save();
+
+                continue;
+            }
+
+            User::query()->create($payload);
         }
     }
 }

@@ -37,6 +37,12 @@ class LeadResource extends JsonResource
                 'name' => $this->assignedUser->name,
                 'email' => $this->assignedUser->email,
             ] : null),
+            'createdBy' => $this->whenLoaded('createdBy', fn () => $this->createdBy ? [
+                'id' => $this->createdBy->id,
+                'code' => $this->createdBy->code,
+                'name' => $this->createdBy->name,
+                'email' => $this->createdBy->email,
+            ] : null),
             'sourceOption' => $this->whenLoaded('sourceOption', fn () => $this->sourceOption ? new OptionResource($this->sourceOption) : null),
             'industryOption' => $this->whenLoaded('industryOption', fn () => $this->industryOption ? new OptionResource($this->industryOption) : null),
             'interestedServiceOption' => $this->whenLoaded('interestedServiceOption', fn () => $this->interestedServiceOption ? new OptionResource($this->interestedServiceOption) : null),
