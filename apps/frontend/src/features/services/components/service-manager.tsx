@@ -22,6 +22,7 @@ import { MoneyInput } from '@/components/form/money-input';
 import { PageHeader } from '@/components/shell/page-header';
 import { AppDataTable } from '@/components/table/app-data-table';
 import { applyApiErrorsToForm } from '@/lib/api-error';
+import { canManageCatalog } from '@/lib/ownership';
 import {
   DEFAULT_MANAGEMENT_FEE_RATES,
   DEFAULT_SETUP_PACKAGES,
@@ -31,6 +32,7 @@ import {
 } from '@/lib/service-quote-config';
 import { flattenServices, getServiceDefaults } from '@/lib/service-utils';
 import type { FlatServiceItem } from '@/lib/service-utils';
+import { useAuthStore } from '@/stores/auth-store';
 import type { AppOption } from '@/types/option';
 import type { ServiceFilters, ServiceFormValues, ServiceItem } from '@/types/service';
 
@@ -379,6 +381,8 @@ export function ServiceManager({
   onDelete,
   onSaveQuoteConfig,
 }: ServiceManagerProps) {
+  const currentUser = useAuthStore((state) => state.user);
+  const canManage = canManageCatalog(currentUser);
   const [dialogState, setDialogState] = useState<DialogState | null>(null);
   const [quoteConfigDialogState, setQuoteConfigDialogState] =
     useState<QuoteConfigDialogState | null>(null);
@@ -419,6 +423,7 @@ export function ServiceManager({
           label: 'Thêm dịch vụ',
           icon: <AddRoundedIcon />,
           onClick: () => setDialogState({ mode: 'create', parent: null }),
+          disabled: !canManage,
         }}
       />
 
@@ -498,7 +503,7 @@ export function ServiceManager({
                         size="small"
                         title="Cấu hình báo giá"
                         aria-label={`Cấu hình báo giá dịch vụ ${service.name}`}
-                        disabled={isSavingQuoteConfig}
+                        disabled={isSavingQuoteConfig || !canManage}
                         onClick={() =>
                           setQuoteConfigDialogState({
                             service,
@@ -513,6 +518,7 @@ export function ServiceManager({
                       size="small"
                       title="Thêm dịch vụ con"
                       aria-label={`Thêm dịch vụ con cho ${service.name}`}
+                      disabled={!canManage}
                       onClick={() => setDialogState({ mode: 'create', parent: service })}
                     >
                       <AddRoundedIcon fontSize="small" />
@@ -521,6 +527,7 @@ export function ServiceManager({
                       size="small"
                       title="Chỉnh sửa"
                       aria-label={`Chỉnh sửa dịch vụ ${service.name}`}
+                      disabled={!canManage}
                       onClick={() => setDialogState({ mode: 'edit', service })}
                     >
                       <EditRoundedIcon fontSize="small" />
@@ -543,7 +550,7 @@ export function ServiceManager({
         <Menu anchorEl={menuAnchorEl} open={Boolean(menuAnchorEl)} onClose={closeActionMenu}>
           {activeService?.depth === 0 && (
             <MenuItem
-              disabled={isSavingQuoteConfig}
+              disabled={isSavingQuoteConfig || !canManage}
               onClick={() => {
                 if (activeService) {
                   setQuoteConfigDialogState({
@@ -559,6 +566,7 @@ export function ServiceManager({
             </MenuItem>
           )}
           <MenuItem
+            disabled={!canManage}
             onClick={() => {
               if (activeService) setDialogState({ mode: 'create', parent: activeService });
               closeActionMenu();
@@ -568,6 +576,7 @@ export function ServiceManager({
             Thêm dịch vụ con
           </MenuItem>
           <MenuItem
+            disabled={!canManage}
             onClick={() => {
               if (activeService) setDialogState({ mode: 'edit', service: activeService });
               closeActionMenu();
@@ -578,7 +587,7 @@ export function ServiceManager({
           </MenuItem>
           <MenuItem
             className="text-rose-600"
-            disabled={isDeleting}
+            disabled={isDeleting || !canManage}
             onClick={() => {
               if (activeService) setDeleteTarget(activeService);
               closeActionMenu();

@@ -32,6 +32,7 @@ class KpiPointResource extends JsonResource
                 'id' => $this->project->id,
                 'projectCode' => $this->project->project_code,
                 'projectName' => $this->project->project_name,
+                'managerUserId' => $this->project->manager_user_id,
             ] : null),
             'approver' => $this->whenLoaded('approver', fn () => $this->approver ? [
                 'id' => $this->approver->id,

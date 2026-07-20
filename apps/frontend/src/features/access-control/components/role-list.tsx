@@ -17,13 +17,16 @@ import { AppDataTable } from '@/components/table/app-data-table';
 import { TablePaginationBar } from '@/components/table/table-pagination-bar';
 import { usePagination } from '@/hooks/use-pagination';
 import { getPermissionModuleLabel, groupPermissionsByModule } from '@/lib/access-control-utils';
+import { canCreateRoles, canDeleteRoles, canEditRoles } from '@/lib/ownership';
 import { formatDate } from '@/lib/utils';
 import type { Role, RoleFilters } from '@/types/access-control';
+import type { User } from '@/types/user';
 
 type RoleListProps = {
   roles: Role[];
   filters: RoleFilters;
   isFetching: boolean;
+  currentUser: User | null;
   onFiltersChange: (filters: RoleFilters) => void;
   onDelete: (role: Role) => void;
   onBulkDelete: (roleIds: number[]) => void;
@@ -105,11 +108,15 @@ export function RoleList({
   roles,
   filters,
   isFetching,
+  currentUser,
   onFiltersChange,
   onDelete,
   onBulkDelete,
   isDeleting = false,
 }: RoleListProps) {
+  const canCreate = canCreateRoles(currentUser);
+  const canEdit = canEditRoles(currentUser);
+  const canDelete = canDeleteRoles(currentUser);
   const [viewTarget, setViewTarget] = useState<Role | null>(null);
   const [menuAnchorEl, setMenuAnchorEl] = useState<HTMLElement | null>(null);
   const [activeRole, setActiveRole] = useState<Role | null>(null);
@@ -159,7 +166,12 @@ export function RoleList({
     <div className="min-h-[calc(100vh-72px)] w-full bg-slate-50/60 p-6">
       <PageHeader
         title="Vai trò"
-        action={{ label: 'Thêm vai trò', href: '/users/roles/new', icon: <AddRoundedIcon /> }}
+        action={{
+          label: 'Thêm vai trò',
+          href: '/users/roles/new',
+          icon: <AddRoundedIcon />,
+          disabled: !canCreate,
+        }}
       />
 
       <section className="w-full overflow-hidden rounded-2xl border border-slate-200 bg-white shadow-sm">
@@ -186,7 +198,7 @@ export function RoleList({
             <IconButton
               size="small"
               color="success"
-              disabled={isDeleting}
+              disabled={isDeleting || !canDelete}
               onClick={() => {
                 onBulkDelete(selectedRoleIds);
                 setSelectedRoleIds([]);
@@ -279,6 +291,7 @@ export function RoleList({
                       size="small"
                       aria-label="Chỉnh sửa vai trò"
                       title="Chỉnh sửa vai trò"
+                      disabled={!canEdit}
                     >
                       <EditRoundedIcon fontSize="small" />
                     </IconButton>
@@ -320,13 +333,14 @@ export function RoleList({
           component={Link}
           href={activeRole ? `/users/roles/${activeRole.id}` : '/users/roles'}
           onClick={closeActionMenu}
+          disabled={!canEdit}
         >
           <EditRoundedIcon fontSize="small" className="mr-2 text-slate-500" />
           Chỉnh sửa
         </MenuItem>
         <MenuItem
           className="text-rose-600"
-          disabled={isDeleting}
+          disabled={isDeleting || !canDelete}
           onClick={() => {
             if (activeRole) onDelete(activeRole);
             closeActionMenu();

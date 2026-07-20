@@ -18,6 +18,7 @@ import { CompactSelectField } from '@/components/form/compact-select-field';
 import { AppDataTable } from '@/components/table/app-data-table';
 import { EntityTableLink } from '@/components/table/entity-table-link';
 import { TablePaginationBar } from '@/components/table/table-pagination-bar';
+import { canApproveWeeklyReport } from '@/lib/ownership';
 import { getReportWeekdayLabel } from '@/lib/weekly-report-schedule';
 import { formatDate } from '@/lib/utils';
 import type { User } from '@/types/user';
@@ -38,7 +39,7 @@ type WeeklyReportBoardProps = {
   isSubmitting: boolean;
   isApproving: boolean;
   isReturning: boolean;
-  canApprove: boolean;
+  currentUser: User | null;
   page: number;
   totalPages: number;
   totalItems: number;
@@ -169,7 +170,7 @@ export function WeeklyReportBoard({
   isSubmitting,
   isApproving,
   isReturning,
-  canApprove,
+  currentUser,
   page,
   totalPages,
   totalItems,
@@ -386,7 +387,9 @@ export function WeeklyReportBoard({
             Gửi duyệt
           </MenuItem>
         ) : null}
-        {activeRow?.report?.status === 'submitted' && canApprove ? (
+        {activeRow?.report?.status === 'submitted' &&
+        activeRow.report &&
+        canApproveWeeklyReport(currentUser, activeRow.report) ? (
           <MenuItem
             disabled={isApproving}
             onClick={() => {
@@ -398,7 +401,9 @@ export function WeeklyReportBoard({
             Duyệt báo cáo
           </MenuItem>
         ) : null}
-        {activeRow?.report?.status === 'submitted' && canApprove ? (
+        {activeRow?.report?.status === 'submitted' &&
+        activeRow.report &&
+        canApproveWeeklyReport(currentUser, activeRow.report) ? (
           <MenuItem
             disabled={isReturning}
             onClick={() => {

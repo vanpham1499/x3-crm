@@ -48,7 +48,7 @@ export type WeeklyReport = {
   submittedAt?: string | null;
   approvedBy?: number | null;
   approvedAt?: string | null;
-  project?: Pick<ProjectItem, 'id' | 'projectCode' | 'projectName'> | null;
+  project?: Pick<ProjectItem, 'id' | 'projectCode' | 'projectName' | 'managerUserId'> | null;
   customer?: Pick<Customer, 'id' | 'customerCode' | 'customerName'> | null;
   reporter?: Pick<User, 'id' | 'name'> | null;
   approver?: Pick<User, 'id' | 'name'> | null;

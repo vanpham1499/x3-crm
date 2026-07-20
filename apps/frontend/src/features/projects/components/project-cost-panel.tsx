@@ -22,16 +22,19 @@ import { FormSelectField } from '@/components/form/form-select-field';
 import { MoneyInput } from '@/components/form/money-input';
 import { applyApiErrorsToForm, getApiErrorMessage } from '@/lib/api-error';
 import { getBankAccountBankCode } from '@/lib/company-bank-account-options';
+import { canEditProject } from '@/lib/ownership';
 import { getPartnerMetaValue } from '@/lib/project-partner-options';
 import { calculateAvailableTopupBudget, isManagedBudgetProject } from '@/lib/project-topup-budget';
 import { formatCurrency } from '@/lib/utils';
 import api from '@/services/api/client';
+import { useAuthStore } from '@/stores/auth-store';
 import type { AppOption } from '@/types/option';
 import type {
   ProjectCost,
   ProjectCostEntryType,
   ProjectCostFormValues,
 } from '@/types/project-cost';
+import type { ProjectItem } from '@/types/project';
 import type { Quotation } from '@/types/quotation';
 
 const COST_STATUS_LABELS: Record<string, string> = {
@@ -501,6 +504,7 @@ function CostDialog({
 }
 
 export function ProjectCostPanel({
+  project,
   projectId,
   projectType,
   projectCode,
@@ -510,6 +514,7 @@ export function ProjectCostPanel({
   bankAccounts,
   partners,
 }: {
+  project: ProjectItem;
   projectId: number;
   projectType?: 'K' | 'M' | null;
   projectCode?: string | null;
@@ -523,6 +528,8 @@ export function ProjectCostPanel({
   const visibleCosts = costs.filter((cost) => cost.entryType === entryType);
   const queryClient = useQueryClient();
   const notify = useAppNotification();
+  const currentUser = useAuthStore((state) => state.user);
+  const canManage = canEditProject(currentUser, project);
   const [dialogOpen, setDialogOpen] = useState(false);
   const [editingCost, setEditingCost] = useState<ProjectCost | null>(null);
   const [deleteTarget, setDeleteTarget] = useState<ProjectCost | null>(null);
@@ -605,7 +612,7 @@ export function ProjectCostPanel({
             {entryType === 'ad_spend' ? 'Chi phí nạp quảng cáo' : 'Chi phí đối tác'}
           </h2>
         </div>
-        <TabActionButton startIcon={<AddRoundedIcon />} onClick={openCreate}>
+        <TabActionButton startIcon={<AddRoundedIcon />} onClick={openCreate} disabled={!canManage}>
           {entryType === 'ad_spend' ? 'Thêm lần nạp' : 'Thêm chi phí'}
         </TabActionButton>
       </div>
@@ -691,6 +698,7 @@ export function ProjectCostPanel({
                               title="Sửa"
                               aria-label={`Sửa lần nạp ${cost.cid || cost.id}`}
                               onClick={() => openEdit(cost)}
+                              disabled={!canManage}
                             >
                               <EditOutlinedIcon fontSize="small" />
                             </IconButton>
@@ -699,6 +707,7 @@ export function ProjectCostPanel({
                               title="Xóa"
                               aria-label={`Xóa lần nạp ${cost.cid || cost.id}`}
                               onClick={() => setDeleteTarget(cost)}
+                              disabled={!canManage}
                             >
                               <DeleteOutlineRoundedIcon fontSize="small" />
                             </IconButton>
@@ -794,13 +803,19 @@ export function ProjectCostPanel({
                           </span>
                         ) : (
                           <>
-                            <IconButton size="small" title="Sửa" onClick={() => openEdit(cost)}>
+                            <IconButton
+                              size="small"
+                              title="Sửa"
+                              onClick={() => openEdit(cost)}
+                              disabled={!canManage}
+                            >
                               <EditOutlinedIcon fontSize="small" />
                             </IconButton>
                             <IconButton
                               size="small"
                               title="Xóa"
                               onClick={() => setDeleteTarget(cost)}
+                              disabled={!canManage}
                             >
                               <DeleteOutlineRoundedIcon fontSize="small" />
                             </IconButton>

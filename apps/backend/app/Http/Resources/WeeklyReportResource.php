@@ -33,6 +33,7 @@ class WeeklyReportResource extends JsonResource
                 'id' => $this->project->id,
                 'projectCode' => $this->project->project_code,
                 'projectName' => $this->project->project_name,
+                'managerUserId' => $this->project->manager_user_id,
             ] : null),
             'customer' => $this->whenLoaded('customer', fn () => $this->customer ? [
                 'id' => $this->customer->id,

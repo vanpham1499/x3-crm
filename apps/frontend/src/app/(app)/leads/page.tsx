@@ -9,6 +9,7 @@ import { useServerListState } from '@/hooks/use-server-list-state';
 import { getApiErrorMessage } from '@/lib/api-error';
 import { getLeadParams } from '@/lib/lead-utils';
 import api from '@/services/api/client';
+import { useAuthStore } from '@/stores/auth-store';
 import type { Lead, LeadFilters } from '@/types/lead';
 import type { AppOption } from '@/types/option';
 import type { PaginatedResponse } from '@/types/pagination';
@@ -20,6 +21,7 @@ const LEADS_LIST_QUERY_KEY = ['leads', 'list'] as const;
 export default function LeadsPage() {
   const queryClient = useQueryClient();
   const notify = useAppNotification();
+  const currentUser = useAuthStore((state) => state.user);
   const { filters, requestFilters, page, pageSize, setPage, setPageSize, onFiltersChange } =
     useServerListState<LeadFilters>({
       initialFilters: {
@@ -118,6 +120,7 @@ export default function LeadsPage() {
       pageSize={pageSize}
       isFetching={isFetching}
       isDeleting={deleteMutation.isPending}
+      currentUser={currentUser}
       onPageChange={setPage}
       onPageSizeChange={setPageSize}
       onFiltersChange={onFiltersChange}

@@ -22,6 +22,7 @@ import { PageHeader } from '@/components/shell/page-header';
 import { AppDataTable } from '@/components/table/app-data-table';
 import { EntityTableLink } from '@/components/table/entity-table-link';
 import { TablePaginationBar } from '@/components/table/table-pagination-bar';
+import { canCreateProjectForCustomer, canDeleteCustomer, canEditCustomer } from '@/lib/ownership';
 import api from '@/services/api/client';
 import type { Customer, CustomerFilters } from '@/types/customer';
 import type { AppOption } from '@/types/option';
@@ -40,6 +41,7 @@ type CustomerManagerProps = {
   pageSize: number;
   isFetching: boolean;
   isDeleting: boolean;
+  currentUser: User | null;
   onPageChange: (page: number) => void;
   onPageSizeChange: (pageSize: number) => void;
   onFiltersChange: (filters: CustomerFilters) => void;
@@ -84,12 +86,14 @@ function CustomerViewDialog({
   customer,
   tab,
   isLoading,
+  currentUser,
   onTabChange,
   onClose,
 }: {
   customer: Customer | null;
   tab: number;
   isLoading: boolean;
+  currentUser: User | null;
   onTabChange: (tab: number) => void;
   onClose: () => void;
 }) {
@@ -107,6 +111,7 @@ function CustomerViewDialog({
           <DialogActionButton
             href={`/projects/new?customerId=${customer.id}`}
             startIcon={<WorkRoundedIcon />}
+            disabled={!canCreateProjectForCustomer(currentUser, customer)}
           >
             Tạo dự án
           </DialogActionButton>
@@ -114,6 +119,7 @@ function CustomerViewDialog({
             href={`/customers/${customer.id}`}
             tone="primary"
             startIcon={<EditRoundedIcon />}
+            disabled={!canEditCustomer(currentUser, customer)}
           >
             Chỉnh sửa
           </DialogActionButton>
@@ -206,6 +212,7 @@ export function CustomerManager({
   pageSize,
   isFetching,
   isDeleting,
+  currentUser,
   onPageChange,
   onPageSizeChange,
   onFiltersChange,
@@ -386,6 +393,7 @@ export function CustomerManager({
                       href={`/customers/${customer.id}`}
                       size="small"
                       title="Chỉnh sửa khách hàng"
+                      disabled={!canEditCustomer(currentUser, customer)}
                     >
                       <EditRoundedIcon fontSize="small" />
                     </IconButton>
@@ -394,6 +402,7 @@ export function CustomerManager({
                       href={`/projects/new?customerId=${customer.id}`}
                       size="small"
                       title="Tạo dự án"
+                      disabled={!canCreateProjectForCustomer(currentUser, customer)}
                     >
                       <WorkRoundedIcon fontSize="small" />
                     </IconButton>
@@ -416,15 +425,25 @@ export function CustomerManager({
             <VisibilityRoundedIcon fontSize="small" className="mr-2 text-slate-500" />
             Xem chi tiết
           </MenuItem>
-          <MenuItem onClick={editActiveCustomer}>
+          <MenuItem
+            onClick={editActiveCustomer}
+            disabled={!activeCustomer || !canEditCustomer(currentUser, activeCustomer)}
+          >
             <EditRoundedIcon fontSize="small" className="mr-2 text-slate-500" />
             Chỉnh sửa
           </MenuItem>
-          <MenuItem onClick={createProjectForActiveCustomer}>
+          <MenuItem
+            onClick={createProjectForActiveCustomer}
+            disabled={!activeCustomer || !canCreateProjectForCustomer(currentUser, activeCustomer)}
+          >
             <WorkRoundedIcon fontSize="small" className="mr-2 text-slate-500" />
             Tạo dự án
           </MenuItem>
-          <MenuItem onClick={deleteActiveCustomer} className="text-rose-600" disabled={isDeleting}>
+          <MenuItem
+            onClick={deleteActiveCustomer}
+            className="text-rose-600"
+            disabled={isDeleting || !activeCustomer || !canDeleteCustomer(currentUser, activeCustomer)}
+          >
             <DeleteRoundedIcon fontSize="small" className="mr-2" />
             Xóa
           </MenuItem>
@@ -444,6 +463,7 @@ export function CustomerManager({
         customer={viewCustomerDetail || viewTarget}
         tab={viewTab}
         isLoading={isFetchingViewCustomer}
+        currentUser={currentUser}
         onTabChange={setViewTab}
         onClose={() => setViewTarget(null)}
       />

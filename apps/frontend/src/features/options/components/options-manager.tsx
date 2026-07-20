@@ -34,6 +34,8 @@ import { FormInputField } from '@/components/form/form-input-field';
 import { IconTabs } from '@/components/navigation/icon-tabs';
 import { PageHeader } from '@/components/shell/page-header';
 import { applyApiErrorsToForm } from '@/lib/api-error';
+import { canManageCatalog } from '@/lib/ownership';
+import { useAuthStore } from '@/stores/auth-store';
 import {
   OPTION_SECTIONS,
   getOptionColor,
@@ -148,12 +150,14 @@ function SortableOptionCard({
   option,
   group,
   isReordering,
+  canManage,
   onEdit,
   onDelete,
 }: {
   option: AppOption;
   group: OptionGroupConfig;
   isReordering: boolean;
+  canManage: boolean;
   onEdit: (group: OptionGroupConfig, option: AppOption) => void;
   onDelete: (option: AppOption) => void;
 }) {
@@ -167,7 +171,7 @@ function SortableOptionCard({
     setNodeRef,
     transform,
     transition,
-  } = useSortable({ id: option.id, disabled: isReordering });
+  } = useSortable({ id: option.id, disabled: isReordering || !canManage });
 
   return (
     <div
@@ -207,7 +211,7 @@ function SortableOptionCard({
             aria-label={`Chỉnh sửa ${option.label}`}
             title="Chỉnh sửa"
             className="!h-8 !w-8"
-            disabled={isReordering}
+            disabled={isReordering || !canManage}
             onClick={() => onEdit(group, option)}
           >
             <EditRoundedIcon fontSize="small" />
@@ -218,7 +222,7 @@ function SortableOptionCard({
             aria-label={`Mở tác vụ ${option.label}`}
             title="Tác vụ"
             className="!h-8 !w-8"
-            disabled={isReordering}
+            disabled={isReordering || !canManage}
             onClick={(event) => setMenuAnchorEl(event.currentTarget)}
           >
             <MoreVertRoundedIcon fontSize="small" />
@@ -229,9 +233,9 @@ function SortableOptionCard({
             type="button"
             aria-label={`Kéo để sắp xếp ${option.label}`}
             title="Kéo để sắp xếp"
-            disabled={isReordering}
+            disabled={isReordering || !canManage}
             className={`inline-flex h-8 w-8 cursor-grab items-center justify-center rounded-md text-slate-400 transition hover:bg-slate-100 hover:text-slate-600 active:cursor-grabbing ${
-              isReordering ? 'cursor-not-allowed opacity-40' : ''
+              isReordering || !canManage ? 'cursor-not-allowed opacity-40' : ''
             }`}
             {...attributes}
             {...listeners}
@@ -281,6 +285,8 @@ export function OptionsManager({
   onDelete,
   onReorder,
 }: OptionsManagerProps) {
+  const currentUser = useAuthStore((state) => state.user);
+  const canManage = canManageCatalog(currentUser);
   const [dialogState, setDialogState] = useState<DialogState | null>(null);
   const [deleteTarget, setDeleteTarget] = useState<AppOption | null>(null);
   const [activeSectionIndex, setActiveSectionIndex] = useState(0);
@@ -383,7 +389,7 @@ export function OptionsManager({
                         size="small"
                         aria-label={`Thêm tùy chọn ${group.title}`}
                         title="Thêm option"
-                        disabled={isGroupLoading}
+                        disabled={isGroupLoading || !canManage}
                         onClick={() => setDialogState({ mode: 'create', group })}
                       >
                         <AddRoundedIcon fontSize="small" />
@@ -412,6 +418,7 @@ export function OptionsManager({
                               option={option}
                               group={group}
                               isReordering={isGroupLoading}
+                              canManage={canManage}
                               onEdit={(editGroup, editOption) =>
                                 setDialogState({
                                   mode: 'edit',

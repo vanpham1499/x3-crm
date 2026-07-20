@@ -11,7 +11,9 @@ import { PageHeader } from '@/components/shell/page-header';
 import { CustomerApiForm } from '@/features/customers/components/customer-api-form';
 import { buildCustomerPayload, customerToFormValues } from '@/lib/customer-form-utils';
 import { getApiErrorMessage } from '@/lib/api-error';
+import { canEditCustomer } from '@/lib/ownership';
 import api from '@/services/api/client';
+import { useAuthStore } from '@/stores/auth-store';
 import type { Customer, CustomerFormValues } from '@/types/customer';
 import type { AppOption } from '@/types/option';
 import type { User } from '@/types/user';
@@ -21,6 +23,7 @@ export default function EditCustomerPage() {
   const id = params.id as string;
   const queryClient = useQueryClient();
   const notify = useAppNotification();
+  const currentUser = useAuthStore((state) => state.user);
 
   const { data: users = [] } = useQuery<User[]>({
     queryKey: ['users', 'customer-form-options'],
@@ -104,6 +107,7 @@ export default function EditCustomerPage() {
         customerTypes={customerTypes}
         sources={sources}
         isSubmitting={updateMutation.isPending}
+        readOnly={!canEditCustomer(currentUser, customer)}
         onSubmit={(values) => updateMutation.mutateAsync(values)}
       />
     </div>

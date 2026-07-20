@@ -35,6 +35,7 @@ import {
   getServiceQuoteConfigMeta,
 } from '@/lib/service-quote-config';
 import { flattenServices } from '@/lib/service-utils';
+import { canCreateProject, canDeleteProject, canEditProject } from '@/lib/ownership';
 import api from '@/services/api/client';
 import type { AppOption } from '@/types/option';
 import type { ProjectFilters, ProjectItem } from '@/types/project';
@@ -54,6 +55,7 @@ type ProjectManagerProps = {
   pageSize: number;
   isFetching: boolean;
   isDeleting: boolean;
+  currentUser: User | null;
   onPageChange: (page: number) => void;
   onPageSizeChange: (pageSize: number) => void;
   onFiltersChange: (filters: ProjectFilters) => void;
@@ -113,6 +115,7 @@ function ProjectViewDialog({
   quoteConfigs,
   tab,
   isLoading,
+  currentUser,
   onTabChange,
   onClose,
 }: {
@@ -121,6 +124,7 @@ function ProjectViewDialog({
   quoteConfigs: AppOption[];
   tab: number;
   isLoading: boolean;
+  currentUser: User | null;
   onTabChange: (tab: number) => void;
   onClose: () => void;
 }) {
@@ -146,6 +150,7 @@ function ProjectViewDialog({
             href={`/projects/${project.id}`}
             tone="primary"
             startIcon={<EditRoundedIcon />}
+            disabled={!canEditProject(currentUser, project)}
           >
             Chỉnh sửa
           </DialogActionButton>
@@ -245,6 +250,7 @@ export function ProjectManager({
   pageSize,
   isFetching,
   isDeleting,
+  currentUser,
   onPageChange,
   onPageSizeChange,
   onFiltersChange,
@@ -301,6 +307,7 @@ export function ProjectManager({
           label: 'Thêm dự án',
           href: '/projects/new',
           icon: <AddRoundedIcon />,
+          disabled: !canCreateProject(currentUser),
         }}
       />
 
@@ -475,6 +482,7 @@ export function ProjectManager({
                       size="small"
                       title="Chỉnh sửa"
                       aria-label={`Chỉnh sửa dự án ${project.projectCode || project.projectName}`}
+                      disabled={!canEditProject(currentUser, project)}
                     >
                       <EditRoundedIcon fontSize="small" />
                     </IconButton>
@@ -511,11 +519,16 @@ export function ProjectManager({
             component={Link}
             href={activeProject ? `/projects/${activeProject.id}` : '/projects'}
             onClick={closeActionMenu}
+            disabled={!activeProject || !canEditProject(currentUser, activeProject)}
           >
             <EditRoundedIcon fontSize="small" className="mr-2 text-slate-500" />
             Chỉnh sửa
           </MenuItem>
-          <MenuItem onClick={deleteActiveProject} className="text-rose-600" disabled={isDeleting}>
+          <MenuItem
+            onClick={deleteActiveProject}
+            className="text-rose-600"
+            disabled={isDeleting || !activeProject || !canDeleteProject(currentUser, activeProject)}
+          >
             <DeleteRoundedIcon fontSize="small" className="mr-2" />
             Xóa
           </MenuItem>
@@ -528,6 +541,7 @@ export function ProjectManager({
         quoteConfigs={quoteConfigs}
         tab={viewTab}
         isLoading={isFetchingViewProject}
+        currentUser={currentUser}
         onTabChange={setViewTab}
         onClose={() => setViewTarget(null)}
       />

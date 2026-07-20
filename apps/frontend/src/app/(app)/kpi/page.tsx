@@ -61,7 +61,6 @@ export default function KpiPage() {
   const queryClient = useQueryClient();
   const notify = useAppNotification();
   const currentUser = useAuthStore((state) => state.user);
-  const canApprove = currentUser?.role === 'ADMIN' || currentUser?.role === 'LEADER';
   const [page, setPage] = useState(1);
   const [pageSize, setPageSize] = useState(KPI_PAGE_SIZE);
   const [filters, setFilters] = useState<KpiPointFilters>({
@@ -194,7 +193,7 @@ export default function KpiPage() {
       isSaving={saveMutation.isPending}
       isDeleting={deleteMutation.isPending}
       isApproving={approveMutation.isPending}
-      canApprove={canApprove}
+      currentUser={currentUser}
       page={page}
       totalPages={pagination.lastPage}
       totalItems={pagination.total}

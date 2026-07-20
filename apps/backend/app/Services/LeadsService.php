@@ -9,7 +9,6 @@ use App\Models\CustomerTimeline;
 use App\Models\Lead;
 use App\Models\Option;
 use App\Models\Quotation;
-use App\Models\User;
 use App\Repositories\LeadRepository;
 use Illuminate\Support\Collection;
 use Illuminate\Support\Facades\DB;
@@ -51,6 +50,7 @@ class LeadsService extends BaseService
     public function create(array $data): array
     {
         return $this->transaction(function () use ($data): array {
+            $this->authorize('create', \App\Models\Lead::class);
             $serviceOptionIds = $this->extractServiceOptionIds($data);
             $data = $this->normalizePayload($data);
             $data['lead_code'] = $this->generateLeadCode();
@@ -81,6 +81,7 @@ class LeadsService extends BaseService
             $data = $this->normalizePayload($data);
 
             $before = $this->loadLeadRelations($this->leads->findWithRelationsOrFail($id));
+            $this->authorize('update', $before);
             $beforeServiceOptionIds = $before->interestedServiceOptions->pluck('id')->sort()->values()->all();
 
             if ($serviceOptionIds !== null) {
@@ -135,6 +136,7 @@ class LeadsService extends BaseService
             }
 
             $lead = $this->leads->findWithRelationsOrFail($id);
+            $this->authorize('update', $lead);
 
             $quotation = ! empty($data['quotation_id']) ? $this->quotations->findModel($data['quotation_id']) : null;
 
@@ -142,8 +144,8 @@ class LeadsService extends BaseService
                 throw new ConflictHttpException('Quotation không thuộc lead này');
             }
 
-            $customer = $this->customers->create($this->convertedCustomerPayload($lead, $data['customer'] ?? []), false);
-            $project = $this->projects->create($this->convertedProjectPayload($lead, $customer, $quotation, $data['project'] ?? []));
+            $customer = $this->customers->create($this->convertedCustomerPayload($lead, $data['customer'] ?? []), false, false);
+            $project = $this->projects->create($this->convertedProjectPayload($lead, $customer, $quotation, $data['project'] ?? []), false);
             $contract = $this->contracts->create($this->convertedContractPayload($lead, $customer, $project, $quotation, $data['contract'] ?? []));
 
             if ($quotation) {
@@ -172,6 +174,7 @@ class LeadsService extends BaseService
     public function remove(string $id): array
     {
         return $this->transaction(function () use ($id): array {
+            $this->authorize('delete', $this->leads->findOrFail($id));
             $this->leads->delete($id);
 
             return ['message' => 'Xóa lead thành công'];
@@ -543,13 +546,6 @@ class LeadsService extends BaseService
     private function emptyValue(): string
     {
         return 'Trống';
-    }
-
-    private function currentUser(): ?User
-    {
-        $user = request()->user();
-
-        return $user instanceof User ? $user : null;
     }
 
     private function generateLeadCode(): string

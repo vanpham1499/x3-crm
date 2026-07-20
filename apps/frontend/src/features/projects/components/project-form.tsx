@@ -48,6 +48,8 @@ type ProjectFormProps = {
   defaultValues?: Partial<ProjectFormValues>;
   cancelHref?: string;
   isSubmitting: boolean;
+  /** True when the current user has no edit permission on this record — every field is disabled. */
+  readOnly?: boolean;
   onSubmit: (values: ProjectFormValues) => Promise<unknown>;
 };
 
@@ -103,6 +105,7 @@ export function ProjectForm({
   defaultValues,
   cancelHref = '/projects',
   isSubmitting,
+  readOnly = false,
   onSubmit,
 }: ProjectFormProps) {
   const serviceOptions = useMemo(() => flattenServices(services), [services]);
@@ -241,7 +244,7 @@ export function ProjectForm({
                     queryKey={['customers', 'project-form-autocomplete']}
                     label="Mã khách hàng *"
                     value={selectedCustomer}
-                    disabled={Boolean(selectedQuotation)}
+                    disabled={readOnly || Boolean(selectedQuotation)}
                     required
                     error={Boolean(errors.customerId)}
                     helperText={errors.customerId?.message}
@@ -267,6 +270,7 @@ export function ProjectForm({
                     <Autocomplete
                       options={serviceOptions}
                       value={selectedServiceOption}
+                      disabled={readOnly || Boolean(selectedQuotation)}
                       onChange={(_, nextValue) =>
                         field.onChange(nextValue?.id !== undefined ? String(nextValue.id) : '')
                       }
@@ -287,7 +291,7 @@ export function ProjectForm({
                         <FormInputField
                           {...params}
                           label="Dịch vụ *"
-                          disabled={Boolean(selectedQuotation)}
+                          disabled={readOnly || Boolean(selectedQuotation)}
                           placeholder="Tìm theo mã hoặc tên dịch vụ"
                           error={Boolean(errors.serviceId)}
                           helperText={errors.serviceId?.message}
@@ -309,6 +313,7 @@ export function ProjectForm({
                     {...field}
                     value={field.value || ''}
                     label="Tên dự án *"
+                    disabled={readOnly}
                     error={Boolean(errors.projectName)}
                     helperText={errors.projectName?.message}
                   />
@@ -322,6 +327,7 @@ export function ProjectForm({
                   <FormSelectField
                     {...field}
                     label="Loại *"
+                    disabled={readOnly}
                     error={Boolean(errors.projectType)}
                     helperText={errors.projectType?.message}
                   >
@@ -352,12 +358,14 @@ export function ProjectForm({
             <FormInputField
               label="Link plan"
               placeholder="https://docs.google.com/..."
+              disabled={readOnly}
               {...register('planLink')}
             />
 
             <FormInputField
               label="Nhóm Zalo"
               placeholder="Tên nhóm hoặc link nhóm"
+              disabled={readOnly}
               {...register('zaloGroup')}
             />
 
@@ -371,6 +379,7 @@ export function ProjectForm({
                     label="Ngày bắt đầu *"
                     value={field.value}
                     required
+                    disabled={readOnly}
                     error={Boolean(errors.startDate)}
                     helperText={errors.startDate?.message}
                     onChange={field.onChange}
@@ -384,6 +393,7 @@ export function ProjectForm({
                   <FormDatePicker
                     label="Ngày kết thúc"
                     value={field.value}
+                    disabled={readOnly}
                     onChange={field.onChange}
                   />
                 )}
@@ -395,6 +405,7 @@ export function ProjectForm({
               minRows={3}
               label="Ghi chú"
               placeholder="Thông tin triển khai, lưu ý chăm sóc, tình trạng hiện tại..."
+              disabled={readOnly}
               {...register('note')}
             />
           </FormSection>
@@ -414,6 +425,7 @@ export function ProjectForm({
                         (quotation) => String(quotation.id) === field.value,
                       ) || null
                     }
+                    disabled={readOnly}
                     onChange={(_, nextValue) => applyOriginQuotation(nextValue)}
                     getOptionLabel={quotationLabel}
                     isOptionEqualToValue={(option, value) => option.id === value.id}
@@ -493,6 +505,7 @@ export function ProjectForm({
                 <FormSelectField
                   label="Trạng thái *"
                   required
+                  disabled={readOnly}
                   error={Boolean(errors.statusOptionId)}
                   helperText={errors.statusOptionId?.message}
                   {...field}
@@ -515,6 +528,7 @@ export function ProjectForm({
                 <FormSelectField
                   label="Người quản lý *"
                   required
+                  disabled={readOnly}
                   error={Boolean(errors.managerUserId)}
                   helperText={errors.managerUserId?.message}
                   {...field}
@@ -537,6 +551,7 @@ export function ProjectForm({
                 <FormSelectField
                   label="Sales phụ trách *"
                   required
+                  disabled={readOnly}
                   error={Boolean(errors.salesUserId)}
                   helperText={errors.salesUserId?.message}
                   {...field}
@@ -559,6 +574,7 @@ export function ProjectForm({
                 <FormSelectField
                   label="Thứ báo cáo *"
                   required
+                  disabled={readOnly}
                   error={Boolean(errors.weeklyReportWeekday)}
                   helperText={errors.weeklyReportWeekday?.message}
                   {...field}
@@ -614,6 +630,7 @@ export function ProjectForm({
         cancelHref={cancelHref}
         submitLabel={mode === 'create' ? 'Tạo dự án' : 'Lưu thay đổi'}
         isSubmitting={isSubmitting}
+        submitDisabled={readOnly}
         submitIcon={<SaveRoundedIcon />}
       />
     </form>

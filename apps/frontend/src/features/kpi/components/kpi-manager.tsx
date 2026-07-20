@@ -26,6 +26,7 @@ import { PageHeader } from '@/components/shell/page-header';
 import { AppDataTable } from '@/components/table/app-data-table';
 import { TablePaginationBar } from '@/components/table/table-pagination-bar';
 import { applyApiErrorsToForm } from '@/lib/api-error';
+import { canApproveKpiPoint, canOpenKpiCreateDialog } from '@/lib/ownership';
 import { formatDate } from '@/lib/utils';
 import type {
   KpiCategory,
@@ -295,7 +296,7 @@ export function KpiManager({
   isSaving,
   isDeleting,
   isApproving,
-  canApprove,
+  currentUser,
   page,
   totalPages,
   totalItems,
@@ -317,7 +318,7 @@ export function KpiManager({
   isSaving: boolean;
   isDeleting: boolean;
   isApproving: boolean;
-  canApprove: boolean;
+  currentUser: User | null;
   page: number;
   totalPages: number;
   totalItems: number;
@@ -357,6 +358,7 @@ export function KpiManager({
           label: 'Ghi nhận điểm KPI',
           icon: <AddRoundedIcon />,
           onClick: () => setDialogOpen(true),
+          disabled: !canOpenKpiCreateDialog(currentUser),
         }}
       />
 
@@ -627,7 +629,7 @@ export function KpiManager({
       </section>
 
       <Menu anchorEl={menuAnchorEl} open={Boolean(menuAnchorEl)} onClose={closeActionMenu}>
-        {activePoint && !activePoint.isApproved && canApprove && (
+        {activePoint && !activePoint.isApproved && canApproveKpiPoint(currentUser, activePoint) && (
           <MenuItem
             disabled={isApproving}
             onClick={() => {

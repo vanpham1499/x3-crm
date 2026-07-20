@@ -24,6 +24,8 @@ type LeadFormProps = {
   services: AppOption[];
   statuses: LeadStatus[];
   isSubmitting: boolean;
+  /** True when the current user has no edit permission on this record — every field is disabled. */
+  readOnly?: boolean;
   onSubmit: (values: LeadFormValues) => Promise<unknown>;
 };
 
@@ -31,16 +33,19 @@ function LeadDatePicker({
   label,
   value,
   onChange,
+  disabled,
 }: {
   label: string;
   value: string;
   onChange: (value: string) => void;
+  disabled?: boolean;
 }) {
   return (
     <DatePicker
       label={label}
       value={value ? dayjs(value) : null}
       onChange={(nextValue) => onChange(nextValue?.isValid() ? nextValue.format('YYYY-MM-DD') : '')}
+      disabled={disabled}
       slotProps={{
         textField: {
           fullWidth: true,
@@ -60,6 +65,7 @@ export function LeadForm({
   services,
   statuses,
   isSubmitting,
+  readOnly = false,
   onSubmit,
 }: LeadFormProps) {
   const defaults = getLeadDefaults(lead);
@@ -93,6 +99,7 @@ export function LeadForm({
               <FormInputField
                 label="Tên khách hàng *"
                 placeholder="VD: ABC Spa - C.Linh"
+                disabled={readOnly}
                 error={Boolean(errors.customerName)}
                 helperText={errors.customerName?.message}
                 {...register('customerName', { required: 'Vui lòng nhập tên khách hàng' })}
@@ -100,6 +107,7 @@ export function LeadForm({
               <FormInputField
                 label="Số điện thoại"
                 placeholder="0901234567"
+                disabled={readOnly}
                 {...register('phone')}
               />
             </div>
@@ -108,11 +116,13 @@ export function LeadForm({
               <FormInputField
                 label="Ngành nghề"
                 placeholder="VD: Spa, bất động sản..."
+                disabled={readOnly}
                 {...register('industry')}
               />
               <FormInputField
                 label="Website"
                 placeholder="https://example.com"
+                disabled={readOnly}
                 {...register('website')}
               />
             </div>
@@ -120,12 +130,14 @@ export function LeadForm({
             <FormInputField
               label="Link kế hoạch"
               placeholder="https://docs.google.com/..."
+              disabled={readOnly}
               {...register('planLink')}
             />
 
             <div className="grid gap-4 md:grid-cols-3">
               <FormSelectField
                 label="Trạng thái"
+                disabled={readOnly}
                 defaultValue={
                   defaults.statusOptionId ||
                   defaults.statusId ||
@@ -147,6 +159,7 @@ export function LeadForm({
                     label="Ngày phát sinh"
                     value={field.value}
                     onChange={field.onChange}
+                    disabled={readOnly}
                   />
                 )}
               />
@@ -154,7 +167,12 @@ export function LeadForm({
                 name="closedDate"
                 control={control}
                 render={({ field }) => (
-                  <LeadDatePicker label="Ngày chốt" value={field.value} onChange={field.onChange} />
+                  <LeadDatePicker
+                    label="Ngày chốt"
+                    value={field.value}
+                    onChange={field.onChange}
+                    disabled={readOnly}
+                  />
                 )}
               />
             </div>
@@ -162,6 +180,7 @@ export function LeadForm({
             <FormInputField
               label="Nhóm Zalo"
               placeholder="Tên nhóm hoặc link nhóm"
+              disabled={readOnly}
               {...register('zaloGroup')}
             />
 
@@ -170,6 +189,7 @@ export function LeadForm({
               minRows={6}
               label="Ghi chú"
               placeholder="Nhập ghi chú chăm sóc, nhu cầu, phản hồi..."
+              disabled={readOnly}
               {...register('note')}
             />
           </FormSection>
@@ -179,6 +199,7 @@ export function LeadForm({
           <FormSection title="Phân loại & phụ trách">
             <FormSelectField
               label="Nhân sự phụ trách"
+              disabled={readOnly}
               defaultValue={defaults.assignedUserId}
               {...register('assignedUserId')}
             >
@@ -194,6 +215,7 @@ export function LeadForm({
             <input type="hidden" {...register('sourceName')} />
             <Autocomplete
               freeSolo
+              disabled={readOnly}
               options={sources}
               value={selectedSource || typedSourceName || null}
               inputValue={selectedSource?.label || typedSourceName || ''}
@@ -235,6 +257,7 @@ export function LeadForm({
               render={({ field }) => (
                 <FormSelectField
                   label="Dịch vụ quan tâm"
+                  disabled={readOnly}
                   value={field.value || []}
                   onChange={(event) => {
                     const value = event.target.value;
@@ -268,6 +291,7 @@ export function LeadForm({
             <FormInputField
               label="Dịch vụ quan tâm khác"
               placeholder="Nhập nếu chưa có trong danh mục"
+              disabled={readOnly}
               {...register('interestedServiceText')}
             />
           </FormSection>
@@ -278,6 +302,7 @@ export function LeadForm({
         cancelHref="/leads"
         submitLabel={mode === 'create' ? 'Tạo lead' : 'Lưu thay đổi'}
         isSubmitting={isSubmitting}
+        submitDisabled={readOnly}
         submitIcon={<SaveRoundedIcon />}
       />
     </form>

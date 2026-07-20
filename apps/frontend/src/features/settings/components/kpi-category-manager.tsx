@@ -19,6 +19,8 @@ import { TablePaginationBar } from '@/components/table/table-pagination-bar';
 import { usePagination } from '@/hooks/use-pagination';
 import { applyApiErrorsToForm } from '@/lib/api-error';
 import { getKpiCategoryDefaults, type KpiCategoryFormValues } from '@/lib/kpi-category-options';
+import { canManageCatalog } from '@/lib/ownership';
+import { useAuthStore } from '@/stores/auth-store';
 import { kpiCategoryFromOption } from '@/types/kpi';
 import type { AppOption } from '@/types/option';
 
@@ -147,6 +149,8 @@ export function KpiCategoryManager({
   onSubmit,
   onDelete,
 }: KpiCategoryManagerProps) {
+  const currentUser = useAuthStore((state) => state.user);
+  const canManage = canManageCatalog(currentUser);
   const [dialogState, setDialogState] = useState<DialogState | null>(null);
   const [deleteTarget, setDeleteTarget] = useState<AppOption | null>(null);
   const [menuAnchorEl, setMenuAnchorEl] = useState<HTMLElement | null>(null);
@@ -181,6 +185,7 @@ export function KpiCategoryManager({
           label: 'Thêm hạng mục',
           icon: <AddRoundedIcon />,
           onClick: () => setDialogState({ mode: 'create' }),
+          disabled: !canManage,
         }}
       />
 
@@ -245,7 +250,7 @@ export function KpiCategoryManager({
                       size="small"
                       aria-label={`Chỉnh sửa hạng mục ${category.label}`}
                       title="Chỉnh sửa"
-                      disabled={isSubmitting}
+                      disabled={isSubmitting || !canManage}
                       onClick={() => setDialogState({ mode: 'edit', category: option })}
                     >
                       <EditRoundedIcon fontSize="small" />
@@ -275,11 +280,15 @@ export function KpiCategoryManager({
       </section>
 
       <Menu anchorEl={menuAnchorEl} open={Boolean(menuAnchorEl)} onClose={closeActionMenu}>
-        <MenuItem onClick={editActiveCategory}>
+        <MenuItem onClick={editActiveCategory} disabled={!canManage}>
           <EditRoundedIcon fontSize="small" className="mr-2 text-slate-500" />
           Chỉnh sửa
         </MenuItem>
-        <MenuItem onClick={deleteActiveCategory} className="text-rose-600" disabled={isDeleting}>
+        <MenuItem
+          onClick={deleteActiveCategory}
+          className="text-rose-600"
+          disabled={isDeleting || !canManage}
+        >
           <DeleteRoundedIcon fontSize="small" className="mr-2" />
           Xóa
         </MenuItem>

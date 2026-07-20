@@ -7,7 +7,6 @@ use App\Models\Customer;
 use App\Models\CustomerTimeline;
 use App\Models\Lead;
 use App\Models\Option;
-use App\Models\User;
 use App\Repositories\CustomerRepository;
 use Illuminate\Support\Facades\DB;
 use Symfony\Component\HttpKernel\Exception\ConflictHttpException;
@@ -35,13 +34,19 @@ class CustomersService extends BaseService
         return $this->apiResource($this->customers->findWithRelationsOrFail($id), CustomerResource::class);
     }
 
-    public function create(array $data, bool $linkLead = true): array
+    public function create(array $data, bool $linkLead = true, bool $checkAuthorization = true): array
     {
-        return $this->transaction(function () use ($data, $linkLead): array {
+        return $this->transaction(function () use ($data, $linkLead, $checkAuthorization): array {
             $data = $this->normalizePayload($data);
             unset($data['customer_code']);
             $data['customer_code'] = $this->generateCustomerCode();
             $lead = $linkLead ? $this->lockLeadForConversion($data['lead_id'] ?? null) : null;
+
+            if ($lead) {
+                $this->authorize('update', $lead);
+            } elseif ($checkAuthorization) {
+                $this->authorize('create', Customer::class);
+            }
 
             /** @var Customer $customer */
             $customer = $this->customers->create($data);
@@ -62,6 +67,7 @@ class CustomersService extends BaseService
             $data = $this->normalizePayload($data);
             unset($data['customer_code']);
             $before = $this->loadCustomerRelations($this->customers->findWithRelationsOrFail($id));
+            $this->authorize('update', $before);
 
             /** @var Customer $customer */
             $customer = $this->customers->update($id, $data);
@@ -79,6 +85,7 @@ class CustomersService extends BaseService
     public function remove(string $id): array
     {
         return $this->transaction(function () use ($id): array {
+            $this->authorize('delete', $this->customers->findOrFail($id));
             $this->customers->delete($id);
 
             return ['message' => 'Xóa khách hàng thành công'];
@@ -340,13 +347,6 @@ class CustomersService extends BaseService
     private function emptyValue(): string
     {
         return 'Trống';
-    }
-
-    private function currentUser(): ?User
-    {
-        $user = request()->user();
-
-        return $user instanceof User ? $user : null;
     }
 
     private function generateCustomerCode(): string

@@ -72,6 +72,16 @@ class Project extends BaseModel
         return $this->belongsTo(User::class, 'sales_user_id');
     }
 
+    public function isManagedBy(User $user): bool
+    {
+        return $this->manager_user_id === $user->id;
+    }
+
+    public function isAssignedTo(User $user): bool
+    {
+        return $this->sales_user_id === $user->id;
+    }
+
     public function contracts(): HasMany
     {
         return $this->hasMany(Contract::class);

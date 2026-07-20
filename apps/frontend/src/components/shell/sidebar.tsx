@@ -27,42 +27,78 @@ import TuneRoundedIcon from '@mui/icons-material/TuneRounded';
 import TrendingDownRoundedIcon from '@mui/icons-material/TrendingDownRounded';
 import WorkspacesRoundedIcon from '@mui/icons-material/WorkspacesRounded';
 import x3salesLogo from '@assets/logos/x3sales-logo.svg';
+import { hasPermission } from '@/lib/ownership';
+import { useAuthStore } from '@/stores/auth-store';
+import type { User } from '@/types/user';
 
 const navGroups = [
   {
     label: 'CRM',
     items: [
       { href: '/dashboard', label: 'Dashboard', icon: GridViewRoundedIcon },
-      { href: '/leads', label: 'Lead', icon: PersonSearchRoundedIcon },
-      { href: '/customers', label: 'Khách hàng', icon: GroupsRoundedIcon },
+      { href: '/leads', label: 'Lead', icon: PersonSearchRoundedIcon, permissions: ['lead.view'] },
+      {
+        href: '/customers',
+        label: 'Khách hàng',
+        icon: GroupsRoundedIcon,
+        permissions: ['customer.view'],
+      },
       {
         href: '/projects',
         label: 'Dự án',
         icon: WorkspacesRoundedIcon,
+        permissions: ['project.view'],
         children: [
           { href: '/projects/services', label: 'Dịch vụ', icon: DesignServicesRoundedIcon },
           { href: '/projects/partners', label: 'Đối tác', icon: HandshakeRoundedIcon },
         ],
       },
-      { href: '/quotations', label: 'Báo phí', icon: RequestQuoteRoundedIcon },
+      {
+        href: '/quotations',
+        label: 'Báo phí',
+        icon: RequestQuoteRoundedIcon,
+        permissions: ['quotation.view'],
+      },
       { href: '/payments', label: 'Thanh toán', icon: AccountBalanceWalletRoundedIcon },
-      { href: '/costs', label: 'Chi phí', icon: TrendingDownRoundedIcon },
-      { href: '/weekly-reports', label: 'Báo cáo tuần', icon: CalendarMonthRoundedIcon },
-      { href: '/kpi', label: 'KPI', icon: EmojiEventsRoundedIcon },
+      {
+        href: '/costs',
+        label: 'Chi phí',
+        icon: TrendingDownRoundedIcon,
+        permissions: ['project.view'],
+      },
+      {
+        href: '/weekly-reports',
+        label: 'Báo cáo tuần',
+        icon: CalendarMonthRoundedIcon,
+        permissions: ['weeklyreport.view'],
+      },
+      { href: '/kpi', label: 'KPI', icon: EmojiEventsRoundedIcon, permissions: ['kpipoint.view'] },
       {
         href: '/users',
         label: 'Tài khoản',
         icon: ManageAccountsRoundedIcon,
+        permissions: ['user.view', 'role.view'],
         children: [
-          { href: '/users', label: 'Người dùng', icon: PeopleRoundedIcon },
-          { href: '/users/roles', label: 'Vai trò', icon: AdminPanelSettingsRoundedIcon },
-          { href: '/users/permissions', label: 'Phân quyền', icon: PolicyRoundedIcon },
+          { href: '/users', label: 'Người dùng', icon: PeopleRoundedIcon, permissions: ['user.view'] },
+          {
+            href: '/users/roles',
+            label: 'Vai trò',
+            icon: AdminPanelSettingsRoundedIcon,
+            permissions: ['role.view'],
+          },
+          {
+            href: '/users/permissions',
+            label: 'Phân quyền',
+            icon: PolicyRoundedIcon,
+            permissions: ['role.view'],
+          },
         ],
       },
       {
         href: '/settings',
         label: 'Cài đặt',
         icon: SettingsRoundedIcon,
+        permissions: ['option.manage'],
         children: [
           {
             href: '/settings/bank-accounts',
@@ -80,6 +116,27 @@ const navGroups = [
     ],
   },
 ];
+
+function isNavItemVisible(item: { href: string; permissions?: string[] }, user: User | null) {
+  if (!item.permissions || item.permissions.length === 0) return true;
+
+  return item.permissions.some((code) => hasPermission(user, code));
+}
+
+function getVisibleNavGroups(user: User | null) {
+  return navGroups
+    .map((group) => ({
+      ...group,
+      items: group.items
+        .filter((item) => isNavItemVisible(item, user))
+        .map((item) =>
+          'children' in item && item.children
+            ? { ...item, children: item.children.filter((child) => isNavItemVisible(child, user)) }
+            : item,
+        ),
+    }))
+    .filter((group) => group.items.length > 0);
+}
 
 function isSettingsUserPath(pathname: string) {
   if (pathname === '/users' || pathname === '/users/new') return true;
@@ -99,6 +156,8 @@ function isActivePath(pathname: string, href: string) {
 
 export function Sidebar() {
   const pathname = usePathname();
+  const currentUser = useAuthStore((state) => state.user);
+  const visibleNavGroups = getVisibleNavGroups(currentUser);
   const [collapsed, setCollapsed] = useState(false);
   const [openNavItems, setOpenNavItems] = useState<Record<string, boolean>>({});
 
@@ -148,7 +207,7 @@ export function Sidebar() {
       </button>
 
       <div className={`z-0 flex-1 overflow-y-auto pb-2 ${collapsed ? 'px-3' : 'px-4'}`}>
-        {navGroups.map((group) => (
+        {visibleNavGroups.map((group) => (
           <div key={group.label} className="mb-5">
             {!collapsed && (
               <p className="px-3 pb-2 text-[11px] font-extrabold uppercase leading-5 text-slate-400">

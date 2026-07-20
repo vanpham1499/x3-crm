@@ -52,7 +52,6 @@ export default function WeeklyReportsPage() {
   const queryClient = useQueryClient();
   const notify = useAppNotification();
   const currentUser = useAuthStore((state) => state.user);
-  const canApprove = currentUser?.role === 'ADMIN' || currentUser?.role === 'LEADER';
   const [activeTab, setActiveTab] = useState(0);
   const [selectedWeekStart, setSelectedWeekStart] = useState(getCurrentIsoWeekMondayString());
   const [historyPage, setHistoryPage] = useState(1);
@@ -201,7 +200,7 @@ export default function WeeklyReportsPage() {
     isSubmitting: submitMutation.isPending,
     isApproving: approveMutation.isPending,
     isReturning: returnMutation.isPending,
-    canApprove,
+    currentUser,
     onDelete: (report: WeeklyReport) => deleteMutation.mutate(report),
     onSubmit: (report: WeeklyReport) => submitMutation.mutate(report),
     onApprove: (report: WeeklyReport) => approveMutation.mutate(report),

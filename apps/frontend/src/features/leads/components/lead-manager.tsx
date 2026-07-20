@@ -28,6 +28,7 @@ import { EntityTableLink } from '@/components/table/entity-table-link';
 import { TablePaginationBar } from '@/components/table/table-pagination-bar';
 import { getLeadStatusClass, getUniqueLeadStatuses } from '@/lib/lead-utils';
 import { getOptionColor } from '@/lib/option-utils';
+import { canCreateLead, canDeleteLead, canEditLead } from '@/lib/ownership';
 import { formatDate, formatDateTime } from '@/lib/utils';
 import api from '@/services/api/client';
 import type { Lead, LeadFilters, LeadTimelineEntry } from '@/types/lead';
@@ -48,6 +49,7 @@ type LeadManagerProps = {
   pageSize: number;
   isFetching: boolean;
   isDeleting: boolean;
+  currentUser: User | null;
   onPageChange: (page: number) => void;
   onPageSizeChange: (pageSize: number) => void;
   onFiltersChange: (filters: LeadFilters) => void;
@@ -297,6 +299,7 @@ function LeadViewDialog({
   statuses,
   tab,
   isLoading,
+  currentUser,
   onTabChange,
   onClose,
 }: {
@@ -304,6 +307,7 @@ function LeadViewDialog({
   statuses: AppOption[];
   tab: number;
   isLoading: boolean;
+  currentUser: User | null;
   onTabChange: (tab: number) => void;
   onClose: () => void;
 }) {
@@ -353,6 +357,7 @@ function LeadViewDialog({
               <DialogActionButton
                 href={`/quotations/new?leadId=${lead.id}`}
                 startIcon={<RequestQuoteRoundedIcon />}
+                disabled={!canEditLead(currentUser, lead)}
               >
                 Tạo báo phí
               </DialogActionButton>
@@ -360,12 +365,17 @@ function LeadViewDialog({
                 href={`/customers/new?leadId=${lead.id}`}
                 tone="primary"
                 startIcon={<PersonAddAlt1RoundedIcon />}
+                disabled={!canEditLead(currentUser, lead)}
               >
                 Tạo khách hàng mới
               </DialogActionButton>
             </>
           )}
-          <DialogActionButton href={`/leads/${lead.id}`} startIcon={<EditRoundedIcon />}>
+          <DialogActionButton
+            href={`/leads/${lead.id}`}
+            startIcon={<EditRoundedIcon />}
+            disabled={!canEditLead(currentUser, lead)}
+          >
             Chỉnh sửa lead
           </DialogActionButton>
         </>
@@ -443,6 +453,7 @@ function LeadViewDialog({
                   <DialogActionButton
                     href={`/quotations/new?leadId=${lead.id}`}
                     startIcon={<RequestQuoteRoundedIcon />}
+                    disabled={!canEditLead(currentUser, lead)}
                   >
                     Tạo báo phí
                   </DialogActionButton>
@@ -496,6 +507,7 @@ function LeadViewDialog({
                         {!quotation.projectId && lead.convertedCustomerId ? (
                           <DialogActionButton
                             href={`/projects/new?customerId=${lead.convertedCustomerId}&quotationId=${quotation.id}`}
+                            disabled={!canEditLead(currentUser, lead)}
                           >
                             Tạo dự án
                           </DialogActionButton>
@@ -602,6 +614,7 @@ export function LeadManager({
   pageSize,
   isFetching,
   isDeleting,
+  currentUser,
   onPageChange,
   onPageSizeChange,
   onFiltersChange,
@@ -672,6 +685,7 @@ export function LeadManager({
           label: 'Thêm lead',
           href: '/leads/new',
           icon: <AddRoundedIcon />,
+          disabled: !canCreateLead(currentUser),
         }}
       />
 
@@ -864,6 +878,7 @@ export function LeadManager({
                         href={`/customers/new?leadId=${lead.id}`}
                         size="small"
                         title="Tạo khách hàng"
+                        disabled={!canEditLead(currentUser, lead)}
                       >
                         <PersonAddAlt1RoundedIcon fontSize="small" />
                       </IconButton>
@@ -873,6 +888,7 @@ export function LeadManager({
                       href={`/leads/${lead.id}`}
                       size="small"
                       title="Chỉnh sửa lead"
+                      disabled={!canEditLead(currentUser, lead)}
                     >
                       <EditRoundedIcon fontSize="small" />
                     </IconButton>
@@ -895,11 +911,18 @@ export function LeadManager({
             <VisibilityRoundedIcon fontSize="small" className="mr-2 text-slate-500" />
             Xem chi tiết
           </MenuItem>
-          <MenuItem onClick={editActiveLead}>
+          <MenuItem
+            onClick={editActiveLead}
+            disabled={!activeLead || !canEditLead(currentUser, activeLead)}
+          >
             <EditRoundedIcon fontSize="small" className="mr-2 text-slate-500" />
             Chỉnh sửa
           </MenuItem>
-          <MenuItem onClick={deleteActiveLead} className="text-rose-600">
+          <MenuItem
+            onClick={deleteActiveLead}
+            className="text-rose-600"
+            disabled={!activeLead || !canDeleteLead(currentUser, activeLead)}
+          >
             <DeleteRoundedIcon fontSize="small" className="mr-2" />
             Xóa
           </MenuItem>
@@ -920,6 +943,7 @@ export function LeadManager({
         statuses={statuses}
         tab={viewTab}
         isLoading={isFetchingViewLead}
+        currentUser={currentUser}
         onTabChange={setViewTab}
         onClose={() => setViewTarget(null)}
       />

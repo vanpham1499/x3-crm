@@ -70,6 +70,11 @@ class Customer extends BaseModel
         return $this->belongsTo(User::class, 'sales_user_id');
     }
 
+    public function isAssignedTo(User $user): bool
+    {
+        return $this->sales_user_id === $user->id;
+    }
+
     public function projects(): HasMany
     {
         return $this->hasMany(Project::class);

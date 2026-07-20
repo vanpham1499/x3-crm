@@ -1,7 +1,9 @@
 <?php
 
 use App\Http\Middleware\EnsureActiveUser;
+use App\Http\Middleware\EnsurePermission;
 use App\Http\Middleware\EnsureUserRole;
+use App\Http\Middleware\VerifyPaymentWebhookSecret;
 use Illuminate\Foundation\Application;
 use Illuminate\Foundation\Configuration\Exceptions;
 use Illuminate\Foundation\Configuration\Middleware;
@@ -26,6 +28,8 @@ return Application::configure(basePath: dirname(__DIR__))
         $middleware->alias([
             'active' => EnsureActiveUser::class,
             'role' => EnsureUserRole::class,
+            'permission' => EnsurePermission::class,
+            'verify_payment_webhook' => VerifyPaymentWebhookSecret::class,
         ]);
     })
     ->withExceptions(function (Exceptions $exceptions): void {

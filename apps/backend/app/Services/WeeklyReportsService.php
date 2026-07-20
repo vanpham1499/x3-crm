@@ -5,7 +5,6 @@ namespace App\Services;
 use App\Http\Resources\WeeklyReportResource;
 use App\Models\Project;
 use App\Models\ProjectWeeklySetting;
-use App\Models\User;
 use App\Models\WeeklyReport;
 use App\Repositories\ProjectWeeklySettingRepository;
 use App\Repositories\WeeklyReportRepository;
@@ -196,6 +195,7 @@ class WeeklyReportsService extends BaseService
     public function create(array $data): array
     {
         return $this->transaction(function () use ($data): array {
+            $this->authorize('create', \App\Models\WeeklyReport::class);
             $items = $data['items'] ?? [];
             unset($data['items']);
 
@@ -288,6 +288,7 @@ class WeeklyReportsService extends BaseService
         return $this->transaction(function () use ($id): array {
             /** @var WeeklyReport $existingReport */
             $existingReport = $this->reports->findWithRelationsOrFail($id);
+            $this->authorize('approve', $existingReport);
             $this->assertStatus($existingReport, WeeklyReport::STATUS_SUBMITTED, 'Chỉ báo cáo đang chờ duyệt mới được duyệt.');
             /** @var WeeklyReport $report */
             $report = $this->reports->update($id, [
@@ -305,6 +306,7 @@ class WeeklyReportsService extends BaseService
         return $this->transaction(function () use ($id): array {
             /** @var WeeklyReport $existingReport */
             $existingReport = $this->reports->findWithRelationsOrFail($id);
+            $this->authorize('approve', $existingReport);
             $this->assertStatus($existingReport, WeeklyReport::STATUS_SUBMITTED, 'Chỉ báo cáo đang chờ duyệt mới được trả về nháp.');
 
             /** @var WeeklyReport $report */
@@ -558,10 +560,5 @@ class WeeklyReportsService extends BaseService
         }
 
         return $data;
-    }
-
-    private function currentUser(): ?User
-    {
-        return request()->user();
     }
 }

@@ -8,6 +8,7 @@ import { ContentLoading } from '@/components/shell/content-loading';
 import { RoleList } from '@/features/access-control/components/role-list';
 import { getApiErrorMessage } from '@/lib/api-error';
 import api from '@/services/api/client';
+import { useAuthStore } from '@/stores/auth-store';
 import type { Role, RoleFilters } from '@/types/access-control';
 
 function getRoleParams(filters: RoleFilters) {
@@ -19,6 +20,7 @@ function getRoleParams(filters: RoleFilters) {
 export default function RolesPage() {
   const queryClient = useQueryClient();
   const notify = useAppNotification();
+  const currentUser = useAuthStore((state) => state.user);
   const [deleteTarget, setDeleteTarget] = useState<Role | null>(null);
   const [bulkDeleteIds, setBulkDeleteIds] = useState<number[]>([]);
   const [filters, setFilters] = useState<RoleFilters>({ keyword: '' });
@@ -69,6 +71,7 @@ export default function RolesPage() {
         roles={roles}
         filters={filters}
         isFetching={isFetching}
+        currentUser={currentUser}
         onFiltersChange={setFilters}
         isDeleting={isDeleting}
         onDelete={setDeleteTarget}

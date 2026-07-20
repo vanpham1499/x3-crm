@@ -18,6 +18,8 @@ import { AppDataTable } from '@/components/table/app-data-table';
 import { TablePaginationBar } from '@/components/table/table-pagination-bar';
 import { usePagination } from '@/hooks/use-pagination';
 import { applyApiErrorsToForm } from '@/lib/api-error';
+import { canManageCatalog } from '@/lib/ownership';
+import { useAuthStore } from '@/stores/auth-store';
 import {
   getBankAccountBankCode,
   getBankAccountMetaBoolean,
@@ -157,6 +159,8 @@ export function CompanyBankAccountManager({
   onSubmit,
   onDelete,
 }: BankAccountManagerProps) {
+  const currentUser = useAuthStore((state) => state.user);
+  const canManage = canManageCatalog(currentUser);
   const [dialogState, setDialogState] = useState<DialogState | null>(null);
   const [deleteTarget, setDeleteTarget] = useState<AppOption | null>(null);
   const [menuAnchorEl, setMenuAnchorEl] = useState<HTMLElement | null>(null);
@@ -183,6 +187,7 @@ export function CompanyBankAccountManager({
           label: 'Thêm tài khoản',
           icon: <AddRoundedIcon />,
           onClick: () => setDialogState({ mode: 'create' }),
+          disabled: !canManage,
         }}
       />
 
@@ -258,6 +263,7 @@ export function CompanyBankAccountManager({
                     aria-label="Chỉnh sửa tài khoản nhận tiền"
                     title="Chỉnh sửa"
                     onClick={() => setDialogState({ mode: 'edit', account })}
+                    disabled={!canManage}
                   >
                     <EditRoundedIcon fontSize="small" />
                   </IconButton>
@@ -290,13 +296,14 @@ export function CompanyBankAccountManager({
             if (activeAccount) setDialogState({ mode: 'edit', account: activeAccount });
             closeActionMenu();
           }}
+          disabled={!canManage}
         >
           <EditRoundedIcon fontSize="small" className="mr-2 text-slate-500" />
           Chỉnh sửa
         </MenuItem>
         <MenuItem
           className="text-rose-600"
-          disabled={isDeleting}
+          disabled={isDeleting || !canManage}
           onClick={() => {
             if (activeAccount) setDeleteTarget(activeAccount);
             closeActionMenu();

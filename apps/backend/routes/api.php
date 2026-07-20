@@ -27,7 +27,7 @@ Route::get('/', fn () => [
 ]);
 
 Route::post('/auth/login', [AuthController::class, 'login']);
-Route::post('/payments/webhook', [PaymentsController::class, 'webhook']);
+Route::post('/payments/webhook', [PaymentsController::class, 'webhook'])->middleware('verify_payment_webhook');
 
 Route::middleware(['auth:sanctum', 'active'])->group(function (): void {
     Route::get('/auth/profile', [AuthController::class, 'profile']);
@@ -39,17 +39,18 @@ Route::middleware(['auth:sanctum', 'active'])->group(function (): void {
     Route::post('/media/upload', [MediaController::class, 'upload']);
 
     Route::get('/options', [OptionsController::class, 'index']);
-    Route::post('/options', [OptionsController::class, 'store']);
-    Route::patch('/options/reorder', [OptionsController::class, 'reorder']);
     Route::get('/options/{id}', [OptionsController::class, 'show']);
-    Route::put('/options/{id}', [OptionsController::class, 'update']);
-    Route::patch('/options/{id}', [OptionsController::class, 'update']);
-    Route::delete('/options/{id}', [OptionsController::class, 'destroy']);
 
     Route::get('/services', [ServicesController::class, 'index']);
     Route::get('/services/{id}', [ServicesController::class, 'show']);
 
-    Route::middleware('role:ADMIN')->group(function (): void {
+    Route::middleware('permission:option.manage')->group(function (): void {
+        Route::post('/options', [OptionsController::class, 'store']);
+        Route::patch('/options/reorder', [OptionsController::class, 'reorder']);
+        Route::put('/options/{id}', [OptionsController::class, 'update']);
+        Route::patch('/options/{id}', [OptionsController::class, 'update']);
+        Route::delete('/options/{id}', [OptionsController::class, 'destroy']);
+
         Route::post('/services', [ServicesController::class, 'store']);
         Route::put('/services/{id}', [ServicesController::class, 'update']);
         Route::patch('/services/{id}', [ServicesController::class, 'update']);
@@ -57,12 +58,12 @@ Route::middleware(['auth:sanctum', 'active'])->group(function (): void {
     });
 
     Route::get('/users', [UsersController::class, 'index']);
-    Route::get('/users/stats', [UsersController::class, 'stats'])->middleware('role:ADMIN,LEADER');
+    Route::get('/users/stats', [UsersController::class, 'stats'])->middleware('permission:user.view');
     Route::get('/users/{id}', [UsersController::class, 'show']);
-    Route::post('/users', [UsersController::class, 'store'])->middleware('role:ADMIN');
-    Route::put('/users/{id}', [UsersController::class, 'update'])->middleware('role:ADMIN');
-    Route::patch('/users/{id}', [UsersController::class, 'update'])->middleware('role:ADMIN');
-    Route::delete('/users/{id}', [UsersController::class, 'destroy'])->middleware('role:ADMIN');
+    Route::post('/users', [UsersController::class, 'store'])->middleware('permission:user.create');
+    Route::put('/users/{id}', [UsersController::class, 'update'])->middleware('permission:user.update');
+    Route::patch('/users/{id}', [UsersController::class, 'update'])->middleware('permission:user.update');
+    Route::delete('/users/{id}', [UsersController::class, 'destroy'])->middleware('permission:user.delete');
 
     Route::get('/leads', [LeadsController::class, 'index']);
     Route::post('/leads', [LeadsController::class, 'store']);
@@ -124,8 +125,8 @@ Route::middleware(['auth:sanctum', 'active'])->group(function (): void {
     Route::patch('/weekly-reports/{id}', [WeeklyReportsController::class, 'update']);
     Route::delete('/weekly-reports/{id}', [WeeklyReportsController::class, 'destroy']);
     Route::post('/weekly-reports/{id}/submit', [WeeklyReportsController::class, 'submit']);
-    Route::post('/weekly-reports/{id}/approve', [WeeklyReportsController::class, 'approve'])->middleware('role:ADMIN,LEADER');
-    Route::post('/weekly-reports/{id}/return-to-draft', [WeeklyReportsController::class, 'returnToDraft'])->middleware('role:ADMIN,LEADER');
+    Route::post('/weekly-reports/{id}/approve', [WeeklyReportsController::class, 'approve']);
+    Route::post('/weekly-reports/{id}/return-to-draft', [WeeklyReportsController::class, 'returnToDraft']);
     Route::post('/weekly-reports/{id}/attachments', [WeeklyReportAttachmentsController::class, 'store']);
     Route::delete('/weekly-report-attachments/{id}', [WeeklyReportAttachmentsController::class, 'destroy']);
 
@@ -135,7 +136,7 @@ Route::middleware(['auth:sanctum', 'active'])->group(function (): void {
     Route::put('/kpi-points/{id}', [KpiPointsController::class, 'update']);
     Route::patch('/kpi-points/{id}', [KpiPointsController::class, 'update']);
     Route::delete('/kpi-points/{id}', [KpiPointsController::class, 'destroy']);
-    Route::post('/kpi-points/{id}/approve', [KpiPointsController::class, 'approve'])->middleware('role:ADMIN,LEADER');
+    Route::post('/kpi-points/{id}/approve', [KpiPointsController::class, 'approve']);
 
     Route::get('/payments', [PaymentsController::class, 'index']);
     Route::post('/payments', [PaymentsController::class, 'store']);
@@ -149,15 +150,15 @@ Route::middleware(['auth:sanctum', 'active'])->group(function (): void {
     Route::patch('/payments/{id}', [PaymentsController::class, 'update']);
     Route::delete('/payments/{id}', [PaymentsController::class, 'destroy']);
 
-    Route::middleware('role:ADMIN')->group(function (): void {
+    Route::middleware('permission:role.view')->group(function (): void {
         Route::get('/roles', [RolesController::class, 'index']);
-        Route::post('/roles', [RolesController::class, 'store']);
+        Route::post('/roles', [RolesController::class, 'store'])->middleware('permission:role.create');
         Route::get('/roles/{id}', [RolesController::class, 'show']);
-        Route::patch('/roles/{id}', [RolesController::class, 'update']);
-        Route::put('/roles/{id}', [RolesController::class, 'update']);
-        Route::delete('/roles/{id}', [RolesController::class, 'destroy']);
+        Route::patch('/roles/{id}', [RolesController::class, 'update'])->middleware('permission:role.update');
+        Route::put('/roles/{id}', [RolesController::class, 'update'])->middleware('permission:role.update');
+        Route::delete('/roles/{id}', [RolesController::class, 'destroy'])->middleware('permission:role.delete');
         Route::get('/roles/{id}/permissions', [RolesController::class, 'permissions']);
-        Route::post('/roles/{id}/permissions', [RolesController::class, 'syncPermissions']);
+        Route::post('/roles/{id}/permissions', [RolesController::class, 'syncPermissions'])->middleware('permission:role.permission.update');
 
         Route::get('/permissions', [PermissionsController::class, 'index']);
     });

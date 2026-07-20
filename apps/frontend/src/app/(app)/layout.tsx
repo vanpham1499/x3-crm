@@ -7,12 +7,14 @@ import { ErrorState } from '@/components/feedback/error-state';
 import { Header } from '@/components/shell/header';
 import { Sidebar } from '@/components/shell/sidebar';
 import { AppSplashScreen } from '@/components/shell/app-splash-screen';
+import { hasPermission } from '@/lib/ownership';
+import { getRequiredPermissionsForPath } from '@/lib/route-permissions';
 import { useAuthStore } from '@/stores/auth-store';
 
 export default function AppLayout({ children }: { children: React.ReactNode }) {
   const router = useRouter();
   const pathname = usePathname();
-  const { status, init, verify } = useAuthStore();
+  const { status, init, verify, user } = useAuthStore();
   const [calculatorOpen, setCalculatorOpen] = useState(false);
   const verifiedPathRef = useRef(pathname);
 
@@ -55,6 +57,10 @@ export default function AppLayout({ children }: { children: React.ReactNode }) {
     );
   }
 
+  const requiredPermissions = getRequiredPermissionsForPath(pathname);
+  const hasAccess =
+    !requiredPermissions || requiredPermissions.some((code) => hasPermission(user, code));
+
   return (
     <div className="flex min-h-screen bg-background">
       <Sidebar />
@@ -64,7 +70,22 @@ export default function AppLayout({ children }: { children: React.ReactNode }) {
           calculatorOpen={calculatorOpen}
           onToggleCalculator={() => setCalculatorOpen((value) => !value)}
         />
-        <main className="min-h-[calc(100vh-72px)]">{children}</main>
+        <main className="min-h-[calc(100vh-72px)]">
+          {hasAccess ? (
+            children
+          ) : (
+            <ErrorState
+              compact
+              code="403"
+              title="Không có quyền truy cập"
+              description="Bạn không có quyền truy cập vào chức năng này. Vui lòng liên hệ quản trị viên nếu cần được cấp quyền."
+              primaryHref="/dashboard"
+              primaryLabel="Về Dashboard"
+              secondaryHref="/dashboard"
+              secondaryLabel="Quay lại"
+            />
+          )}
+        </main>
       </div>
     </div>
   );

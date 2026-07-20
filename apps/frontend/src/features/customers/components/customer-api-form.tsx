@@ -24,6 +24,8 @@ type CustomerApiFormProps = {
   sources: AppOption[];
   cancelHref?: string;
   isSubmitting: boolean;
+  /** True when the current user has no edit permission on this record — every field is disabled. */
+  readOnly?: boolean;
   onSubmit: (values: CustomerFormValues) => Promise<unknown>;
 };
 
@@ -31,16 +33,19 @@ function CustomerDatePicker({
   label,
   value,
   onChange,
+  disabled,
 }: {
   label: string;
   value: string;
   onChange: (value: string) => void;
+  disabled?: boolean;
 }) {
   return (
     <DatePicker
       label={label}
       value={value ? dayjs(value) : null}
       onChange={(nextValue) => onChange(nextValue?.isValid() ? nextValue.format('YYYY-MM-DD') : '')}
+      disabled={disabled}
       slotProps={{
         textField: {
           fullWidth: true,
@@ -61,6 +66,7 @@ export function CustomerApiForm({
   sources,
   cancelHref = '/customers',
   isSubmitting,
+  readOnly = false,
   onSubmit,
 }: CustomerApiFormProps) {
   const {
@@ -90,29 +96,34 @@ export function CustomerApiForm({
               <FormInputField
                 label="Tên khách hàng *"
                 placeholder="K.HYUNDAINGOCAN - C.Mai"
+                disabled={readOnly}
                 error={Boolean(errors.customerName)}
                 helperText={errors.customerName?.message}
                 {...register('customerName', { required: 'Vui lòng nhập tên khách hàng' })}
               />
-              <FormInputField label="Tên công ty" {...register('companyName')} />
+              <FormInputField label="Tên công ty" disabled={readOnly} {...register('companyName')} />
             </div>
             <div className="grid gap-4 md:grid-cols-2">
-              <FormInputField label="Người đại diện" {...register('representativeName')} />
-              <FormInputField label="Số điện thoại" {...register('phone')} />
-            </div>
-
-            <div className="grid gap-4 md:grid-cols-2">
-              <FormInputField type="email" label="Email" {...register('email')} />
-              <FormInputField label="Website" {...register('website')} />
-            </div>
-
-            <div className="grid gap-4 md:grid-cols-2">
-              <FormInputField label="Ngành" {...register('industry')} />
-              <FormInputField label="Mã số thuế" {...register('taxCode')} />
+              <FormInputField
+                label="Người đại diện"
+                disabled={readOnly}
+                {...register('representativeName')}
+              />
+              <FormInputField label="Số điện thoại" disabled={readOnly} {...register('phone')} />
             </div>
 
             <div className="grid gap-4 md:grid-cols-2">
-              <FormInputField label="CCCD/CMND" {...register('identityNo')} />
+              <FormInputField type="email" label="Email" disabled={readOnly} {...register('email')} />
+              <FormInputField label="Website" disabled={readOnly} {...register('website')} />
+            </div>
+
+            <div className="grid gap-4 md:grid-cols-2">
+              <FormInputField label="Ngành" disabled={readOnly} {...register('industry')} />
+              <FormInputField label="Mã số thuế" disabled={readOnly} {...register('taxCode')} />
+            </div>
+
+            <div className="grid gap-4 md:grid-cols-2">
+              <FormInputField label="CCCD/CMND" disabled={readOnly} {...register('identityNo')} />
               <Controller
                 name="birthday"
                 control={control}
@@ -121,18 +132,26 @@ export function CustomerApiForm({
                     label="Ngày sinh"
                     value={field.value}
                     onChange={field.onChange}
+                    disabled={readOnly}
                   />
                 )}
               />
             </div>
 
-            <FormInputField multiline minRows={2} label="Địa chỉ" {...register('address')} />
+            <FormInputField
+              multiline
+              minRows={2}
+              label="Địa chỉ"
+              disabled={readOnly}
+              {...register('address')}
+            />
 
             <FormInputField
               multiline
               minRows={5}
               label="Ghi chú"
               placeholder="Nhu cầu, lịch sử trao đổi, lưu ý khi chăm sóc..."
+              disabled={readOnly}
               {...register('note')}
             />
           </FormSection>
@@ -151,7 +170,7 @@ export function CustomerApiForm({
               name="customerTypeOptionId"
               control={control}
               render={({ field }) => (
-                <FormSelectField label="Loại khách hàng" {...field}>
+                <FormSelectField label="Loại khách hàng" disabled={readOnly} {...field}>
                   <MenuItem value="">Chưa chọn</MenuItem>
                   {customerTypes.map((option) => (
                     <MenuItem key={option.id} value={String(option.id)}>
@@ -166,7 +185,7 @@ export function CustomerApiForm({
               name="sourceOptionId"
               control={control}
               render={({ field }) => (
-                <FormSelectField label="Nguồn phát sinh" {...field}>
+                <FormSelectField label="Nguồn phát sinh" disabled={readOnly} {...field}>
                   <MenuItem value="">Chưa chọn</MenuItem>
                   {sources.map((option) => (
                     <MenuItem key={option.id} value={String(option.id)}>
@@ -181,7 +200,7 @@ export function CustomerApiForm({
               name="salesUserId"
               control={control}
               render={({ field }) => (
-                <FormSelectField label="Nhân sự sales" {...field}>
+                <FormSelectField label="Nhân sự sales" disabled={readOnly} {...field}>
                   <MenuItem value="">Chưa chọn</MenuItem>
                   {users.map((user) => (
                     <MenuItem key={user.id} value={String(user.id)}>
@@ -199,6 +218,7 @@ export function CustomerApiForm({
         cancelHref={cancelHref}
         submitLabel={mode === 'create' ? 'Tạo khách hàng' : 'Lưu thay đổi'}
         isSubmitting={isSubmitting}
+        submitDisabled={readOnly}
         submitIcon={<SaveRoundedIcon />}
       />
     </form>

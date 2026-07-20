@@ -34,6 +34,7 @@ class ProjectCostsService extends BaseService
     {
         return $this->transaction(function () use ($data): array {
             $data = $this->preparePayload($data);
+            $this->authorizeProjectOwnership($data['project_id'] ?? null);
             /** @var ProjectCost $cost */
             $cost = $this->costs->create($data);
 
@@ -46,6 +47,7 @@ class ProjectCostsService extends BaseService
         return $this->transaction(function () use ($id, $data): array {
             /** @var ProjectCost $existing */
             $existing = $this->costs->findForUpdateOrFail($id);
+            $this->authorizeProjectOwnership($existing->project_id);
             $this->ensureNotReconciled($existing);
             $data = $this->preparePayload($data, $existing);
             $this->costs->update($id, $data);
@@ -58,6 +60,7 @@ class ProjectCostsService extends BaseService
     {
         return $this->transaction(function () use ($id): array {
             $cost = $this->costs->findForUpdateOrFail($id);
+            $this->authorizeProjectOwnership($cost->project_id);
             $this->ensureNotReconciled($cost);
             $this->costs->delete($id);
 
@@ -68,6 +71,7 @@ class ProjectCostsService extends BaseService
     public function reconcile(string $id): array
     {
         return $this->transaction(function () use ($id): array {
+            $this->authorizeAccounting();
             $cost = $this->costs->findForUpdateOrFail($id);
 
             if (! $cost->reconciled_at) {

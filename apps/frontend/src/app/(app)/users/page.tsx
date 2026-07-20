@@ -8,6 +8,7 @@ import { ContentLoading } from '@/components/shell/content-loading';
 import { UserList } from '@/features/users/components/user-list';
 import { getApiErrorMessage } from '@/lib/api-error';
 import { api } from '@/services/api/client';
+import { useAuthStore } from '@/stores/auth-store';
 import type { RoleOption, User, UserFilters } from '@/types/user';
 
 function getUsersParams(filters: UserFilters) {
@@ -21,6 +22,7 @@ function getUsersParams(filters: UserFilters) {
 export default function UsersPage() {
   const queryClient = useQueryClient();
   const notify = useAppNotification();
+  const currentUser = useAuthStore((state) => state.user);
   const [deleteTarget, setDeleteTarget] = useState<User | null>(null);
   const [bulkDeleteIds, setBulkDeleteIds] = useState<number[]>([]);
   const [filters, setFilters] = useState<UserFilters>({
@@ -83,6 +85,7 @@ export default function UsersPage() {
         roles={roles}
         filters={filters}
         isFetching={isFetching}
+        currentUser={currentUser}
         onFiltersChange={setFilters}
         isDeleting={isDeleting}
         onDelete={setDeleteTarget}

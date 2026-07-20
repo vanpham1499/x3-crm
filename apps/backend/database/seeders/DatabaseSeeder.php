@@ -45,6 +45,49 @@ class DatabaseSeeder extends Seeder
             ['module' => 'role', 'code' => 'role.delete', 'name' => 'Xóa vai trò'],
             ['module' => 'role', 'code' => 'role.permission.update', 'name' => 'Cập nhật quyền vai trò'],
             ['module' => 'permission', 'code' => 'permission.view', 'name' => 'Xem danh sách quyền'],
+
+            ['module' => 'lead', 'code' => 'lead.view', 'name' => 'Xem lead'],
+            ['module' => 'lead', 'code' => 'lead.create', 'name' => 'Tạo lead'],
+            ['module' => 'lead', 'code' => 'lead.update', 'name' => 'Cập nhật lead của mình'],
+            ['module' => 'lead', 'code' => 'lead.update_all', 'name' => 'Cập nhật mọi lead'],
+            ['module' => 'lead', 'code' => 'lead.delete', 'name' => 'Xóa lead của mình'],
+            ['module' => 'lead', 'code' => 'lead.delete_all', 'name' => 'Xóa mọi lead'],
+
+            ['module' => 'customer', 'code' => 'customer.view', 'name' => 'Xem khách hàng'],
+            ['module' => 'customer', 'code' => 'customer.create', 'name' => 'Tạo khách hàng'],
+            ['module' => 'customer', 'code' => 'customer.update', 'name' => 'Cập nhật khách hàng của mình'],
+            ['module' => 'customer', 'code' => 'customer.update_all', 'name' => 'Cập nhật mọi khách hàng'],
+            ['module' => 'customer', 'code' => 'customer.delete', 'name' => 'Xóa khách hàng của mình'],
+            ['module' => 'customer', 'code' => 'customer.delete_all', 'name' => 'Xóa mọi khách hàng'],
+
+            ['module' => 'project', 'code' => 'project.view', 'name' => 'Xem dự án'],
+            ['module' => 'project', 'code' => 'project.create', 'name' => 'Tạo dự án'],
+            ['module' => 'project', 'code' => 'project.update', 'name' => 'Cập nhật dự án của mình'],
+            ['module' => 'project', 'code' => 'project.update_all', 'name' => 'Cập nhật mọi dự án'],
+            ['module' => 'project', 'code' => 'project.delete', 'name' => 'Xóa dự án của mình'],
+            ['module' => 'project', 'code' => 'project.delete_all', 'name' => 'Xóa mọi dự án'],
+
+            ['module' => 'quotation', 'code' => 'quotation.view', 'name' => 'Xem báo phí'],
+            ['module' => 'quotation', 'code' => 'quotation.create', 'name' => 'Tạo báo phí'],
+            ['module' => 'quotation', 'code' => 'quotation.update', 'name' => 'Cập nhật báo phí của mình'],
+            ['module' => 'quotation', 'code' => 'quotation.update_all', 'name' => 'Cập nhật mọi báo phí'],
+            ['module' => 'quotation', 'code' => 'quotation.delete', 'name' => 'Xóa báo phí của mình'],
+            ['module' => 'quotation', 'code' => 'quotation.delete_all', 'name' => 'Xóa mọi báo phí'],
+
+            ['module' => 'weeklyreport', 'code' => 'weeklyreport.view', 'name' => 'Xem báo cáo tuần'],
+            ['module' => 'weeklyreport', 'code' => 'weeklyreport.create', 'name' => 'Tạo báo cáo tuần'],
+            ['module' => 'weeklyreport', 'code' => 'weeklyreport.approve', 'name' => 'Duyệt báo cáo tuần (dự án mình quản lý)'],
+            ['module' => 'weeklyreport', 'code' => 'weeklyreport.approve_all', 'name' => 'Duyệt mọi báo cáo tuần'],
+
+            ['module' => 'kpipoint', 'code' => 'kpipoint.view', 'name' => 'Xem điểm KPI'],
+            ['module' => 'kpipoint', 'code' => 'kpipoint.create', 'name' => 'Ghi nhận KPI (dự án mình quản lý)'],
+            ['module' => 'kpipoint', 'code' => 'kpipoint.create_all', 'name' => 'Ghi nhận KPI không cần dự án'],
+            ['module' => 'kpipoint', 'code' => 'kpipoint.approve', 'name' => 'Duyệt KPI (dự án mình quản lý)'],
+            ['module' => 'kpipoint', 'code' => 'kpipoint.approve_all', 'name' => 'Duyệt mọi điểm KPI'],
+
+            ['module' => 'payment', 'code' => 'payment.manage', 'name' => 'Đối soát / chốt thanh toán'],
+
+            ['module' => 'option', 'code' => 'option.manage', 'name' => 'Quản lý danh mục hệ thống'],
         ];
 
         $permissionIds = [];
@@ -64,14 +107,47 @@ class DatabaseSeeder extends Seeder
             $permissionIds[$permission['code']] = DB::table('permissions')->where('code', $permission['code'])->value('id');
         }
 
-        foreach ($permissionIds as $permissionId) {
-            if (! DB::table('role_permissions')->where('role_id', $roleIds[User::ROLE_ADMIN])->where('permission_id', $permissionId)->exists()) {
-                DB::table('role_permissions')->insert([
-                    'role_id' => $roleIds[User::ROLE_ADMIN],
-                    'permission_id' => $permissionId,
-                    'created_at' => now(),
-                    'updated_at' => now(),
-                ]);
+        // Base codes are ownership-gated (record must belong to the user); "_all" codes
+        // bypass ownership entirely and are reserved for elevated roles.
+        $baseCodes = [
+            'lead.view', 'lead.create', 'lead.update', 'lead.delete',
+            'customer.view', 'customer.create', 'customer.update', 'customer.delete',
+            'project.view', 'project.create', 'project.update', 'project.delete',
+            'quotation.view', 'quotation.create', 'quotation.update', 'quotation.delete',
+            'weeklyreport.view', 'weeklyreport.create', 'weeklyreport.approve',
+            'kpipoint.view', 'kpipoint.create', 'kpipoint.approve',
+        ];
+
+        $rolePermissionCodes = [
+            User::ROLE_ADMIN => array_column($permissions, 'code'),
+            User::ROLE_LEADER => array_merge($baseCodes, [
+                'lead.update_all', 'lead.delete_all',
+                'customer.update_all', 'customer.delete_all',
+                'quotation.update_all', 'quotation.delete_all',
+                'user.view',
+            ]),
+            User::ROLE_EMPLOYEE => $baseCodes,
+            User::ROLE_SALES => $baseCodes,
+            User::ROLE_ACCOUNTANT => array_merge($baseCodes, ['payment.manage']),
+        ];
+
+        foreach ($rolePermissionCodes as $roleName => $codes) {
+            foreach ($codes as $code) {
+                if (! isset($permissionIds[$code])) {
+                    continue;
+                }
+
+                $roleId = $roleIds[$roleName];
+                $permissionId = $permissionIds[$code];
+
+                if (! DB::table('role_permissions')->where('role_id', $roleId)->where('permission_id', $permissionId)->exists()) {
+                    DB::table('role_permissions')->insert([
+                        'role_id' => $roleId,
+                        'permission_id' => $permissionId,
+                        'created_at' => now(),
+                        'updated_at' => now(),
+                    ]);
+                }
             }
         }
 

@@ -22,9 +22,11 @@ import { FormSelectField } from '@/components/form/form-select-field';
 import { MoneyInput } from '@/components/form/money-input';
 import { AppDataTable } from '@/components/table/app-data-table';
 import { applyApiErrorsToForm, getApiErrorMessage } from '@/lib/api-error';
+import { canEditProject } from '@/lib/ownership';
 import { getOptionColor } from '@/lib/option-utils';
 import { formatCurrency } from '@/lib/utils';
 import api from '@/services/api/client';
+import { useAuthStore } from '@/stores/auth-store';
 import type { Contract, ContractFormValues, InvoiceRecipientType } from '@/types/contract';
 import type { Customer } from '@/types/customer';
 import type { AppOption } from '@/types/option';
@@ -343,6 +345,8 @@ export function ProjectContractPanel({
 }) {
   const queryClient = useQueryClient();
   const notify = useAppNotification();
+  const currentUser = useAuthStore((state) => state.user);
+  const canManage = canEditProject(currentUser, project);
   const [dialogOpen, setDialogOpen] = useState(false);
   const [editingContract, setEditingContract] = useState<Contract | null>(null);
   const [deleteTarget, setDeleteTarget] = useState<Contract | null>(null);
@@ -452,7 +456,7 @@ export function ProjectContractPanel({
             {contracts.length}
           </span>
         </div>
-        <TabActionButton startIcon={<AddRoundedIcon />} onClick={openCreate}>
+        <TabActionButton startIcon={<AddRoundedIcon />} onClick={openCreate} disabled={!canManage}>
           Thêm hợp đồng
         </TabActionButton>
       </div>
@@ -578,6 +582,7 @@ export function ProjectContractPanel({
                   title="Sửa hợp đồng"
                   aria-label={`Sửa hợp đồng ${contract.contractNo || contract.id}`}
                   onClick={() => openEdit(contract)}
+                  disabled={!canManage}
                 >
                   <EditOutlinedIcon fontSize="small" />
                 </IconButton>
@@ -596,14 +601,14 @@ export function ProjectContractPanel({
       </AppDataTable>
 
       <Menu anchorEl={menuAnchorEl} open={Boolean(menuAnchorEl)} onClose={closeActionMenu}>
-        <MenuItem onClick={editActiveContract}>
+        <MenuItem onClick={editActiveContract} disabled={!canManage}>
           <EditOutlinedIcon fontSize="small" className="mr-2 text-slate-500" />
           Chỉnh sửa
         </MenuItem>
         <MenuItem
           onClick={deleteActiveContract}
           className="text-rose-600"
-          disabled={deleteMutation.isPending}
+          disabled={deleteMutation.isPending || !canManage}
         >
           <DeleteOutlineRoundedIcon fontSize="small" className="mr-2" />
           Xóa
