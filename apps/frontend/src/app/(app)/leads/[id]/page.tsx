@@ -50,11 +50,12 @@ export default function EditLeadPage() {
     queryKey: ['options', 'lead-form'],
     queryFn: () =>
       api
-        .get('/options', { params: { groups: 'lead_status,lead_source,lead_service' } })
+        .get('/options', { params: { groups: 'lead_status,lead_source,industry,lead_service' } })
         .then((response) => response.data),
   });
   const statusOptions = leadOptions.filter((option) => option.group === 'lead_status');
   const sources = leadOptions.filter((option) => option.group === 'lead_source');
+  const industries = leadOptions.filter((option) => option.group === 'industry');
   const services = leadOptions.filter((option) => option.group === 'lead_service');
 
   const { data: leads = [] } = useQuery<Lead[]>({
@@ -159,6 +160,7 @@ export default function EditLeadPage() {
         lead={lead}
         users={users}
         sources={sources}
+        industries={industries}
         services={services}
         statuses={mergeLeadStatuses(
           statusOptions.map((status) => ({

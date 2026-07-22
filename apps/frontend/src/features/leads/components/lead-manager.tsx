@@ -12,13 +12,16 @@ import EditRoundedIcon from '@mui/icons-material/EditRounded';
 import HistoryRoundedIcon from '@mui/icons-material/HistoryRounded';
 import InfoRoundedIcon from '@mui/icons-material/InfoRounded';
 import KeyboardArrowDownRoundedIcon from '@mui/icons-material/KeyboardArrowDownRounded';
+import LanguageRoundedIcon from '@mui/icons-material/LanguageRounded';
 import MoreVertRoundedIcon from '@mui/icons-material/MoreVertRounded';
 import OpenInNewRoundedIcon from '@mui/icons-material/OpenInNewRounded';
 import PersonAddAlt1RoundedIcon from '@mui/icons-material/PersonAddAlt1Rounded';
 import RequestQuoteRoundedIcon from '@mui/icons-material/RequestQuoteRounded';
 import VisibilityRoundedIcon from '@mui/icons-material/VisibilityRounded';
+import WorkRoundedIcon from '@mui/icons-material/WorkRounded';
 import { ButtonBase, IconButton, Menu, MenuItem, Tooltip } from '@mui/material';
 import { DialogActionButton } from '@/components/actions/dialog-action-button';
+import { ExternalLinkButton } from '@/components/actions/external-link-button';
 import { AppDetailDialog } from '@/components/dialog/app-detail-dialog';
 import { ConfirmDialog } from '@/components/feedback/confirm-dialog';
 import { CompactSearchField } from '@/components/form/compact-search-field';
@@ -352,6 +355,7 @@ function getQuotationStatusLabel(status?: string | null) {
   const normalizedStatus = status?.toLowerCase();
 
   if (normalizedStatus === 'won') return 'Đã thanh toán';
+  if (normalizedStatus === 'refunded') return 'Đã hoàn tiền';
   if (normalizedStatus) return 'Báo phí';
 
   return status || '-';
@@ -361,6 +365,7 @@ function getQuotationStatusClass(status?: string | null) {
   const normalizedStatus = status?.toLowerCase();
 
   if (normalizedStatus === 'won') return 'bg-emerald-50 text-emerald-700 ring-emerald-100';
+  if (normalizedStatus === 'refunded') return 'bg-rose-50 text-rose-700 ring-rose-100';
   return 'bg-sky-50 text-sky-700 ring-sky-100';
 }
 
@@ -369,6 +374,24 @@ function LeadDetailRow({ label, value }: { label: string; value?: string | numbe
     <div className="grid grid-cols-[120px_minmax(0,1fr)] gap-4 text-sm">
       <dt className="font-semibold text-slate-500">{label}</dt>
       <dd className="min-w-0 font-semibold text-slate-800">{stringValue(value)}</dd>
+    </div>
+  );
+}
+
+function LeadLinkActions({
+  website,
+  project,
+}: {
+  website?: string | null;
+  project?: string | null;
+}) {
+  return (
+    <div className="grid grid-cols-[120px_minmax(0,1fr)] gap-4 text-sm lg:col-span-2">
+      <dt className="font-semibold text-slate-500">Liên kết</dt>
+      <dd className="flex min-w-0 flex-wrap items-center gap-2">
+        <ExternalLinkButton value={project} label="Link Dự án" icon={<WorkRoundedIcon />} />
+        <ExternalLinkButton value={website} label="Link Website" icon={<LanguageRoundedIcon />} />
+      </dd>
     </div>
   );
 }
@@ -407,7 +430,6 @@ function LeadViewDialog({
       ? [lead.interestedServiceOption]
       : [];
   const timelineEntries = getTimelineEntries(lead);
-  const link = lead.website || lead.planLink;
   const industryName = lead.industryOption?.label || lead.industry;
   const sourceName = lead.sourceOption?.label || lead.source?.name;
   const serviceNames = serviceOptions.length
@@ -491,12 +513,10 @@ function LeadViewDialog({
                 <LeadDetailRow label="Nguồn" value={sourceName} />
                 <LeadDetailRow label="Dịch vụ quan tâm" value={serviceNames} />
                 <LeadDetailRow label="Người phụ trách" value={lead.assignedUser?.name} />
-                <LeadDetailRow label="Website" value={link} />
-                <LeadDetailRow label="Dự án" value={lead.planLink} />
                 <LeadDetailRow label="Ngành" value={industryName} />
                 <LeadDetailRow label="Ngày phát sinh" value={formatDate(lead.occurredDate || '')} />
                 <LeadDetailRow label="Ngày chốt" value={formatDate(lead.closedDate || '')} />
-                <LeadDetailRow label="Zalo" value={lead.zaloGroup} />
+                <LeadLinkActions website={lead.website} project={lead.planLink} />
               </dl>
 
               <div className="mt-4 rounded-lg bg-amber-50 p-4 ring-1 ring-amber-100">

@@ -8,7 +8,11 @@ import { useServerListState } from '@/hooks/use-server-list-state';
 import { getApiErrorMessage } from '@/lib/api-error';
 import api from '@/services/api/client';
 import type { PaginatedResponse } from '@/types/pagination';
-import type { ProjectCost, ProjectCostFilters } from '@/types/project-cost';
+import type {
+  ProjectCost,
+  ProjectCostFilters,
+  ProjectCostReconciliationInput,
+} from '@/types/project-cost';
 
 const COSTS_PAGE_SIZE = 10;
 const COSTS_LIST_QUERY_KEY = ['project-costs', 'list'] as const;
@@ -17,6 +21,8 @@ const DEFAULT_COST_FILTERS: ProjectCostFilters = {
   entry_type: '',
   status: '',
   reconciled_status: '',
+  reconciliation_result: '',
+  balance_status: '',
   date_from: '',
   date_to: '',
 };
@@ -27,6 +33,8 @@ function costParams(filters: ProjectCostFilters) {
     entry_type: filters.entry_type || undefined,
     status: filters.status || undefined,
     reconciled_status: filters.reconciled_status || undefined,
+    reconciliation_result: filters.reconciliation_result || undefined,
+    balance_status: filters.balance_status || undefined,
     date_from: filters.date_from || undefined,
     date_to: filters.date_to || undefined,
     group_by_project: 1,
@@ -79,8 +87,16 @@ export default function CostsPage() {
   }, [page, pagination.lastPage, setPage]);
 
   const reconcileMutation = useMutation({
-    mutationFn: (costId: number) =>
-      api.post<ProjectCost>(`/project-costs/${costId}/reconcile`).then((response) => response.data),
+    mutationFn: ({
+      costId,
+      payload,
+    }: {
+      costId: number;
+      payload: ProjectCostReconciliationInput;
+    }) =>
+      api
+        .post<ProjectCost>(`/project-costs/${costId}/reconcile`, payload)
+        .then((response) => response.data),
     onSuccess: () => {
       void queryClient.invalidateQueries({ queryKey: ['project-costs'] });
       notify.success('Đã xác nhận khớp khoản chi');
@@ -102,7 +118,9 @@ export default function CostsPage() {
       onPageChange={setPage}
       onPageSizeChange={setPageSize}
       isReconciling={reconcileMutation.isPending}
-      onReconcile={(costId) => reconcileMutation.mutateAsync(costId)}
+      onReconcile={(costId, payload) =>
+        reconcileMutation.mutateAsync({ costId, payload })
+      }
     />
   );
 }

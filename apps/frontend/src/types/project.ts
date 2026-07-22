@@ -7,7 +7,7 @@ import type { User } from '@/types/user';
 
 export type ProjectUserSummary = Pick<User, 'id' | 'code' | 'name' | 'email'>;
 
-export type ProjectType = 'K' | 'M';
+export type ProjectType = 'K' | 'M' | 'N';
 
 export type ProjectCustomerSummary = Pick<
   Customer,
@@ -28,6 +28,9 @@ export type ProjectItem = {
   salesUserId?: number | null;
   zaloGroup?: string | null;
   planLink?: string | null;
+  weeklyReportLink?: string | null;
+  customerTrackingReportLink?: string | null;
+  adminWebAccount?: string | null;
   startDate?: string | null;
   endDate?: string | null;
   note?: string | null;
@@ -81,10 +84,11 @@ export type ProjectFormValues = {
   projectType: ProjectType;
   statusOptionId: string;
   managerUserId: string;
-  salesUserId: string;
   weeklyReportWeekday: string;
-  zaloGroup: string;
   planLink: string;
+  weeklyReportLink: string;
+  customerTrackingReportLink: string;
+  adminWebAccount: string;
   startDate: string;
   endDate: string;
   note: string;

@@ -27,11 +27,12 @@ export default function NewLeadPage() {
     queryKey: ['options', 'lead-form'],
     queryFn: () =>
       api
-        .get('/options', { params: { groups: 'lead_status,lead_source,lead_service' } })
+        .get('/options', { params: { groups: 'lead_status,lead_source,industry,lead_service' } })
         .then((response) => response.data),
   });
   const statuses = leadOptions.filter((option) => option.group === 'lead_status');
   const sources = leadOptions.filter((option) => option.group === 'lead_source');
+  const industries = leadOptions.filter((option) => option.group === 'industry');
   const services = leadOptions.filter((option) => option.group === 'lead_service');
 
   const { data: leads = [] } = useQuery<Lead[]>({
@@ -92,6 +93,7 @@ export default function NewLeadPage() {
         mode="create"
         users={users}
         sources={sources}
+        industries={industries}
         services={services}
         statuses={mergeLeadStatuses(
           statuses.map((status) => ({

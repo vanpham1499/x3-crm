@@ -5,6 +5,7 @@ import Link from 'next/link';
 import AccountBalanceRoundedIcon from '@mui/icons-material/AccountBalanceRounded';
 import CategoryRoundedIcon from '@mui/icons-material/CategoryRounded';
 import ChevronRightRoundedIcon from '@mui/icons-material/ChevronRightRounded';
+import CreditCardRoundedIcon from '@mui/icons-material/CreditCardRounded';
 import SaveRoundedIcon from '@mui/icons-material/SaveRounded';
 import { LinearProgress } from '@mui/material';
 import { keepPreviousData, useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
@@ -135,6 +136,19 @@ export default function SettingsPage() {
               </span>
               <span className="min-w-0 flex-1 truncate text-sm font-bold text-slate-900">
                 Tài khoản nhận tiền
+              </span>
+              <ChevronRightRoundedIcon className="text-slate-400" />
+            </Link>
+
+            <Link
+              href="/settings/ad-topup-cards"
+              className="flex min-h-16 items-center gap-3 rounded-xl border border-slate-200 px-3.5 py-3 transition-colors hover:border-primary/30 hover:bg-emerald-50/40"
+            >
+              <span className="inline-flex h-10 w-10 shrink-0 items-center justify-center rounded-lg bg-sky-50 text-sky-600">
+                <CreditCardRoundedIcon fontSize="small" />
+              </span>
+              <span className="min-w-0 flex-1 truncate text-sm font-bold text-slate-900">
+                Thẻ nạp quảng cáo
               </span>
               <ChevronRightRoundedIcon className="text-slate-400" />
             </Link>

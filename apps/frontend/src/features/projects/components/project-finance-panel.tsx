@@ -8,16 +8,11 @@ import { IconButton } from '@mui/material';
 import { TabActionButton } from '@/components/actions/tab-action-button';
 import { QuotationPreviewDialog } from '@/features/quotations/components/quotation-preview-dialog';
 import { getPaymentDisplayStatus } from '@/lib/payment-display-status';
-import { getQuotationPaymentContent } from '@/lib/quotation-utils';
+import { getQuotationPaymentContent, getQuotationPaymentStatusLabel } from '@/lib/quotation-utils';
 import { formatCurrency } from '@/lib/utils';
 import type { Payment } from '@/types/payment';
 import type { ProjectItem } from '@/types/project';
 import type { Quotation } from '@/types/quotation';
-
-const QUOTATION_STATUS_LABELS: Record<string, string> = {
-  draft: 'Báo phí',
-  won: 'Đã thanh toán',
-};
 
 function formatDate(value?: string | null) {
   if (!value) return '-';
@@ -47,6 +42,12 @@ function paymentStatusClass(status?: string | null) {
   if (status === 'collection_overpaid') {
     return 'bg-violet-50 text-violet-700 ring-violet-200';
   }
+  if (status === 'collection_partially_refunded' || status === 'collection_refunded') {
+    return 'bg-rose-50 text-rose-700 ring-rose-200';
+  }
+  if (status === 'collection_compensated' || status === 'collection_refunded_with_compensation') {
+    return 'bg-fuchsia-50 text-fuchsia-700 ring-fuchsia-200';
+  }
   if (status === 'unmatched') return 'bg-amber-50 text-amber-700 ring-amber-200';
   if (status === 'applied' || status === 'partial') {
     return 'bg-sky-50 text-sky-700 ring-sky-200';
@@ -69,20 +70,6 @@ function paymentStatusClass(status?: string | null) {
     return 'bg-blue-50 text-blue-700 ring-blue-200';
   }
   return 'bg-slate-100 text-slate-600 ring-slate-200';
-}
-
-function paymentAmountForQuotation(payment: Payment, quotationId: number) {
-  const allocations = payment.allocations || [];
-
-  if (allocations.length > 0) {
-    return allocations
-      .filter((allocation) => allocation.quotationId === quotationId)
-      .reduce((sum, allocation) => sum + (Number(allocation.amount) || 0), 0);
-  }
-
-  return payment.quotationId === quotationId
-    ? Number(payment.allocatedAmount ?? payment.amount) || 0
-    : 0;
 }
 
 function paymentQuotations(payment: Payment, quotations: Quotation[]) {
@@ -146,13 +133,15 @@ export function ProjectFinancePanel({
           </div>
         ) : (
           <div className="overflow-x-auto">
-            <table className="w-full min-w-[600px] text-left text-sm">
+            <table className="w-full min-w-[760px] text-left text-sm">
               <thead className="border-y border-slate-200 bg-slate-100 text-sm font-bold text-slate-700">
                 <tr>
                   <th className="px-4 py-3">Báo phí</th>
-                  <th className="px-3 py-3 text-right">Phải thu</th>
-                  <th className="px-3 py-3 text-right">Đã thu</th>
-                  <th className="px-4 py-3 text-right">Còn lại</th>
+                  <th className="px-3 py-3 text-right">Tổng báo</th>
+                  <th className="px-3 py-3 text-right">Tiền cọc</th>
+                  <th className="px-3 py-3 text-right">Đã nhận</th>
+                  <th className="px-3 py-3 text-right">Đã trả KH</th>
+                  <th className="px-4 py-3 text-right">Còn thu</th>
                   <th className="w-12 px-2 py-3">
                     <span className="sr-only">Tác vụ</span>
                   </th>
@@ -161,11 +150,19 @@ export function ProjectFinancePanel({
               <tbody className="divide-y divide-slate-100">
                 {quotations.map((quotation) => {
                   const total = Number(quotation.totalAmount) || 0;
-                  const received = payments.reduce(
-                    (sum, payment) => sum + paymentAmountForQuotation(payment, quotation.id),
-                    0,
-                  );
-                  const remaining = Math.max(0, total - received);
+                  const received =
+                    Number(quotation.grossPaidAmount) ||
+                    (Number(quotation.paidAmount) || 0) + (Number(quotation.refundedAmount) || 0);
+                  const deposit = Number(quotation.depositAmount) || 0;
+                  const depositRefunded = Number(quotation.depositRefundedAmount) || 0;
+                  const refunded = Number(quotation.refundedAmount) || 0;
+                  const compensation = Number(quotation.compensationAmount) || 0;
+                  const outbound = Number(quotation.outboundAmount) || refunded + compensation;
+                  const remaining = Number(quotation.outstandingAmount) || 0;
+                  const paymentStatusLabel =
+                    quotation.paymentStatus === 'unpaid'
+                      ? 'Báo phí'
+                      : getQuotationPaymentStatusLabel(quotation);
 
                   return (
                     <tr key={quotation.id} className="hover:bg-slate-50/70">
@@ -178,7 +175,7 @@ export function ProjectFinancePanel({
                             {quotation.quotationCode || `#${quotation.id}`}
                           </Link>
                           <span className="shrink-0 rounded bg-slate-100 px-1.5 py-0.5 text-[11px] font-bold text-slate-500">
-                            {QUOTATION_STATUS_LABELS[quotation.status || ''] || quotation.status}
+                            {paymentStatusLabel}
                           </span>
                         </div>
                         <p
@@ -192,8 +189,33 @@ export function ProjectFinancePanel({
                       <td className="px-3 py-3 text-right font-bold tabular-nums text-slate-950">
                         {formatCurrency(total)}
                       </td>
+                      <td className="px-3 py-3 text-right font-bold tabular-nums text-blue-700">
+                        <span className="whitespace-nowrap">{formatCurrency(deposit)}</span>
+                        {depositRefunded > 0 ? (
+                          <span className="mt-1 block whitespace-nowrap text-[10px] font-semibold text-rose-600">
+                            Đã hoàn {formatCurrency(depositRefunded)}
+                          </span>
+                        ) : null}
+                      </td>
                       <td className="px-3 py-3 text-right font-bold tabular-nums text-emerald-700">
-                        {formatCurrency(received)}
+                        <span className="whitespace-nowrap">{formatCurrency(received)}</span>
+                      </td>
+                      <td className="px-3 py-3 text-right font-bold tabular-nums text-rose-700">
+                        <span className="whitespace-nowrap">{formatCurrency(outbound)}</span>
+                        {refunded > 0 || compensation > 0 ? (
+                          <div className="mt-1 flex items-center justify-end gap-1 text-[10px] font-semibold">
+                            {refunded > 0 ? (
+                              <span className="whitespace-nowrap text-rose-600">
+                                Hoàn {formatCurrency(refunded)}
+                              </span>
+                            ) : null}
+                            {compensation > 0 ? (
+                              <span className="whitespace-nowrap text-fuchsia-700">
+                                {refunded > 0 ? '· ' : ''}Bù {formatCurrency(compensation)}
+                              </span>
+                            ) : null}
+                          </div>
+                        ) : null}
                       </td>
                       <td
                         className={`px-4 py-3 text-right font-bold tabular-nums ${remaining > 0 ? 'text-amber-700' : 'text-slate-500'}`}
@@ -248,11 +270,12 @@ export function ProjectFinancePanel({
           </p>
         ) : (
           <div className="overflow-x-auto">
-            <table className="w-full min-w-[560px] text-left text-sm">
+            <table className="w-full min-w-[640px] text-left text-sm">
               <thead className="border-y border-slate-200 bg-slate-100 text-sm font-bold text-slate-700">
                 <tr>
                   <th className="px-4 py-3">Giao dịch</th>
-                  <th className="px-3 py-3 text-right">Số tiền</th>
+                  <th className="px-3 py-3 text-right">Tiền vào</th>
+                  <th className="px-3 py-3 text-right">Tiền ra</th>
                   <th className="px-4 py-3">Báo phí / công nợ</th>
                 </tr>
               </thead>
@@ -261,6 +284,7 @@ export function ProjectFinancePanel({
                   const linkedQuotations = paymentQuotations(payment, quotations);
                   const primaryQuotation = linkedQuotations[0];
                   const displayStatus = getPaymentDisplayStatus(payment);
+                  const outboundAmount = Number(payment.outboundAmount) || 0;
                   return (
                     <tr key={payment.id} className="hover:bg-slate-50/70">
                       <td className="min-w-0 px-4 py-3">
@@ -276,6 +300,9 @@ export function ProjectFinancePanel({
                       </td>
                       <td className="px-3 py-3 text-right font-extrabold tabular-nums text-emerald-700">
                         {formatCurrency(Number(payment.amount) || 0)}
+                      </td>
+                      <td className="px-3 py-3 text-right font-extrabold tabular-nums text-rose-700">
+                        {outboundAmount > 0 ? formatCurrency(outboundAmount) : '-'}
                       </td>
                       <td className="px-4 py-3">
                         <div className="flex min-w-0 items-center gap-1.5">

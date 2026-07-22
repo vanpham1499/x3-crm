@@ -31,8 +31,6 @@ export type ProjectRevenueGroup = '2.1' | '2.2';
 
 export type ProjectRevenueGroupInfo = {
   group: ProjectRevenueGroup;
-  title: string;
-  description: string;
   pricingMode: 'management_fee' | 'quantity_price';
 };
 
@@ -40,14 +38,10 @@ export function getProjectRevenueGroupInfo(enabled: boolean): ProjectRevenueGrou
   return enabled
     ? {
         group: '2.1',
-        title: '2.1 DT DV1,DV2',
-        description: 'Tính phí quản lý theo ngân sách quảng cáo.',
         pricingMode: 'management_fee',
       }
     : {
         group: '2.2',
-        title: '2.2 DT DV3,DV4',
-        description: 'Tính doanh thu theo số lượng, đơn giá và chi phí thực hiện.',
         pricingMode: 'quantity_price',
       };
 }

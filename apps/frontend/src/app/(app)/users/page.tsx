@@ -24,7 +24,6 @@ export default function UsersPage() {
   const notify = useAppNotification();
   const currentUser = useAuthStore((state) => state.user);
   const [deleteTarget, setDeleteTarget] = useState<User | null>(null);
-  const [bulkDeleteIds, setBulkDeleteIds] = useState<number[]>([]);
   const [filters, setFilters] = useState<UserFilters>({
     keyword: '',
     role_id: '',
@@ -59,24 +58,9 @@ export default function UsersPage() {
     },
   });
 
-  const bulkDeleteMutation = useMutation({
-    mutationFn: (userIds: number[]) =>
-      Promise.all(userIds.map((userId) => api.delete(`/users/${userId}`))),
-    onSuccess: (_, userIds) => {
-      queryClient.invalidateQueries({ queryKey: ['users'] });
-      notify.success(`Đã xóa ${userIds.length} nhân viên`);
-      setBulkDeleteIds([]);
-    },
-    onError: (error) => {
-      notify.error(getApiErrorMessage(error, 'Xóa nhân viên thất bại'));
-    },
-  });
-
   if (isLoading) {
     return <ContentLoading />;
   }
-
-  const isDeleting = deleteMutation.isPending || bulkDeleteMutation.isPending;
 
   return (
     <>
@@ -87,9 +71,8 @@ export default function UsersPage() {
         isFetching={isFetching}
         currentUser={currentUser}
         onFiltersChange={setFilters}
-        isDeleting={isDeleting}
+        isDeleting={deleteMutation.isPending}
         onDelete={setDeleteTarget}
-        onBulkDelete={setBulkDeleteIds}
       />
 
       <ConfirmDialog
@@ -102,16 +85,6 @@ export default function UsersPage() {
         onConfirm={() => {
           if (deleteTarget) deleteMutation.mutate(deleteTarget.id);
         }}
-      />
-
-      <ConfirmDialog
-        open={bulkDeleteIds.length > 0}
-        title="Xóa nhân viên đã chọn?"
-        description={`Bạn có chắc muốn xóa ${bulkDeleteIds.length} nhân viên đã chọn? Thao tác này sẽ đưa các nhân viên này ra khỏi danh sách.`}
-        confirmText="Xóa đã chọn"
-        loading={bulkDeleteMutation.isPending}
-        onClose={() => setBulkDeleteIds([])}
-        onConfirm={() => bulkDeleteMutation.mutate(bulkDeleteIds)}
       />
     </>
   );

@@ -17,6 +17,7 @@ import { ProjectCostPanel } from '@/features/projects/components/project-cost-pa
 import { ProjectCustomerPanel } from '@/features/projects/components/project-customer-panel';
 import { ProjectFinancePanel } from '@/features/projects/components/project-finance-panel';
 import { ProjectForm } from '@/features/projects/components/project-form';
+import { AD_TOPUP_CARD_OPTION_GROUP } from '@/lib/ad-topup-card-options';
 import { getApiErrorMessage } from '@/lib/api-error';
 import { canEditProject } from '@/lib/ownership';
 import {
@@ -48,20 +49,6 @@ type ProjectTab = 'info' | 'contract' | 'finance' | 'customer';
 
 const PROJECT_TABS: ProjectTab[] = ['info', 'contract', 'finance', 'customer'];
 
-function paymentAmountForQuotation(payment: Payment, quotationId: number) {
-  const allocations = payment.allocations || [];
-
-  if (allocations.length > 0) {
-    return allocations
-      .filter((allocation) => allocation.quotationId === quotationId)
-      .reduce((sum, allocation) => sum + (Number(allocation.amount) || 0), 0);
-  }
-
-  return payment.quotationId === quotationId
-    ? Number(payment.allocatedAmount ?? payment.amount) || 0
-    : 0;
-}
-
 export default function EditProjectPage() {
   const params = useParams();
   const id = params.id as string;
@@ -87,15 +74,15 @@ export default function EditProjectPage() {
       api
         .get('/options', {
           params: {
-            groups: 'project_status,contract_status,company_bank_account,project_partner',
+            groups: `project_status,contract_status,${AD_TOPUP_CARD_OPTION_GROUP},project_partner`,
           },
         })
         .then((response) => response.data),
   });
   const statuses = projectOptions.filter((option) => option.group === 'project_status');
   const contractStatuses = projectOptions.filter((option) => option.group === 'contract_status');
-  const bankAccounts = projectOptions.filter(
-    (option) => option.group === 'company_bank_account' && option.isActive !== false,
+  const topupCards = projectOptions.filter(
+    (option) => option.group === AD_TOPUP_CARD_OPTION_GROUP && option.isActive !== false,
   );
   const partners = projectOptions.filter(
     (option) => option.group === 'project_partner' && option.isActive !== false,
@@ -211,31 +198,52 @@ export default function EditProjectPage() {
   const rootService = getRootServiceItem(services, String(project.serviceId));
   const configOption = getConfigForRoot(quoteConfigs, rootService);
   const config = configOption ? getServiceQuoteConfigMeta(configOption, rootService) : null;
-  const revenueGroupInfo = getProjectRevenueGroupInfo(Boolean(config?.enabled));
-  const revenueGroup = revenueGroupInfo.group;
+  const revenueGroup = getProjectRevenueGroupInfo(Boolean(config?.enabled)).group;
   const billableQuotations = quotations;
   const totalQuoted = billableQuotations.reduce(
     (sum, quotation) => sum + (Number(quotation.totalAmount) || 0),
     0,
   );
-  const totalReceived = billableQuotations.reduce(
+  const totalGrossReceived = billableQuotations.reduce(
     (sum, quotation) =>
       sum +
-      payments.reduce(
-        (paymentSum, payment) => paymentSum + paymentAmountForQuotation(payment, quotation.id),
-        0,
-      ),
+      (Number(quotation.grossPaidAmount) ||
+        (Number(quotation.paidAmount) || 0) + (Number(quotation.refundedAmount) || 0)),
     0,
   );
-  const outstanding = billableQuotations.reduce((sum, quotation) => {
-    const received = payments.reduce(
-      (paymentSum, payment) => paymentSum + paymentAmountForQuotation(payment, quotation.id),
-      0,
-    );
-    return sum + Math.max(0, (Number(quotation.totalAmount) || 0) - received);
+  const totalDeposit = billableQuotations.reduce(
+    (sum, quotation) => sum + (Number(quotation.depositAmount) || 0),
+    0,
+  );
+  const totalDepositReceived = billableQuotations.reduce((sum, quotation) => {
+    const deposit = Number(quotation.depositAmount) || 0;
+    const grossReceived =
+      Number(quotation.grossPaidAmount) ||
+      (Number(quotation.paidAmount) || 0) + (Number(quotation.refundedAmount) || 0);
+
+    return sum + Math.min(deposit, grossReceived);
   }, 0);
+  const totalDepositRefunded = billableQuotations.reduce(
+    (sum, quotation) => sum + (Number(quotation.depositRefundedAmount) || 0),
+    0,
+  );
+  const heldDeposit = Math.max(0, totalDepositReceived - totalDepositRefunded);
+  const pendingDeposit = Math.max(0, totalDeposit - totalDepositReceived);
+  const totalRefunded = billableQuotations.reduce(
+    (sum, quotation) => sum + (Number(quotation.refundedAmount) || 0),
+    0,
+  );
+  const totalCompensation = billableQuotations.reduce(
+    (sum, quotation) => sum + (Number(quotation.compensationAmount) || 0),
+    0,
+  );
+  const netCashRetained = totalGrossReceived - totalRefunded - totalCompensation;
+  const outstanding = billableQuotations.reduce(
+    (sum, quotation) => sum + (Number(quotation.outstandingAmount) || 0),
+    0,
+  );
   const totalCost = calculateRealizedProjectCost(projectCosts);
-  const profit = totalReceived - totalCost;
+  const profit = netCashRetained - heldDeposit - totalCost;
   const managedBudgetProject = isManagedBudgetProject({
     projectType: project.projectType,
     projectCode: project.projectCode,
@@ -245,10 +253,23 @@ export default function EditProjectPage() {
     quotations,
     costs: projectCosts,
   });
+  const depositNotes = [
+    heldDeposit > 0 ? `Đang giữ ${formatCurrency(heldDeposit)}` : '',
+    totalDepositRefunded > 0 ? `Đã hoàn ${formatCurrency(totalDepositRefunded)}` : '',
+    pendingDeposit > 0 ? `Chưa nhận ${formatCurrency(pendingDeposit)}` : '',
+  ].filter(Boolean);
 
   const metrics = [
     { label: 'Tổng báo phí', value: totalQuoted, className: 'text-slate-950' },
-    { label: 'Đã thu', value: totalReceived, className: 'text-emerald-700' },
+    { label: 'Đã nhận', value: totalGrossReceived, className: 'text-emerald-700' },
+    {
+      label: 'Tiền cọc',
+      value: totalDeposit,
+      className: 'text-blue-700',
+      note: totalDeposit > 0 ? depositNotes.join(' · ') : undefined,
+    },
+    { label: 'Đã hoàn', value: totalRefunded, className: 'text-rose-700' },
+    { label: 'Bù thêm', value: totalCompensation, className: 'text-fuchsia-700' },
     { label: 'Còn phải thu', value: outstanding, className: 'text-amber-700' },
     { label: 'Chi phí đã chi', value: totalCost, className: 'text-rose-700' },
     {
@@ -290,15 +311,6 @@ export default function EditProjectPage() {
             >
               {project.statusOption?.label || 'Chưa chọn trạng thái'}
             </span>
-            <span
-              className={`rounded-md px-2.5 py-1 text-xs font-bold ring-1 ${
-                revenueGroup === '2.1'
-                  ? 'bg-sky-50 text-sky-700 ring-sky-200'
-                  : 'bg-amber-50 text-amber-700 ring-amber-200'
-              }`}
-            >
-              {revenueGroupInfo.title}
-            </span>
           </div>
           <div className="mt-3 flex flex-wrap gap-x-5 gap-y-1 text-sm font-semibold text-slate-600">
             <span>{project.customer?.customerName || project.customer?.companyName || '-'}</span>
@@ -308,8 +320,8 @@ export default function EditProjectPage() {
           </div>
 
           <div
-            className={`mt-4 grid gap-px overflow-hidden rounded-lg bg-slate-200 ring-1 ring-slate-200 sm:grid-cols-2 ${
-              managedBudgetProject ? 'lg:grid-cols-6' : 'lg:grid-cols-5'
+            className={`mt-4 grid gap-px overflow-hidden rounded-lg bg-slate-200 ring-1 ring-slate-200 sm:grid-cols-2 lg:grid-cols-4 ${
+              managedBudgetProject ? '2xl:grid-cols-9' : '2xl:grid-cols-8'
             }`}
           >
             {metrics.map((metric) => (
@@ -320,6 +332,14 @@ export default function EditProjectPage() {
                 <p className={`mt-1 text-lg font-extrabold tabular-nums ${metric.className}`}>
                   {formatCurrency(metric.value)}
                 </p>
+                {'note' in metric && metric.note ? (
+                  <p
+                    className="mt-1 truncate text-[10px] font-semibold text-slate-500"
+                    title={metric.note}
+                  >
+                    {metric.note}
+                  </p>
+                ) : null}
               </div>
             ))}
           </div>
@@ -361,7 +381,6 @@ export default function EditProjectPage() {
             services={services}
             users={users}
             statuses={statuses}
-            quoteConfigs={quoteConfigs}
             isSubmitting={updateMutation.isPending}
             readOnly={!canEditProject(currentUser, project)}
             onSubmit={(values) => updateMutation.mutateAsync(values)}
@@ -383,7 +402,7 @@ export default function EditProjectPage() {
               revenueGroup={revenueGroup}
               costs={projectCosts}
               quotations={quotations}
-              bankAccounts={bankAccounts}
+              topupCards={topupCards}
               partners={partners}
             />
           </ProjectFinancePanel>

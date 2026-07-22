@@ -41,16 +41,18 @@ export function getProjectDefaults(
     serviceId: idToString(project?.serviceId) || defaults?.serviceId || '',
     projectName: project?.projectName || defaults?.projectName || '',
     projectType:
-      project?.projectType === 'M' || project?.projectType === 'K'
+      project?.projectType === 'M' || project?.projectType === 'K' || project?.projectType === 'N'
         ? project.projectType
         : defaults?.projectType || 'K',
     statusOptionId: idToString(project?.statusOptionId) || defaults?.statusOptionId || '',
     managerUserId: idToString(project?.managerUserId) || defaults?.managerUserId || '',
-    salesUserId: idToString(project?.salesUserId) || defaults?.salesUserId || '',
     weeklyReportWeekday:
       idToString(project?.weeklySetting?.reportWeekday) || defaults?.weeklyReportWeekday || '',
-    zaloGroup: project?.zaloGroup || defaults?.zaloGroup || '',
     planLink: project?.planLink || defaults?.planLink || '',
+    weeklyReportLink: project?.weeklyReportLink || defaults?.weeklyReportLink || '',
+    customerTrackingReportLink:
+      project?.customerTrackingReportLink || defaults?.customerTrackingReportLink || '',
+    adminWebAccount: project?.adminWebAccount || defaults?.adminWebAccount || '',
     startDate:
       project?.startDate ||
       defaults?.startDate ||
@@ -70,10 +72,11 @@ export function toProjectPayload(values: ProjectFormValues) {
     projectType: values.projectType,
     statusOptionId: values.statusOptionId || null,
     managerUserId: values.managerUserId || null,
-    salesUserId: values.salesUserId || null,
     reportWeekday: values.weeklyReportWeekday ? Number(values.weeklyReportWeekday) : null,
-    zaloGroup: values.zaloGroup.trim() || null,
     planLink: values.planLink.trim() || null,
+    weeklyReportLink: values.weeklyReportLink.trim() || null,
+    customerTrackingReportLink: values.customerTrackingReportLink.trim() || null,
+    adminWebAccount: values.adminWebAccount.trim() || null,
     startDate: values.startDate || null,
     endDate: values.endDate || null,
     note: values.note.trim() || null,
@@ -127,9 +130,12 @@ export function generateProjectCode({
   projectType?: ProjectType | null;
   projectName?: string | null;
 }) {
-  const parts = [customerCode, rootServiceCode, projectType, projectName].map((part) =>
-    toCodeSegment(part),
-  );
+  const parts = [
+    customerCode,
+    rootServiceCode,
+    ...(projectType === 'N' ? [] : [projectType]),
+    projectName,
+  ].map((part) => toCodeSegment(part));
 
   if (parts.some((part) => !part)) return '';
 

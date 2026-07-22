@@ -31,8 +31,8 @@ import { FormDatePicker } from '@/components/form/form-date-picker';
 import { FormInputField } from '@/components/form/form-input-field';
 import { FormSelectField } from '@/components/form/form-select-field';
 import { MoneyInput } from '@/components/form/money-input';
+import { getAdTopupCardLabel } from '@/lib/ad-topup-card-options';
 import { applyApiErrorsToForm, getApiErrorMessage } from '@/lib/api-error';
-import { getBankAccountBankCode } from '@/lib/company-bank-account-options';
 import { canEditProject } from '@/lib/ownership';
 import { calculateAvailableTopupBudget, isManagedBudgetProject } from '@/lib/project-topup-budget';
 import { formatCurrency } from '@/lib/utils';
@@ -45,7 +45,7 @@ import type {
   ProjectCostFormValues,
   ProjectCostStatus,
 } from '@/types/project-cost';
-import type { ProjectItem } from '@/types/project';
+import type { ProjectItem, ProjectType } from '@/types/project';
 import type { Quotation } from '@/types/quotation';
 
 function costStatusLabel(status: string, entryType: ProjectCostEntryType) {
@@ -60,11 +60,6 @@ function formatDate(value?: string | null) {
   return Number.isNaN(date.getTime()) ? value : date.toLocaleDateString('vi-VN');
 }
 
-function bankAccountLabel(option: AppOption | null | undefined) {
-  if (!option) return '-';
-  return [getBankAccountBankCode(option), option.value].filter(Boolean).join(' · ') || option.label;
-}
-
 function partnerLabel(option: AppOption | null | undefined) {
   if (!option) return '-';
   return [option.key, option.label].filter(Boolean).join(' · ');
@@ -74,6 +69,35 @@ function statusClass(status?: string | null) {
   if (status === 'completed') return 'bg-emerald-50 text-emerald-700 ring-emerald-200';
   if (status === 'cancelled') return 'bg-slate-100 text-slate-500 ring-slate-200';
   return 'bg-amber-50 text-amber-700 ring-amber-200';
+}
+
+function moneyValue(value: string | number | null | undefined) {
+  return Number(value) || 0;
+}
+
+function balanceStatusBadge(cost: ProjectCost) {
+  const remainingBalance = moneyValue(cost.remainingBalanceAmount);
+  const releasedBalance = moneyValue(
+    cost.releasedBalanceAmount ?? cost.handledBalanceAmount ?? cost.originalBalanceAmount,
+  );
+
+  if (!cost.balanceStatus || cost.balanceStatus === 'none') {
+    return null;
+  }
+
+  if (remainingBalance > 0) {
+    return (
+      <span className="inline-flex whitespace-nowrap rounded-md bg-amber-50 px-2 py-1 text-xs font-bold text-amber-700 ring-1 ring-amber-200">
+        Chờ hoàn {formatCurrency(remainingBalance)}
+      </span>
+    );
+  }
+
+  return (
+    <span className="inline-flex whitespace-nowrap rounded-md bg-emerald-50 px-2 py-1 text-xs font-bold text-emerald-700 ring-1 ring-emerald-200">
+      Đã hoàn hạn mức {formatCurrency(releasedBalance)}
+    </span>
+  );
 }
 
 const COST_STATUSES: ProjectCostStatus[] = ['pending', 'completed', 'cancelled'];
@@ -230,7 +254,7 @@ function CostDialog({
   projectCode,
   costs,
   quotations,
-  bankAccounts,
+  topupCards,
   partners,
   isSubmitting,
   onClose,
@@ -239,17 +263,21 @@ function CostDialog({
   open: boolean;
   entryType: ProjectCostEntryType;
   cost?: ProjectCost | null;
-  projectType?: 'K' | 'M' | null;
+  projectType?: ProjectType | null;
   projectCode?: string | null;
   costs: ProjectCost[];
   quotations: Quotation[];
-  bankAccounts: AppOption[];
+  topupCards: AppOption[];
   partners: AppOption[];
   isSubmitting: boolean;
   onClose: () => void;
   onSubmit: (values: ProjectCostFormValues, cost?: ProjectCost | null) => Promise<unknown>;
 }) {
   const isAdSpend = entryType === 'ad_spend';
+  const selectableTopupCards =
+    cost?.bankAccountOption && !topupCards.some((card) => card.id === cost.bankAccountOption?.id)
+      ? [cost.bankAccountOption, ...topupCards]
+      : topupCards;
   const {
     control,
     register,
@@ -321,23 +349,6 @@ function CostDialog({
     >
       {isAdSpend ? (
         <Controller
-          name="quotationId"
-          control={control}
-          render={({ field }) => (
-            <FormSelectField label="Báo phí liên quan" {...field}>
-              <MenuItem value="">Không gắn báo phí</MenuItem>
-              {quotations.map((quotation) => (
-                <MenuItem key={quotation.id} value={String(quotation.id)}>
-                  {quotation.quotationCode || `Báo phí #${quotation.id}`}
-                </MenuItem>
-              ))}
-            </FormSelectField>
-          )}
-        />
-      ) : null}
-
-      {isAdSpend ? (
-        <Controller
           name="transactionDate"
           control={control}
           rules={{ required: 'Bắt buộc' }}
@@ -371,15 +382,12 @@ function CostDialog({
       )}
 
       {isAdSpend ? (
-        <>
-          <FormInputField
-            label="Mã CID *"
-            error={Boolean(errors.cid)}
-            helperText={errors.cid?.message}
-            {...register('cid', { required: 'Bắt buộc' })}
-          />
-          <FormInputField label="Tài khoản quảng cáo" {...register('adAccount')} />
-        </>
+        <FormInputField
+          label="Mã CID *"
+          error={Boolean(errors.cid)}
+          helperText={errors.cid?.message}
+          {...register('cid', { required: 'Bắt buộc' })}
+        />
       ) : (
         <Controller
           name="partnerOptionId"
@@ -407,18 +415,12 @@ function CostDialog({
         <Controller
           name="bankAccountOptionId"
           control={control}
-          rules={{ required: 'Bắt buộc' }}
           render={({ field }) => (
-            <FormSelectField
-              label="TK ngân hàng nạp QC *"
-              error={Boolean(errors.bankAccountOptionId)}
-              helperText={errors.bankAccountOptionId?.message}
-              {...field}
-            >
+            <FormSelectField label="Thẻ nạp QC" {...field}>
               <MenuItem value="">Chưa chọn</MenuItem>
-              {bankAccounts.map((account) => (
-                <MenuItem key={account.id} value={String(account.id)}>
-                  {bankAccountLabel(account)} · {account.label}
+              {selectableTopupCards.map((card) => (
+                <MenuItem key={card.id} value={String(card.id)}>
+                  {getAdTopupCardLabel(card)}
                 </MenuItem>
               ))}
             </FormSelectField>
@@ -562,17 +564,17 @@ export function ProjectCostPanel({
   revenueGroup,
   costs,
   quotations,
-  bankAccounts,
+  topupCards,
   partners,
 }: {
   project: ProjectItem;
   projectId: number;
-  projectType?: 'K' | 'M' | null;
+  projectType?: ProjectType | null;
   projectCode?: string | null;
   revenueGroup: '2.1' | '2.2';
   costs: ProjectCost[];
   quotations: Quotation[];
-  bankAccounts: AppOption[];
+  topupCards: AppOption[];
   partners: AppOption[];
 }) {
   const entryType: ProjectCostEntryType = revenueGroup === '2.1' ? 'ad_spend' : 'partner_cost';
@@ -692,21 +694,23 @@ export function ProjectCostPanel({
 
       <div className="overflow-x-auto">
         {entryType === 'ad_spend' ? (
-          <table className="w-full min-w-[720px] table-fixed text-left text-sm">
+          <table className="w-full min-w-[920px] table-fixed text-left text-sm">
             <thead className="border-y border-slate-200 bg-slate-100 text-sm font-bold text-slate-700">
               <tr>
-                <th className="w-[18%] px-4 py-3">Ngày nạp</th>
-                <th className="w-[22%] px-3 py-3">CID / TK QC</th>
-                <th className="w-[17%] px-3 py-3">TK nạp QC</th>
-                <th className="w-[16%] px-3 py-3 text-right">NS nạp + VAT</th>
-                <th className="w-[22%] px-3 py-3">Trạng thái</th>
+                <th className="w-[13%] px-4 py-3">Ngày nạp</th>
+                <th className="w-[20%] px-3 py-3">CID</th>
+                <th className="w-[16%] px-3 py-3">Thẻ nạp</th>
+                <th className="w-[13%] px-3 py-3 text-right">Đã nạp</th>
+                <th className="w-[13%] px-3 py-3 text-right">Đã chạy</th>
+                <th className="w-[13%] px-3 py-3 text-right">Hạn mức</th>
+                <th className="w-[17%] px-3 py-3">Trạng thái</th>
                 <th className="w-[5%] px-2 py-3" />
               </tr>
             </thead>
             <tbody className="divide-y divide-slate-100">
               {visibleCosts.length === 0 ? (
                 <tr>
-                  <td colSpan={6} className="px-4 py-10 text-center font-semibold text-slate-500">
+                  <td colSpan={8} className="px-4 py-10 text-center font-semibold text-slate-500">
                     Chưa có dữ liệu nạp quảng cáo
                   </td>
                 </tr>
@@ -717,41 +721,68 @@ export function ProjectCostPanel({
                       <p className="font-semibold tabular-nums text-slate-800">
                         {formatDate(cost.transactionDate)}
                       </p>
-                      <p className="mt-1 truncate text-xs font-bold text-blue-700">
-                        {cost.quotation?.quotationCode || 'Không gắn báo phí'}
-                      </p>
                     </td>
                     <td className="px-3 py-3">
-                      <div className="flex items-center gap-1.5 whitespace-nowrap">
-                        <span className="font-mono font-bold text-slate-800">
+                      <div className="flex min-w-0 flex-col gap-1">
+                        <span className="truncate font-mono font-bold text-slate-800">
                           {cost.cid || '-'}
                         </span>
                         {cost.cidIsDead ? (
-                          <>
+                          <div className="flex min-w-0 flex-wrap items-center gap-1.5">
                             <span className="rounded-md bg-rose-50 px-1.5 py-0.5 text-[11px] font-bold text-rose-700 ring-1 ring-rose-200">
                               Ngừng hoạt động
                             </span>
-                            <span className="text-xs font-bold tabular-nums text-rose-700">
-                              Đã chạy {formatCurrency(Number(cost.cidSpentAmount) || 0)}
+                            <span className="truncate text-xs font-bold tabular-nums text-rose-700">
+                              Chạy {formatCurrency(moneyValue(cost.cidSpentAmount ?? cost.actualCostAmount))}
                             </span>
-                          </>
+                          </div>
                         ) : null}
                       </div>
-                      <p className="mt-1 max-w-[220px] truncate text-xs font-medium text-slate-500">
-                        {cost.adAccount || 'Chưa có tài khoản quảng cáo'}
-                      </p>
                     </td>
                     <td
                       className="truncate px-3 py-3 text-slate-700"
-                      title={bankAccountLabel(cost.bankAccountOption)}
+                      title={getAdTopupCardLabel(cost.bankAccountOption)}
                     >
-                      {bankAccountLabel(cost.bankAccountOption)}
+                      {getAdTopupCardLabel(cost.bankAccountOption)}
                     </td>
                     <td className="px-3 py-3 text-right font-extrabold tabular-nums text-slate-950">
-                      {formatCurrency(Number(cost.totalAmount) || 0)}
+                      {formatCurrency(moneyValue(cost.totalAmount))}
+                    </td>
+                    <td className="px-3 py-3 text-right font-bold tabular-nums text-slate-700">
+                      {cost.cidIsDead ? formatCurrency(moneyValue(cost.cidSpentAmount ?? cost.actualCostAmount)) : '-'}
+                    </td>
+                    <td className="px-3 py-3 text-right font-bold tabular-nums">
+                      {cost.balanceStatus && cost.balanceStatus !== 'none' ? (
+                        <span
+                          className={
+                            cost.balanceStatus === 'resolved'
+                              ? 'text-emerald-700'
+                              : 'text-amber-700'
+                          }
+                          title={
+                            cost.balanceStatus === 'resolved'
+                              ? 'Đã tự hoàn vào số tiền có thể nạp'
+                              : 'Chờ xác nhận đối soát để hoàn hạn mức'
+                          }
+                        >
+                          {formatCurrency(
+                            cost.balanceStatus === 'resolved'
+                              ? moneyValue(
+                                  cost.releasedBalanceAmount ??
+                                    cost.handledBalanceAmount ??
+                                    cost.originalBalanceAmount,
+                                )
+                              : moneyValue(
+                                  cost.remainingBalanceAmount ?? cost.originalBalanceAmount,
+                                ),
+                          )}
+                        </span>
+                      ) : (
+                        <span className="text-slate-400">-</span>
+                      )}
                     </td>
                     <td className="px-3 py-3">
-                      <div className="flex items-center gap-1.5 whitespace-nowrap">
+                      <div className="flex min-w-0 flex-wrap items-center gap-1.5">
                         <InlineCostStatusSelect
                           cost={cost}
                           entryType={entryType}
@@ -776,6 +807,7 @@ export function ProjectCostPanel({
                             Đã khớp
                           </span>
                         ) : null}
+                        {balanceStatusBadge(cost)}
                       </div>
                     </td>
                     <td className="px-2 py-3">
@@ -827,7 +859,7 @@ export function ProjectCostPanel({
                       </p>
                     </td>
                     <td className="px-3 py-3 text-right font-extrabold tabular-nums text-slate-950">
-                      {formatCurrency(Number(cost.amountBeforeVat) || 0)}
+                      {formatCurrency(moneyValue(cost.amountBeforeVat))}
                     </td>
                     <td className="px-3 py-3">
                       <div className="flex items-center gap-1.5 whitespace-nowrap">
@@ -879,7 +911,6 @@ export function ProjectCostPanel({
           </table>
         )}
       </div>
-
       <CostDialog
         open={dialogOpen}
         entryType={entryType}
@@ -888,7 +919,7 @@ export function ProjectCostPanel({
         projectCode={projectCode}
         costs={costs}
         quotations={quotations}
-        bankAccounts={bankAccounts}
+        topupCards={topupCards}
         partners={partners}
         isSubmitting={saveMutation.isPending}
         onClose={() => setDialogOpen(false)}

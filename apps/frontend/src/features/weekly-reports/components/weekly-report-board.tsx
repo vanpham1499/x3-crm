@@ -22,6 +22,7 @@ import { canApproveWeeklyReport } from '@/lib/ownership';
 import { getReportWeekdayLabel } from '@/lib/weekly-report-schedule';
 import { formatDate } from '@/lib/utils';
 import type { User } from '@/types/user';
+import type { AppOption } from '@/types/option';
 import type {
   WeeklyReport,
   WeeklyReportBoardFilters,
@@ -33,6 +34,7 @@ type WeeklyReportBoardProps = {
   embedded?: boolean;
   rows: WeeklyReportBoardRow[];
   users: User[];
+  weeklyConditionOptions: AppOption[];
   filters: WeeklyReportBoardFilters;
   weekStart: string;
   isFetching: boolean;
@@ -165,6 +167,7 @@ export function WeeklyReportBoard({
   embedded = false,
   rows,
   users,
+  weeklyConditionOptions,
   filters,
   weekStart,
   isFetching,
@@ -254,11 +257,9 @@ export function WeeklyReportBoard({
           <CompactSelectField
             label="Tình trạng tuần"
             value={filters.weeklyCondition}
-            options={[
-              { value: 'Tốt', label: 'Tốt' },
-              { value: 'Cần theo dõi', label: 'Cần theo dõi' },
-              { value: 'Rủi ro', label: 'Rủi ro' },
-            ]}
+            options={weeklyConditionOptions
+              .filter((option) => option.isActive)
+              .map((option) => ({ value: option.label, label: option.label }))}
             onChange={(weeklyCondition) => updateFilters({ weeklyCondition })}
           />
         </div>

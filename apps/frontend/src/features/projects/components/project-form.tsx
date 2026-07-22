@@ -14,17 +14,7 @@ import { FormSection } from '@/components/form/form-section';
 import { FormSelectField } from '@/components/form/form-select-field';
 import { ServerPaginatedAutocomplete } from '@/components/form/server-paginated-autocomplete';
 import { applyApiErrorsToForm } from '@/lib/api-error';
-import {
-  generateProjectCode,
-  getProjectDefaults,
-  getRootServiceCode,
-  getRootServiceItem,
-} from '@/lib/project-utils';
-import {
-  getConfigForRoot,
-  getProjectRevenueGroupInfo,
-  getServiceQuoteConfigMeta,
-} from '@/lib/service-quote-config';
+import { generateProjectCode, getProjectDefaults, getRootServiceCode } from '@/lib/project-utils';
 import { flattenServices } from '@/lib/service-utils';
 import { formatCurrency } from '@/lib/utils';
 import { getReportWeekdayLabel } from '@/lib/weekly-report-schedule';
@@ -44,7 +34,6 @@ type ProjectFormProps = {
   services: ServiceItem[];
   users: User[];
   statuses: AppOption[];
-  quoteConfigs?: AppOption[];
   quotations?: Quotation[];
   defaultValues?: Partial<ProjectFormValues>;
   cancelHref?: string;
@@ -76,6 +65,7 @@ function serviceLabel(service: ReturnType<typeof flattenServices>[number]) {
 const QUOTATION_STATUS_LABELS: Record<string, string> = {
   draft: 'Báo phí',
   won: 'Đã thanh toán',
+  refunded: 'Đã hoàn tiền',
 };
 
 function quotationLabel(quotation: Quotation) {
@@ -101,7 +91,6 @@ export function ProjectForm({
   services,
   users,
   statuses,
-  quoteConfigs = [],
   quotations = [],
   defaultValues,
   cancelHref = '/projects',
@@ -128,10 +117,13 @@ export function ProjectForm({
   const projectName = useWatch({ control, name: 'projectName' }) || '';
   const projectType = useWatch({ control, name: 'projectType' }) || 'K';
   const planLinkValue = useWatch({ control, name: 'planLink' }) || '';
-  const selectedSalesUserId = useWatch({ control, name: 'salesUserId' }) || '';
+  const weeklyReportLinkValue = useWatch({ control, name: 'weeklyReportLink' }) || '';
+  const customerTrackingReportLinkValue =
+    useWatch({ control, name: 'customerTrackingReportLink' }) || '';
+  const selectedManagerUserId = useWatch({ control, name: 'managerUserId' }) || '';
   const weeklyReportWeekday = useWatch({ control, name: 'weeklyReportWeekday' }) || '';
   const reportWeekday = weeklyReportWeekday ? Number(weeklyReportWeekday) : null;
-  const selectedSalesUser = users.find((user) => String(user.id) === selectedSalesUserId);
+  const selectedManagerUser = users.find((user) => String(user.id) === selectedManagerUserId);
   const {
     data: weeklyAssignmentSummary,
     isFetching: isWeeklyAssignmentLoading,
@@ -140,7 +132,7 @@ export function ProjectForm({
     queryKey: [
       'project-weekly-settings',
       'assignment-summary',
-      selectedSalesUserId,
+      selectedManagerUserId,
       reportWeekday,
       project?.id || null,
     ],
@@ -148,13 +140,13 @@ export function ProjectForm({
       api
         .get<WeeklyAssignmentSummary>('/project-weekly-settings/assignment-summary', {
           params: {
-            report_owner_user_id: selectedSalesUserId,
+            report_owner_user_id: selectedManagerUserId,
             report_weekday: reportWeekday,
             exclude_project_id: project?.id || undefined,
           },
         })
         .then((response) => response.data),
-    enabled: Boolean(selectedSalesUserId && reportWeekday),
+    enabled: Boolean(selectedManagerUserId && reportWeekday),
   });
   const selectedQuotation = quotations.find(
     (quotation) => String(quotation.id) === selectedQuotationId,
@@ -174,16 +166,6 @@ export function ProjectForm({
       '',
     [selectedService?.code, selectedService?.parent?.code, selectedServiceId, services],
   );
-  const rootService = useMemo(
-    () => getRootServiceItem(services, selectedServiceId),
-    [selectedServiceId, services],
-  );
-  const quoteConfigOption = getConfigForRoot(quoteConfigs, rootService);
-  const quoteConfig = quoteConfigOption
-    ? getServiceQuoteConfigMeta(quoteConfigOption, rootService)
-    : null;
-  const usesAutomaticQuote = Boolean(quoteConfig?.enabled);
-  const revenueGroup = getProjectRevenueGroupInfo(usesAutomaticQuote);
   const selectedCustomerCode = selectedCustomer?.customerCode || '';
   const generatedProjectCode = useMemo(
     () =>
@@ -219,6 +201,18 @@ export function ProjectForm({
       quotationMetadataText(quotation, 'projectName') || quotation.serviceName || '',
       { shouldDirty: true, shouldValidate: true },
     );
+    const quotationProjectType = quotationMetadataText(quotation, 'projectType');
+
+    if (
+      quotationProjectType === 'K' ||
+      quotationProjectType === 'M' ||
+      quotationProjectType === 'N'
+    ) {
+      setValue('projectType', quotationProjectType, {
+        shouldDirty: true,
+        shouldValidate: true,
+      });
+    }
   };
 
   const submitForm = handleSubmit(async (values) => {
@@ -335,6 +329,7 @@ export function ProjectForm({
                   >
                     <MenuItem value="K">K</MenuItem>
                     <MenuItem value="M">M</MenuItem>
+                    <MenuItem value="N">O</MenuItem>
                   </FormSelectField>
                 )}
               />
@@ -346,7 +341,7 @@ export function ProjectForm({
                     {...field}
                     value={displayedProjectCode}
                     label="Mã dự án"
-                    placeholder="Mã KH.DV.TYPE.TÊN DỰ ÁN"
+                    placeholder="Mã KH.DV.[LOẠI].TÊN DỰ ÁN"
                     className="[&_.MuiOutlinedInput-root]:!bg-emerald-50/60"
                     slotProps={{
                       htmlInput: { readOnly: true },
@@ -374,11 +369,47 @@ export function ProjectForm({
               {...register('planLink')}
             />
 
+            <div className="grid gap-4 md:grid-cols-2">
+              <FormInputField
+                label="Link báo cáo tuần"
+                placeholder="https://docs.google.com/..."
+                disabled={readOnly}
+                slotProps={{
+                  input: {
+                    endAdornment: (
+                      <ExternalLinkAdornment
+                        value={weeklyReportLinkValue}
+                        ariaLabel="Mở link báo cáo tuần trong tab mới"
+                      />
+                    ),
+                  },
+                }}
+                {...register('weeklyReportLink')}
+              />
+
+              <FormInputField
+                label="Link báo cáo tổng khách hàng theo dõi"
+                placeholder="https://docs.google.com/..."
+                disabled={readOnly}
+                slotProps={{
+                  input: {
+                    endAdornment: (
+                      <ExternalLinkAdornment
+                        value={customerTrackingReportLinkValue}
+                        ariaLabel="Mở link báo cáo tổng khách hàng trong tab mới"
+                      />
+                    ),
+                  },
+                }}
+                {...register('customerTrackingReportLink')}
+              />
+            </div>
+
             <FormInputField
-              label="Nhóm Zalo"
-              placeholder="Tên nhóm hoặc link nhóm"
+              label="Tài khoản Admin Web"
+              placeholder="Tài khoản hoặc thông tin đăng nhập"
               disabled={readOnly}
-              {...register('zaloGroup')}
+              {...register('adminWebAccount')}
             />
 
             <div className="grid gap-4 md:grid-cols-2">
@@ -499,16 +530,6 @@ export function ProjectForm({
           ) : null}
 
           <FormSection title="Trạng thái & phụ trách">
-            <div
-              className={`rounded-lg border px-3 py-2.5 text-sm ${
-                revenueGroup.group === '2.1'
-                  ? 'border-sky-200 bg-sky-50 text-sky-800'
-                  : 'border-amber-200 bg-amber-50 text-amber-800'
-              }`}
-            >
-              <span className="font-semibold">Nhóm dữ liệu: </span>
-              <strong>{revenueGroup.title}</strong>
-            </div>
             <Controller
               name="statusOptionId"
               control={control}
@@ -535,37 +556,14 @@ export function ProjectForm({
             <Controller
               name="managerUserId"
               control={control}
-              rules={{ required: 'Vui lòng chọn người quản lý' }}
+              rules={{ required: 'Vui lòng chọn nhân sự triển khai' }}
               render={({ field }) => (
                 <FormSelectField
-                  label="Người quản lý "
+                  label="Nhân sự triển khai "
                   required
                   disabled={readOnly}
                   error={Boolean(errors.managerUserId)}
                   helperText={errors.managerUserId?.message}
-                  {...field}
-                >
-                  <MenuItem value="">Chưa chọn</MenuItem>
-                  {users.map((user) => (
-                    <MenuItem key={user.id} value={String(user.id)}>
-                      {userLabel(user)}
-                    </MenuItem>
-                  ))}
-                </FormSelectField>
-              )}
-            />
-
-            <Controller
-              name="salesUserId"
-              control={control}
-              rules={{ required: 'Vui lòng chọn Sales phụ trách' }}
-              render={({ field }) => (
-                <FormSelectField
-                  label="Sales phụ trách "
-                  required
-                  disabled={readOnly}
-                  error={Boolean(errors.salesUserId)}
-                  helperText={errors.salesUserId?.message}
                   {...field}
                 >
                   <MenuItem value="">Chưa chọn</MenuItem>
@@ -601,7 +599,7 @@ export function ProjectForm({
               )}
             />
 
-            {selectedSalesUserId && reportWeekday ? (
+            {selectedManagerUserId && reportWeekday ? (
               <div
                 role="status"
                 className={`flex items-start gap-2 rounded-lg border px-3 py-2.5 text-sm ${
@@ -619,9 +617,9 @@ export function ProjectForm({
                   ) : (
                     <>
                       <strong>
-                        {selectedSalesUser?.name ||
-                          selectedSalesUser?.email ||
-                          `Sales #${selectedSalesUserId}`}
+                        {selectedManagerUser?.name ||
+                          selectedManagerUser?.email ||
+                          `Nhân sự #${selectedManagerUserId}`}
                       </strong>{' '}
                       hiện đã được phân công báo cáo{' '}
                       <strong>

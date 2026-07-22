@@ -8,15 +8,18 @@ import { useQuery } from '@tanstack/react-query';
 import DeleteRoundedIcon from '@mui/icons-material/DeleteRounded';
 import EditRoundedIcon from '@mui/icons-material/EditRounded';
 import InfoRoundedIcon from '@mui/icons-material/InfoRounded';
+import LanguageRoundedIcon from '@mui/icons-material/LanguageRounded';
 import LinkRoundedIcon from '@mui/icons-material/LinkRounded';
 import MoreVertRoundedIcon from '@mui/icons-material/MoreVertRounded';
 import VisibilityRoundedIcon from '@mui/icons-material/VisibilityRounded';
 import WorkRoundedIcon from '@mui/icons-material/WorkRounded';
 import { IconButton, Menu, MenuItem } from '@mui/material';
 import { DialogActionButton } from '@/components/actions/dialog-action-button';
+import { ExternalLinkButton } from '@/components/actions/external-link-button';
 import { AppDetailDialog } from '@/components/dialog/app-detail-dialog';
 import { CompactSearchField } from '@/components/form/compact-search-field';
 import { CompactSelectField } from '@/components/form/compact-select-field';
+import { ImageLightbox } from '@/components/media/image-lightbox';
 import { IconTabs } from '@/components/navigation/icon-tabs';
 import { PageHeader } from '@/components/shell/page-header';
 import { AppDataTable } from '@/components/table/app-data-table';
@@ -84,6 +87,71 @@ function CustomerDetailRow({ label, value }: { label: string; value?: string | n
   );
 }
 
+function CustomerLinkActions({
+  website,
+  project,
+}: {
+  website?: string | null;
+  project?: string | null;
+}) {
+  return (
+    <div className="grid grid-cols-[128px_minmax(0,1fr)] gap-3 text-sm md:col-span-2">
+      <dt className="font-semibold text-slate-500">Liên kết</dt>
+      <dd className="flex min-w-0 flex-wrap items-center gap-2">
+        <ExternalLinkButton value={project} label="Link Dự án" icon={<WorkRoundedIcon />} />
+        <ExternalLinkButton value={website} label="Link Website" icon={<LanguageRoundedIcon />} />
+      </dd>
+    </div>
+  );
+}
+
+function CustomerIdentityImages({ imageUrls }: { imageUrls: string[] }) {
+  const [previewIndex, setPreviewIndex] = useState<number | null>(null);
+
+  return (
+    <>
+      <div className="grid grid-cols-3 gap-3">
+        {imageUrls.map((imageUrl, index) => (
+          <button
+            type="button"
+            key={`${imageUrl}-${index}`}
+            aria-haspopup="dialog"
+            aria-label={`Xem ảnh CCCD ${index + 1}`}
+            title={`Xem ảnh CCCD ${index + 1}`}
+            className="group min-w-0 cursor-zoom-in overflow-hidden rounded-xl border border-slate-200 bg-slate-50 text-left shadow-sm transition hover:border-primary focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary/30"
+            onClick={() => setPreviewIndex(index)}
+          >
+            <span className="block aspect-[1.586/1] overflow-hidden">
+              {/* eslint-disable-next-line @next/next/no-img-element */}
+              <img
+                src={getMediaPreviewUrl(imageUrl) || imageUrl}
+                alt={`Ảnh CCCD ${index + 1}`}
+                loading="lazy"
+                className="h-full w-full object-cover transition-transform duration-200 group-hover:scale-105"
+              />
+            </span>
+            <span className="block truncate border-t border-slate-200 bg-white px-2 py-1.5 text-xs font-semibold text-slate-600">
+              Ảnh {index + 1}
+            </span>
+          </button>
+        ))}
+      </div>
+
+      <ImageLightbox
+        open={previewIndex !== null}
+        images={imageUrls.map((imageUrl, index) => ({
+          src: imageUrl,
+          alt: `Ảnh CCCD ${index + 1}`,
+          label: `Ảnh ${index + 1}`,
+        }))}
+        initialIndex={previewIndex || 0}
+        title="Ảnh CCCD"
+        onClose={() => setPreviewIndex(null)}
+      />
+    </>
+  );
+}
+
 function CustomerViewDialog({
   customer,
   tab,
@@ -144,7 +212,7 @@ function CustomerViewDialog({
             <section className="rounded-xl border border-slate-200 bg-white p-5">
               <dl className="grid gap-x-8 gap-y-4 md:grid-cols-2">
                 <CustomerDetailRow label="Tên khách hàng" value={customer.customerName} />
-                <CustomerDetailRow label="Tên công ty" value={customer.companyName} />
+                <CustomerDetailRow label="Tên công ty / cá nhân" value={customer.companyName} />
                 <CustomerDetailRow label="Số điện thoại" value={customer.phone} />
                 <CustomerDetailRow label="Email liên hệ" value={customer.email} />
                 <CustomerDetailRow label="Email nhận HĐ" value={customer.invoiceEmail} />
@@ -153,10 +221,12 @@ function CustomerViewDialog({
                   label="Loại khách"
                   value={customer.customerTypeOption?.label || customer.customerType}
                 />
-                <CustomerDetailRow label="Mã số thuế" value={customer.taxCode} />
-                <CustomerDetailRow label="CCCD/CMND" value={customer.identityNo} />
-                <CustomerDetailRow label="Website" value={customer.website} />
+                <CustomerDetailRow
+                  label="CCCD / MST"
+                  value={customer.identityNo || customer.taxCode}
+                />
                 <CustomerDetailRow label="Ngày sinh" value={customer.birthday} />
+                <CustomerLinkActions website={customer.website} project={customer.planLink} />
               </dl>
 
               <div className="mt-5 grid gap-4 border-t border-slate-100 pt-5 md:grid-cols-2">
@@ -173,30 +243,7 @@ function CustomerViewDialog({
                 </div>
 
                 {customer.identityImageUrls?.length ? (
-                  <div className="grid grid-cols-3 gap-3">
-                    {customer.identityImageUrls.map((imageUrl, index) => (
-                      <a
-                        key={`${imageUrl}-${index}`}
-                        href={getMediaPreviewUrl(imageUrl) || imageUrl}
-                        target="_blank"
-                        rel="noreferrer"
-                        title={`Mở ảnh CCCD ${index + 1}`}
-                        className="group overflow-hidden rounded-xl border border-slate-200 bg-slate-50 shadow-sm"
-                      >
-                        <span className="block aspect-[1.586/1] overflow-hidden">
-                          {/* eslint-disable-next-line @next/next/no-img-element */}
-                          <img
-                            src={getMediaPreviewUrl(imageUrl) || imageUrl}
-                            alt={`Ảnh CCCD ${index + 1}`}
-                            className="h-full w-full object-cover transition-transform group-hover:scale-105"
-                          />
-                        </span>
-                        <span className="block border-t border-slate-200 bg-white px-2 py-1.5 text-xs font-semibold text-slate-600">
-                          Ảnh {index + 1}
-                        </span>
-                      </a>
-                    ))}
-                  </div>
+                  <CustomerIdentityImages imageUrls={customer.identityImageUrls} />
                 ) : (
                   <div className="rounded-lg border border-dashed border-slate-200 px-4 py-5 text-center text-sm text-slate-400">
                     Chưa có ảnh CCCD

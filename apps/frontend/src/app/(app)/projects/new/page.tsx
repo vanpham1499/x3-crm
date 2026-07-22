@@ -9,7 +9,6 @@ import { PageHeader } from '@/components/shell/page-header';
 import { ProjectForm } from '@/features/projects/components/project-form';
 import { getApiErrorMessage } from '@/lib/api-error';
 import { toProjectPayload } from '@/lib/project-utils';
-import { SERVICE_QUOTE_CONFIG_GROUP } from '@/lib/service-quote-config';
 import api from '@/services/api/client';
 import type { Customer } from '@/types/customer';
 import type { AppOption } from '@/types/option';
@@ -52,14 +51,6 @@ export default function NewProjectPage() {
   });
   const statuses = projectOptions.filter((option) => option.group === 'project_status');
 
-  const { data: quoteConfigs = [] } = useQuery<AppOption[]>({
-    queryKey: ['options', SERVICE_QUOTE_CONFIG_GROUP],
-    queryFn: () =>
-      api
-        .get<AppOption[]>('/options', { params: { groups: SERVICE_QUOTE_CONFIG_GROUP } })
-        .then((response) => response.data),
-  });
-
   const { data: quotations = [], isLoading: isQuotationsLoading } = useQuery<Quotation[]>({
     queryKey: ['quotations', 'project-create-options'],
     queryFn: () => api.get<Quotation[]>('/quotations').then((response) => response.data),
@@ -80,11 +71,15 @@ export default function NewProjectPage() {
   );
 
   const quotationMetadata = quotation?.metadata || {};
+  const quotationProjectType = quotationMetadata.projectType;
   const defaultValues: Partial<ProjectFormValues> = {
     customerId: quotation?.customerId ? String(quotation.customerId) : customerId,
     quotationId: quotation ? String(quotation.id) : '',
     serviceId: quotation?.serviceId ? String(quotation.serviceId) : '',
-    projectType: quotationMetadata.projectType === 'M' ? 'M' : 'K',
+    projectType:
+      quotationProjectType === 'K' || quotationProjectType === 'M' || quotationProjectType === 'N'
+        ? quotationProjectType
+        : 'K',
     projectName:
       typeof quotationMetadata.projectName === 'string' && quotationMetadata.projectName
         ? quotationMetadata.projectName
@@ -144,7 +139,6 @@ export default function NewProjectPage() {
         services={services}
         users={users}
         statuses={statuses}
-        quoteConfigs={quoteConfigs}
         quotations={contextualQuotations}
         defaultValues={defaultValues}
         cancelHref={customerId ? `/customers/${customerId}` : '/projects'}

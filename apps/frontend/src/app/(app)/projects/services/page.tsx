@@ -11,7 +11,7 @@ import {
   toServiceQuoteConfigPayload,
   type ServiceQuoteConfigMeta,
 } from '@/lib/service-quote-config';
-import { toServicePayload } from '@/lib/service-utils';
+import { reorderServiceSiblings, toServicePayload } from '@/lib/service-utils';
 import api from '@/services/api/client';
 import type { AppOption } from '@/types/option';
 import type { ServiceFilters, ServiceFormValues, ServiceItem } from '@/types/service';
@@ -21,7 +21,11 @@ export default function ServicesPage() {
   const notify = useAppNotification();
   const [filters, setFilters] = useState<ServiceFilters>({ keyword: '', is_active: '' });
 
-  const { data: services = [], isFetching, isLoading } = useQuery<ServiceItem[]>({
+  const {
+    data: services = [],
+    isFetching,
+    isLoading,
+  } = useQuery<ServiceItem[]>({
     queryKey: ['services', filters],
     queryFn: () =>
       api
@@ -46,7 +50,13 @@ export default function ServicesPage() {
   });
 
   const saveMutation = useMutation({
-    mutationFn: ({ values, service }: { values: ServiceFormValues; service?: ServiceItem | null }) => {
+    mutationFn: ({
+      values,
+      service,
+    }: {
+      values: ServiceFormValues;
+      service?: ServiceItem | null;
+    }) => {
       const payload = toServicePayload(values);
 
       if (service) {
@@ -115,6 +125,47 @@ export default function ServicesPage() {
     },
   });
 
+  const reorderMutation = useMutation({
+    mutationFn: ({
+      parentId,
+      orderedServices,
+    }: {
+      parentId: number | null;
+      orderedServices: ServiceItem[];
+    }) =>
+      api
+        .patch<ServiceItem[]>('/services/reorder', {
+          parentId,
+          serviceIds: orderedServices.map((service) => service.id),
+        })
+        .then((response) => response.data),
+    onMutate: async ({ parentId, orderedServices }) => {
+      const queryKey = ['services', filters] as const;
+      await queryClient.cancelQueries({ queryKey: ['services'] });
+      const previousServices = queryClient.getQueryData<ServiceItem[]>(queryKey);
+
+      queryClient.setQueryData<ServiceItem[]>(queryKey, (current = []) =>
+        reorderServiceSiblings(
+          current,
+          parentId,
+          orderedServices.map((service) => service.id),
+        ),
+      );
+
+      return { previousServices, queryKey };
+    },
+    onSuccess: (updatedServices) => {
+      queryClient.setQueryData<ServiceItem[]>(['services', filters], updatedServices);
+      notify.success('Cập nhật thứ tự dịch vụ thành công');
+    },
+    onError: (error, _variables, context) => {
+      if (context?.previousServices) {
+        queryClient.setQueryData(context.queryKey, context.previousServices);
+      }
+      notify.error(getApiErrorMessage(error, 'Cập nhật thứ tự dịch vụ thất bại'));
+    },
+  });
+
   if (isLoading) {
     return <ContentLoading />;
   }
@@ -127,10 +178,14 @@ export default function ServicesPage() {
       isSubmitting={saveMutation.isPending}
       isDeleting={deleteMutation.isPending}
       isSavingQuoteConfig={quoteConfigMutation.isPending}
+      isReordering={reorderMutation.isPending}
       quoteConfigs={quoteConfigs}
       onFiltersChange={setFilters}
       onSubmit={(values, service) => saveMutation.mutateAsync({ values, service })}
       onDelete={(service) => deleteMutation.mutate(service)}
+      onReorder={(parentId, orderedServices) =>
+        reorderMutation.mutate({ parentId, orderedServices })
+      }
       onSaveQuoteConfig={(service, values, option) =>
         quoteConfigMutation.mutateAsync({ service, values, option })
       }

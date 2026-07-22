@@ -10,6 +10,10 @@ export const LEAD_OPTION_GROUPS: OptionGroupConfig[] = [
     title: 'Nguồn phát sinh',
   },
   {
+    group: 'industry',
+    title: 'Ngành nghề',
+  },
+  {
     group: 'lead_service',
     title: 'Dịch vụ',
   },
@@ -33,6 +37,15 @@ export const PROJECT_OPTION_GROUPS: OptionGroupConfig[] = [
   },
 ];
 
+export const WEEKLY_CONDITION_OPTION_GROUP = 'weekly_condition';
+
+export const REPORT_OPTION_GROUPS: OptionGroupConfig[] = [
+  {
+    group: WEEKLY_CONDITION_OPTION_GROUP,
+    title: 'Tình trạng tuần',
+  },
+];
+
 export const OPTION_SECTIONS = [
   {
     title: 'Lead',
@@ -45,6 +58,10 @@ export const OPTION_SECTIONS = [
   {
     title: 'Dự án',
     groups: PROJECT_OPTION_GROUPS,
+  },
+  {
+    title: 'Báo cáo',
+    groups: REPORT_OPTION_GROUPS,
   },
 ];
 

@@ -28,6 +28,47 @@ export function countServices(services: ServiceItem[]) {
   };
 }
 
+export function getServiceSiblings(services: ServiceItem[], parentId: number | null) {
+  if (parentId === null) return services;
+
+  for (const service of services) {
+    if (service.id === parentId) return service.children || [];
+
+    const nested = getServiceSiblings(service.children || [], parentId);
+    if (nested.length > 0) return nested;
+  }
+
+  return [];
+}
+
+export function reorderServiceSiblings(
+  services: ServiceItem[],
+  parentId: number | null,
+  orderedIds: number[],
+): ServiceItem[] {
+  const applyOrder = (siblings: ServiceItem[]) => {
+    const siblingMap = new Map(siblings.map((service) => [service.id, service]));
+
+    return orderedIds
+      .map((id, index) => {
+        const service = siblingMap.get(id);
+        return service ? { ...service, sortOrder: (index + 1) * 10 } : null;
+      })
+      .filter((service): service is ServiceItem => Boolean(service));
+  };
+
+  if (parentId === null) return applyOrder(services);
+
+  return services.map((service) =>
+    service.id === parentId
+      ? { ...service, children: applyOrder(service.children || []) }
+      : {
+          ...service,
+          children: reorderServiceSiblings(service.children || [], parentId, orderedIds),
+        },
+  );
+}
+
 export function getServiceDefaults(
   service?: ServiceItem,
   parent?: ServiceItem | null,

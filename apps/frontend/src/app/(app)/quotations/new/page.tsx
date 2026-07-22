@@ -56,8 +56,9 @@ export default function NewQuotationPage() {
       api.post<Quotation>('/quotations', payload).then((response) => response.data),
     onSuccess: (quotation) => {
       queryClient.invalidateQueries({ queryKey: ['quotations'] });
+      queryClient.invalidateQueries({ queryKey: ['leads'] });
       notify.success('Tạo báo phí thành công');
-      router.push(`/quotations/${quotation.id}`);
+      router.push(quotation.leadId ? `/leads/${quotation.leadId}` : '/leads');
     },
     onError: (error) => {
       notify.error(getApiErrorMessage(error, 'Tạo báo phí thất bại'));

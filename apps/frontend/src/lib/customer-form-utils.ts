@@ -54,7 +54,7 @@ export function customerToFormValues(customer: Customer): CustomerFormValues {
     customerTypeOptionId: idToString(customer.customerTypeOptionId),
     companyName: customer.companyName || '',
     representativeName: customer.representativeName || '',
-    taxCode: customer.taxCode || '',
+    taxCode: customer.taxCode || customer.identityNo || '',
     identityNo: customer.identityNo || '',
     identityImageUrls: customer.identityImageUrls || [],
     address: customer.address || '',
@@ -72,15 +72,22 @@ export function customerToFormValues(customer: Customer): CustomerFormValues {
 }
 
 export function buildCustomerPayload(values: CustomerFormValues): CustomerPayload {
+  const identityOrTaxCode = emptyToNull(values.taxCode);
+  const identityOrTaxCodeDigits = String(identityOrTaxCode || '').replace(/\D/g, '');
+  const isIdentityNumber =
+    identityOrTaxCodeDigits.length === 12 ||
+    (Boolean(values.identityNo) && ![10, 13].includes(identityOrTaxCodeDigits.length));
+
   return {
+    customerCode: emptyToNull(values.customerCode),
     leadId: emptyToNull(values.leadId),
     customerName: String(values.customerName || '').trim(),
     customerType: null,
     customerTypeOptionId: emptyToNull(values.customerTypeOptionId),
     companyName: emptyToNull(values.companyName),
     representativeName: emptyToNull(values.representativeName),
-    taxCode: emptyToNull(values.taxCode),
-    identityNo: emptyToNull(values.identityNo),
+    taxCode: isIdentityNumber ? null : identityOrTaxCode,
+    identityNo: isIdentityNumber ? identityOrTaxCode : null,
     identityImageUrls: values.identityImageUrls,
     address: emptyToNull(values.address),
     phone: emptyToNull(values.phone),

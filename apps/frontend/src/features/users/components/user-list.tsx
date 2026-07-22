@@ -1,13 +1,13 @@
 'use client';
 
-import { useMemo, useState, type MouseEvent, type ReactNode } from 'react';
+import { useState, type MouseEvent, type ReactNode } from 'react';
 import Link from 'next/link';
 import AddRoundedIcon from '@mui/icons-material/AddRounded';
 import DeleteRoundedIcon from '@mui/icons-material/DeleteRounded';
 import EditRoundedIcon from '@mui/icons-material/EditRounded';
 import MoreVertRoundedIcon from '@mui/icons-material/MoreVertRounded';
 import VisibilityRoundedIcon from '@mui/icons-material/VisibilityRounded';
-import { Avatar, Checkbox, IconButton, Menu, MenuItem } from '@mui/material';
+import { Avatar, IconButton, Menu, MenuItem } from '@mui/material';
 import { DialogActionButton } from '@/components/actions/dialog-action-button';
 import { AppDetailDialog } from '@/components/dialog/app-detail-dialog';
 import { CompactSearchField } from '@/components/form/compact-search-field';
@@ -35,7 +35,6 @@ type UserListProps = {
   currentUser: User | null;
   onFiltersChange: (filters: UserFilters) => void;
   onDelete: (user: User) => void;
-  onBulkDelete: (userIds: number[]) => void;
   isDeleting?: boolean;
 };
 
@@ -128,7 +127,6 @@ export function UserList({
   currentUser,
   onFiltersChange,
   onDelete,
-  onBulkDelete,
   isDeleting = false,
 }: UserListProps) {
   const canCreate = canCreateUsers(currentUser);
@@ -137,35 +135,11 @@ export function UserList({
   const [viewTarget, setViewTarget] = useState<User | null>(null);
   const [menuAnchorEl, setMenuAnchorEl] = useState<HTMLElement | null>(null);
   const [activeUser, setActiveUser] = useState<User | null>(null);
-  const [selectedUserIds, setSelectedUserIds] = useState<number[]>([]);
   const { pageItems, page, setPage, totalPages, totalItems, pageSize } = usePagination(users, {
     resetKey: filters,
   });
 
-  const visibleUserIds = useMemo(() => pageItems.map((user) => user.id), [pageItems]);
-  const selectedVisibleCount = visibleUserIds.filter((id) => selectedUserIds.includes(id)).length;
-  const hasSelectedRows = selectedUserIds.length > 0;
-  const isAllVisibleSelected = visibleUserIds.length > 0 && selectedVisibleCount === visibleUserIds.length;
-  const isSomeVisibleSelected = selectedVisibleCount > 0 && !isAllVisibleSelected;
-
-  const toggleAllVisibleRows = (checked: boolean) => {
-    if (checked) {
-      setSelectedUserIds((current) => Array.from(new Set([...current, ...visibleUserIds])));
-      return;
-    }
-
-    setSelectedUserIds((current) => current.filter((id) => !visibleUserIds.includes(id)));
-  };
-
-  const toggleUserRow = (userId: number, checked: boolean) => {
-    setSelectedUserIds((current) => {
-      if (checked) return Array.from(new Set([...current, userId]));
-      return current.filter((id) => id !== userId);
-    });
-  };
-
   const updateFilters = (nextFilters: Partial<UserFilters>) => {
-    setSelectedUserIds([]);
     onFiltersChange({ ...filters, ...nextFilters });
   };
 
@@ -219,39 +193,12 @@ export function UserList({
           />
         </div>
 
-        {hasSelectedRows && (
-          <div className="flex h-14 items-center justify-between bg-emerald-100 px-5 text-sm font-bold text-emerald-700">
-            <div className="flex items-center gap-4">
-              <Checkbox
-                color="success"
-                size="small"
-                checked
-                onChange={(event) => toggleAllVisibleRows(event.target.checked)}
-              />
-              <span>{selectedUserIds.length} đã chọn</span>
-            </div>
-            <IconButton
-              size="small"
-              color="success"
-              disabled={isDeleting || !canDelete}
-              onClick={() => {
-                onBulkDelete(selectedUserIds);
-                setSelectedUserIds([]);
-              }}
-              title="Xóa các nhân viên đã chọn"
-            >
-              <DeleteRoundedIcon fontSize="small" />
-            </IconButton>
-          </div>
-        )}
-
         <AppDataTable
           columns={[
-            { key: 'select', className: 'sticky left-0 z-20 w-12 bg-slate-100' },
             {
               key: 'code',
               label: 'Mã NV',
-              className: 'sticky left-12 z-20 w-32 bg-slate-100',
+              className: 'sticky left-0 z-20 w-32 bg-slate-100',
             },
             { key: 'user', label: 'Nhân viên', className: 'w-64' },
             { key: 'contact', label: 'Liên hệ', className: 'w-64' },
@@ -264,106 +211,83 @@ export function UserList({
           isLoading={isFetching}
           isEmpty={pageItems.length === 0}
           emptyText="Không có dữ liệu nhân viên"
-          minWidthClassName="min-w-[1360px]"
+          minWidthClassName="min-w-[1310px]"
         >
-          {pageItems.map((user) => {
-            const isSelected = selectedUserIds.includes(user.id);
-
-            return (
-              <tr
-                key={user.id}
-                className={`group ${isSelected ? 'bg-emerald-50/60' : 'hover:bg-slate-50/80'}`}
-              >
-                <td
-                  className={`sticky left-0 z-10 px-3 py-4 ${
-                    isSelected ? 'bg-emerald-50/60' : 'bg-white group-hover:bg-slate-50'
-                  }`}
-                >
-                  <Checkbox
-                    color="success"
-                    size="small"
-                    checked={isSelected}
-                    onChange={(event) => toggleUserRow(user.id, event.target.checked)}
-                  />
-                </td>
-                <td
-                  className={`sticky left-12 z-10 px-3 py-4 font-bold text-slate-900 ${
-                    isSelected ? 'bg-emerald-50/60' : 'bg-white group-hover:bg-slate-50'
-                  }`}
-                >
-                  <span className="block truncate" title={user.code || ''}>
-                    {user.code || '-'}
-                  </span>
-                </td>
-                <td className="px-3 py-4">
-                  <div className="flex min-w-0 items-center gap-3">
-                    <Avatar
-                      src={getMediaPreviewUrl(user.avatar) || undefined}
-                      alt={user.name || user.email || user.code}
-                      className="!h-9 !w-9 !shrink-0 !bg-primary/10 !text-sm !font-bold !text-primary"
-                    >
-                      {getUserInitial(user)}
-                    </Avatar>
-                    <p className="truncate font-semibold text-slate-950" title={user.name || ''}>
-                      {user.name || '-'}
-                    </p>
-                  </div>
-                </td>
-                <td className="px-3 py-4">
-                  <p className="truncate font-medium text-slate-700" title={user.email || ''}>
-                    {user.email || '-'}
+          {pageItems.map((user) => (
+            <tr key={user.id} className="group hover:bg-slate-50/80">
+              <td className="sticky left-0 z-10 bg-white px-3 py-4 font-bold text-slate-900 group-hover:bg-slate-50">
+                <span className="block truncate" title={user.code || ''}>
+                  {user.code || '-'}
+                </span>
+              </td>
+              <td className="px-3 py-4">
+                <div className="flex min-w-0 items-center gap-3">
+                  <Avatar
+                    src={getMediaPreviewUrl(user.avatar) || undefined}
+                    alt={user.name || user.email || user.code}
+                    className="!h-9 !w-9 !shrink-0 !bg-primary/10 !text-sm !font-bold !text-primary"
+                  >
+                    {getUserInitial(user)}
+                  </Avatar>
+                  <p className="truncate font-semibold text-slate-950" title={user.name || ''}>
+                    {user.name || '-'}
                   </p>
-                  <p className="mt-1 truncate text-xs text-slate-500">{user.phone || '-'}</p>
-                </td>
-                <td className="px-3 py-4">
-                  <span
-                    className={`inline-flex rounded-md px-2 py-1 text-xs font-bold ${getUserRoleClass(user.role)}`}
+                </div>
+              </td>
+              <td className="px-3 py-4">
+                <p className="truncate font-medium text-slate-700" title={user.email || ''}>
+                  {user.email || '-'}
+                </p>
+                <p className="mt-1 truncate text-xs text-slate-500">{user.phone || '-'}</p>
+              </td>
+              <td className="px-3 py-4">
+                <span
+                  className={`inline-flex rounded-md px-2 py-1 text-xs font-bold ${getUserRoleClass(user.role)}`}
+                >
+                  {getUserRoleLabel(user.role)}
+                </span>
+              </td>
+              <td className="px-3 py-4">
+                <span
+                  className={`inline-flex rounded-md px-2 py-1 text-xs font-bold ${getUserStatusClass(user)}`}
+                >
+                  {getUserStatusLabel(user)}
+                </span>
+              </td>
+              <td className="px-3 py-4 text-slate-700">{formatDate(user.createdAt || '')}</td>
+              <td className="px-3 py-4 text-slate-500">{formatDate(user.updatedAt || '')}</td>
+              <td className="py-4">
+                <div className="flex items-center justify-end gap-1 pr-3">
+                  <IconButton
+                    size="small"
+                    aria-label="Xem chi tiết nhân viên"
+                    title="Xem chi tiết nhân viên"
+                    onClick={() => setViewTarget(user)}
                   >
-                    {getUserRoleLabel(user.role)}
-                  </span>
-                </td>
-                <td className="px-3 py-4">
-                  <span
-                    className={`inline-flex rounded-md px-2 py-1 text-xs font-bold ${getUserStatusClass(user)}`}
+                    <VisibilityRoundedIcon fontSize="small" />
+                  </IconButton>
+                  <IconButton
+                    component={Link}
+                    href={`/users/${user.id}`}
+                    size="small"
+                    aria-label="Chỉnh sửa nhân viên"
+                    title="Chỉnh sửa nhân viên"
+                    disabled={!canEdit}
                   >
-                    {getUserStatusLabel(user)}
-                  </span>
-                </td>
-                <td className="px-3 py-4 text-slate-700">{formatDate(user.createdAt || '')}</td>
-                <td className="px-3 py-4 text-slate-500">{formatDate(user.updatedAt || '')}</td>
-                <td className="py-4">
-                  <div className="flex items-center justify-end gap-1 pr-3">
-                    <IconButton
-                      size="small"
-                      aria-label="Xem chi tiết nhân viên"
-                      title="Xem chi tiết nhân viên"
-                      onClick={() => setViewTarget(user)}
-                    >
-                      <VisibilityRoundedIcon fontSize="small" />
-                    </IconButton>
-                    <IconButton
-                      component={Link}
-                      href={`/users/${user.id}`}
-                      size="small"
-                      aria-label="Chỉnh sửa nhân viên"
-                      title="Chỉnh sửa nhân viên"
-                      disabled={!canEdit}
-                    >
-                      <EditRoundedIcon fontSize="small" />
-                    </IconButton>
-                    <IconButton
-                      size="small"
-                      aria-label="Mở tác vụ nhân viên"
-                      title="Tác vụ"
-                      onClick={(event) => openActionMenu(event, user)}
-                    >
-                      <MoreVertRoundedIcon fontSize="small" />
-                    </IconButton>
-                  </div>
-                </td>
-              </tr>
-            );
-          })}
+                    <EditRoundedIcon fontSize="small" />
+                  </IconButton>
+                  <IconButton
+                    size="small"
+                    aria-label="Mở tác vụ nhân viên"
+                    title="Tác vụ"
+                    onClick={(event) => openActionMenu(event, user)}
+                  >
+                    <MoreVertRoundedIcon fontSize="small" />
+                  </IconButton>
+                </div>
+              </td>
+            </tr>
+          ))}
         </AppDataTable>
 
         <TablePaginationBar

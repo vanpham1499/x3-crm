@@ -2,18 +2,38 @@
 
 import { useEffect, useMemo, useState } from 'react';
 import type { MouseEvent } from 'react';
+import {
+  closestCenter,
+  DndContext,
+  KeyboardSensor,
+  PointerSensor,
+  useSensor,
+  useSensors,
+  type DragEndEvent,
+  type DragStartEvent,
+} from '@dnd-kit/core';
+import {
+  arrayMove,
+  SortableContext,
+  sortableKeyboardCoordinates,
+  useSortable,
+  verticalListSortingStrategy,
+} from '@dnd-kit/sortable';
+import { CSS } from '@dnd-kit/utilities';
 import AddRoundedIcon from '@mui/icons-material/AddRounded';
 import AccountTreeRoundedIcon from '@mui/icons-material/AccountTreeRounded';
 import DeleteRoundedIcon from '@mui/icons-material/DeleteRounded';
+import DragIndicatorRoundedIcon from '@mui/icons-material/DragIndicatorRounded';
 import EditRoundedIcon from '@mui/icons-material/EditRounded';
 import MoreVertRoundedIcon from '@mui/icons-material/MoreVertRounded';
 import PriceCheckRoundedIcon from '@mui/icons-material/PriceCheckRounded';
 import SubdirectoryArrowRightRoundedIcon from '@mui/icons-material/SubdirectoryArrowRightRounded';
-import { IconButton, Menu, MenuItem, Switch } from '@mui/material';
+import { IconButton, Menu, MenuItem, Switch, useMediaQuery } from '@mui/material';
 import { Controller, useForm } from 'react-hook-form';
 import { DialogActionButton } from '@/components/actions/dialog-action-button';
 import { AppFormDialog } from '@/components/dialog/app-form-dialog';
 import { ConfirmDialog } from '@/components/feedback/confirm-dialog';
+import { useAppNotification } from '@/components/feedback/notification-provider';
 import { CompactSearchField } from '@/components/form/compact-search-field';
 import { compactFormFieldClassName } from '@/components/form/form-field-styles';
 import { FormInputField } from '@/components/form/form-input-field';
@@ -30,7 +50,7 @@ import {
   getServiceQuoteConfigMeta,
   type ServiceQuoteConfigMeta,
 } from '@/lib/service-quote-config';
-import { flattenServices, getServiceDefaults } from '@/lib/service-utils';
+import { flattenServices, getServiceDefaults, getServiceSiblings } from '@/lib/service-utils';
 import type { FlatServiceItem } from '@/lib/service-utils';
 import { useAuthStore } from '@/stores/auth-store';
 import type { AppOption } from '@/types/option';
@@ -43,10 +63,12 @@ type ServiceManagerProps = {
   isSubmitting: boolean;
   isDeleting: boolean;
   isSavingQuoteConfig: boolean;
+  isReordering: boolean;
   quoteConfigs: AppOption[];
   onFiltersChange: (filters: ServiceFilters) => void;
   onSubmit: (values: ServiceFormValues, service?: ServiceItem | null) => Promise<unknown>;
   onDelete: (service: ServiceItem) => void;
+  onReorder: (parentId: number | null, services: ServiceItem[]) => void;
   onSaveQuoteConfig: (
     service: ServiceItem,
     values: ServiceQuoteConfigMeta,
@@ -368,6 +390,166 @@ function QuoteConfigDialog({
   );
 }
 
+function SortableServiceRow({
+  service,
+  color,
+  quoteConfig,
+  autoQuoteEnabled,
+  dragDisabled,
+  dragTitle,
+  isSavingQuoteConfig,
+  canManage,
+  onOpenQuoteConfig,
+  onCreateChild,
+  onEdit,
+  onOpenMenu,
+}: {
+  service: FlatServiceItem;
+  color: (typeof ROOT_COLOR_CLASSES)[number];
+  quoteConfig?: AppOption | null;
+  autoQuoteEnabled: boolean;
+  dragDisabled: boolean;
+  dragTitle: string;
+  isSavingQuoteConfig: boolean;
+  canManage: boolean;
+  onOpenQuoteConfig: (service: FlatServiceItem, option?: AppOption | null) => void;
+  onCreateChild: (service: FlatServiceItem) => void;
+  onEdit: (service: FlatServiceItem) => void;
+  onOpenMenu: (event: MouseEvent<HTMLButtonElement>, service: FlatServiceItem) => void;
+}) {
+  const prefersReducedMotion = useMediaQuery('(prefers-reduced-motion: reduce)');
+  const {
+    attributes,
+    isDragging,
+    listeners,
+    setActivatorNodeRef,
+    setNodeRef,
+    transform,
+    transition,
+  } = useSortable({ id: service.id, disabled: dragDisabled });
+
+  return (
+    <tr
+      ref={setNodeRef}
+      style={{
+        transform: CSS.Transform.toString(transform),
+        transition: prefersReducedMotion ? undefined : transition,
+      }}
+      className={`group border-l-4 ${color.row} ${
+        isDragging ? 'relative z-10 bg-primary/5 opacity-80 shadow-lg' : 'hover:bg-slate-50/80'
+      }`}
+    >
+      <td className={`px-3 py-4 ${service.depth > 0 ? color.child : ''}`}>
+        <div
+          className="flex min-w-0 items-center gap-2"
+          style={{ paddingLeft: service.depth * 24 }}
+        >
+          <button
+            ref={setActivatorNodeRef}
+            type="button"
+            title={dragTitle}
+            aria-label={`Kéo để sắp xếp dịch vụ ${service.name}`}
+            disabled={dragDisabled}
+            className={`inline-flex h-8 w-8 shrink-0 items-center justify-center rounded-md text-slate-400 transition-colors hover:bg-slate-100 hover:text-slate-700 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary/30 active:cursor-grabbing ${
+              dragDisabled ? 'cursor-not-allowed opacity-35' : 'cursor-grab'
+            }`}
+            {...attributes}
+            {...listeners}
+          >
+            <DragIndicatorRoundedIcon className="!text-[18px]" />
+          </button>
+
+          <span
+            className={`inline-flex h-6 w-6 shrink-0 items-center justify-center rounded-md ring-1 ${color.icon}`}
+          >
+            {service.depth === 0 ? (
+              <AccountTreeRoundedIcon className="!text-[16px]" />
+            ) : (
+              <SubdirectoryArrowRightRoundedIcon className="!text-[16px]" />
+            )}
+          </span>
+
+          <div className="flex min-w-0 items-center gap-2">
+            <span
+              className={`shrink-0 rounded-md px-2 py-1 text-xs font-bold ring-1 ${color.code}`}
+            >
+              {service.code}
+            </span>
+            <p className="truncate font-bold text-slate-950" title={service.name}>
+              {service.name}
+            </p>
+            {autoQuoteEnabled ? (
+              <span
+                title="Đang áp dụng tự động trong báo giá"
+                className="inline-flex shrink-0 items-center gap-1 rounded-md bg-emerald-50 px-2 py-1 text-[11px] font-bold text-emerald-700 ring-1 ring-inset ring-emerald-200"
+              >
+                <PriceCheckRoundedIcon className="!text-[14px]" />
+                Tự động báo giá
+              </span>
+            ) : null}
+          </div>
+        </div>
+      </td>
+      <td className="px-3 py-4">
+        <p className="line-clamp-2 text-slate-600" title={service.content || ''}>
+          {service.content || '-'}
+        </p>
+      </td>
+      <td className="px-3 py-4">
+        <p className="line-clamp-2 text-slate-600" title={service.invoiceContent || ''}>
+          {service.invoiceContent || '-'}
+        </p>
+      </td>
+      <td className="px-3 py-4">
+        <p className="line-clamp-2 text-slate-600" title={service.invoiceTiming || ''}>
+          {service.invoiceTiming || '-'}
+        </p>
+      </td>
+      <td className="py-4">
+        <div className="flex items-center justify-end gap-1 pr-3">
+          {service.depth === 0 ? (
+            <IconButton
+              size="small"
+              title="Cấu hình báo giá"
+              aria-label={`Cấu hình báo giá dịch vụ ${service.name}`}
+              disabled={isSavingQuoteConfig || !canManage}
+              onClick={() => onOpenQuoteConfig(service, quoteConfig)}
+            >
+              <PriceCheckRoundedIcon fontSize="small" />
+            </IconButton>
+          ) : null}
+          <IconButton
+            size="small"
+            title="Thêm dịch vụ con"
+            aria-label={`Thêm dịch vụ con cho ${service.name}`}
+            disabled={!canManage}
+            onClick={() => onCreateChild(service)}
+          >
+            <AddRoundedIcon fontSize="small" />
+          </IconButton>
+          <IconButton
+            size="small"
+            title="Chỉnh sửa"
+            aria-label={`Chỉnh sửa dịch vụ ${service.name}`}
+            disabled={!canManage}
+            onClick={() => onEdit(service)}
+          >
+            <EditRoundedIcon fontSize="small" />
+          </IconButton>
+          <IconButton
+            size="small"
+            title="Tác vụ"
+            aria-label={`Mở tác vụ dịch vụ ${service.name}`}
+            onClick={(event) => onOpenMenu(event, service)}
+          >
+            <MoreVertRoundedIcon fontSize="small" />
+          </IconButton>
+        </div>
+      </td>
+    </tr>
+  );
+}
+
 export function ServiceManager({
   services,
   filters,
@@ -375,12 +557,15 @@ export function ServiceManager({
   isSubmitting,
   isDeleting,
   isSavingQuoteConfig,
+  isReordering,
   quoteConfigs,
   onFiltersChange,
   onSubmit,
   onDelete,
+  onReorder,
   onSaveQuoteConfig,
 }: ServiceManagerProps) {
+  const notify = useAppNotification();
   const currentUser = useAuthStore((state) => state.user);
   const canManage = canManageCatalog(currentUser);
   const [dialogState, setDialogState] = useState<DialogState | null>(null);
@@ -389,7 +574,27 @@ export function ServiceManager({
   const [deleteTarget, setDeleteTarget] = useState<ServiceItem | null>(null);
   const [menuAnchorEl, setMenuAnchorEl] = useState<HTMLElement | null>(null);
   const [activeService, setActiveService] = useState<FlatServiceItem | null>(null);
+  const [dragParentId, setDragParentId] = useState<number | null | undefined>(undefined);
   const flatServices = useMemo(() => flattenServices(services), [services]);
+  const visibleServices = useMemo(
+    () =>
+      dragParentId === undefined
+        ? flatServices
+        : flatServices.filter((service) => (service.parentId ?? null) === dragParentId),
+    [dragParentId, flatServices],
+  );
+  const dragDisabled = isReordering || !canManage || Boolean(filters.keyword.trim());
+  const dragTitle = filters.keyword.trim()
+    ? 'Xóa từ khóa tìm kiếm để sắp xếp'
+    : isReordering
+      ? 'Đang lưu thứ tự dịch vụ'
+      : !canManage
+        ? 'Bạn không có quyền sắp xếp dịch vụ'
+        : 'Kéo để sắp xếp cùng cấp';
+  const sensors = useSensors(
+    useSensor(PointerSensor, { activationConstraint: { distance: 6 } }),
+    useSensor(KeyboardSensor, { coordinateGetter: sortableKeyboardCoordinates }),
+  );
   const rootColorMap = useMemo(() => {
     const roots = flatServices.filter((service) => service.depth === 0);
 
@@ -415,6 +620,37 @@ export function ServiceManager({
     setActiveService(null);
   };
 
+  const handleDragStart = ({ active }: DragStartEvent) => {
+    const source = flatServices.find((service) => service.id === Number(active.id));
+    if (source) setDragParentId(source.parentId ?? null);
+  };
+
+  const handleDragEnd = ({ active, over }: DragEndEvent) => {
+    setDragParentId(undefined);
+    if (!over || active.id === over.id || dragDisabled) return;
+
+    const source = flatServices.find((service) => service.id === Number(active.id));
+    const target = flatServices.find((service) => service.id === Number(over.id));
+
+    if (!source || !target) return;
+
+    const sourceParentId = source.parentId ?? null;
+    const targetParentId = target.parentId ?? null;
+
+    if (sourceParentId !== targetParentId) {
+      notify.info('Chỉ có thể sắp xếp các dịch vụ cùng cấp và cùng dịch vụ cha');
+      return;
+    }
+
+    const siblings = getServiceSiblings(services, sourceParentId);
+    const fromIndex = siblings.findIndex((service) => service.id === source.id);
+    const toIndex = siblings.findIndex((service) => service.id === target.id);
+
+    if (fromIndex < 0 || toIndex < 0) return;
+
+    onReorder(sourceParentId, arrayMove(siblings, fromIndex, toIndex));
+  };
+
   return (
     <div className="min-h-[calc(100vh-72px)] w-full bg-slate-50/60 p-6">
       <PageHeader
@@ -428,124 +664,90 @@ export function ServiceManager({
       />
 
       <section className="w-full overflow-hidden rounded-2xl border border-slate-200 bg-white shadow-sm">
-        <div className="border-slate-200 p-4">
-          <CompactSearchField
-            label="Từ khóa"
-            placeholder="Tìm mã, tên, nội dung dịch vụ..."
-            value={filters.keyword}
-            onChange={(value) => updateFilters({ keyword: value })}
-          />
+        <div className="flex items-end justify-between gap-4 border-slate-200 p-4">
+          <div className="min-w-0 flex-1">
+            <CompactSearchField
+              label="Từ khóa"
+              placeholder="Tìm mã, tên, nội dung dịch vụ..."
+              value={filters.keyword}
+              onChange={(value) => updateFilters({ keyword: value })}
+            />
+          </div>
+          <p className="hidden shrink-0 pb-2 text-xs font-semibold text-slate-500 lg:block">
+            {dragParentId !== undefined
+              ? 'Đang chỉ hiển thị các dịch vụ cùng cấp'
+              : filters.keyword.trim()
+                ? 'Xóa từ khóa để sắp xếp dịch vụ'
+                : 'Kéo tay nắm để sắp xếp các dịch vụ cùng cấp'}
+          </p>
+          <span className="sr-only" role="status" aria-live="polite">
+            {dragParentId !== undefined
+              ? 'Đang sắp xếp. Các dịch vụ không cùng cấp đã được ẩn tạm thời.'
+              : ''}
+          </span>
         </div>
 
-        <AppDataTable
-          columns={[
-            { key: 'service', label: 'Dịch vụ', className: 'w-[390px]' },
-            { key: 'content', label: 'Nội dung', className: 'w-[260px]' },
-            { key: 'invoiceContent', label: 'Nội dung hóa đơn', className: 'w-[260px]' },
-            { key: 'invoiceTiming', label: 'Thời điểm hóa đơn', className: 'w-[220px]' },
-            { key: 'actions', className: 'w-40' },
-          ]}
-          isLoading={isFetching}
-          isEmpty={flatServices.length === 0}
-          emptyText="Chưa có dịch vụ nào"
-          minWidthClassName="min-w-[1080px]"
+        <DndContext
+          sensors={sensors}
+          collisionDetection={closestCenter}
+          onDragStart={handleDragStart}
+          onDragCancel={() => setDragParentId(undefined)}
+          onDragEnd={handleDragEnd}
         >
-          {flatServices.map((service) => {
-            const color = rootColorMap.get(getRootServiceId(service)) || ROOT_COLOR_CLASSES[0];
+          <SortableContext
+            items={visibleServices.map((service) => service.id)}
+            strategy={verticalListSortingStrategy}
+          >
+            <AppDataTable
+              columns={[
+                { key: 'service', label: 'Dịch vụ', className: 'w-[430px]' },
+                { key: 'content', label: 'Nội dung', className: 'w-[250px]' },
+                { key: 'invoiceContent', label: 'Nội dung hóa đơn', className: 'w-[250px]' },
+                { key: 'invoiceTiming', label: 'Thời điểm hóa đơn', className: 'w-[210px]' },
+                { key: 'actions', className: 'w-40' },
+              ]}
+              isLoading={isFetching || isReordering}
+              isEmpty={visibleServices.length === 0}
+              emptyText="Chưa có dịch vụ nào"
+              minWidthClassName="min-w-[1100px]"
+            >
+              {visibleServices.map((service) => {
+                const color = rootColorMap.get(getRootServiceId(service)) || ROOT_COLOR_CLASSES[0];
+                const quoteConfig =
+                  service.depth === 0 ? getConfigForRoot(quoteConfigs, service) : null;
+                const autoQuoteEnabled = Boolean(
+                  quoteConfig &&
+                  quoteConfig.isActive &&
+                  getServiceQuoteConfigMeta(quoteConfig, service).enabled,
+                );
 
-            return (
-              <tr key={service.id} className={`group border-l-4 ${color.row} hover:bg-slate-50/80`}>
-                <td className={`px-3 py-4 ${service.depth > 0 ? color.child : ''}`}>
-                  <div
-                    className="flex min-w-0 items-center gap-2"
-                    style={{ paddingLeft: service.depth * 24 }}
-                  >
-                    <span
-                      className={`inline-flex h-6 w-6 shrink-0 items-center justify-center rounded-md ring-1 ${color.icon}`}
-                    >
-                      {service.depth === 0 ? (
-                        <AccountTreeRoundedIcon className="!text-[16px]" />
-                      ) : (
-                        <SubdirectoryArrowRightRoundedIcon className="!text-[16px]" />
-                      )}
-                    </span>
-                    <div className="flex min-w-0 items-center gap-2">
-                      <span
-                        className={`shrink-0 rounded-md px-2 py-1 text-xs font-bold ring-1 ${color.code}`}
-                      >
-                        {service.code}
-                      </span>
-                      <p className="truncate font-bold text-slate-950" title={service.name}>
-                        {service.name}
-                      </p>
-                    </div>
-                  </div>
-                </td>
-                <td className="px-3 py-4">
-                  <p className="line-clamp-2 text-slate-600" title={service.content || ''}>
-                    {service.content || '-'}
-                  </p>
-                </td>
-                <td className="px-3 py-4">
-                  <p className="line-clamp-2 text-slate-600" title={service.invoiceContent || ''}>
-                    {service.invoiceContent || '-'}
-                  </p>
-                </td>
-                <td className="px-3 py-4">
-                  <p className="line-clamp-2 text-slate-600" title={service.invoiceTiming || ''}>
-                    {service.invoiceTiming || '-'}
-                  </p>
-                </td>
-                <td className="py-4">
-                  <div className="flex items-center justify-end gap-1 pr-3">
-                    {service.depth === 0 && (
-                      <IconButton
-                        size="small"
-                        title="Cấu hình báo giá"
-                        aria-label={`Cấu hình báo giá dịch vụ ${service.name}`}
-                        disabled={isSavingQuoteConfig || !canManage}
-                        onClick={() =>
-                          setQuoteConfigDialogState({
-                            service,
-                            option: getConfigForRoot(quoteConfigs, service),
-                          })
-                        }
-                      >
-                        <PriceCheckRoundedIcon fontSize="small" />
-                      </IconButton>
-                    )}
-                    <IconButton
-                      size="small"
-                      title="Thêm dịch vụ con"
-                      aria-label={`Thêm dịch vụ con cho ${service.name}`}
-                      disabled={!canManage}
-                      onClick={() => setDialogState({ mode: 'create', parent: service })}
-                    >
-                      <AddRoundedIcon fontSize="small" />
-                    </IconButton>
-                    <IconButton
-                      size="small"
-                      title="Chỉnh sửa"
-                      aria-label={`Chỉnh sửa dịch vụ ${service.name}`}
-                      disabled={!canManage}
-                      onClick={() => setDialogState({ mode: 'edit', service })}
-                    >
-                      <EditRoundedIcon fontSize="small" />
-                    </IconButton>
-                    <IconButton
-                      size="small"
-                      title="Tác vụ"
-                      aria-label={`Mở tác vụ dịch vụ ${service.name}`}
-                      onClick={(event) => openActionMenu(event, service)}
-                    >
-                      <MoreVertRoundedIcon fontSize="small" />
-                    </IconButton>
-                  </div>
-                </td>
-              </tr>
-            );
-          })}
-        </AppDataTable>
+                return (
+                  <SortableServiceRow
+                    key={service.id}
+                    service={service}
+                    color={color}
+                    quoteConfig={quoteConfig}
+                    autoQuoteEnabled={autoQuoteEnabled}
+                    dragDisabled={dragDisabled}
+                    dragTitle={dragTitle}
+                    isSavingQuoteConfig={isSavingQuoteConfig}
+                    canManage={canManage}
+                    onOpenQuoteConfig={(selectedService, option) =>
+                      setQuoteConfigDialogState({ service: selectedService, option })
+                    }
+                    onCreateChild={(selectedService) =>
+                      setDialogState({ mode: 'create', parent: selectedService })
+                    }
+                    onEdit={(selectedService) =>
+                      setDialogState({ mode: 'edit', service: selectedService })
+                    }
+                    onOpenMenu={openActionMenu}
+                  />
+                );
+              })}
+            </AppDataTable>
+          </SortableContext>
+        </DndContext>
 
         <Menu anchorEl={menuAnchorEl} open={Boolean(menuAnchorEl)} onClose={closeActionMenu}>
           {activeService?.depth === 0 && (

@@ -23,10 +23,10 @@ import {
   ToggleButtonGroup,
 } from '@mui/material';
 import { DialogActionButton } from '@/components/actions/dialog-action-button';
-import { AppDetailDialog } from '@/components/dialog/app-detail-dialog';
 import { AppFormDialog } from '@/components/dialog/app-form-dialog';
 import { ConfirmDialog } from '@/components/feedback/confirm-dialog';
 import { CompactSearchField } from '@/components/form/compact-search-field';
+import { ImageLightbox } from '@/components/media/image-lightbox';
 import { PageHeader } from '@/components/shell/page-header';
 import { AppDataTable } from '@/components/table/app-data-table';
 import { TablePaginationBar } from '@/components/table/table-pagination-bar';
@@ -482,12 +482,16 @@ function MediaPreviewDialog({
     : 'Không xác định';
 
   return (
-    <AppDetailDialog
+    <ImageLightbox
       open
-      maxWidth="lg"
-      eyebrow={`${formatFileSize(image.size)} · ${image.mimeType || image.fileType || 'Ảnh'}`}
+      images={[
+        {
+          src: image.url || image.previewUrl || '',
+          alt: image.originalName || image.fileName,
+          label: `${formatFileSize(image.size)} · ${image.mimeType || image.fileType || 'Ảnh'} · ${image.uploader?.name || 'Hệ thống'} · ${createdAt}`,
+        },
+      ]}
       title={image.originalName || image.fileName}
-      subtitle={`Tải lên bởi ${image.uploader?.name || 'Hệ thống'} · ${createdAt}`}
       onClose={onClose}
       actions={
         <>
@@ -512,24 +516,15 @@ function MediaPreviewDialog({
           </Button>
         </>
       }
-    >
-      <div className="bg-slate-950 p-4 sm:p-6">
-        {/* eslint-disable-next-line @next/next/no-img-element */}
-        <img
-          src={getMediaPreviewUrl(image.url) || image.previewUrl || ''}
-          alt={image.originalName || image.fileName}
-          className="mx-auto max-h-[68vh] w-auto max-w-full rounded-lg object-contain"
-        />
-      </div>
-      <div className="border-t border-slate-200 bg-white p-4">
+      footer={
         <div className="flex flex-col gap-2 sm:flex-row sm:items-start">
           <p className="w-32 shrink-0 text-sm font-bold text-slate-700">Đang sử dụng</p>
           <div className="min-w-0 flex-1">
             <UsageLinks usages={image.usages || []} />
           </div>
         </div>
-      </div>
-    </AppDetailDialog>
+      }
+    />
   );
 }
 

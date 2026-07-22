@@ -1,5 +1,6 @@
 'use client';
 
+import type { ReactNode } from 'react';
 import WarningAmberRoundedIcon from '@mui/icons-material/WarningAmberRounded';
 import {
   Button,
@@ -17,6 +18,7 @@ type ConfirmDialogProps = {
   confirmText?: string;
   cancelText?: string;
   loading?: boolean;
+  children?: ReactNode;
   onClose: () => void;
   onConfirm: () => void;
 };
@@ -28,6 +30,7 @@ export function ConfirmDialog({
   confirmText = 'Xác nhận',
   cancelText = 'Hủy',
   loading = false,
+  children,
   onClose,
   onConfirm,
 }: ConfirmDialogProps) {
@@ -45,8 +48,9 @@ export function ConfirmDialog({
         </span>
         <span className="text-lg font-bold text-slate-950">{title}</span>
       </DialogTitle>
-      <DialogContent>
+      <DialogContent className="space-y-4">
         <DialogContentText className="text-sm text-slate-500">{description}</DialogContentText>
+        {children}
       </DialogContent>
       <DialogActions className="px-6 pb-5">
         <Button variant="outlined" onClick={onClose} disabled={loading}>
