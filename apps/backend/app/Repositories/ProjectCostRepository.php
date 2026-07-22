@@ -112,6 +112,7 @@ class ProjectCostRepository extends BaseRepository
                 $query
                     ->where('cid', 'ilike', "%{$keyword}%")
                     ->orWhere('ad_account', 'ilike', "%{$keyword}%")
+                    ->orWhere('invoice_number', 'ilike', "%{$keyword}%")
                     ->orWhere('note', 'ilike', "%{$keyword}%")
                     ->orWhereHas('project', fn ($relation) => $relation
                         ->where('project_code', 'ilike', "%{$keyword}%")
@@ -132,8 +133,12 @@ class ProjectCostRepository extends BaseRepository
             ->when($filters['quotation_id'] ?? null, fn ($query, $value) => $query->where('quotation_id', $value))
             ->when($filters['entry_type'] ?? null, fn ($query, $value) => $query->where('entry_type', $value))
             ->when($filters['status'] ?? null, fn ($query, $value) => $query->where('status', $value))
+            ->when($filters['reconciliation_result'] ?? null, fn ($query, $value) => $query->where('reconciliation_result', $value))
             ->when(($filters['reconciled_status'] ?? null) === 'matched', fn ($query) => $query->whereNotNull('reconciled_at'))
             ->when(($filters['reconciled_status'] ?? null) === 'unmatched', fn ($query) => $query->whereNull('reconciled_at'))
+            ->when(($filters['balance_status'] ?? null) === 'pending', fn ($query) => $this->balanceStatusQuery($query, 'pending'))
+            ->when(($filters['balance_status'] ?? null) === 'resolved', fn ($query) => $this->balanceStatusQuery($query, 'resolved'))
+            ->when(($filters['balance_status'] ?? null) === 'none', fn ($query) => $this->balanceStatusQuery($query, 'none'))
             ->when($dateFrom, fn ($query) => $query->whereDate('transaction_date', '>=', $dateFrom))
             ->when($dateTo, fn ($query) => $query->whereDate('transaction_date', '<=', $dateTo));
 
@@ -161,6 +166,31 @@ class ProjectCostRepository extends BaseRepository
             'bankAccountOption',
             'partnerOption',
             'reconciledBy',
+            'adjustments',
         ];
+    }
+
+    private function balanceStatusQuery(Builder $query, string $status): Builder
+    {
+        $balanceSql = 'GREATEST(project_costs.total_amount - COALESCE(project_costs.cid_spent_amount, 0), 0)';
+
+        if ($status === 'none') {
+            return $query->where(function ($query) use ($balanceSql): void {
+                $query
+                    ->where('entry_type', '!=', ProjectCost::TYPE_AD_SPEND)
+                    ->orWhere('cid_is_dead', false)
+                    ->orWhereRaw("{$balanceSql} <= 0");
+            });
+        }
+
+        return $query
+            ->where('entry_type', ProjectCost::TYPE_AD_SPEND)
+            ->where('cid_is_dead', true)
+            ->whereRaw("{$balanceSql} > 0")
+            ->when(
+                $status === 'pending',
+                fn ($query) => $query->whereNull('reconciled_at'),
+                fn ($query) => $query->whereNotNull('reconciled_at'),
+            );
     }
 }

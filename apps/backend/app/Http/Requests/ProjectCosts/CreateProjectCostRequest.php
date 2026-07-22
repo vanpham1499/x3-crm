@@ -3,6 +3,7 @@
 namespace App\Http\Requests\ProjectCosts;
 
 use App\Http\Requests\BaseRequest;
+use App\Models\Option;
 use App\Models\ProjectCost;
 use Illuminate\Validation\Rule;
 
@@ -10,8 +11,10 @@ class CreateProjectCostRequest extends BaseRequest
 {
     public function rules(): array
     {
-        $bankAccountExists = Rule::exists('options', 'id')
-            ->where(fn ($query) => $query->where('group', 'company_bank_account')->whereNull('deleted_at'));
+        $topupCardExists = Rule::exists('options', 'id')
+            ->where(fn ($query) => $query
+                ->whereIn('group', [Option::GROUP_AD_TOPUP_CARD, 'company_bank_account'])
+                ->whereNull('deleted_at'));
         $partnerExists = Rule::exists('options', 'id')
             ->where(fn ($query) => $query->where('group', 'project_partner')->whereNull('deleted_at'));
 
@@ -32,8 +35,8 @@ class CreateProjectCostRequest extends BaseRequest
             'cidIsDead' => ['nullable', 'boolean'],
             'cid_spent_amount' => ['nullable', 'numeric', 'min:0'],
             'cidSpentAmount' => ['nullable', 'numeric', 'min:0'],
-            'bank_account_option_id' => ['nullable', 'integer', $bankAccountExists],
-            'bankAccountOptionId' => ['nullable', 'integer', $bankAccountExists],
+            'bank_account_option_id' => ['nullable', 'integer', $topupCardExists],
+            'bankAccountOptionId' => ['nullable', 'integer', $topupCardExists],
             'partner_option_id' => ['nullable', 'integer', $partnerExists],
             'partnerOptionId' => ['nullable', 'integer', $partnerExists],
             'amount_before_vat' => ['nullable', 'numeric', 'min:0'],

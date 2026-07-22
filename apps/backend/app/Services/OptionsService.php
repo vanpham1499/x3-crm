@@ -84,6 +84,7 @@ class OptionsService extends BaseService
                 || $option->sourceCustomers()->exists()
                 || $option->industryCustomers()->exists()
                 || $option->statusProjects()->exists()
+                || $option->projectCostsByBankAccount()->exists()
             ) {
                 throw new ConflictHttpException('Không thể xóa option đang được sử dụng');
             }

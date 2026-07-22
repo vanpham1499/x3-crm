@@ -5,6 +5,7 @@ namespace App\Services;
 use App\Http\Resources\ServiceResource;
 use App\Models\Service;
 use App\Repositories\ServiceRepository;
+use Illuminate\Support\Facades\DB;
 use Symfony\Component\HttpKernel\Exception\ConflictHttpException;
 use Symfony\Component\HttpKernel\Exception\UnprocessableEntityHttpException;
 
@@ -54,6 +55,48 @@ class ServicesService extends BaseService
             }
 
             return $this->apiResource($updated->load(['parent', 'childrenRecursive']), ServiceResource::class);
+        });
+    }
+
+    public function reorder(array $data)
+    {
+        return $this->transaction(function () use ($data) {
+            $parentId = $data['parentId'];
+            $serviceIds = array_map('intval', array_values($data['serviceIds']));
+            $siblingIds = Service::query()
+                ->where('parent_id', $parentId)
+                ->orderBy('sort_order')
+                ->orderBy('code')
+                ->pluck('id')
+                ->map(fn ($id) => (int) $id)
+                ->all();
+
+            $submittedIds = $serviceIds;
+            sort($submittedIds);
+            $expectedIds = $siblingIds;
+            sort($expectedIds);
+
+            if ($submittedIds !== $expectedIds) {
+                throw new UnprocessableEntityHttpException(
+                    'Danh sách sắp xếp phải bao gồm đầy đủ các dịch vụ cùng cấp',
+                );
+            }
+
+            foreach ($serviceIds as $index => $serviceId) {
+                DB::table('services')
+                    ->where('id', $serviceId)
+                    ->where('parent_id', $parentId)
+                    ->whereNull('deleted_at')
+                    ->update([
+                        'sort_order' => ($index + 1) * 10,
+                        'updated_at' => now(),
+                    ]);
+            }
+
+            return $this->apiCollection(
+                $this->services->findAll(['tree' => true]),
+                ServiceResource::class,
+            );
         });
     }
 

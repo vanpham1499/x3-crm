@@ -3,6 +3,7 @@
 namespace App\Http\Controllers;
 
 use App\Http\Requests\ProjectCosts\CreateProjectCostRequest;
+use App\Http\Requests\ProjectCosts\ReconcileProjectCostRequest;
 use App\Http\Requests\ProjectCosts\UpdateProjectCostRequest;
 use App\Services\ProjectCostsService;
 use Illuminate\Http\JsonResponse;
@@ -58,8 +59,8 @@ class ProjectCostsController extends Controller
         return $this->success($this->costs->remove($id));
     }
 
-    public function reconcile(string $id): JsonResponse
+    public function reconcile(ReconcileProjectCostRequest $request, string $id): JsonResponse
     {
-        return $this->success($this->costs->reconcile($id));
+        return $this->success($this->costs->reconcile($id, $request->validatedData()));
     }
 }

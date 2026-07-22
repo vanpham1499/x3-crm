@@ -6,6 +6,7 @@ use App\Http\Requests\Payments\AllocatePaymentRequest;
 use App\Http\Requests\Payments\CreatePaymentRequest;
 use App\Http\Requests\Payments\LinkPaymentRequest;
 use App\Http\Requests\Payments\RefundPaymentRequest;
+use App\Http\Requests\Payments\UpdatePaymentRefundRequest;
 use App\Http\Requests\Payments\UpdatePaymentRequest;
 use App\Http\Requests\Payments\WebhookPaymentRequest;
 use App\Services\PaymentsService;
@@ -49,6 +50,22 @@ class PaymentsController extends Controller
         return $this->success($this->payments->findOne($id));
     }
 
+    public function refundIndex(Request $request): JsonResponse
+    {
+        $filters = [
+            'keyword' => $request->query('keyword'),
+            'refundType' => $request->query('refund_type'),
+            'status' => $request->query('status'),
+            'dateFrom' => $request->query('date_from'),
+            'dateTo' => $request->query('date_to'),
+        ];
+        $page = max(1, (int) $request->query('page', 1));
+        $perPage = min(100, max(1, (int) $request->query('per_page', 10)));
+        $result = $this->payments->findRefundsPaginated($filters, $perPage, $page);
+
+        return $this->success($result['data'], 200, $result['meta']);
+    }
+
     public function store(CreatePaymentRequest $request): JsonResponse
     {
         return $this->success($this->payments->create($request->validatedData()), 201);
@@ -89,6 +106,16 @@ class PaymentsController extends Controller
     public function refund(RefundPaymentRequest $request, string $id): JsonResponse
     {
         return $this->success($this->payments->refund($id, $request->validatedData()));
+    }
+
+    public function updateRefund(UpdatePaymentRefundRequest $request, string $id): JsonResponse
+    {
+        return $this->success($this->payments->updateRefund($id, $request->validatedData()));
+    }
+
+    public function destroyRefund(string $id): JsonResponse
+    {
+        return $this->success($this->payments->removeRefund($id));
     }
 
     public function link(LinkPaymentRequest $request, string $id): JsonResponse

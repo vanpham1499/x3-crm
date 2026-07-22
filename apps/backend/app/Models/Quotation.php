@@ -11,6 +11,8 @@ class Quotation extends BaseModel
 
     public const STATUS_WON = 'won';
 
+    public const STATUS_REFUNDED = 'refunded';
+
     public const DEPOSIT_MODE_NON_TAXABLE_ADDITION = 'non_taxable_addition_v1';
 
     protected $fillable = [
@@ -84,6 +86,11 @@ class Quotation extends BaseModel
     public function paymentAllocations(): HasMany
     {
         return $this->hasMany(PaymentAllocation::class);
+    }
+
+    public function paymentRefunds(): HasMany
+    {
+        return $this->hasMany(PaymentRefund::class);
     }
 
     public function items(): HasMany

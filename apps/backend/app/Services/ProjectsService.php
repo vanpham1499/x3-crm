@@ -91,7 +91,7 @@ class ProjectsService extends BaseService
             $hasReportWeekday = array_key_exists('report_weekday', $data);
             $reportWeekday = $hasReportWeekday ? (int) $data['report_weekday'] : null;
             unset($data['report_weekday']);
-            $shouldSyncWeeklySetting = $hasReportWeekday || array_key_exists('sales_user_id', $data);
+            $shouldSyncWeeklySetting = $hasReportWeekday || array_key_exists('manager_user_id', $data);
             unset($data['project_code']);
             $before = $this->loadProjectRelations($this->projects->findWithRelationsOrFail($id));
             $this->authorize('update', $before);
@@ -173,6 +173,9 @@ class ProjectsService extends BaseService
             'reportWeekday' => 'report_weekday',
             'zaloGroup' => 'zalo_group',
             'planLink' => 'plan_link',
+            'weeklyReportLink' => 'weekly_report_link',
+            'customerTrackingReportLink' => 'customer_tracking_report_link',
+            'adminWebAccount' => 'admin_web_account',
             'startDate' => 'start_date',
             'endDate' => 'end_date',
         ];
@@ -236,7 +239,7 @@ class ProjectsService extends BaseService
             ->first();
         $effectiveWeekday = $hasReportWeekday ? $reportWeekday : $setting?->report_weekday;
 
-        if (! $project->sales_user_id || ! $effectiveWeekday) {
+        if (! $project->manager_user_id || ! $effectiveWeekday) {
             if ($setting && ! $setting->trashed()) {
                 $setting->update([
                     'is_active' => false,
@@ -248,7 +251,7 @@ class ProjectsService extends BaseService
         }
 
         $values = [
-            'report_owner_user_id' => $project->sales_user_id,
+            'report_owner_user_id' => $project->manager_user_id,
             'report_weekday' => $effectiveWeekday,
             'is_active' => true,
             'updated_by' => $this->currentUser()?->id,
@@ -419,10 +422,13 @@ class ProjectsService extends BaseService
             'project_name' => 'Tên dự án',
             'project_type' => 'Type dự án',
             'status_option_id' => 'Trạng thái',
-            'manager_user_id' => 'Nhân sự quản lý',
+            'manager_user_id' => 'Nhân sự triển khai',
             'sales_user_id' => 'Nhân sự sales',
             'zalo_group' => 'Nhóm Zalo',
             'plan_link' => 'Link kế hoạch',
+            'weekly_report_link' => 'Link báo cáo tuần',
+            'customer_tracking_report_link' => 'Link báo cáo tổng khách hàng theo dõi',
+            'admin_web_account' => 'Tài khoản Admin Web',
             'start_date' => 'Ngày bắt đầu',
             'end_date' => 'Ngày kết thúc',
             'note' => 'Note',
@@ -533,11 +539,19 @@ class ProjectsService extends BaseService
         $projectType = $data['project_type'] ?? null;
         $projectName = $data['project_name'] ?? null;
 
-        if (! $customerCode || ! $serviceCode || ! in_array($projectType, ['K', 'M'], true) || ! is_string($projectName) || trim($projectName) === '') {
+        if (! $customerCode || ! $serviceCode || ! in_array($projectType, ['K', 'M', 'N'], true) || ! is_string($projectName) || trim($projectName) === '') {
             return null;
         }
 
-        $code = collect([$customerCode, $serviceCode, $projectType, $projectName])
+        $codeParts = [$customerCode, $serviceCode];
+
+        if ($projectType !== 'N') {
+            $codeParts[] = $projectType;
+        }
+
+        $codeParts[] = $projectName;
+
+        $code = collect($codeParts)
             ->map(fn (string $part): string => $this->normalizeCodeSegment($part))
             ->filter()
             ->join('.');

@@ -2,9 +2,12 @@
 
 namespace App\Services;
 
+use App\Http\Resources\PaymentRefundResource;
 use App\Http\Resources\PaymentResource;
 use App\Models\Payment;
+use App\Models\PaymentRefund;
 use App\Models\Quotation;
+use App\Repositories\PaymentRefundRepository;
 use App\Repositories\PaymentRepository;
 use App\Support\QuotationReference;
 use Carbon\Carbon;
@@ -15,6 +18,7 @@ class PaymentsService extends BaseService
 {
     public function __construct(
         private readonly PaymentRepository $payments,
+        private readonly PaymentRefundRepository $refunds,
         private readonly QuotationsService $quotations,
         private readonly PaymentAllocationService $paymentAllocations,
     ) {}
@@ -41,6 +45,13 @@ class PaymentsService extends BaseService
         $this->paymentAllocations->appendCollectionContext(new Collection([$payment]));
 
         return $this->apiResource($payment, PaymentResource::class);
+    }
+
+    public function findRefundsPaginated(array $filters, int $perPage, int $page): array
+    {
+        $paginator = $this->refunds->findPaginated($this->normalizeKeys($filters), $perPage, $page);
+
+        return $this->apiPaginatedCollection($paginator, PaymentRefundResource::class);
     }
 
     public function create(array $data): array
@@ -72,7 +83,10 @@ class PaymentsService extends BaseService
 
             if (array_key_exists('amount', $data)) {
                 $committedAmount = (float) $current->allocations->sum('amount')
-                    + (float) $current->refunds->sum('amount');
+                    + (float) $current->refunds
+                        ->whereIn('status', [PaymentRefund::STATUS_PENDING, PaymentRefund::STATUS_COMPLETED])
+                        ->where('refund_type', PaymentRefund::TYPE_OVERPAYMENT)
+                        ->sum('amount');
 
                 if ((float) $data['amount'] < $committedAmount) {
                     throw ValidationException::withMessages([
@@ -236,6 +250,22 @@ class PaymentsService extends BaseService
         return $this->paymentResource($this->payments->findWithRelationsOrFail($id));
     }
 
+    public function updateRefund(string $id, array $data): array
+    {
+        $this->authorize('manage', Payment::class);
+        $refund = $this->paymentAllocations->updateRefund($id, $data, auth()->id());
+
+        return $this->apiResource($refund, PaymentRefundResource::class);
+    }
+
+    public function removeRefund(string $id): array
+    {
+        $this->authorize('manage', Payment::class);
+        $this->paymentAllocations->removeRefund($id, auth()->id());
+
+        return ['message' => 'Đã xóa khoản hoàn và tính lại công nợ'];
+    }
+
     public function link(string $id, array $data): array
     {
         $this->authorize('manage', Payment::class);
@@ -306,6 +336,7 @@ class PaymentsService extends BaseService
             'dateFrom' => 'date_from',
             'dateTo' => 'date_to',
             'groupByQuotation' => 'group_by_quotation',
+            'refundType' => 'refund_type',
         ];
 
         foreach ($map as $from => $to) {

@@ -3,7 +3,6 @@
 namespace App\Http\Requests\Users;
 
 use App\Http\Requests\BaseRequest;
-use App\Models\User;
 use Illuminate\Validation\Rule;
 
 class CreateUserRequest extends BaseRequest
@@ -17,7 +16,12 @@ class CreateUserRequest extends BaseRequest
             'password' => ['required', 'string', 'min:6'],
             'phone' => ['nullable', 'string', 'max:50'],
             'avatar' => ['nullable', 'string', 'max:2048'],
-            'role' => ['required', Rule::in(User::ROLES)],
+            'role' => [
+                'required',
+                'string',
+                'max:50',
+                Rule::exists('roles', 'name')->whereNull('deleted_at'),
+            ],
         ];
     }
 }

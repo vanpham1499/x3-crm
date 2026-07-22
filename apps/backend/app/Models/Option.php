@@ -20,6 +20,8 @@ class Option extends BaseModel
 
     public const GROUP_KPI_CATEGORY = 'kpi_category';
 
+    public const GROUP_AD_TOPUP_CARD = 'ad_topup_card';
+
     protected $fillable = [
         'group',
         'key',
@@ -75,5 +77,10 @@ class Option extends BaseModel
     public function statusProjects(): HasMany
     {
         return $this->hasMany(Project::class, 'status_option_id');
+    }
+
+    public function projectCostsByBankAccount(): HasMany
+    {
+        return $this->hasMany(ProjectCost::class, 'bank_account_option_id');
     }
 }

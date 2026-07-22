@@ -3,6 +3,7 @@
 namespace App\Http\Controllers;
 
 use App\Http\Requests\Services\CreateServiceRequest;
+use App\Http\Requests\Services\ReorderServicesRequest;
 use App\Http\Requests\Services\UpdateServiceRequest;
 use App\Services\ServicesService;
 use Illuminate\Http\JsonResponse;
@@ -42,6 +43,11 @@ class ServicesController extends Controller
     public function update(UpdateServiceRequest $request, string $id): JsonResponse
     {
         return $this->success($this->services->update($id, $request->validatedData()));
+    }
+
+    public function reorder(ReorderServicesRequest $request): JsonResponse
+    {
+        return $this->success($this->services->reorder($request->validatedData()));
     }
 
     public function destroy(string $id): JsonResponse
