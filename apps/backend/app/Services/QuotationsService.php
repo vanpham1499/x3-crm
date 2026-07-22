@@ -74,7 +74,7 @@ class QuotationsService extends BaseService
             $quotation = $this->quotations->create($data);
             $this->syncItems($quotation, $items);
 
-            return $this->apiResource($quotation->load(['lead', 'customer', 'project', 'contract', 'service', 'items.service', 'paymentAllocations']), QuotationResource::class);
+            return $this->apiResource($quotation->load(['lead', 'customer', 'project', 'contract', 'service', 'items.service', 'paymentAllocations', 'paymentRefunds', 'createdBy']), QuotationResource::class);
         });
     }
 
@@ -139,7 +139,7 @@ class QuotationsService extends BaseService
             }
             $this->paymentAllocations->reconcileQuotation($id);
 
-            return $this->apiResource($quotation->refresh()->load(['lead', 'customer', 'project', 'contract', 'service', 'items.service', 'paymentAllocations']), QuotationResource::class);
+            return $this->apiResource($quotation->refresh()->load(['lead', 'customer', 'project', 'contract', 'service', 'items.service', 'paymentAllocations', 'paymentRefunds', 'createdBy']), QuotationResource::class);
         });
     }
 
@@ -198,6 +198,8 @@ class QuotationsService extends BaseService
             'contract',
             'service',
             'paymentAllocations',
+            'paymentRefunds',
+            'createdBy',
         ]);
     }
 

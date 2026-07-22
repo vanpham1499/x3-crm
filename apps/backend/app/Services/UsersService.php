@@ -100,7 +100,10 @@ class UsersService extends BaseService
 
     private function resolveRoleId(string $role): string
     {
-        $roleId = DB::table('roles')->where('name', $role)->value('id');
+        $roleId = DB::table('roles')
+            ->where('name', $role)
+            ->whereNull('deleted_at')
+            ->value('id');
 
         if (! $roleId) {
             throw new UnprocessableEntityHttpException('Vai trò không tồn tại trong danh mục roles');

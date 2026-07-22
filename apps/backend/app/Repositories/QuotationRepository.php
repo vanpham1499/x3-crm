@@ -33,7 +33,7 @@ class QuotationRepository extends BaseRepository
         $keyword = trim((string) ($filters['keyword'] ?? $filters['search'] ?? ''));
 
         return $this->query()
-            ->with(['lead', 'customer', 'project', 'contract', 'service', 'items.service', 'paymentAllocations'])
+            ->with(['lead', 'customer', 'project', 'contract', 'service', 'items.service', 'paymentAllocations', 'paymentRefunds', 'createdBy'])
             ->when($keyword !== '', fn ($query) => $query->where(function ($query) use ($keyword): void {
                 $query
                     ->where('quotation_code', 'ilike', "%{$keyword}%")
@@ -63,7 +63,7 @@ class QuotationRepository extends BaseRepository
     {
         /** @var Quotation|null $quotation */
         $quotation = $this->query()
-            ->with(['lead', 'customer', 'project', 'contract', 'service', 'items.service', 'paymentAllocations'])
+            ->with(['lead', 'customer', 'project', 'contract', 'service', 'items.service', 'paymentAllocations', 'paymentRefunds', 'createdBy'])
             ->whereKey($id)
             ->first();
 
@@ -94,6 +94,8 @@ class QuotationRepository extends BaseRepository
             'service',
             'items.service',
             'paymentAllocations',
+            'paymentRefunds',
+            'createdBy',
         ]);
     }
 
@@ -103,6 +105,6 @@ class QuotationRepository extends BaseRepository
             return null;
         }
 
-        return $this->query()->with(['lead', 'customer', 'project', 'contract', 'service', 'items.service', 'paymentAllocations'])->where('quotation_code', $code)->first();
+        return $this->query()->with(['lead', 'customer', 'project', 'contract', 'service', 'items.service', 'paymentAllocations', 'paymentRefunds', 'createdBy'])->where('quotation_code', $code)->first();
     }
 }

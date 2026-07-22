@@ -68,16 +68,15 @@ class ProjectWeeklySettingRepository extends BaseRepository
     }
 
     public function countAssignments(
-        int $reportOwnerUserId,
+        int $deploymentUserId,
         int $reportWeekday,
         ?int $excludeProjectId = null,
     ): int {
         return $this->query()
-            ->where('report_owner_user_id', $reportOwnerUserId)
             ->where('report_weekday', $reportWeekday)
             ->where('is_active', true)
             ->when($excludeProjectId, fn ($query) => $query->where('project_id', '!=', $excludeProjectId))
-            ->whereHas('project')
+            ->whereHas('project', fn ($query) => $query->where('manager_user_id', $deploymentUserId))
             ->count();
     }
 

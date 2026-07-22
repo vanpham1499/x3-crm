@@ -12,8 +12,11 @@ class PaymentResource extends JsonResource
     {
         $allocatedAmount = $this->ledger_allocated_amount ?? $this->allocated_amount ?? 0;
         $refundedAmount = $this->ledger_refunded_amount ?? $this->refunded_amount ?? 0;
+        $compensationAmount = $this->ledger_compensation_amount ?? 0;
         $availableAmount = $this->ledger_available_amount
             ?? max(0, (float) $this->amount - (float) $allocatedAmount - (float) $refundedAmount);
+        $refundableAmount = $this->ledger_refundable_amount
+            ?? max(0, (float) $this->amount - (float) $refundedAmount);
 
         return [
             'id' => $this->id,
@@ -32,7 +35,10 @@ class PaymentResource extends JsonResource
             'amount' => $this->amount,
             'allocatedAmount' => round((float) $allocatedAmount, 2),
             'refundedAmount' => round((float) $refundedAmount, 2),
+            'compensationAmount' => round((float) $compensationAmount, 2),
+            'outboundAmount' => round((float) $refundedAmount + (float) $compensationAmount, 2),
             'availableAmount' => round((float) $availableAmount, 2),
+            'refundableAmount' => round((float) $refundableAmount, 2),
             'unallocatedAmount' => round((float) $availableAmount, 2),
             'excessAmount' => round((float) $availableAmount, 2),
             'cumulativeReceived' => $this->cumulative_received,
@@ -42,7 +48,14 @@ class PaymentResource extends JsonResource
             'allocationCount' => $this->allocation_count ?? $this->allocations?->count() ?? 0,
             'refundCount' => $this->refund_count ?? $this->refunds?->count() ?? 0,
             'collectionTotalAmount' => $this->collection_total_amount,
+            'collectionCollectibleAmount' => $this->collection_collectible_amount,
+            'collectionGrossReceivedAmount' => $this->collection_gross_received_amount,
             'collectionReceivedAmount' => $this->collection_received_amount,
+            'collectionRefundedAmount' => $this->collection_refunded_amount,
+            'collectionDepositRefundedAmount' => $this->collection_deposit_refunded_amount,
+            'collectionCompensationAmount' => $this->collection_compensation_amount,
+            'collectionOutboundAmount' => $this->collection_outbound_amount,
+            'collectionOverCompensationAmount' => $this->collection_over_compensation_amount,
             'collectionOutstandingAmount' => $this->collection_outstanding_amount,
             'collectionExcessAmount' => $this->collection_excess_amount,
             'collectionDifferenceAmount' => $this->collection_difference_amount,
@@ -69,6 +82,13 @@ class PaymentResource extends JsonResource
                     'customerId' => $allocation->customer_id,
                     'projectId' => $allocation->project_id,
                     'amount' => $allocation->amount,
+                    'refundedAmount' => round((float) ($allocation->ledger_refunded_amount ?? 0), 2),
+                    'refundableAmount' => round((float) (
+                        $allocation->ledger_refundable_amount ?? $allocation->amount
+                    ), 2),
+                    'depositRefundableAmount' => round((float) (
+                        $allocation->ledger_deposit_refundable_amount ?? 0
+                    ), 2),
                     'allocatedAt' => $allocation->allocated_at?->toISOString(),
                     'note' => $allocation->note,
                     'quotation' => $allocation->quotation ? [
@@ -93,9 +113,19 @@ class PaymentResource extends JsonResource
                     'id' => $refund->id,
                     'paymentId' => $refund->payment_id,
                     'amount' => $refund->amount,
+                    'paymentAllocationId' => $refund->payment_allocation_id,
+                    'quotationId' => $refund->quotation_id,
+                    'customerId' => $refund->customer_id,
+                    'projectId' => $refund->project_id,
+                    'refundType' => $refund->refund_type,
+                    'status' => $refund->status,
+                    'scheduledAt' => $refund->scheduled_at?->toISOString(),
                     'refundedAt' => $refund->refunded_at?->toISOString(),
+                    'completedAt' => $refund->completed_at?->toISOString(),
                     'recipientName' => $refund->recipient_name,
                     'recipientAccount' => $refund->recipient_account,
+                    'recipientBank' => $refund->recipient_bank,
+                    'reason' => $refund->reason,
                     'reference' => $refund->reference,
                     'note' => $refund->note,
                 ],

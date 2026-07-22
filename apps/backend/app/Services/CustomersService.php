@@ -9,6 +9,7 @@ use App\Models\Lead;
 use App\Models\Option;
 use App\Repositories\CustomerRepository;
 use Illuminate\Support\Facades\DB;
+use Illuminate\Validation\ValidationException;
 use Symfony\Component\HttpKernel\Exception\ConflictHttpException;
 use Symfony\Component\HttpKernel\Exception\NotFoundHttpException;
 
@@ -38,11 +39,19 @@ class CustomersService extends BaseService
     {
         return $this->transaction(function () use ($data, $linkLead, $checkAuthorization): array {
             $data = $this->normalizePayload($data);
-            unset($data['customer_code']);
-            $data['customer_code'] = $this->generateCustomerCode();
+            if (! array_key_exists('customer_code', $data)) {
+                $data['customer_code'] = $this->generateCustomerCode();
+            }
             $lead = $linkLead ? $this->lockLeadForConversion($data['lead_id'] ?? null) : null;
 
             if ($lead) {
+                if (! $lead->source_option_id) {
+                    throw ValidationException::withMessages([
+                        'sourceOptionId' => 'Lead chưa có nguồn phát sinh. Vui lòng cập nhật Lead trước khi tạo khách hàng.',
+                    ]);
+                }
+
+                $data['source_option_id'] = $lead->source_option_id;
                 $this->authorize('update', $lead);
             } elseif ($checkAuthorization) {
                 $this->authorize('create', Customer::class);
@@ -65,9 +74,12 @@ class CustomersService extends BaseService
     {
         return $this->transaction(function () use ($id, $data): array {
             $data = $this->normalizePayload($data);
-            unset($data['customer_code']);
             $before = $this->loadCustomerRelations($this->customers->findWithRelationsOrFail($id));
             $this->authorize('update', $before);
+
+            if ($before->lead_id && $before->lead?->source_option_id) {
+                $data['source_option_id'] = $before->lead->source_option_id;
+            }
 
             /** @var Customer $customer */
             $customer = $this->customers->update($id, $data);
@@ -96,8 +108,14 @@ class CustomersService extends BaseService
     {
         $data = $this->normalizeKeys($data);
 
-        if (array_key_exists('customer_code', $data) && ($data['customer_code'] === '' || $data['customer_code'] === null)) {
-            unset($data['customer_code']);
+        if (array_key_exists('customer_code', $data)) {
+            $customerCode = trim((string) ($data['customer_code'] ?? ''));
+
+            if ($customerCode === '') {
+                unset($data['customer_code']);
+            } else {
+                $data['customer_code'] = $customerCode;
+            }
         }
 
         foreach (['lead_id', 'customer_type_option_id', 'source_option_id', 'industry_option_id', 'sales_user_id'] as $key) {

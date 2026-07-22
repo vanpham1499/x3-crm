@@ -4,6 +4,7 @@ namespace App\Services;
 
 use App\Http\Resources\ProjectCostResource;
 use App\Models\ProjectCost;
+use App\Models\ProjectCostAdjustment;
 use App\Repositories\ProjectCostRepository;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Validation\ValidationException;
@@ -68,24 +69,48 @@ class ProjectCostsService extends BaseService
         });
     }
 
-    public function reconcile(string $id): array
+    public function reconcile(string $id, array $data): array
     {
-        return $this->transaction(function () use ($id): array {
+        return $this->transaction(function () use ($id, $data): array {
             $this->authorizeAccounting();
             $cost = $this->costs->findForUpdateOrFail($id);
+            $cost->load('adjustments');
+            $data = $this->normalizeKeys($data);
+            $adjustments = $data['adjustments'] ?? [];
+
+            $this->validateAdjustmentBalance($cost, $adjustments);
+
+            $result = $data['reconciliation_result'] ?? ProjectCost::RECONCILIATION_MATCHED;
+            $isFinalReconciliation = in_array($result, [
+                ProjectCost::RECONCILIATION_MATCHED,
+                ProjectCost::RECONCILIATION_MATCHED_WITH_NOTE,
+                ProjectCost::RECONCILIATION_DIFFERENCE,
+            ], true);
 
             $updates = [
-                'status' => ProjectCost::STATUS_COMPLETED,
+                'status' => $result === ProjectCost::RECONCILIATION_CANCELLED
+                    ? ProjectCost::STATUS_CANCELLED
+                    : ProjectCost::STATUS_COMPLETED,
+                'invoice_number' => trim((string) ($data['invoice_number'] ?? '')) ?: null,
+                'reconciliation_result' => $result,
+                'invoice_status' => $data['invoice_status'] ?? ProjectCost::INVOICE_STATUS_PENDING,
+                'invoice_recipient_type' => $data['invoice_recipient_type'] ?? ProjectCost::INVOICE_RECIPIENT_CUSTOMER,
+                'invoice_recipient_name' => trim((string) ($data['invoice_recipient_name'] ?? '')) ?: null,
+                'reconciliation_note' => trim((string) ($data['reconciliation_note'] ?? '')) ?: null,
             ];
 
-            if (! $cost->reconciled_at) {
+            if ($isFinalReconciliation) {
                 $updates = array_merge($updates, [
-                    'reconciled_at' => now(),
-                    'reconciled_by' => auth()->id(),
+                    'reconciled_at' => $cost->reconciled_at ?: now(),
+                    'reconciled_by' => $cost->reconciled_by ?: auth()->id(),
                 ]);
+            } else {
+                $updates['reconciled_at'] = null;
+                $updates['reconciled_by'] = null;
             }
 
             $this->costs->update($id, $updates);
+            $this->syncAdjustments($cost, $adjustments);
 
             return $this->apiResource(
                 $this->costs->findWithRelationsOrFail($id),
@@ -188,6 +213,13 @@ class ProjectCostsService extends BaseService
             'dateTo' => 'date_to',
             'groupByProject' => 'group_by_project',
             'reconciledStatus' => 'reconciled_status',
+            'reconciliationResult' => 'reconciliation_result',
+            'invoiceStatus' => 'invoice_status',
+            'invoiceRecipientType' => 'invoice_recipient_type',
+            'invoiceRecipientName' => 'invoice_recipient_name',
+            'reconciliationNote' => 'reconciliation_note',
+            'balanceStatus' => 'balance_status',
+            'adjustmentType' => 'adjustment_type',
         ];
 
         foreach ($map as $from => $to) {
@@ -227,5 +259,40 @@ class ProjectCostsService extends BaseService
                 'quotationId' => ['Báo phí không thuộc dự án này.'],
             ]);
         }
+    }
+
+    private function syncAdjustments(ProjectCost $cost, array $adjustments): void
+    {
+        $cost->adjustments()->delete();
+
+        foreach ($adjustments as $adjustment) {
+            $cost->adjustments()->create([
+                'adjustment_type' => $adjustment['adjustment_type'] ?? $adjustment['adjustmentType'] ?? ProjectCostAdjustment::TYPE_OTHER,
+                'status' => $adjustment['status'] ?? ProjectCostAdjustment::STATUS_COMPLETED,
+                'amount' => round(max(0, (float) ($adjustment['amount'] ?? 0)), 2),
+                'reference' => trim((string) ($adjustment['reference'] ?? '')) ?: null,
+                'note' => trim((string) ($adjustment['note'] ?? '')) ?: null,
+            ]);
+        }
+    }
+
+    private function validateAdjustmentBalance(ProjectCost $cost, array $adjustments): void
+    {
+        $plannedBalanceHandling = collect($adjustments)
+            ->filter(fn ($adjustment) => in_array(
+                $adjustment['adjustment_type'] ?? $adjustment['adjustmentType'] ?? null,
+                ProjectCostAdjustment::BALANCE_HANDLING_TYPES,
+                true,
+            ))
+            ->filter(fn ($adjustment) => ($adjustment['status'] ?? ProjectCostAdjustment::STATUS_COMPLETED) !== ProjectCostAdjustment::STATUS_CANCELLED)
+            ->sum(fn ($adjustment) => (float) ($adjustment['amount'] ?? 0));
+
+        if ($plannedBalanceHandling <= $cost->originalBalanceAmount() + 0.01) {
+            return;
+        }
+
+        throw ValidationException::withMessages([
+            'adjustments' => ['Số tiền xử lý số dư không được vượt quá số dư còn lại của lần nạp.'],
+        ]);
     }
 }

@@ -3,7 +3,6 @@
 namespace App\Http\Requests\Users;
 
 use App\Http\Requests\BaseRequest;
-use App\Models\User;
 use Illuminate\Validation\Rule;
 
 class UpdateUserRequest extends BaseRequest
@@ -14,7 +13,12 @@ class UpdateUserRequest extends BaseRequest
             'name' => ['sometimes', 'string', 'max:255'],
             'phone' => ['sometimes', 'nullable', 'string', 'max:50'],
             'avatar' => ['sometimes', 'nullable', 'string', 'max:2048'],
-            'role' => ['sometimes', Rule::in(User::ROLES)],
+            'role' => [
+                'sometimes',
+                'string',
+                'max:50',
+                Rule::exists('roles', 'name')->whereNull('deleted_at'),
+            ],
             'isActive' => ['sometimes', 'boolean'],
         ];
     }

@@ -3,6 +3,7 @@
 use App\Http\Controllers\AuthController;
 use App\Http\Controllers\ContractsController;
 use App\Http\Controllers\CustomersController;
+use App\Http\Controllers\DepartmentsController;
 use App\Http\Controllers\KpiPointsController;
 use App\Http\Controllers\LeadsController;
 use App\Http\Controllers\MediaController;
@@ -54,6 +55,7 @@ Route::middleware(['auth:sanctum', 'active'])->group(function (): void {
         Route::delete('/options/{id}', [OptionsController::class, 'destroy']);
 
         Route::post('/services', [ServicesController::class, 'store']);
+        Route::patch('/services/reorder', [ServicesController::class, 'reorder']);
         Route::put('/services/{id}', [ServicesController::class, 'update']);
         Route::patch('/services/{id}', [ServicesController::class, 'update']);
         Route::delete('/services/{id}', [ServicesController::class, 'destroy']);
@@ -66,6 +68,13 @@ Route::middleware(['auth:sanctum', 'active'])->group(function (): void {
     Route::put('/users/{id}', [UsersController::class, 'update'])->middleware('permission:user.update');
     Route::patch('/users/{id}', [UsersController::class, 'update'])->middleware('permission:user.update');
     Route::delete('/users/{id}', [UsersController::class, 'destroy'])->middleware('permission:user.delete');
+
+    Route::get('/departments', [DepartmentsController::class, 'index'])->middleware('permission:user.view');
+    Route::get('/departments/{id}', [DepartmentsController::class, 'show'])->middleware('permission:user.view');
+    Route::post('/departments', [DepartmentsController::class, 'store'])->middleware('permission:user.create');
+    Route::put('/departments/{id}', [DepartmentsController::class, 'update'])->middleware('permission:user.update');
+    Route::patch('/departments/{id}', [DepartmentsController::class, 'update'])->middleware('permission:user.update');
+    Route::delete('/departments/{id}', [DepartmentsController::class, 'destroy'])->middleware('permission:user.delete');
 
     Route::get('/leads', [LeadsController::class, 'index']);
     Route::post('/leads', [LeadsController::class, 'store']);
@@ -140,6 +149,9 @@ Route::middleware(['auth:sanctum', 'active'])->group(function (): void {
     Route::delete('/kpi-points/{id}', [KpiPointsController::class, 'destroy']);
     Route::post('/kpi-points/{id}/approve', [KpiPointsController::class, 'approve']);
 
+    Route::get('/payment-refunds', [PaymentsController::class, 'refundIndex']);
+    Route::patch('/payment-refunds/{id}', [PaymentsController::class, 'updateRefund']);
+    Route::delete('/payment-refunds/{id}', [PaymentsController::class, 'destroyRefund']);
     Route::get('/payments', [PaymentsController::class, 'index']);
     Route::post('/payments', [PaymentsController::class, 'store']);
     Route::post('/payments/{id}/match-project', [PaymentsController::class, 'matchProject']);

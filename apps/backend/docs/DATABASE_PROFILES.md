@@ -48,3 +48,15 @@ ra Internet.
 - Không commit file `.env` hoặc mật khẩu database.
 - `DB_PROFILE=default` giữ cơ chế cũ dùng trực tiếp các biến `DB_HOST`,
   `DB_PORT`, `DB_DATABASE`, `DB_USERNAME`, `DB_PASSWORD` và phù hợp cho VPS.
+
+## Deploy production
+
+Từ thư mục `apps/backend`, chạy một lệnh:
+
+```powershell
+.\scripts\deploy-production.cmd
+```
+
+Script tự động build backend/frontend, backup database VPS, tải image và cấu hình
+lên server, chạy migration, khởi động lại container và kiểm tra HTTP. Database và
+volume uploads hiện tại không bị thay thế.
