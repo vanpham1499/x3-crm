@@ -79,6 +79,13 @@ function idToString(value?: string | number | null): string {
   return value === undefined || value === null || value === '' ? '' : String(value);
 }
 
+function normalizeProjectType(
+  value: string | null | undefined,
+  fallback: ProjectType = 'K',
+): ProjectType {
+  return value === 'K' || value === 'M' || value === 'N' ? value : fallback;
+}
+
 function findRootService(services: ServiceItem[], serviceId: string): ServiceItem | null {
   const flatServices = flattenServices(services);
   const selected = flatServices.find((service) => String(service.id) === serviceId);
@@ -337,9 +344,7 @@ export function QuotationForm({
     );
     const storedProjectType =
       getMetadataValue(metadata, 'projectType') || quotation.project?.projectType;
-    setProjectType(
-      storedProjectType === 'K' || storedProjectType === 'M' ? storedProjectType : 'M',
-    );
+    setProjectType(normalizeProjectType(storedProjectType, 'M'));
     const storedVatRate = String(Number(quotation.vatRate ?? 8));
     setVatRate(
       VAT_RATE_OPTIONS.includes(storedVatRate as (typeof VAT_RATE_OPTIONS)[number])
@@ -377,7 +382,7 @@ export function QuotationForm({
 
     setSelectedProjectOption(defaultProject);
     setSelectedCustomerOption(getProjectCustomer(defaultProject));
-    setProjectType(defaultProject.projectType === 'M' ? 'M' : 'K');
+    setProjectType(normalizeProjectType(defaultProject.projectType));
   }, [defaultProject, selectedProjectOption]);
 
   useEffect(() => {
@@ -438,7 +443,7 @@ export function QuotationForm({
     );
     setLeadId(idToString(selectedProject.customer?.leadId));
     setSelectedServiceId(idToString(selectedProject.serviceId));
-    setProjectType(selectedProject.projectType === 'M' ? 'M' : 'K');
+    setProjectType(normalizeProjectType(selectedProject.projectType));
   }, [customerMode, mode, projectMode, selectedProject]);
 
   const updateLine = (lineId: number, values: Partial<QuotationLineFormValue>) => {
@@ -700,7 +705,7 @@ export function QuotationForm({
                         );
                         setLeadId(idToString(value?.customer?.leadId));
                         setSelectedServiceId(idToString(value?.serviceId));
-                        setProjectType(value?.projectType === 'M' ? 'M' : 'K');
+                        setProjectType(normalizeProjectType(value?.projectType));
                       }}
                       getOptionLabel={getProjectOptionLabel}
                     />
@@ -751,6 +756,7 @@ export function QuotationForm({
                   >
                     <MenuItem value="K">K</MenuItem>
                     <MenuItem value="M">M</MenuItem>
+                    <MenuItem value="N">O</MenuItem>
                   </FormSelectField>
                 </div>
               ) : null}

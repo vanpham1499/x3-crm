@@ -17,6 +17,7 @@ import { PageHeader } from '@/components/shell/page-header';
 import { WeeklyReportAttachmentsPanel } from '@/features/weekly-reports/components/weekly-report-attachments-panel';
 import { WeeklyCycleNavigator } from '@/features/weekly-reports/components/weekly-cycle-navigator';
 import { getApiFieldErrors } from '@/lib/api-error';
+import { WEEKLY_CONDITION_OPTION_GROUP, getOptionColor } from '@/lib/option-utils';
 import {
   addDaysToDateString,
   getCurrentIsoWeekMondayString,
@@ -29,6 +30,7 @@ import {
 } from '@/lib/weekly-report-schedule';
 import { formatDate } from '@/lib/utils';
 import api from '@/services/api/client';
+import type { AppOption } from '@/types/option';
 import type { ProjectItem } from '@/types/project';
 import type {
   ProjectWeeklySetting,
@@ -118,6 +120,23 @@ export function WeeklyReportForm({
         .then((response) => response.data),
     enabled: mode === 'create' && Boolean(projectId),
   });
+  const { data: weeklyConditionOptions = [], isFetching: isWeeklyConditionsLoading } = useQuery<
+    AppOption[]
+  >({
+    queryKey: ['options', WEEKLY_CONDITION_OPTION_GROUP],
+    queryFn: () =>
+      api
+        .get<AppOption[]>('/options', {
+          params: { groups: WEEKLY_CONDITION_OPTION_GROUP },
+        })
+        .then((response) => response.data),
+  });
+  const selectableWeeklyConditions = weeklyConditionOptions.filter(
+    (option) => option.isActive || option.label === weeklyCondition,
+  );
+  const hasCurrentWeeklyCondition = weeklyConditionOptions.some(
+    (option) => option.label === weeklyCondition,
+  );
   const selectedSetting = projectSettings?.find((setting) => setting.isActive !== false);
   const projectStartDate = selectedProject?.startDate || '';
   const createCycle = projectStartDate
@@ -276,7 +295,8 @@ export function WeeklyReportForm({
                     .join(' - ') || (projectId ? `Dự án #${projectId}` : 'Chưa xác định dự án')}
                 </strong>
                 <span className="whitespace-nowrap rounded-md bg-sky-50 px-1.5 py-0.5 text-[11px] font-bold text-sky-700 ring-1 ring-sky-200">
-                  Loại {selectedProject?.projectType || '-'}
+                  Loại{' '}
+                  {selectedProject?.projectType === 'N' ? 'O' : selectedProject?.projectType || '-'}
                 </span>
                 <span className="whitespace-nowrap rounded-md bg-white px-1.5 py-0.5 text-[11px] font-bold text-slate-600 ring-1 ring-slate-200">
                   {selectedProject?.statusOption?.label ||
@@ -290,12 +310,34 @@ export function WeeklyReportForm({
               label="Tình trạng tuần"
               value={weeklyCondition}
               disabled={isReadOnly}
+              error={Boolean(fieldErrors.weeklyCondition)}
+              helperText={fieldErrors.weeklyCondition}
               onChange={(event) => setWeeklyCondition(event.target.value)}
             >
               <MenuItem value="">Chưa đánh giá</MenuItem>
-              <MenuItem value="Tốt">Tốt</MenuItem>
-              <MenuItem value="Cần theo dõi">Cần theo dõi</MenuItem>
-              <MenuItem value="Rủi ro">Rủi ro</MenuItem>
+              {selectableWeeklyConditions.map((option) => (
+                <MenuItem key={option.id} value={option.label} disabled={!option.isActive}>
+                  <span className="flex min-w-0 items-center gap-2">
+                    <span
+                      aria-hidden
+                      className="h-2.5 w-2.5 shrink-0 rounded-full"
+                      style={{ backgroundColor: getOptionColor(option) }}
+                    />
+                    <span className="truncate">
+                      {option.label}
+                      {!option.isActive ? ' (Tạm tắt)' : ''}
+                    </span>
+                  </span>
+                </MenuItem>
+              ))}
+              {weeklyCondition && !hasCurrentWeeklyCondition ? (
+                <MenuItem value={weeklyCondition}>{weeklyCondition} (Dữ liệu cũ)</MenuItem>
+              ) : null}
+              {isWeeklyConditionsLoading ? (
+                <MenuItem disabled>Đang tải tình trạng...</MenuItem>
+              ) : selectableWeeklyConditions.length === 0 ? (
+                <MenuItem disabled>Chưa có tình trạng được cấu hình</MenuItem>
+              ) : null}
             </FormSelectField>
 
             <MoneyInput
@@ -348,7 +390,7 @@ export function WeeklyReportForm({
               </p>
             ) : selectedProject && mode === 'create' && !selectedSetting ? (
               <p role="alert" className="mt-3 text-sm font-semibold text-rose-600">
-                Dự án chưa có lịch báo cáo tuần. Vui lòng cập nhật Sales phụ trách và Thứ báo cáo
+                Dự án chưa có lịch báo cáo tuần. Vui lòng cập nhật Nhân sự triển khai và Thứ báo cáo
                 trong dự án trước.
               </p>
             ) : selectedProject && mode === 'create' && !projectStartDate ? (

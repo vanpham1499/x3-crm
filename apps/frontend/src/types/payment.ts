@@ -19,9 +19,14 @@ export type PaymentStatus =
   | 'overpaid'
   | string;
 
-export type PaymentCollectionStatus = 'unpaid' | 'partial' | 'paid' | 'overpaid' | string;
+export type PaymentCollectionStatus =
+  'unpaid' | 'partial' | 'paid' | 'overpaid' | 'partially_refunded' | 'refunded' | string;
 
 export type PaymentReceiptType = 'customer' | 'internal' | 'other';
+
+export type PaymentRefundType = 'deposit' | 'payment' | 'overpayment' | 'compensation';
+
+export type PaymentRefundStatus = 'pending' | 'completed' | 'cancelled';
 
 export type PaymentAllocation = {
   id: number;
@@ -30,6 +35,9 @@ export type PaymentAllocation = {
   customerId?: number | null;
   projectId?: number | null;
   amount: string | number;
+  refundedAmount?: string | number | null;
+  refundableAmount?: string | number | null;
+  depositRefundableAmount?: string | number | null;
   allocatedAt?: string | null;
   note?: string | null;
   quotation?: {
@@ -52,12 +60,48 @@ export type PaymentAllocation = {
 export type PaymentRefund = {
   id: number;
   paymentId: number;
+  paymentAllocationId?: number | null;
+  quotationId?: number | null;
+  customerId?: number | null;
+  projectId?: number | null;
+  refundType: PaymentRefundType;
+  status: PaymentRefundStatus;
   amount: string | number;
+  scheduledAt?: string | null;
   refundedAt?: string | null;
+  completedAt?: string | null;
   recipientName?: string | null;
   recipientAccount?: string | null;
+  recipientBank?: string | null;
+  reason?: string | null;
   reference?: string | null;
   note?: string | null;
+  payment?: {
+    id: number;
+    amount?: string | number | null;
+    transactionAt?: string | null;
+    transactionContent?: string | null;
+    reference?: string | null;
+  } | null;
+  allocation?: { id: number; amount?: string | number | null } | null;
+  quotation?: {
+    id: number;
+    quotationCode?: string | null;
+    depositAmount?: string | number | null;
+  } | null;
+  customer?: {
+    id: number;
+    customerCode?: string | null;
+    customerName?: string | null;
+  } | null;
+  project?: {
+    id: number;
+    projectCode?: string | null;
+    projectName?: string | null;
+  } | null;
+  createdBy?: { id: number; code?: string | null; name?: string | null } | null;
+  createdAt?: string | null;
+  updatedAt?: string | null;
 };
 
 export type Payment = {
@@ -76,6 +120,9 @@ export type Payment = {
   amount?: string | number | null;
   allocatedAmount?: string | number | null;
   refundedAmount?: string | number | null;
+  compensationAmount?: string | number | null;
+  outboundAmount?: string | number | null;
+  refundableAmount?: string | number | null;
   availableAmount?: string | number | null;
   unallocatedAmount?: string | number | null;
   excessAmount?: string | number | null;
@@ -86,7 +133,14 @@ export type Payment = {
   allocationCount?: number | null;
   refundCount?: number | null;
   collectionTotalAmount?: string | number | null;
+  collectionCollectibleAmount?: string | number | null;
+  collectionGrossReceivedAmount?: string | number | null;
   collectionReceivedAmount?: string | number | null;
+  collectionRefundedAmount?: string | number | null;
+  collectionDepositRefundedAmount?: string | number | null;
+  collectionCompensationAmount?: string | number | null;
+  collectionOutboundAmount?: string | number | null;
+  collectionOverCompensationAmount?: string | number | null;
   collectionOutstandingAmount?: string | number | null;
   collectionExcessAmount?: string | number | null;
   collectionDifferenceAmount?: string | number | null;
@@ -128,10 +182,31 @@ export type PaymentAllocationInput = {
 };
 
 export type PaymentRefundInput = {
+  paymentAllocationId?: number | null;
+  refundType: PaymentRefundType;
+  status: Exclude<PaymentRefundStatus, 'cancelled'>;
   amount: number;
-  refundedAt: string;
+  scheduledAt: string;
+  refundedAt?: string;
   recipientName?: string;
   recipientAccount?: string;
+  recipientBank?: string;
+  reason: string;
+  reference?: string;
+  note?: string;
+};
+
+export type PaymentRefundUpdateInput = {
+  paymentAllocationId?: number | null;
+  refundType?: PaymentRefundType;
+  status?: PaymentRefundStatus;
+  amount?: number;
+  scheduledAt?: string;
+  refundedAt?: string;
+  recipientName?: string;
+  recipientAccount?: string;
+  recipientBank?: string;
+  reason?: string;
   reference?: string;
   note?: string;
 };
@@ -146,6 +221,14 @@ export type PaymentFilters = {
   keyword: string;
   status: string;
   reconciled_status: string;
+  date_from: string;
+  date_to: string;
+};
+
+export type PaymentRefundFilters = {
+  keyword: string;
+  refund_type: string;
+  status: string;
   date_from: string;
   date_to: string;
 };

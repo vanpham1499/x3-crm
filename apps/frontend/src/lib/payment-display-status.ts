@@ -8,9 +8,9 @@ const PROCESSING_STATUS_LABELS: Record<string, string> = {
   matched_project: 'Đã gắn dự án',
   partially_allocated: 'Đã phân bổ + chuyển thừa',
   allocated: 'Đã phân bổ giao dịch',
-  partially_refunded: 'Đã hoàn một phần',
-  allocated_and_refunded: 'Đã phân bổ & hoàn dư',
-  refunded: 'Đã hoàn toàn bộ',
+  partially_refunded: 'Đã trả khách một phần',
+  allocated_and_refunded: 'Đã phân bổ & trả khách',
+  refunded: 'Đã trả lại toàn bộ',
   non_customer: 'Không phải khoản thu',
   applied: 'Đã phân bổ giao dịch',
   partial: 'Đã phân bổ giao dịch',
@@ -24,6 +24,8 @@ const COLLECTION_STATUS_LABELS: Record<string, string> = {
   partial: 'Đang thiếu',
   paid: 'Đã thu đủ',
   overpaid: 'Chuyển thừa',
+  partially_refunded: 'Đã hoàn một phần',
+  refunded: 'Đã hoàn toàn bộ',
 };
 
 const PROCESSING_STATUS_HAS_PRIORITY = new Set([
@@ -34,9 +36,6 @@ const PROCESSING_STATUS_HAS_PRIORITY = new Set([
   'partially_allocated',
   'paid_with_excess',
   'overpaid',
-  'partially_refunded',
-  'allocated_and_refunded',
-  'refunded',
   'non_customer',
 ]);
 
@@ -68,12 +67,31 @@ export function getPaymentDisplayStatus(payment: Payment): PaymentDisplayStatus 
 
   if (shouldShowCollection) {
     const outstandingAmount = Number(payment.collectionOutstandingAmount) || 0;
+    const hasDepositRefund = Number(payment.collectionDepositRefundedAmount) > 0;
+    const hasCompensation = Number(payment.collectionCompensationAmount) > 0;
+    const label = (() => {
+      if (collectionStatus === 'refunded' && hasCompensation) return 'Đã hoàn + bù thêm';
+      if (collectionStatus === 'paid' && hasDepositRefund && hasCompensation) {
+        return 'Hoàn cọc · Có bù';
+      }
+      if (collectionStatus === 'paid' && hasDepositRefund) return 'Đã thu đủ · Hoàn cọc';
+      if (hasCompensation) return `${COLLECTION_STATUS_LABELS[collectionStatus]} · Có bù`;
+      return COLLECTION_STATUS_LABELS[collectionStatus];
+    })();
 
     return {
-      key: `collection_${collectionStatus}`,
-      label: COLLECTION_STATUS_LABELS[collectionStatus],
+      key:
+        collectionStatus === 'refunded' && hasCompensation
+          ? 'collection_refunded_with_compensation'
+          : hasCompensation
+            ? 'collection_compensated'
+            : `collection_${collectionStatus}`,
+      label,
       outstandingAmount:
-        collectionStatus === 'partial' && outstandingAmount > 0 ? outstandingAmount : null,
+        (collectionStatus === 'partial' || collectionStatus === 'partially_refunded') &&
+        outstandingAmount > 0
+          ? outstandingAmount
+          : null,
     };
   }
 

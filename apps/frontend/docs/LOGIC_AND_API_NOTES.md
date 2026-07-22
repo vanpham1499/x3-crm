@@ -277,11 +277,42 @@ Nguyên tắc cập nhật:
   chiếu của webhook không được tách thành nhiều giao dịch giả khi khách chuyển gộp.
 - Quan hệ tiền thu với Báo phí là nhiều-nhiều qua `payment_allocations`: một giao dịch có thể trả
   nhiều Báo phí và một Báo phí có thể nhận nhiều giao dịch.
-- Tiền hoàn được ghi riêng tại `payment_refunds`; thao tác trên CRM chỉ ghi nhận khoản đã hoàn,
-  không tự thực hiện lệnh chuyển tiền tại ngân hàng.
-- Công thức bắt buộc: `Số dư chưa xử lý = Tiền nhận - Tổng phân bổ - Tổng đã hoàn`.
-- Chỉ số `Đã thu` của Báo phí/Dự án chỉ cộng `payment_allocations.amount`, không cộng toàn bộ
-  `payments.amount`. Vì vậy một giao dịch gộp không bị tính lặp cho hai Dự án.
+- Tiền trả khách được ghi riêng tại `payment_refunds`; thao tác trên CRM chỉ quản lý nghiệp vụ và
+  đối soát, không tự thực hiện lệnh chuyển tiền tại ngân hàng. Mỗi khoản luôn xuất phát từ một
+  `payment`; hoàn cọc/hoàn thanh toán còn liên kết đúng `payment_allocation` và Báo phí nguồn.
+- `/payments` có hai tab: `Tiền nhận vào` giữ nguyên sổ webhook ngân hàng; `Tiền hoàn ra` hiển thị
+  toàn bộ khoản chờ chuyển, đã chuyển và đã hủy. Nút tạo khoản trả khách chỉ xuất hiện tại giao dịch
+  tiền vào để người dùng không thể tạo một khoản hoàn không có nguồn truy vết.
+- Bốn loại trả khách: `deposit` (hoàn cọc), `payment` (hoàn khoản đã phân bổ), `overpayment` (hoàn
+  tiền chuyển thừa) và `compensation` (bù thêm ngoài tiền khách đã nộp). Tiền bù vẫn phải có ngữ
+  cảnh khách hàng/Dự án/Báo phí nhưng không bị giới hạn bởi tiền vào và không làm giảm công nợ Báo phí.
+- `pending` giữ chỗ hạn mức để ngăn tạo hoàn trùng nhưng chưa làm giảm công nợ. Chỉ khi xác nhận
+  `completed`, số tiền thực trả mới được trừ khỏi tiền thu ròng của Báo phí. `cancelled` giải phóng
+  hạn mức. Vì các khoản trả hiện được nhập tay, người dùng được sửa cả khoản đang chờ, đã chuyển hoặc
+  đã hủy; được xóa bằng soft delete. Mỗi lần sửa/xóa phải tính lại ngay Payment, Báo phí và công nợ,
+  đồng thời giữ `updated_by`/`deleted_by` để truy vết thao tác.
+- Công thức số dư có thể phân bổ/hoàn thừa:
+  `Tiền chưa phân bổ = Tiền nhận - Tổng phân bổ - Hoàn tiền thừa đang chờ/đã chuyển`. Hoàn cọc và
+  hoàn thanh toán được giới hạn riêng theo số tiền của đúng dòng phân bổ; tổng các khoản hoàn cọc
+  còn bị chặn bởi `deposit_amount` của Báo phí.
+- Chỉ số thu ròng của Báo phí/Dự án:
+  `Đã thu ròng = Tổng payment_allocations - Tổng hoàn completed (trừ compensation)`. Sổ tiền vào và
+  số phân bổ gốc không bị sửa, nhờ đó vẫn đối chiếu được toàn bộ luồng tiền trước và sau khi hoàn.
+  Một giao dịch gộp không bị tính lặp cho hai Dự án.
+- Công nợ hiện tại và vòng đời thanh toán là hai trạng thái khác nhau. Khi hoàn cọc, nghĩa vụ cần
+  thu cũng giảm đúng bằng phần cọc đã hoàn: `Cần thu hiện tại = Tổng báo phí - Cọc đã hoàn`. Vì vậy
+  Báo phí đã thu đủ rồi hoàn riêng cọc vẫn là `Đã thanh toán · Hoàn cọc`, không chuyển thành thiếu.
+- Nếu toàn bộ tiền từng nhận của Báo phí đã được hoàn, `Cần thu`, `Thực thu`, `Còn phải thu` và
+  `Chênh lệch` đều bằng `0`; vòng đời hiển thị `Đã hoàn toàn bộ`/`Đã hoàn tiền`, không quay về
+  `Chưa thanh toán`. Tổng báo phí và tổng tiền đã nhận ban đầu vẫn được giữ để truy vết.
+- `Tổng tiền ra = Tiền hoàn cọc/thanh toán + Tiền bù thêm`. Nếu đã hoàn toàn bộ tiền khách từng nộp
+  và còn có `compensation`, trạng thái phải là `Đã hoàn + bù thêm`, không được gom vào `Đã hoàn toàn
+  bộ`. UI hiển thị riêng số `Bù thêm`; khoản này không tạo công nợ âm và không thay đổi số phải thu.
+- Tab Tài chính của Dự án phải giữ đủ hai chiều dòng tiền: `Đã nhận` là tổng phân bổ gốc trước hoàn;
+  `Đã hoàn` không gồm tiền bù thêm; `Tiền ra = Đã hoàn + Bù thêm`. Không dùng số thu ròng để thay cho
+  `Đã nhận`, vì sẽ làm mất dấu giao dịch khách từng chuyển. Tiền cọc phải hiển thị riêng cả tổng cọc,
+  phần đã hoàn và phần còn giữ. `Lợi nhuận thực nhận = Đã nhận - Đã hoàn - Bù thêm - Cọc còn giữ -
+  Chi phí đã chi`.
 - Khi webhook nhận diện được mã Báo phí, hệ thống tự phân bổ tối đa bằng số còn phải thu. Phần vượt
   quá vẫn là số dư chưa xử lý để phân bổ tiếp, giữ làm số dư khách hoặc hoàn lại.
 - `Đã gắn báo phí` chỉ mô tả quan hệ nhận diện. Nếu Báo phí đã thu đủ mà giao dịch đến sau vẫn còn
@@ -295,30 +326,43 @@ Nguyên tắc cập nhật:
   thái công nợ được gộp ô theo nhóm, chỉ hiển thị một lần. Phân trang theo nhóm Báo phí (giao dịch
   chưa xác định hoặc chia cho nhiều Báo phí là một nhóm độc lập) để không cắt đôi một nhóm giữa hai
   trang.
-- `Chênh lệch = Tổng tiền thực nhận của nhóm - Tổng báo phí - Tổng đã hoàn`. Số âm là còn thiếu, số
-  dương là chuyển thừa, `0` là đã khớp. Giao dịch được phân bổ cho nhiều Báo phí chỉ tính phần phân
-  bổ của từng Báo phí, không lấy toàn bộ tiền giao dịch để tránh tính trùng.
-- Không cho tổng phân bổ và hoàn tiền vượt số tiền giao dịch; không cho phân bổ vượt số còn phải thu
-  của Báo phí. Muốn hoàn phần đã phân bổ phải hủy phân bổ trước.
+- `Chênh lệch = Tổng phân bổ ròng của nhóm - Tổng báo phí`. Số âm là còn thiếu, số dương là chuyển
+  thừa, `0` là đã khớp. Giao dịch được phân bổ cho nhiều Báo phí chỉ tính phần phân bổ của từng Báo
+  phí, không lấy toàn bộ tiền giao dịch để tránh tính trùng.
+- Không cho phân bổ vượt tiền chưa phân bổ hoặc công nợ Báo phí; không cho hoàn tiền thừa vượt phần
+  chưa phân bổ; không cho hoàn cọc/hoàn thanh toán vượt dòng phân bổ nguồn. Khoản đang chờ trả cũng
+  được tính vào hạn mức chống hoàn trùng.
 - Hủy phân bổ dùng soft delete để giữ lịch sử, đồng thời tính lại trạng thái Báo phí và trả tiền về
-  số dư chưa xử lý của giao dịch.
+  số dư chưa xử lý của giao dịch. Dòng phân bổ đã có khoản trả khách đang chờ hoặc đã chuyển thì
+  không được hủy.
 - Giao dịch chưa xác định có thể phân bổ thẳng vào Báo phí hoặc chỉ gắn Dự án. Gắn Dự án không làm
   giảm công nợ Báo phí. Có thể đánh dấu `internal`/`other` để loại khỏi khoản thu khách hàng.
-- Báo phí chuyển sang `won`/`Đã thanh toán` khi tổng phân bổ đạt tổng phải thu; nếu hủy phân bổ làm
-  số thu xuống dưới tổng phải thu thì tự quay về `draft`/`Báo phí`.
+- Báo phí chuyển sang `won`/`Đã thanh toán` khi tổng thu ròng đạt số cần thu hiện tại. Hoàn cọc
+  không mở lại công nợ; hoàn một phần khoản thanh toán chuyển sang trạng thái thu thiếu có ghi rõ đã
+  hoàn; hoàn hết chuyển sang `refunded`/`Đã hoàn tiền`.
 - Báo phí đã có phân bổ không được đổi tổng tiền hoặc xóa. Giao dịch đã có phân bổ/hoàn tiền cũng
   không được xóa trực tiếp.
 - Khi tổng `payment_allocations.amount` của Báo phí đạt tổng phải thu (sai số tối đa `0,01`), Báo
   phí được khóa toàn bộ dữ liệu nghiệp vụ; màn chỉnh sửa chỉ mở trường `Ghi chú`. Backend áp dụng
   cùng quy tắc và từ chối mọi payload có trường khác ngoài `note`. Nếu hủy phân bổ làm số thu xuống
   dưới tổng phải thu, Báo phí tự mở khóa cùng lúc với việc quay về trạng thái `draft`.
+- Hoàn tiền không sửa hoặc xóa chứng từ thu đã phát sinh, vì vậy Báo phí từng thu đủ vẫn giữ khóa dữ
+  liệu nghiệp vụ. Hoàn cọc không mở lại công nợ; hoàn một phần tiền thanh toán có thể chuyển sang
+  `Đang thiếu`; hoàn toàn bộ chuyển sang `Đã hoàn tiền`; hoàn toàn bộ kèm tiền bù hiển thị
+  `Đã hoàn + bù thêm`.
 - API thao tác chính: `POST /payments/{id}/allocations`,
   `DELETE /payments/{paymentId}/allocations/{allocationId}`, `POST /payments/{id}/refunds`,
+  `GET /payment-refunds`, `PATCH /payment-refunds/{id}`, `DELETE /payment-refunds/{id}`,
   `POST /payments/{id}/link`.
 - Migration `2026_07_15_000100_create_payment_allocation_ledger.php` tạo hai sổ mới và chuyển phần
   tiền đã áp dụng của dữ liệu cũ sang `payment_allocations` mà không thay đổi giao dịch webhook gốc.
 - Migration `2026_07_15_000200_reclassify_excess_payments.php` phân loại lại giao dịch đã gắn vào
   Báo phí thu đủ thành `Chuyển thừa` mà không làm mất liên kết đối soát.
+- Migration `2026_07_23_000100_expand_payment_refunds_for_customer_returns.php` bổ sung loại trả,
+  trạng thái chờ/đã chuyển/đã hủy, liên kết phân bổ - Báo phí - khách hàng - Dự án và thông tin tài
+  khoản nhận cho sổ tiền hoàn ra.
+- Migration `2026_07_23_000200_reconcile_quotation_refund_lifecycle.php` tính lại trạng thái Báo phí
+  cũ theo công thức hoàn cọc/hoàn toàn bộ mới.
 
 ### Xem nhanh chi tiết Báo phí
 
@@ -331,11 +375,19 @@ Nguyên tắc cập nhật:
 ### Upload và thư viện ảnh dùng chung
 
 - `ImageUpload` là component dùng chung cho avatar, ảnh CCCD và ảnh đối soát Báo phí. Ngoài chọn
-  file, người dùng có thể bấm `Dán ảnh (Ctrl+V)` hoặc nhấn trực tiếp `Ctrl+V` khi popup thư viện đang
-  mở. Ảnh trong clipboard luôn được hiển thị để xem trước; chỉ upload sau khi người dùng bấm
+  file, người dùng có thể bấm `Dán ảnh (Ctrl+V)` hoặc nhấn trực tiếp `Ctrl+V` khi popup thư viện
+  đang mở. Ảnh trong clipboard luôn được hiển thị để xem trước; chỉ upload sau khi người dùng bấm
   `Chọn ảnh`, còn `Hủy ảnh` sẽ loại bỏ bản xem trước.
 - Ảnh dán dùng chung API `POST /media/upload`, cùng giới hạn định dạng JPG/PNG/GIF/WEBP và dung
   lượng tối đa 3 MB như ảnh chọn từ máy.
 - Thư viện gọi `GET /media` với `page`, `per_page` và `keyword`; tìm kiếm được debounce 300 ms và
   request cũ được hủy khi đổi từ khóa/trang. Mặc định hiển thị 12 ảnh, có thể chọn 12/24/48 ảnh mỗi
   trang. API không truyền tham số phân trang vẫn trả mảng cũ để giữ tương thích.
+### Đối soát chi phí và CID ngừng hoạt động
+
+- Khoản chi gốc trong `project_costs` là dòng tiền công ty đã chi ra. Sau khi đối soát xong, dòng gốc bị khóa sửa/xóa để giữ chứng từ.
+- Với chi phí nạp quảng cáo, nếu CID ngừng hoạt động thì `cid_spent_amount` là số tiền thực chạy và `originalBalanceAmount = totalAmount - cidSpentAmount` là hạn mức còn dư.
+- Trước khi đối soát hoàn tất, toàn bộ số tiền đã nạp vẫn được giữ trong chi phí và hạn mức dư ở trạng thái `pending`. Khi lưu một kết quả đối soát hoàn tất, toàn bộ `originalBalanceAmount` tự động quay lại `Số tiền có thể nạp` của dự án; người dùng không phải tạo thêm dòng chuyển CID hoặc giữ sang kỳ sau.
+- API trả thêm các số đã tính sẵn: `cashOutAmount`, `actualCostAmount`, `originalBalanceAmount`, `handledBalanceAmount`, `releasedBalanceAmount`, `remainingBalanceAmount`, `realizedCostAmount`, `balanceStatus`.
+- `project_cost_adjustments` chỉ giữ các phát sinh đối soát đặc biệt hoặc dữ liệu lịch sử; các dòng này không còn là điều kiện để hoàn hạn mức của dự án.
+- `/costs` là màn đối soát tập trung: trước đối soát hiển thị `Chờ đối soát`; sau đối soát hiển thị `Đã hoàn hạn mức` cùng số tiền đã tự động trả lại. Tab tài chính dự án dùng cùng dữ liệu này để không lệch số.

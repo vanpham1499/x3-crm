@@ -31,7 +31,7 @@ export function DialogActionButton({
   const className = `${baseClassName} ${
     tone === 'primary'
       ? ''
-      : '!border-slate-200 !bg-white !text-slate-700 hover:!border-primary hover:!bg-emerald-50 hover:!text-emerald-700'
+      : '!border-slate-200 !bg-white !text-slate-700 hover:!border-primary hover:!bg-emerald-50 hover:!text-emerald-700 !leading-[1]'
   }`;
 
   if (href) {

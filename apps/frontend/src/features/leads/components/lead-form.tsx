@@ -22,6 +22,7 @@ type LeadFormProps = {
   lead?: Lead | null;
   users: User[];
   sources: AppOption[];
+  industries: AppOption[];
   services: AppOption[];
   statuses: LeadStatus[];
   isSubmitting: boolean;
@@ -63,6 +64,7 @@ export function LeadForm({
   lead,
   users,
   sources,
+  industries,
   services,
   statuses,
   isSubmitting,
@@ -72,6 +74,12 @@ export function LeadForm({
   const defaults = getLeadDefaults(lead);
   if (mode === 'create' && !defaults.statusOptionId && statuses[0]?.id !== undefined) {
     defaults.statusOptionId = String(statuses[0].id);
+  }
+  if (!defaults.industryOptionId && defaults.industry) {
+    const matchingIndustry = industries.find(
+      (industry) => industry.label.trim().toLowerCase() === defaults.industry.trim().toLowerCase(),
+    );
+    if (matchingIndustry) defaults.industryOptionId = String(matchingIndustry.id);
   }
   const {
     control,
@@ -120,12 +128,6 @@ export function LeadForm({
 
             <div className="grid gap-4 md:grid-cols-2">
               <FormInputField
-                label="Ngành nghề"
-                placeholder="VD: Spa, bất động sản..."
-                disabled={readOnly}
-                {...register('industry')}
-              />
-              <FormInputField
                 label="Website"
                 placeholder="Website, Fanpage hoặc GG Map"
                 disabled={readOnly}
@@ -141,24 +143,23 @@ export function LeadForm({
                 }}
                 {...register('website')}
               />
+              <FormInputField
+                label="Link kế hoạch"
+                placeholder="https://docs.google.com/..."
+                disabled={readOnly}
+                slotProps={{
+                  input: {
+                    endAdornment: (
+                      <ExternalLinkAdornment
+                        value={planLinkValue}
+                        ariaLabel="Mở link kế hoạch trong tab mới"
+                      />
+                    ),
+                  },
+                }}
+                {...register('planLink')}
+              />
             </div>
-
-            <FormInputField
-              label="Link kế hoạch"
-              placeholder="https://docs.google.com/..."
-              disabled={readOnly}
-              slotProps={{
-                input: {
-                  endAdornment: (
-                    <ExternalLinkAdornment
-                      value={planLinkValue}
-                      ariaLabel="Mở link kế hoạch trong tab mới"
-                    />
-                  ),
-                },
-              }}
-              {...register('planLink')}
-            />
 
             <div className="grid gap-4 md:grid-cols-3">
               <Controller
@@ -205,16 +206,11 @@ export function LeadForm({
               />
             </div>
 
-            <FormInputField
-              label="Nhóm Zalo"
-              placeholder="Tên nhóm hoặc link nhóm"
-              disabled={readOnly}
-              {...register('zaloGroup')}
-            />
+            <input type="hidden" {...register('zaloGroup')} />
 
             <FormInputField
               multiline
-              minRows={6}
+              minRows={4}
               label="Ghi chú"
               placeholder="Nhập ghi chú chăm sóc, nhu cầu, phản hồi..."
               disabled={readOnly}
@@ -289,6 +285,39 @@ export function LeadForm({
                   error={Boolean(errors.sourceName)}
                   helperText={errors.sourceName?.message}
                 />
+              )}
+            />
+
+            <input type="hidden" {...register('industry')} />
+            <Controller
+              name="industryOptionId"
+              control={control}
+              render={({ field }) => (
+                <FormSelectField
+                  label="Ngành nghề"
+                  disabled={readOnly}
+                  value={field.value || ''}
+                  onChange={(event) => {
+                    const value = String(event.target.value);
+                    const selectedIndustry = industries.find(
+                      (industry) => String(industry.id) === value,
+                    );
+
+                    field.onChange(value);
+                    setValue('industry', selectedIndustry?.label || '');
+                  }}
+                >
+                  <MenuItem value="">
+                    {lead?.industry && !lead.industryOptionId
+                      ? `Chưa phân loại · Dữ liệu cũ: ${lead.industry}`
+                      : 'Chưa chọn'}
+                  </MenuItem>
+                  {industries.map((industry) => (
+                    <MenuItem key={industry.id} value={String(industry.id)}>
+                      {industry.label}
+                    </MenuItem>
+                  ))}
+                </FormSelectField>
               )}
             />
 

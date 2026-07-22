@@ -2,8 +2,9 @@ import type { Customer } from '@/types/customer';
 import type { Lead } from '@/types/lead';
 import type { ProjectItem } from '@/types/project';
 import type { ServiceItem } from '@/types/service';
+import type { User } from '@/types/user';
 
-export type QuotationStatus = 'draft' | 'won';
+export type QuotationStatus = 'draft' | 'won' | 'refunded';
 
 export type QuotationItem = {
   id?: number;
@@ -40,8 +41,18 @@ export type Quotation = {
   vatAmount?: string | number | null;
   totalAmount?: string | number | null;
   paidAmount?: string | number | null;
+  grossPaidAmount?: string | number | null;
+  refundedAmount?: string | number | null;
+  depositRefundedAmount?: string | number | null;
+  paymentRefundedAmount?: string | number | null;
+  compensationAmount?: string | number | null;
+  outboundAmount?: string | number | null;
+  overCompensationAmount?: string | number | null;
+  collectibleAmount?: string | number | null;
   outstandingAmount?: string | number | null;
-  paymentStatus?: 'unpaid' | 'partial' | 'paid' | 'overpaid' | string | null;
+  paymentStatus?:
+    'unpaid' | 'partial' | 'paid' | 'overpaid' | 'partially_refunded' | 'refunded' | string | null;
+  isFullyRefunded?: boolean;
   isPaymentLocked?: boolean;
   depositAmount?: string | number | null;
   accountReconciliationImageUrls?: string[];
@@ -60,6 +71,7 @@ export type Quotation = {
   } | null;
   service?: ServiceItem | null;
   items?: QuotationItem[];
+  createdBy?: Pick<User, 'id' | 'code' | 'name' | 'email'> | null;
   createdAt?: string;
   updatedAt?: string;
 };

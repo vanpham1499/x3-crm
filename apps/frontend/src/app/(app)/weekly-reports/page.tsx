@@ -15,10 +15,12 @@ import {
 import { WeeklyReportManager } from '@/features/weekly-reports/components/weekly-report-manager';
 import { useServerListState } from '@/hooks/use-server-list-state';
 import { getApiErrorMessage } from '@/lib/api-error';
+import { WEEKLY_CONDITION_OPTION_GROUP } from '@/lib/option-utils';
 import { getCurrentIsoWeekMondayString } from '@/lib/weekly-report-schedule';
 import api from '@/services/api/client';
 import { useAuthStore } from '@/stores/auth-store';
 import type { PaginatedResponse } from '@/types/pagination';
+import type { AppOption } from '@/types/option';
 import type { ProjectItem } from '@/types/project';
 import type { User } from '@/types/user';
 import type {
@@ -74,6 +76,16 @@ export default function WeeklyReportsPage() {
   const { data: users = [] } = useQuery<User[]>({
     queryKey: ['users', 'weekly-report-options'],
     queryFn: () => api.get('/users').then((response) => response.data),
+  });
+
+  const { data: weeklyConditionOptions = [] } = useQuery<AppOption[]>({
+    queryKey: ['options', WEEKLY_CONDITION_OPTION_GROUP],
+    queryFn: () =>
+      api
+        .get<AppOption[]>('/options', {
+          params: { groups: WEEKLY_CONDITION_OPTION_GROUP },
+        })
+        .then((response) => response.data),
   });
 
   const { data: boardResponse, isFetching: isBoardFetching } = useQuery<WeeklyReportBoardResponse>({
@@ -252,6 +264,7 @@ export default function WeeklyReportsPage() {
             embedded
             rows={boardResponse?.data || []}
             users={users}
+            weeklyConditionOptions={weeklyConditionOptions}
             filters={boardState.filters}
             weekStart={selectedWeekStart}
             isFetching={isBoardFetching}

@@ -1,8 +1,10 @@
 'use client';
 
+import { useState } from 'react';
 import CloseRoundedIcon from '@mui/icons-material/CloseRounded';
 import { IconButton } from '@mui/material';
 import { useAppNotification } from '@/components/feedback/notification-provider';
+import { ImageLightbox } from '@/components/media/image-lightbox';
 import { ImageUpload } from '@/components/upload/image-upload';
 import { getMediaPreviewUrl } from '@/lib/media-url';
 
@@ -34,6 +36,7 @@ export function MultiImageUpload({
   helperText,
 }: MultiImageUploadProps) {
   const notify = useAppNotification();
+  const [previewIndex, setPreviewIndex] = useState<number | null>(null);
 
   const addImage = (imageUrl: string) => {
     if (!imageUrl) return;
@@ -59,12 +62,13 @@ export function MultiImageUpload({
             key={`${imageUrl}-${index}`}
             className="group relative min-w-0 overflow-hidden rounded-xl border border-slate-200 bg-slate-50 shadow-sm"
           >
-            <a
-              href={getMediaPreviewUrl(imageUrl) || imageUrl}
-              target="_blank"
-              rel="noreferrer"
-              title={`Mở ${lowerFirst(imageLabel)} ${index + 1}`}
-              className="block aspect-[1.586/1] overflow-hidden"
+            <button
+              type="button"
+              aria-haspopup="dialog"
+              aria-label={`Xem ${lowerFirst(imageLabel)} ${index + 1}`}
+              title={`Xem ${lowerFirst(imageLabel)} ${index + 1}`}
+              className="block aspect-[1.586/1] w-full cursor-zoom-in overflow-hidden focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-inset focus-visible:ring-primary"
+              onClick={() => setPreviewIndex(index)}
             >
               {/* eslint-disable-next-line @next/next/no-img-element */}
               <img
@@ -72,7 +76,7 @@ export function MultiImageUpload({
                 alt={`${imageLabel} ${index + 1}`}
                 className="h-full w-full object-cover transition-transform group-hover:scale-105"
               />
-            </a>
+            </button>
 
             {!disabled && (
               <IconButton
@@ -110,6 +114,18 @@ export function MultiImageUpload({
         {helperText ||
           `Chọn lại ảnh trong thư viện hoặc tải ảnh mới. Tối đa ${maxFiles} ${lowerFirst(imageLabel)}.`}
       </p>
+
+      <ImageLightbox
+        open={previewIndex !== null}
+        images={value.map((imageUrl, index) => ({
+          src: imageUrl,
+          alt: `${imageLabel} ${index + 1}`,
+          label: `${captionLabel} ${index + 1}`,
+        }))}
+        initialIndex={previewIndex || 0}
+        title={imageLabel}
+        onClose={() => setPreviewIndex(null)}
+      />
     </div>
   );
 }

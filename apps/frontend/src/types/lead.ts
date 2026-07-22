@@ -154,6 +154,7 @@ export type LeadFormValues = {
   sourceId: string;
   sourceOptionId: string;
   sourceName: string;
+  industryOptionId: string;
   interestedServiceOptionId: string;
   interestedServiceOptionIds: string[];
   interestedServiceId: string;

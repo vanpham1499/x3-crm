@@ -8,6 +8,8 @@ import AccountBalanceRoundedIcon from '@mui/icons-material/AccountBalanceRounded
 import AccountBalanceWalletRoundedIcon from '@mui/icons-material/AccountBalanceWalletRounded';
 import AdminPanelSettingsRoundedIcon from '@mui/icons-material/AdminPanelSettingsRounded';
 import CalendarMonthRoundedIcon from '@mui/icons-material/CalendarMonthRounded';
+import CreditCardRoundedIcon from '@mui/icons-material/CreditCardRounded';
+import CorporateFareRoundedIcon from '@mui/icons-material/CorporateFareRounded';
 import DesignServicesRoundedIcon from '@mui/icons-material/DesignServicesRounded';
 import EmojiEventsRoundedIcon from '@mui/icons-material/EmojiEventsRounded';
 import GradingRoundedIcon from '@mui/icons-material/GradingRounded';
@@ -49,7 +51,6 @@ const navGroups = [
         label: 'Dự án',
         icon: WorkspacesRoundedIcon,
         permissions: ['project.view'],
-        children: [{ href: '/projects/partners', label: 'Đối tác', icon: HandshakeRoundedIcon }],
       },
       {
         href: '/quotations',
@@ -85,6 +86,12 @@ const navGroups = [
             permissions: ['user.view'],
           },
           {
+            href: '/users/departments',
+            label: 'Phòng ban',
+            icon: CorporateFareRoundedIcon,
+            permissions: ['user.view'],
+          },
+          {
             href: '/users/roles',
             label: 'Vai trò',
             icon: AdminPanelSettingsRoundedIcon,
@@ -105,17 +112,23 @@ const navGroups = [
         permissions: ['option.manage'],
         children: [
           { href: '/projects/services', label: 'Dịch vụ', icon: DesignServicesRoundedIcon },
+          { href: '/projects/partners', label: 'Đối tác', icon: HandshakeRoundedIcon },
           {
             href: '/settings/bank-accounts',
-            label: 'Tài khoản nhận tiền',
+            label: 'Ngân hàng',
             icon: AccountBalanceRoundedIcon,
           },
           {
+            href: '/settings/ad-topup-cards',
+            label: 'Thẻ nạp QC',
+            icon: CreditCardRoundedIcon,
+          },
+          {
             href: '/settings/kpi-categories',
-            label: 'Lỗi / Thành tích KPI',
+            label: 'Hạng mục KPI',
             icon: GradingRoundedIcon,
           },
-          { href: '/settings/options', label: 'Tùy chọn', icon: TuneRoundedIcon },
+          { href: '/settings/options', label: 'Danh mục chung', icon: TuneRoundedIcon },
         ],
       },
     ],
@@ -147,9 +160,12 @@ function isSettingsUserPath(pathname: string) {
   if (pathname === '/users' || pathname === '/users/new') return true;
   if (!pathname.startsWith('/users/')) return false;
 
-  return !['/users/roles', '/users/permissions', '/users/role-permissions'].some(
-    (path) => pathname === path || pathname.startsWith(`${path}/`),
-  );
+  return ![
+    '/users/departments',
+    '/users/roles',
+    '/users/permissions',
+    '/users/role-permissions',
+  ].some((path) => pathname === path || pathname.startsWith(`${path}/`));
 }
 
 function isActivePath(pathname: string, href: string) {
@@ -159,8 +175,10 @@ function isActivePath(pathname: string, href: string) {
   return pathname === href || pathname.startsWith(`${href}/`);
 }
 
-function isProjectSettingsPath(pathname: string) {
-  return pathname === '/projects/services' || pathname.startsWith('/projects/services/');
+function isSettingsCatalogPath(pathname: string) {
+  return ['/projects/services', '/projects/partners'].some(
+    (path) => pathname === path || pathname.startsWith(`${path}/`),
+  );
 }
 
 export function Sidebar() {
@@ -235,7 +253,7 @@ export function Sidebar() {
                   pathname === item.href ||
                   (item.href !== '/dashboard' &&
                     pathname.startsWith(`${item.href}/`) &&
-                    !(item.href === '/projects' && isProjectSettingsPath(pathname))) ||
+                    !(item.href === '/projects' && isSettingsCatalogPath(pathname))) ||
                   childActive;
                 const isOpen = openNavItems[item.href] ?? active;
 

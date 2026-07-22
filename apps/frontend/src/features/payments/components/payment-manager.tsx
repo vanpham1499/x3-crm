@@ -4,6 +4,8 @@ import { useEffect, useState, type FormEvent, type MouseEvent, type ReactNode } 
 import Link from 'next/link';
 import AccountBalanceRoundedIcon from '@mui/icons-material/AccountBalanceRounded';
 import AddRoundedIcon from '@mui/icons-material/AddRounded';
+import CallMadeRoundedIcon from '@mui/icons-material/CallMadeRounded';
+import CallReceivedRoundedIcon from '@mui/icons-material/CallReceivedRounded';
 import CallSplitRoundedIcon from '@mui/icons-material/CallSplitRounded';
 import DeleteOutlineRoundedIcon from '@mui/icons-material/DeleteOutlineRounded';
 import LinkRoundedIcon from '@mui/icons-material/LinkRounded';
@@ -28,6 +30,7 @@ import { ServerPaginatedAutocomplete } from '@/components/form/server-paginated-
 import { getPaymentDisplayStatus } from '@/lib/payment-display-status';
 import { canManagePayments } from '@/lib/ownership';
 import { PageHeader } from '@/components/shell/page-header';
+import { IconTabs } from '@/components/navigation/icon-tabs';
 import { AppDataTable } from '@/components/table/app-data-table';
 import { EntityTableLink } from '@/components/table/entity-table-link';
 import { TablePaginationBar } from '@/components/table/table-pagination-bar';
@@ -38,27 +41,46 @@ import type {
   PaymentFilters,
   PaymentLinkInput,
   PaymentReceiptType,
+  PaymentRefund,
+  PaymentRefundFilters,
   PaymentRefundInput,
+  PaymentRefundType,
+  PaymentRefundUpdateInput,
 } from '@/types/payment';
 import type { ProjectItem } from '@/types/project';
 import type { Quotation } from '@/types/quotation';
 import type { User } from '@/types/user';
+import { PaymentRefundPanel } from '@/features/payments/components/payment-refund-panel';
 
 type PaymentManagerProps = {
   payments: Payment[];
+  refunds: PaymentRefund[];
+  activeTab: 'incoming' | 'refunds';
   filters: PaymentFilters;
+  refundFilters: PaymentRefundFilters;
   page: number;
   totalPages: number;
   totalItems: number;
   pageSize: number;
+  refundPage: number;
+  refundTotalPages: number;
+  refundTotalItems: number;
+  refundPageSize: number;
   isFetching: boolean;
+  isRefundsFetching: boolean;
   isMutating: boolean;
   currentUser: User | null;
+  onTabChange: (tab: 'incoming' | 'refunds') => void;
   onPageChange: (page: number) => void;
   onPageSizeChange: (pageSize: number) => void;
   onFiltersChange: (filters: PaymentFilters) => void;
+  onRefundPageChange: (page: number) => void;
+  onRefundPageSizeChange: (pageSize: number) => void;
+  onRefundFiltersChange: (filters: PaymentRefundFilters) => void;
   onAllocate: (paymentId: number, allocations: PaymentAllocationInput[]) => Promise<Payment>;
   onRefund: (paymentId: number, values: PaymentRefundInput) => Promise<Payment>;
+  onUpdateRefund: (refundId: number, values: PaymentRefundUpdateInput) => Promise<PaymentRefund>;
+  onDeleteRefund: (refundId: number) => Promise<void>;
   onLink: (paymentId: number, values: PaymentLinkInput) => Promise<Payment>;
   onRemoveAllocation: (paymentId: number, allocationId: number) => Promise<Payment>;
 };
@@ -70,6 +92,19 @@ const reconciledStatusLabels: Record<string, string> = {
   matched_project: 'Đã gắn dự án',
   allocated: 'Đã phân bổ',
   non_customer: 'Không phải khoản thu',
+};
+
+const refundTypeLabels: Record<string, string> = {
+  deposit: 'Hoàn cọc',
+  payment: 'Hoàn thanh toán',
+  overpayment: 'Hoàn tiền thừa',
+  compensation: 'Bù thêm cho khách',
+};
+
+const refundStatusLabels: Record<string, string> = {
+  pending: 'Chờ chuyển',
+  completed: 'Đã chuyển',
+  cancelled: 'Đã hủy',
 };
 
 function formatCurrency(value: string | number | null | undefined) {
@@ -117,6 +152,12 @@ function statusClass(status?: string | null) {
   }
   if (status === 'collection_overpaid') {
     return 'bg-violet-50 text-violet-700 ring-violet-200';
+  }
+  if (status === 'collection_partially_refunded' || status === 'collection_refunded') {
+    return 'bg-rose-50 text-rose-700 ring-rose-200';
+  }
+  if (status === 'collection_compensated' || status === 'collection_refunded_with_compensation') {
+    return 'bg-fuchsia-50 text-fuchsia-700 ring-fuchsia-200';
   }
   if (status === 'unmatched' || status === 'unallocated') {
     return 'bg-amber-50 text-amber-700 ring-amber-200';
@@ -214,6 +255,19 @@ function paymentProjects(payment: Payment) {
   return [...new Map(projects.map((project) => [project.id, project])).values()];
 }
 
+function canCreateCustomerReturn(payment: Payment) {
+  if (payment.receiptType === 'internal' || payment.receiptType === 'other') return false;
+
+  return (
+    Number(payment.availableAmount ?? payment.unallocatedAmount) > 0 ||
+    (payment.allocations || []).some(
+      (allocation) =>
+        Number(allocation.refundableAmount) > 0 || Number(allocation.depositRefundableAmount) > 0,
+    ) ||
+    Boolean(payment.customerId || payment.projectId || payment.quotationId)
+  );
+}
+
 type PaymentTableGroup = {
   key: string;
   payments: Payment[];
@@ -252,14 +306,42 @@ function groupPaymentsByQuotation(payments: Payment[]): PaymentTableGroup[] {
 
 function groupCollectionStatus(group: PaymentTableGroup, differenceAmount: number | null) {
   if (group.key.startsWith('quotation:') && differenceAmount !== null) {
+    const collectionPayment = group.payments.find((payment) => payment.collectionStatus);
+    const collectionStatus = collectionPayment?.collectionStatus;
+    const compensationAmount = Number(collectionPayment?.collectionCompensationAmount) || 0;
+
+    if (collectionStatus === 'refunded') {
+      return compensationAmount > 0
+        ? { key: 'collection_refunded_with_compensation', label: 'Đã hoàn + bù thêm' }
+        : { key: 'collection_refunded', label: 'Đã hoàn toàn bộ' };
+    }
+    if (collectionStatus === 'partially_refunded') {
+      return compensationAmount > 0
+        ? { key: 'collection_compensated', label: 'Đã hoàn một phần · Có bù' }
+        : { key: 'collection_partially_refunded', label: 'Đã hoàn một phần' };
+    }
+    if (
+      collectionStatus === 'paid' &&
+      Number(collectionPayment?.collectionDepositRefundedAmount) > 0
+    ) {
+      return compensationAmount > 0
+        ? { key: 'collection_compensated', label: 'Hoàn cọc · Có bù' }
+        : { key: 'collection_paid', label: 'Đã thu đủ · Hoàn cọc' };
+    }
     if (differenceAmount > 0.01) {
-      return { key: 'collection_overpaid', label: 'Chuyển thừa' };
+      return compensationAmount > 0
+        ? { key: 'collection_compensated', label: 'Chuyển thừa · Có bù' }
+        : { key: 'collection_overpaid', label: 'Chuyển thừa' };
     }
     if (differenceAmount < -0.01) {
-      return { key: 'collection_partial', label: 'Đang thiếu' };
+      return compensationAmount > 0
+        ? { key: 'collection_compensated', label: 'Đang thiếu · Có bù' }
+        : { key: 'collection_partial', label: 'Đang thiếu' };
     }
 
-    return { key: 'collection_paid', label: 'Đã thu đủ' };
+    return compensationAmount > 0
+      ? { key: 'collection_compensated', label: 'Đã thu đủ · Có bù' }
+      : { key: 'collection_paid', label: 'Đã thu đủ' };
   }
 
   return getPaymentDisplayStatus(group.payments[0]);
@@ -325,36 +407,41 @@ function PaymentDetailDialog({
           >
             Gắn dự án
           </DialogActionButton>
+          {canCreateCustomerReturn(payment) ? (
+            <DialogActionButton
+              startIcon={<ReplyRoundedIcon />}
+              disabled={isMutating || !canManage}
+              onClick={onRefund}
+            >
+              Trả khách
+            </DialogActionButton>
+          ) : null}
           {canHandleBalance && availableAmount > 0 ? (
-            <>
-              <DialogActionButton
-                startIcon={<ReplyRoundedIcon />}
-                disabled={isMutating || !canManage}
-                onClick={onRefund}
-              >
-                Hoàn tiền
-              </DialogActionButton>
-              <DialogActionButton
-                tone="primary"
-                startIcon={<CallSplitRoundedIcon />}
-                disabled={isMutating || !canManage}
-                onClick={onAllocate}
-              >
-                Phân bổ
-              </DialogActionButton>
-            </>
+            <DialogActionButton
+              tone="primary"
+              startIcon={<CallSplitRoundedIcon />}
+              disabled={isMutating || !canManage}
+              onClick={onAllocate}
+            >
+              Phân bổ
+            </DialogActionButton>
           ) : null}
         </>
       }
     >
       <div className="space-y-4 bg-slate-50/60 p-4">
-        <section className="grid overflow-hidden rounded-xl border border-slate-200 bg-white sm:grid-cols-2 lg:grid-cols-4 lg:divide-x lg:divide-slate-200">
+        <section className="grid overflow-hidden rounded-xl border border-slate-200 bg-white sm:grid-cols-2 lg:grid-cols-5 lg:divide-x lg:divide-slate-200">
           <PaymentMetric label="Tiền nhận" value={formatCurrency(payment.amount)} tone="green" />
           <PaymentMetric label="Đã phân bổ" value={formatCurrency(payment.allocatedAmount)} />
           <PaymentMetric
-            label="Đã hoàn"
+            label="Đã trả khách"
             value={formatCurrency(payment.refundedAmount)}
             tone="red"
+          />
+          <PaymentMetric
+            label="Bù thêm"
+            value={formatCurrency(payment.compensationAmount)}
+            tone="violet"
           />
           <PaymentMetric label="Chưa xử lý" value={formatCurrency(availableAmount)} tone="violet" />
         </section>
@@ -411,23 +498,40 @@ function PaymentDetailDialog({
           <section className="overflow-hidden rounded-xl border border-rose-200 bg-white">
             <div className="border-b border-rose-100 px-4 py-3">
               <h3 className="text-sm font-bold text-rose-800">
-                Lịch sử hoàn tiền ({refunds.length})
+                Lịch sử trả khách ({refunds.length})
               </h3>
             </div>
             <div className="divide-y divide-rose-100">
               {refunds.map((refund) => (
                 <div
                   key={refund.id}
-                  className="grid gap-2 px-4 py-3 text-sm sm:grid-cols-[180px_180px_minmax(0,1fr)]"
+                  className="grid items-center gap-2 px-4 py-3 text-sm sm:grid-cols-[150px_150px_110px_minmax(0,1fr)]"
                 >
-                  <span className="font-extrabold tabular-nums text-rose-700">
+                  <span
+                    className={`font-extrabold tabular-nums ${
+                      refund.refundType === 'compensation' ? 'text-fuchsia-700' : 'text-rose-700'
+                    }`}
+                  >
                     {formatCurrency(refund.amount)}
                   </span>
                   <span className="font-medium text-slate-600">
-                    {formatDateTime(refund.refundedAt)}
+                    {refundTypeLabels[refund.refundType] || refund.refundType}
                   </span>
-                  <span className="truncate font-medium text-slate-600">
-                    {refund.reference || refund.note || 'Không có ghi chú'}
+                  <span
+                    className={`inline-flex w-fit whitespace-nowrap rounded-md px-2 py-1 text-xs font-bold ring-1 ${
+                      refund.status === 'completed'
+                        ? 'bg-emerald-50 text-emerald-700 ring-emerald-200'
+                        : refund.status === 'cancelled'
+                          ? 'bg-slate-100 text-slate-500 ring-slate-200'
+                          : 'bg-amber-50 text-amber-700 ring-amber-200'
+                    }`}
+                  >
+                    {refundStatusLabels[refund.status] || refund.status}
+                  </span>
+                  <span className="truncate font-medium text-slate-600" title={refund.reason || ''}>
+                    {formatDateTime(refund.scheduledAt || refund.refundedAt)}
+                    {' · '}
+                    {refund.reason || refund.reference || refund.note || 'Không có ghi chú'}
                   </span>
                 </div>
               ))}
@@ -659,19 +763,55 @@ function RefundDialog({
   onClose: () => void;
   onSubmit: (values: PaymentRefundInput) => Promise<void>;
 }) {
+  const [refundType, setRefundType] = useState<PaymentRefundType>('overpayment');
+  const [allocationId, setAllocationId] = useState<number | null>(null);
+  const [status, setStatus] = useState<'pending' | 'completed'>('pending');
   const [amount, setAmount] = useState('');
-  const [refundedAt, setRefundedAt] = useState(todayString());
+  const [scheduledAt, setScheduledAt] = useState(todayString());
   const [recipientName, setRecipientName] = useState('');
   const [recipientAccount, setRecipientAccount] = useState('');
+  const [recipientBank, setRecipientBank] = useState('');
+  const [reason, setReason] = useState('');
   const [reference, setReference] = useState('');
   const [note, setNote] = useState('');
   const [error, setError] = useState('');
 
   useEffect(() => {
-    setAmount(String(Number(payment?.availableAmount ?? payment?.unallocatedAmount) || ''));
-    setRefundedAt(todayString());
+    const allocations = payment?.allocations || [];
+    const depositAllocation = allocations.find(
+      (allocation) => Number(allocation.depositRefundableAmount) > 0,
+    );
+    const paymentAllocation = allocations.find(
+      (allocation) => Number(allocation.refundableAmount) > 0,
+    );
+    const overpaymentAmount = Number(payment?.availableAmount ?? payment?.unallocatedAmount) || 0;
+    const initialType: PaymentRefundType =
+      overpaymentAmount > 0
+        ? 'overpayment'
+        : depositAllocation
+          ? 'deposit'
+          : paymentAllocation
+            ? 'payment'
+            : 'compensation';
+    const initialAllocation = initialType === 'deposit' ? depositAllocation : paymentAllocation;
+    const initialAmount =
+      initialType === 'overpayment'
+        ? overpaymentAmount
+        : initialType === 'deposit'
+          ? Number(initialAllocation?.depositRefundableAmount) || 0
+          : initialType === 'payment'
+            ? Number(initialAllocation?.refundableAmount) || 0
+            : 0;
+
+    setRefundType(initialType);
+    setAllocationId(initialAllocation?.id || null);
+    setStatus('pending');
+    setAmount(String(initialAmount || ''));
+    setScheduledAt(todayString());
     setRecipientName('');
     setRecipientAccount('');
+    setRecipientBank('');
+    setReason('');
     setReference('');
     setNote('');
     setError('');
@@ -679,21 +819,85 @@ function RefundDialog({
 
   if (!payment) return null;
 
-  const availableAmount = Number(payment.availableAmount ?? payment.unallocatedAmount) || 0;
+  const allocations = payment.allocations || [];
+  const selectedAllocation =
+    allocations.find((allocation) => allocation.id === allocationId) || null;
+  const overpaymentAmount = Number(payment.availableAmount ?? payment.unallocatedAmount) || 0;
+  const availableAmount =
+    refundType === 'overpayment'
+      ? overpaymentAmount
+      : refundType === 'deposit'
+        ? Number(selectedAllocation?.depositRefundableAmount) || 0
+        : refundType === 'payment'
+          ? Number(selectedAllocation?.refundableAmount) || 0
+          : null;
+  const refundTypeOptions = [
+    ...(overpaymentAmount > 0 ? [{ value: 'overpayment', label: 'Hoàn tiền chuyển thừa' }] : []),
+    ...(allocations.some((allocation) => Number(allocation.depositRefundableAmount) > 0)
+      ? [{ value: 'deposit', label: 'Hoàn tiền cọc' }]
+      : []),
+    ...(allocations.some((allocation) => Number(allocation.refundableAmount) > 0)
+      ? [{ value: 'payment', label: 'Hoàn khoản đã thanh toán' }]
+      : []),
+    ...(payment.customerId || payment.projectId || payment.quotationId || allocations.length > 0
+      ? [{ value: 'compensation', label: 'Bù thêm ngoài tiền khách đã nộp' }]
+      : []),
+  ];
+
+  const changeRefundType = (nextType: PaymentRefundType) => {
+    const nextAllocation =
+      nextType === 'deposit'
+        ? allocations.find((allocation) => Number(allocation.depositRefundableAmount) > 0)
+        : nextType === 'payment'
+          ? allocations.find((allocation) => Number(allocation.refundableAmount) > 0)
+          : null;
+    const nextAmount =
+      nextType === 'overpayment'
+        ? overpaymentAmount
+        : nextType === 'deposit'
+          ? Number(nextAllocation?.depositRefundableAmount) || 0
+          : nextType === 'payment'
+            ? Number(nextAllocation?.refundableAmount) || 0
+            : 0;
+
+    setRefundType(nextType);
+    setAllocationId(nextAllocation?.id || null);
+    setAmount(String(nextAmount || ''));
+    setError('');
+  };
+
   const handleSubmit = async (event: FormEvent<HTMLFormElement>) => {
     event.preventDefault();
     const refundAmount = Number(amount) || 0;
 
-    if (refundAmount <= 0 || refundAmount > availableAmount) {
-      setError(`Số tiền hoàn phải từ 1 đ đến ${formatCurrency(availableAmount)}.`);
+    if ((refundType === 'deposit' || refundType === 'payment') && !selectedAllocation) {
+      setError('Cần chọn báo phí đã nhận tiền.');
+      return;
+    }
+    if (refundAmount <= 0 || (availableAmount !== null && refundAmount > availableAmount)) {
+      setError(
+        availableAmount === null
+          ? 'Số tiền bù thêm phải lớn hơn 0.'
+          : `Số tiền trả khách phải từ 1 đ đến ${formatCurrency(availableAmount)}.`,
+      );
+      return;
+    }
+    if (!reason.trim()) {
+      setError('Cần nhập lý do trả khách để dễ đối soát về sau.');
       return;
     }
 
     await onSubmit({
+      paymentAllocationId: selectedAllocation?.id || null,
+      refundType,
+      status,
       amount: refundAmount,
-      refundedAt,
+      scheduledAt,
+      refundedAt: status === 'completed' ? scheduledAt : undefined,
       recipientName: recipientName.trim() || undefined,
       recipientAccount: recipientAccount.trim() || undefined,
+      recipientBank: recipientBank.trim() || undefined,
+      reason: reason.trim(),
       reference: reference.trim() || undefined,
       note: note.trim() || undefined,
     });
@@ -702,8 +906,8 @@ function RefundDialog({
   return (
     <AppFormDialog
       open
-      title="Ghi nhận hoàn tiền"
-      maxWidth="sm"
+      title="Tạo khoản trả khách"
+      maxWidth="md"
       submitting={submitting}
       onClose={onClose}
       onSubmit={handleSubmit}
@@ -713,20 +917,101 @@ function RefundDialog({
             Hủy
           </DialogActionButton>
           <DialogActionButton type="submit" tone="primary" disabled={submitting}>
-            {submitting ? 'Đang lưu...' : 'Ghi nhận hoàn tiền'}
+            {submitting
+              ? 'Đang lưu...'
+              : status === 'completed'
+                ? 'Lưu đã chuyển'
+                : 'Tạo khoản chờ trả'}
           </DialogActionButton>
         </>
       }
     >
       <div className="grid gap-4 sm:grid-cols-2">
-        <div className="rounded-lg border border-violet-200 bg-violet-50 px-3 py-2.5 sm:col-span-2">
-          <span className="text-sm font-semibold text-violet-700">Có thể hoàn: </span>
-          <span className="text-sm font-extrabold tabular-nums text-violet-800">
-            {formatCurrency(availableAmount)}
+        <div className="grid overflow-hidden rounded-lg border border-slate-200 bg-slate-50 sm:col-span-2 sm:grid-cols-3 sm:divide-x sm:divide-slate-200">
+          <PaymentMetric label="Tiền vào gốc" value={formatCurrency(payment.amount)} />
+          <PaymentMetric label="Đã phân bổ" value={formatCurrency(payment.allocatedAmount)} />
+          <PaymentMetric
+            label="Đã trả khách"
+            value={formatCurrency(payment.refundedAmount)}
+            tone="red"
+          />
+        </div>
+        <FormSelectField
+          label="Loại trả khách"
+          value={refundType}
+          required
+          onChange={(event) => changeRefundType(event.target.value as PaymentRefundType)}
+        >
+          {refundTypeOptions.map((option) => (
+            <MenuItem key={option.value} value={option.value}>
+              {option.label}
+            </MenuItem>
+          ))}
+        </FormSelectField>
+        <FormSelectField
+          label="Trạng thái"
+          value={status}
+          onChange={(event) => setStatus(event.target.value as 'pending' | 'completed')}
+        >
+          <MenuItem value="pending">Chờ chuyển tiền</MenuItem>
+          <MenuItem value="completed">Đã chuyển tiền</MenuItem>
+        </FormSelectField>
+        {refundType === 'deposit' || refundType === 'payment' ? (
+          <FormSelectField
+            className="sm:col-span-2"
+            label="Báo phí nhận tiền"
+            value={allocationId || ''}
+            required
+            onChange={(event) => {
+              const nextId = Number(event.target.value) || null;
+              const next = allocations.find((allocation) => allocation.id === nextId);
+              setAllocationId(nextId);
+              setAmount(
+                String(
+                  refundType === 'deposit'
+                    ? Number(next?.depositRefundableAmount) || ''
+                    : Number(next?.refundableAmount) || '',
+                ),
+              );
+              setError('');
+            }}
+          >
+            {allocations
+              .filter(
+                (allocation) =>
+                  Number(
+                    refundType === 'deposit'
+                      ? allocation.depositRefundableAmount
+                      : allocation.refundableAmount,
+                  ) > 0,
+              )
+              .map((allocation) => (
+                <MenuItem key={allocation.id} value={allocation.id}>
+                  {allocation.quotation?.quotationCode || `Báo phí #${allocation.quotationId}`}
+                  {' · Có thể hoàn '}
+                  {formatCurrency(
+                    refundType === 'deposit'
+                      ? allocation.depositRefundableAmount
+                      : allocation.refundableAmount,
+                  )}
+                </MenuItem>
+              ))}
+          </FormSelectField>
+        ) : null}
+        <div className="rounded-lg border border-blue-200 bg-blue-50 px-3 py-2.5 sm:col-span-2">
+          <span className="text-sm font-semibold text-blue-700">
+            {availableAmount === null
+              ? 'Chỉ nhập phần bù thêm ngoài tiền khách đã chuyển. Khoản này không làm giảm công nợ báo phí.'
+              : 'Có thể trả theo lựa chọn: '}
           </span>
+          {availableAmount !== null ? (
+            <span className="text-sm font-extrabold tabular-nums text-blue-800">
+              {formatCurrency(availableAmount)}
+            </span>
+          ) : null}
         </div>
         <MoneyInput
-          label="Số tiền hoàn"
+          label={refundType === 'compensation' ? 'Số tiền bù thêm' : 'Số tiền trả khách'}
           value={amount}
           required
           size="small"
@@ -736,23 +1021,45 @@ function RefundDialog({
             setError('');
           }}
         />
-        <FormDatePicker label="Ngày hoàn" value={refundedAt} required onChange={setRefundedAt} />
+        <FormDatePicker
+          label={status === 'completed' ? 'Ngày chuyển' : 'Ngày dự kiến trả'}
+          value={scheduledAt}
+          required
+          onChange={setScheduledAt}
+        />
+        <FormInputField
+          className="sm:col-span-2"
+          label="Lý do trả khách *"
+          value={reason}
+          onChange={(event) => {
+            setReason(event.target.value);
+            setError('');
+          }}
+        />
         <FormInputField
           label="Người nhận"
           value={recipientName}
           onChange={(event) => setRecipientName(event.target.value)}
         />
         <FormInputField
+          label="Ngân hàng nhận"
+          value={recipientBank}
+          onChange={(event) => setRecipientBank(event.target.value)}
+        />
+        <FormInputField
           label="Tài khoản nhận"
           value={recipientAccount}
           onChange={(event) => setRecipientAccount(event.target.value)}
         />
+        {status === 'completed' ? (
+          <FormInputField
+            label="Mã giao dịch / tham chiếu"
+            value={reference}
+            onChange={(event) => setReference(event.target.value)}
+          />
+        ) : null}
         <FormInputField
-          label="Mã tham chiếu hoàn"
-          value={reference}
-          onChange={(event) => setReference(event.target.value)}
-        />
-        <FormInputField
+          className={status === 'completed' ? '' : 'sm:col-span-2'}
           label="Ghi chú"
           value={note}
           onChange={(event) => setNote(event.target.value)}
@@ -882,19 +1189,33 @@ function LinkPaymentDialog({
 
 export function PaymentManager({
   payments,
+  refunds,
+  activeTab,
   filters,
+  refundFilters,
   page,
   totalPages,
   totalItems,
   pageSize,
+  refundPage,
+  refundTotalPages,
+  refundTotalItems,
+  refundPageSize,
   isFetching,
+  isRefundsFetching,
   isMutating,
   currentUser,
+  onTabChange,
   onPageChange,
   onPageSizeChange,
   onFiltersChange,
+  onRefundPageChange,
+  onRefundPageSizeChange,
+  onRefundFiltersChange,
   onAllocate,
   onRefund,
+  onUpdateRefund,
+  onDeleteRefund,
   onLink,
   onRemoveAllocation,
 }: PaymentManagerProps) {
@@ -933,227 +1254,275 @@ export function PaymentManager({
       <PageHeader title="Thanh toán" />
 
       <section className="w-full overflow-hidden rounded-2xl border border-slate-200 bg-white shadow-sm">
-        <div className="border-slate-200 p-4">
-          <div className="grid gap-3 md:grid-cols-2 xl:grid-cols-[minmax(240px,1fr)_repeat(4,176px)]">
-            <CompactSearchField
-              label="Từ khóa"
-              placeholder="Nội dung, mã báo phí, dự án, tham chiếu..."
-              value={filters.keyword}
-              onChange={(keyword) => updateFilters({ keyword })}
-            />
-            <CompactSelectField
-              label="Trạng thái xử lý"
-              value={filters.status}
-              options={[
-                { value: 'unmatched', label: 'Chờ đối soát' },
-                { value: 'matched_project', label: 'Đã gắn dự án' },
-                { value: 'paid_with_excess', label: 'Đã phân bổ + chuyển thừa' },
-                { value: 'overpaid', label: 'Chuyển thừa' },
-                { value: 'allocated', label: 'Đã phân bổ giao dịch' },
-                { value: 'partially_refunded', label: 'Đã hoàn một phần' },
-                { value: 'allocated_and_refunded', label: 'Đã phân bổ & hoàn dư' },
-                { value: 'refunded', label: 'Đã hoàn toàn bộ' },
-                { value: 'non_customer', label: 'Không phải khoản thu' },
-              ]}
-              onChange={(status) => updateFilters({ status })}
-            />
-            <CompactSelectField
-              label="Đối soát"
-              value={filters.reconciled_status}
-              options={Object.entries(reconciledStatusLabels).map(([value, label]) => ({
-                value,
-                label,
-              }))}
-              onChange={(reconciled_status) => updateFilters({ reconciled_status })}
-            />
-            <FormDatePicker
-              label="Từ ngày"
-              value={filters.date_from}
-              max={filters.date_to || undefined}
-              onChange={(date_from) => updateFilters({ date_from })}
-            />
-            <FormDatePicker
-              label="Đến ngày"
-              value={filters.date_to}
-              min={filters.date_from || undefined}
-              onChange={(date_to) => updateFilters({ date_to })}
-            />
-          </div>
-        </div>
-
-        <AppDataTable
-          columns={[
-            { key: 'time', label: 'Thời gian', className: 'sticky left-0 z-20 w-52 bg-slate-100' },
-            { key: 'amount', label: 'Số tiền', className: 'w-44 text-right' },
-            { key: 'content', label: 'Nội dung chuyển khoản', className: 'w-72' },
-            { key: 'quotation', label: 'Báo phí', className: 'w-60' },
-            { key: 'project', label: 'Dự án', className: 'w-56' },
-            { key: 'difference', label: 'Chênh lệch', className: 'w-40 text-right' },
-            { key: 'status', label: 'Công nợ / xử lý', className: 'w-40' },
-            { key: 'actions', className: 'w-24' },
+        <IconTabs
+          value={activeTab === 'incoming' ? 0 : 1}
+          ariaLabel="Luồng tiền thanh toán"
+          items={[
+            { label: 'Tiền nhận vào', icon: <CallReceivedRoundedIcon fontSize="small" /> },
+            { label: 'Tiền hoàn ra', icon: <CallMadeRoundedIcon fontSize="small" /> },
           ]}
-          isLoading={isFetching}
-          isEmpty={payments.length === 0}
-          emptyText="Chưa có giao dịch thanh toán"
-          minWidthClassName="min-w-[1440px]"
-        >
-          {paymentGroups.map((group) => {
-            const quotations = [
-              ...new Map(
-                group.payments
-                  .flatMap((payment) => paymentQuotations(payment))
-                  .map((quotation) => [quotation.quotationId, quotation]),
-              ).values(),
-            ];
-            const projects = [
-              ...new Map(
-                group.payments
-                  .flatMap((payment) => paymentProjects(payment))
-                  .map((project) => [project.id, project]),
-              ).values(),
-            ];
-            const primaryQuotation = quotations[0]?.quotation;
-            const primaryProject = projects[0];
-            const differenceSource = group.key.startsWith('quotation:')
-              ? group.payments.find(
-                  (payment) =>
-                    payment.collectionDifferenceAmount !== null &&
-                    payment.collectionDifferenceAmount !== undefined,
-                )
-              : undefined;
-            const differenceAmount = differenceSource
-              ? Number(differenceSource.collectionDifferenceAmount) || 0
-              : null;
-            const displayStatus = groupCollectionStatus(group, differenceAmount);
-            const rowSpan = group.payments.length;
-
-            return group.payments.map((payment, rowIndex) => {
-              const transferMoment = getTransferMoment(payment);
-              const isFirstRow = rowIndex === 0;
-
-              return (
-                <tr
-                  key={payment.id}
-                  className={
-                    isFirstRow
-                      ? 'group border-t-2 border-slate-200 first:border-t-0 hover:bg-slate-50/80'
-                      : 'group hover:bg-slate-50/80'
-                  }
-                >
-                  <td className="sticky left-0 z-10 bg-white px-3 py-3.5 font-semibold tabular-nums text-slate-800 group-hover:bg-slate-50">
-                    <span className="whitespace-nowrap">{transferMoment.full}</span>
-                  </td>
-                  <td className="px-3 py-3.5 text-right font-extrabold tabular-nums text-emerald-700">
-                    {formatCurrency(payment.amount)}
-                  </td>
-                  <td className="px-3 py-3.5">
-                    <p
-                      className="truncate font-mono text-[13px] font-semibold text-slate-700"
-                      title={payment.transactionContent || ''}
-                    >
-                      {payment.transactionContent || '-'}
-                    </p>
-                  </td>
-                  {isFirstRow ? (
-                    <>
-                      <td
-                        rowSpan={rowSpan}
-                        className="border-l border-slate-100 bg-slate-50/50 px-3 py-3.5 align-middle"
-                      >
-                        {primaryQuotation ? (
-                          <div className="flex min-w-0 items-center gap-2">
-                            <EntityTableLink
-                              href={`/quotations/${primaryQuotation.id}`}
-                              tone="primary"
-                            >
-                              {primaryQuotation.quotationCode || '-'}
-                            </EntityTableLink>
-                            {quotations.length > 1 ? (
-                              <span className="shrink-0 rounded-full bg-emerald-50 px-2 py-0.5 text-xs font-bold text-emerald-700">
-                                +{quotations.length - 1}
-                              </span>
-                            ) : null}
-                          </div>
-                        ) : (
-                          <span className="whitespace-nowrap font-semibold text-amber-700">
-                            Chưa xác định
-                          </span>
-                        )}
-                        {rowSpan > 1 ? (
-                          <p className="mt-1 text-[11px] font-semibold text-slate-500">
-                            {rowSpan} giao dịch
-                          </p>
-                        ) : null}
-                      </td>
-                      <td rowSpan={rowSpan} className="bg-slate-50/50 px-3 py-3.5 align-middle">
-                        {primaryProject ? (
-                          <div className="flex min-w-0 items-center gap-2">
-                            <EntityTableLink href={`/projects/${primaryProject.id}`} tone="blue">
-                              {primaryProject.projectCode || '-'}
-                            </EntityTableLink>
-                            {projects.length > 1 ? (
-                              <span className="shrink-0 rounded-full bg-blue-50 px-2 py-0.5 text-xs font-bold text-blue-700">
-                                +{projects.length - 1}
-                              </span>
-                            ) : null}
-                          </div>
-                        ) : (
-                          <span className="whitespace-nowrap text-slate-400">Chưa gắn dự án</span>
-                        )}
-                      </td>
-                      <td
-                        rowSpan={rowSpan}
-                        className={`bg-slate-50/50 px-3 py-3.5 text-right align-middle font-extrabold tabular-nums ${differenceClass(differenceAmount)}`}
-                      >
-                        <span className="whitespace-nowrap">
-                          {formatDifference(differenceAmount)}
-                        </span>
-                      </td>
-                      <td rowSpan={rowSpan} className="bg-slate-50/50 px-3 py-3.5 align-middle">
-                        <span
-                          className={`inline-flex whitespace-nowrap rounded-md px-2 py-1 text-xs font-bold ring-1 ${statusClass(displayStatus.key)}`}
-                        >
-                          {displayStatus.label}
-                        </span>
-                      </td>
-                    </>
-                  ) : null}
-                  <td className="py-3.5">
-                    <div className="flex items-center justify-end gap-1 pr-3">
-                      <IconButton
-                        size="small"
-                        title="Xem chi tiết"
-                        aria-label={`Xem chi tiết giao dịch ${payment.reference || payment.id}`}
-                        onClick={() => setViewTarget(payment)}
-                      >
-                        <VisibilityRoundedIcon fontSize="small" />
-                      </IconButton>
-                      <IconButton
-                        size="small"
-                        title="Tác vụ"
-                        aria-label={`Tác vụ giao dịch ${payment.reference || payment.id}`}
-                        onClick={(event) => openActionMenu(event, payment)}
-                      >
-                        <MoreVertRoundedIcon fontSize="small" />
-                      </IconButton>
-                    </div>
-                  </td>
-                </tr>
-              );
-            });
-          })}
-        </AppDataTable>
-
-        <TablePaginationBar
-          page={page}
-          totalPages={totalPages}
-          totalItems={totalItems}
-          pageSize={pageSize}
-          onPageChange={onPageChange}
-          onPageSizeChange={onPageSizeChange}
-          rangeLabel="Hiển thị nhóm"
-          pageSizeLabel="Số nhóm"
+          onChange={(value) => onTabChange(value === 0 ? 'incoming' : 'refunds')}
         />
+        {activeTab === 'incoming' ? (
+          <>
+            <div className="border-slate-200 p-4">
+              <div className="grid gap-3 md:grid-cols-2 xl:grid-cols-[minmax(240px,1fr)_repeat(4,176px)]">
+                <CompactSearchField
+                  label="Từ khóa"
+                  placeholder="Nội dung, mã báo phí, dự án, tham chiếu..."
+                  value={filters.keyword}
+                  onChange={(keyword) => updateFilters({ keyword })}
+                />
+                <CompactSelectField
+                  label="Trạng thái xử lý"
+                  value={filters.status}
+                  options={[
+                    { value: 'unmatched', label: 'Chờ đối soát' },
+                    { value: 'matched_project', label: 'Đã gắn dự án' },
+                    { value: 'paid_with_excess', label: 'Đã phân bổ + chuyển thừa' },
+                    { value: 'overpaid', label: 'Chuyển thừa' },
+                    { value: 'allocated', label: 'Đã phân bổ giao dịch' },
+                    { value: 'partially_refunded', label: 'Đã trả khách một phần' },
+                    { value: 'allocated_and_refunded', label: 'Đã phân bổ & trả khách' },
+                    { value: 'refunded', label: 'Đã trả lại toàn bộ' },
+                    { value: 'non_customer', label: 'Không phải khoản thu' },
+                  ]}
+                  onChange={(status) => updateFilters({ status })}
+                />
+                <CompactSelectField
+                  label="Đối soát"
+                  value={filters.reconciled_status}
+                  options={Object.entries(reconciledStatusLabels).map(([value, label]) => ({
+                    value,
+                    label,
+                  }))}
+                  onChange={(reconciled_status) => updateFilters({ reconciled_status })}
+                />
+                <FormDatePicker
+                  label="Từ ngày"
+                  value={filters.date_from}
+                  max={filters.date_to || undefined}
+                  onChange={(date_from) => updateFilters({ date_from })}
+                />
+                <FormDatePicker
+                  label="Đến ngày"
+                  value={filters.date_to}
+                  min={filters.date_from || undefined}
+                  onChange={(date_to) => updateFilters({ date_to })}
+                />
+              </div>
+            </div>
+
+            <AppDataTable
+              columns={[
+                {
+                  key: 'time',
+                  label: 'Thời gian',
+                  className: 'sticky left-0 z-20 w-52 bg-slate-100',
+                },
+                { key: 'amount', label: 'Số tiền', className: 'w-44 text-right' },
+                { key: 'content', label: 'Nội dung chuyển khoản', className: 'w-72' },
+                { key: 'quotation', label: 'Báo phí', className: 'w-60' },
+                { key: 'project', label: 'Dự án', className: 'w-56' },
+                { key: 'difference', label: 'Chênh lệch', className: 'w-40 text-right' },
+                { key: 'status', label: 'Công nợ / xử lý', className: 'w-40' },
+                { key: 'actions', className: 'w-24' },
+              ]}
+              isLoading={isFetching}
+              isEmpty={payments.length === 0}
+              emptyText="Chưa có giao dịch thanh toán"
+              minWidthClassName="min-w-[1440px]"
+            >
+              {paymentGroups.map((group) => {
+                const quotations = [
+                  ...new Map(
+                    group.payments
+                      .flatMap((payment) => paymentQuotations(payment))
+                      .map((quotation) => [quotation.quotationId, quotation]),
+                  ).values(),
+                ];
+                const projects = [
+                  ...new Map(
+                    group.payments
+                      .flatMap((payment) => paymentProjects(payment))
+                      .map((project) => [project.id, project]),
+                  ).values(),
+                ];
+                const primaryQuotation = quotations[0]?.quotation;
+                const primaryProject = projects[0];
+                const differenceSource = group.key.startsWith('quotation:')
+                  ? group.payments.find(
+                      (payment) =>
+                        payment.collectionDifferenceAmount !== null &&
+                        payment.collectionDifferenceAmount !== undefined,
+                    )
+                  : undefined;
+                const differenceAmount = differenceSource
+                  ? Number(differenceSource.collectionDifferenceAmount) || 0
+                  : null;
+                const compensationAmount = differenceSource
+                  ? Number(differenceSource.collectionCompensationAmount) || 0
+                  : 0;
+                const displayStatus = groupCollectionStatus(group, differenceAmount);
+                const rowSpan = group.payments.length;
+
+                return group.payments.map((payment, rowIndex) => {
+                  const transferMoment = getTransferMoment(payment);
+                  const isFirstRow = rowIndex === 0;
+
+                  return (
+                    <tr
+                      key={payment.id}
+                      className={
+                        isFirstRow
+                          ? 'group border-t-2 border-slate-200 first:border-t-0 hover:bg-slate-50/80'
+                          : 'group hover:bg-slate-50/80'
+                      }
+                    >
+                      <td className="sticky left-0 z-10 bg-white px-3 py-3.5 font-semibold tabular-nums text-slate-800 group-hover:bg-slate-50">
+                        <span className="whitespace-nowrap">{transferMoment.full}</span>
+                      </td>
+                      <td className="px-3 py-3.5 text-right font-extrabold tabular-nums text-emerald-700">
+                        {formatCurrency(payment.amount)}
+                      </td>
+                      <td className="px-3 py-3.5">
+                        <p
+                          className="truncate font-mono text-[13px] font-semibold text-slate-700"
+                          title={payment.transactionContent || ''}
+                        >
+                          {payment.transactionContent || '-'}
+                        </p>
+                      </td>
+                      {isFirstRow ? (
+                        <>
+                          <td
+                            rowSpan={rowSpan}
+                            className="border-l border-slate-100 bg-slate-50/50 px-3 py-3.5 align-middle"
+                          >
+                            {primaryQuotation ? (
+                              <div className="flex min-w-0 items-center gap-2">
+                                <EntityTableLink
+                                  href={`/quotations/${primaryQuotation.id}`}
+                                  tone="primary"
+                                >
+                                  {primaryQuotation.quotationCode || '-'}
+                                </EntityTableLink>
+                                {quotations.length > 1 ? (
+                                  <span className="shrink-0 rounded-full bg-emerald-50 px-2 py-0.5 text-xs font-bold text-emerald-700">
+                                    +{quotations.length - 1}
+                                  </span>
+                                ) : null}
+                              </div>
+                            ) : (
+                              <span className="whitespace-nowrap font-semibold text-amber-700">
+                                Chưa xác định
+                              </span>
+                            )}
+                            {rowSpan > 1 ? (
+                              <p className="mt-1 text-[11px] font-semibold text-slate-500">
+                                {rowSpan} giao dịch
+                              </p>
+                            ) : null}
+                          </td>
+                          <td rowSpan={rowSpan} className="bg-slate-50/50 px-3 py-3.5 align-middle">
+                            {primaryProject ? (
+                              <div className="flex min-w-0 items-center gap-2">
+                                <EntityTableLink
+                                  href={`/projects/${primaryProject.id}`}
+                                  tone="blue"
+                                >
+                                  {primaryProject.projectCode || '-'}
+                                </EntityTableLink>
+                                {projects.length > 1 ? (
+                                  <span className="shrink-0 rounded-full bg-blue-50 px-2 py-0.5 text-xs font-bold text-blue-700">
+                                    +{projects.length - 1}
+                                  </span>
+                                ) : null}
+                              </div>
+                            ) : (
+                              <span className="whitespace-nowrap text-slate-400">
+                                Chưa gắn dự án
+                              </span>
+                            )}
+                          </td>
+                          <td
+                            rowSpan={rowSpan}
+                            className={`bg-slate-50/50 px-3 py-3.5 text-right align-middle font-extrabold tabular-nums ${differenceClass(differenceAmount)}`}
+                          >
+                            <div className="flex flex-col items-end gap-1">
+                              <span className="whitespace-nowrap">
+                                {formatDifference(differenceAmount)}
+                              </span>
+                              {compensationAmount > 0 ? (
+                                <span className="whitespace-nowrap rounded bg-fuchsia-50 px-1.5 py-0.5 text-[11px] font-bold text-fuchsia-700 ring-1 ring-fuchsia-100">
+                                  Bù thêm {formatCurrency(compensationAmount)}
+                                </span>
+                              ) : null}
+                            </div>
+                          </td>
+                          <td rowSpan={rowSpan} className="bg-slate-50/50 px-3 py-3.5 align-middle">
+                            <span
+                              className={`inline-flex whitespace-nowrap rounded-md px-2 py-1 text-xs font-bold ring-1 ${statusClass(displayStatus.key)}`}
+                            >
+                              {displayStatus.label}
+                            </span>
+                          </td>
+                        </>
+                      ) : null}
+                      <td className="py-3.5">
+                        <div className="flex items-center justify-end gap-1 pr-3">
+                          <IconButton
+                            size="small"
+                            title="Xem chi tiết"
+                            aria-label={`Xem chi tiết giao dịch ${payment.reference || payment.id}`}
+                            onClick={() => setViewTarget(payment)}
+                          >
+                            <VisibilityRoundedIcon fontSize="small" />
+                          </IconButton>
+                          <IconButton
+                            size="small"
+                            title="Tác vụ"
+                            aria-label={`Tác vụ giao dịch ${payment.reference || payment.id}`}
+                            onClick={(event) => openActionMenu(event, payment)}
+                          >
+                            <MoreVertRoundedIcon fontSize="small" />
+                          </IconButton>
+                        </div>
+                      </td>
+                    </tr>
+                  );
+                });
+              })}
+            </AppDataTable>
+
+            <TablePaginationBar
+              page={page}
+              totalPages={totalPages}
+              totalItems={totalItems}
+              pageSize={pageSize}
+              onPageChange={onPageChange}
+              onPageSizeChange={onPageSizeChange}
+              rangeLabel="Hiển thị nhóm"
+              pageSizeLabel="Số nhóm"
+            />
+          </>
+        ) : (
+          <PaymentRefundPanel
+            refunds={refunds}
+            filters={refundFilters}
+            page={refundPage}
+            totalPages={refundTotalPages}
+            totalItems={refundTotalItems}
+            pageSize={refundPageSize}
+            isFetching={isRefundsFetching}
+            isMutating={isMutating}
+            onPageChange={onRefundPageChange}
+            onPageSizeChange={onRefundPageSizeChange}
+            onFiltersChange={onRefundFiltersChange}
+            onUpdate={onUpdateRefund}
+            onDelete={onDeleteRefund}
+          />
+        )}
       </section>
 
       <Menu anchorEl={menuAnchorEl} open={Boolean(menuAnchorEl)} onClose={closeActionMenu}>
@@ -1190,9 +1559,7 @@ export function PaymentManager({
           <LinkRoundedIcon fontSize="small" className="mr-2 text-sky-600" />
           Gắn dự án / Phân loại
         </MenuItem>
-        {activePayment?.receiptType !== 'internal' &&
-        activePayment?.receiptType !== 'other' &&
-        Number(activePayment?.availableAmount ?? activePayment?.unallocatedAmount) > 0 ? (
+        {activePayment && canCreateCustomerReturn(activePayment) ? (
           <MenuItem
             disabled={!canManagePayments(currentUser)}
             onClick={() => {
@@ -1201,7 +1568,7 @@ export function PaymentManager({
             }}
           >
             <ReplyRoundedIcon fontSize="small" className="mr-2 text-rose-600" />
-            Ghi nhận hoàn tiền
+            Tạo khoản trả khách
           </MenuItem>
         ) : null}
         {activePayment?.quotation ? (

@@ -70,6 +70,7 @@ export function getLeadDefaults(lead?: Lead | null): LeadFormValues {
     sourceId: idToString(lead?.sourceId),
     sourceOptionId: idToString(lead?.sourceOptionId),
     sourceName: lead?.sourceOption?.label || lead?.source?.name || '',
+    industryOptionId: idToString(lead?.industryOptionId),
     interestedServiceOptionId: idToString(lead?.interestedServiceOptionId),
     interestedServiceOptionIds:
       lead?.interestedServiceOptionIds?.map(idToString) ||
@@ -79,7 +80,7 @@ export function getLeadDefaults(lead?: Lead | null): LeadFormValues {
     interestedServiceText: lead?.interestedServiceText || '',
     phone: lead?.phone || '',
     website: lead?.website || '',
-    industry: lead?.industry || '',
+    industry: lead?.industryOption?.label || lead?.industry || '',
     planLink: lead?.planLink || '',
     zaloGroup: lead?.zaloGroup || '',
     note: lead?.note || '',
@@ -94,6 +95,7 @@ export function toLeadPayload(values: LeadFormValues) {
     occurredDate: values.occurredDate || null,
     assignedUserId: values.assignedUserId || null,
     sourceOptionId: values.sourceOptionId || values.sourceId || null,
+    industryOptionId: values.industryOptionId || null,
     interestedServiceOptionIds: values.interestedServiceOptionIds,
     interestedServiceOptionId:
       values.interestedServiceOptionIds[0] ||

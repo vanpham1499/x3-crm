@@ -14,17 +14,27 @@ function quotationBudgetWithVat(quotation: Quotation) {
 }
 
 function topupBudgetUsed(cost: ProjectCost) {
+  if (cost.actualCostAmount !== undefined && cost.actualCostAmount !== null) {
+    return Number(cost.actualCostAmount) || 0;
+  }
+
   const topupAmount = Math.max(0, Number(cost.totalAmount) || Number(cost.amountBeforeVat) || 0);
   const spentAmount = Math.max(0, Number(cost.cidSpentAmount) || 0);
   const vatRate = Math.max(0, Number(cost.vatRate) || 0);
   const spentAmountWithVat = spentAmount + Math.round((spentAmount * vatRate) / 100);
 
-  return cost.cidIsDead ? Math.min(topupAmount, spentAmountWithVat) : topupAmount;
+  return cost.cidIsDead && cost.reconciledAt
+    ? Math.min(topupAmount, spentAmountWithVat)
+    : topupAmount;
 }
 
 export function calculateRealizedProjectCost(costs: ProjectCost[]) {
   return costs.reduce((sum, cost) => {
     if (cost.status !== 'completed') return sum;
+
+    if (cost.realizedCostAmount !== undefined && cost.realizedCostAmount !== null) {
+      return sum + (Number(cost.realizedCostAmount) || 0);
+    }
 
     if (cost.entryType === 'ad_spend' && cost.cidIsDead) {
       return sum + topupBudgetUsed(cost);

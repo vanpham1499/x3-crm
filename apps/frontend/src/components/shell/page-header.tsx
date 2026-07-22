@@ -47,6 +47,7 @@ const ROUTE_LABELS: Record<string, string> = {
   permissions: 'Phân quyền',
   settings: 'Cài đặt',
   'bank-accounts': 'Tài khoản nhận tiền',
+  'ad-topup-cards': 'Thẻ nạp quảng cáo',
   options: 'Tùy chọn',
   invoices: 'Hóa đơn',
   revenues: 'Doanh thu',

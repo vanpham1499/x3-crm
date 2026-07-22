@@ -24,15 +24,11 @@ import { IconTabs } from '@/components/navigation/icon-tabs';
 import { PageHeader } from '@/components/shell/page-header';
 import { AppDataTable } from '@/components/table/app-data-table';
 import { EntityTableLink } from '@/components/table/entity-table-link';
+import { ServiceTableCell } from '@/components/table/service-table-cell';
 import { TablePaginationBar } from '@/components/table/table-pagination-bar';
 import { UserDateTimeCell } from '@/components/table/user-date-time-cell';
-import { formatProjectDate, getProjectExternalUrl, getRootServiceItem } from '@/lib/project-utils';
+import { formatProjectDate, getProjectExternalUrl } from '@/lib/project-utils';
 import { getOptionColor } from '@/lib/option-utils';
-import {
-  getConfigForRoot,
-  getProjectRevenueGroupInfo,
-  getServiceQuoteConfigMeta,
-} from '@/lib/service-quote-config';
 import { flattenServices } from '@/lib/service-utils';
 import { canCreateProject, canDeleteProject, canEditProject } from '@/lib/ownership';
 import api from '@/services/api/client';
@@ -46,7 +42,6 @@ type ProjectManagerProps = {
   services: ServiceItem[];
   users: User[];
   statuses: AppOption[];
-  quoteConfigs: AppOption[];
   filters: ProjectFilters;
   page: number;
   totalPages: number;
@@ -66,18 +61,6 @@ type ProjectManagerProps = {
 function userLabel(user?: User | null) {
   if (!user) return '-';
   return [user.code, user.name].filter(Boolean).join(' - ');
-}
-
-function getProjectRevenueGroup(
-  project: ProjectItem,
-  services: ServiceItem[],
-  quoteConfigs: AppOption[],
-) {
-  const rootService = getRootServiceItem(services, String(project.serviceId));
-  const configOption = getConfigForRoot(quoteConfigs, rootService);
-  const config = configOption ? getServiceQuoteConfigMeta(configOption, rootService) : null;
-
-  return getProjectRevenueGroupInfo(Boolean(config?.enabled));
 }
 
 function hexToRgb(hex: string) {
@@ -206,8 +189,6 @@ function ProjectDetailRow({ label, value }: { label: string; value?: string | nu
 
 function ProjectViewDialog({
   project,
-  services,
-  quoteConfigs,
   tab,
   isLoading,
   currentUser,
@@ -215,8 +196,6 @@ function ProjectViewDialog({
   onClose,
 }: {
   project: ProjectItem | null;
-  services: ServiceItem[];
-  quoteConfigs: AppOption[];
   tab: number;
   isLoading: boolean;
   currentUser: User | null;
@@ -224,8 +203,6 @@ function ProjectViewDialog({
   onClose: () => void;
 }) {
   if (!project) return null;
-
-  const revenueGroup = getProjectRevenueGroup(project, services, quoteConfigs);
 
   return (
     <AppDetailDialog
@@ -269,18 +246,13 @@ function ProjectViewDialog({
               <dl className="grid gap-x-8 gap-y-4 md:grid-cols-2">
                 <ProjectDetailRow label="Khách hàng" value={projectCustomerIdentity(project)} />
                 <ProjectDetailRow label="Dịch vụ" value={projectServiceIdentity(project)} />
-                <ProjectDetailRow label="Nhóm doanh thu" value={revenueGroup.title} />
                 <ProjectDetailRow
                   label="Trạng thái"
                   value={project.statusOption?.label || 'Chưa chọn'}
                 />
                 <ProjectDetailRow
-                  label="Người quản lý"
+                  label="Nhân sự triển khai"
                   value={project.managerUser?.name || project.managerUser?.code}
-                />
-                <ProjectDetailRow
-                  label="Sales"
-                  value={project.salesUser?.name || project.salesUser?.code}
                 />
                 <ProjectDetailRow label="Bắt đầu" value={formatProjectDate(project.startDate)} />
                 <ProjectDetailRow label="Kết thúc" value={formatProjectDate(project.endDate)} />
@@ -337,7 +309,6 @@ export function ProjectManager({
   services,
   users,
   statuses,
-  quoteConfigs,
   filters,
   page,
   totalPages,
@@ -410,7 +381,7 @@ export function ProjectManager({
 
       <section className="w-full overflow-hidden rounded-2xl border border-slate-200 bg-white shadow-sm">
         <div className="border-slate-200 p-4">
-          <div className="grid gap-3 md:grid-cols-2 xl:grid-cols-[minmax(240px,1fr)_repeat(4,176px)]">
+          <div className="grid gap-3 md:grid-cols-2 xl:grid-cols-[minmax(240px,1fr)_repeat(3,176px)]">
             <CompactSearchField
               label="Từ khóa"
               placeholder="Tìm mã, tên dự án, ghi chú..."
@@ -440,23 +411,13 @@ export function ProjectManager({
             />
 
             <CompactSelectField
-              label="Người quản lý"
+              label="Nhân sự triển khai"
               value={filters.manager_user_id}
               options={users.map((user) => ({
                 value: String(user.id),
                 label: userLabel(user),
               }))}
               onChange={(value) => updateFilters({ manager_user_id: value })}
-            />
-
-            <CompactSelectField
-              label="Sales"
-              value={filters.sales_user_id}
-              options={users.map((user) => ({
-                value: String(user.id),
-                label: userLabel(user),
-              }))}
-              onChange={(value) => updateFilters({ sales_user_id: value })}
             />
           </div>
         </div>
@@ -469,11 +430,9 @@ export function ProjectManager({
               className: 'sticky left-0 z-20 w-[300px] bg-slate-100',
             },
             { key: 'customer', label: 'Khách hàng', className: 'w-[220px]' },
-            { key: 'service', label: 'Dịch vụ', className: 'w-[220px]' },
-            { key: 'revenueGroup', label: 'Nhóm doanh thu', className: 'w-[190px]' },
+            { key: 'service', label: 'Dịch vụ', className: 'w-[230px]' },
             { key: 'status', label: 'Trạng thái', className: 'w-40' },
-            { key: 'manager', label: 'Người quản lý', className: 'w-[180px]' },
-            { key: 'sales', label: 'Sales', className: 'w-[180px]' },
+            { key: 'manager', label: 'Nhân sự triển khai', className: 'w-[180px]' },
             { key: 'startDate', label: 'Bắt đầu', className: 'w-32' },
             { key: 'endDate', label: 'Kết thúc', className: 'w-32' },
             { key: 'created', label: 'Người tạo', className: 'w-[150px]' },
@@ -482,12 +441,9 @@ export function ProjectManager({
           isLoading={isFetching}
           isEmpty={projects.length === 0}
           emptyText="Không có dữ liệu dự án"
-          minWidthClassName="min-w-[1930px]"
+          minWidthClassName="min-w-[1570px]"
         >
           {projects.map((project) => {
-            const revenueGroup = getProjectRevenueGroup(project, services, quoteConfigs);
-            const isManagementFee = revenueGroup.group === '2.1';
-
             return (
               <tr key={project.id} className="group hover:bg-slate-50/80">
                 <td className="sticky left-0 z-10 bg-white px-3 py-4 group-hover:bg-slate-50">
@@ -514,22 +470,7 @@ export function ProjectManager({
                   )}
                 </td>
                 <td className="px-3 py-4">
-                  <p className="truncate text-slate-700" title={project.service?.name || ''}>
-                    {project.service?.code ? `${project.service.code} - ` : ''}
-                    {project.service?.name || '-'}
-                  </p>
-                </td>
-                <td className="px-3 py-4">
-                  <span
-                    className={`inline-flex rounded-full px-2.5 py-1 text-xs font-bold ring-1 ${
-                      isManagementFee
-                        ? 'bg-sky-50 text-sky-800 ring-sky-200'
-                        : 'bg-amber-50 text-amber-800 ring-amber-200'
-                    }`}
-                    title={revenueGroup.description}
-                  >
-                    {revenueGroup.title}
-                  </span>
+                  <ServiceTableCell code={project.service?.code} name={project.service?.name} />
                 </td>
                 <td className="px-3 py-4">
                   <InlineProjectStatusSelect
@@ -545,11 +486,6 @@ export function ProjectManager({
                 <td className="px-3 py-4">
                   <p className="truncate text-slate-700" title={project.managerUser?.name || ''}>
                     {project.managerUser?.name || '-'}
-                  </p>
-                </td>
-                <td className="px-3 py-4">
-                  <p className="truncate text-slate-700" title={project.salesUser?.name || ''}>
-                    {project.salesUser?.name || '-'}
                   </p>
                 </td>
                 <td className="px-3 py-4 text-slate-600">{formatProjectDate(project.startDate)}</td>
@@ -631,8 +567,6 @@ export function ProjectManager({
 
       <ProjectViewDialog
         project={viewProjectDetail || viewTarget}
-        services={services}
-        quoteConfigs={quoteConfigs}
         tab={viewTab}
         isLoading={isFetchingViewProject}
         currentUser={currentUser}

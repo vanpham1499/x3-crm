@@ -18,6 +18,7 @@ import {
 } from '@dnd-kit/sortable';
 import { CSS } from '@dnd-kit/utilities';
 import AddRoundedIcon from '@mui/icons-material/AddRounded';
+import AssessmentRoundedIcon from '@mui/icons-material/AssessmentRounded';
 import DeleteRoundedIcon from '@mui/icons-material/DeleteRounded';
 import DragIndicatorRoundedIcon from '@mui/icons-material/DragIndicatorRounded';
 import EditRoundedIcon from '@mui/icons-material/EditRounded';
@@ -336,8 +337,10 @@ export function OptionsManager({
                 <PersonSearchRoundedIcon className="!text-[18px]" />
               ) : index === 1 ? (
                 <GroupsRoundedIcon className="!text-[18px]" />
-              ) : (
+              ) : index === 2 ? (
                 <WorkRoundedIcon className="!text-[18px]" />
+              ) : (
+                <AssessmentRoundedIcon className="!text-[18px]" />
               ),
           }))}
         />
@@ -350,7 +353,7 @@ export function OptionsManager({
             ) : null}
           </div>
 
-          <div className="grid gap-5 lg:grid-cols-2 xl:grid-cols-3">
+          <div className="grid gap-5 lg:grid-cols-2 2xl:grid-cols-4">
             {activeSection.groups.map((group) => {
               const groupItems = groupedOptions[group.group] || [];
               const isGroupReordering = reorderingGroup === group.group;
