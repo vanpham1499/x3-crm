@@ -56,6 +56,10 @@ class QuotationRepository extends BaseRepository
             ->when($filters['contract_id'] ?? null, fn ($query, $value) => $query->where('contract_id', $value))
             ->when($filters['service_id'] ?? null, fn ($query, $value) => $query->where('service_id', $value))
             ->when($filters['status'] ?? null, fn ($query, $value) => $query->where('status', $value))
+            ->when(filter_var($filters['allocation_open'] ?? false, FILTER_VALIDATE_BOOLEAN), fn ($query) => $query
+                ->whereNotNull('project_id')
+                ->where('status', Quotation::STATUS_DRAFT)
+                ->where('total_amount', '>', 0))
             ->orderByDesc('created_at');
     }
 

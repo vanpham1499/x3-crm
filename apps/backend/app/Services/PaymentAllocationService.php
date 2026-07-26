@@ -74,6 +74,24 @@ class PaymentAllocationService
                 $quotation = $quotations->get((string) $quotationId);
                 $outstanding = $this->quotationOutstandingAmount($quotation);
 
+                if (! $quotation->project_id) {
+                    throw ValidationException::withMessages([
+                        'allocations' => [sprintf(
+                            'Báo phí %s chưa thuộc dự án nên không thể nhận phân bổ.',
+                            $quotation->quotation_code,
+                        )],
+                    ]);
+                }
+
+                if ($outstanding <= self::MONEY_EPSILON) {
+                    throw ValidationException::withMessages([
+                        'allocations' => [sprintf(
+                            'Báo phí %s đã thu đủ và không thể nhận thêm phân bổ.',
+                            $quotation->quotation_code,
+                        )],
+                    ]);
+                }
+
                 if ((float) $amount > $outstanding + self::MONEY_EPSILON) {
                     throw ValidationException::withMessages([
                         'allocations' => [sprintf(
@@ -447,7 +465,7 @@ class PaymentAllocationService
         });
     }
 
-    public function link(string|int $paymentId, array $data): void
+    public function classify(string|int $paymentId, array $data): void
     {
         DB::transaction(function () use ($paymentId, $data): void {
             $payment = Payment::query()->lockForUpdate()->findOrFail($paymentId);
@@ -460,22 +478,6 @@ class PaymentAllocationService
             }
 
             $update = ['receipt_type' => $receiptType];
-
-            foreach (['customer_id', 'project_id'] as $key) {
-                $camelKey = $key === 'customer_id' ? 'customerId' : 'projectId';
-
-                if (array_key_exists($key, $data) || array_key_exists($camelKey, $data)) {
-                    $update[$key] = $data[$key] ?? $data[$camelKey] ?? null;
-                }
-            }
-
-            if ($receiptType === 'customer' && ! empty($update['project_id'])) {
-                $projectCustomerId = DB::table('projects')
-                    ->where('id', $update['project_id'])
-                    ->whereNull('deleted_at')
-                    ->value('customer_id');
-                $update['customer_id'] = $projectCustomerId;
-            }
 
             if ($receiptType !== 'customer') {
                 $update = array_merge($update, [

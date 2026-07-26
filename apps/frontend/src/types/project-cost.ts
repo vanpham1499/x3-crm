@@ -5,11 +5,7 @@ export type ProjectCostStatus = 'pending' | 'completed' | 'cancelled';
 export type ProjectAcceptanceStatus = 'pending' | 'accepted' | 'not_required';
 export type ProjectInputInvoiceStatus = 'pending' | 'received' | 'not_required';
 export type ProjectCostReconciliationResult =
-  | 'matched'
-  | 'matched_with_note'
-  | 'difference'
-  | 'pending_documents'
-  | 'cancelled';
+  'matched' | 'matched_with_note' | 'difference' | 'pending_documents' | 'cancelled';
 export type ProjectCostInvoiceStatus = 'pending' | 'waiting' | 'received' | 'not_required';
 export type ProjectCostInvoiceRecipientType = 'customer' | 'company' | 'other';
 export type ProjectCostBalanceStatus = 'none' | 'pending' | 'resolved';
@@ -27,6 +23,7 @@ export type ProjectCostAdjustmentType =
   | 'offset_next_topup'
   | 'other';
 export type ProjectCostAdjustmentStatus = 'pending' | 'completed' | 'cancelled';
+export type ProjectCostCidIncidentStatus = 'pending' | 'confirmed' | 'cancelled';
 
 export type ProjectCostAdjustment = {
   id?: number;
@@ -37,6 +34,28 @@ export type ProjectCostAdjustment = {
   note?: string | null;
   createdAt?: string | null;
   updatedAt?: string | null;
+};
+
+export type ProjectCostCidIncident = {
+  id: number;
+  stoppedAt: string;
+  spentAmount: string | number;
+  unrecoverableAmount: string | number;
+  releasedAmount: string | number;
+  status: ProjectCostCidIncidentStatus;
+  note?: string | null;
+  reportedAt?: string | null;
+  reportedBy?: {
+    id: number;
+    code?: string | null;
+    name?: string | null;
+  } | null;
+  confirmedAt?: string | null;
+  confirmedBy?: {
+    id: number;
+    code?: string | null;
+    name?: string | null;
+  } | null;
 };
 
 export type ProjectCost = {
@@ -50,6 +69,8 @@ export type ProjectCost = {
   adAccount?: string | null;
   cidIsDead?: boolean;
   cidSpentAmount?: string | number | null;
+  cidUnrecoverableAmount?: string | number | null;
+  cidIncident?: ProjectCostCidIncident | null;
   bankAccountOptionId?: number | null;
   partnerOptionId?: number | null;
   amountBeforeVat?: string | number | null;
@@ -121,6 +142,13 @@ export type ProjectCostReconciliationInput = {
   invoiceRecipientName?: string | null;
   reconciliationNote?: string | null;
   adjustments: ProjectCostAdjustment[];
+};
+
+export type ProjectCostCidIncidentInput = {
+  stoppedAt: string;
+  spentAmount: number;
+  unrecoverableAmount: number;
+  note?: string | null;
 };
 
 export type ProjectCostFormValues = {

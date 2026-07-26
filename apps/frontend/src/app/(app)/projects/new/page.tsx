@@ -13,7 +13,6 @@ import api from '@/services/api/client';
 import type { Customer } from '@/types/customer';
 import type { AppOption } from '@/types/option';
 import type { ProjectFormValues, ProjectItem } from '@/types/project';
-import type { Quotation } from '@/types/quotation';
 import type { ServiceItem } from '@/types/service';
 import type { User } from '@/types/user';
 
@@ -23,7 +22,6 @@ export default function NewProjectPage() {
   const queryClient = useQueryClient();
   const notify = useAppNotification();
   const customerId = searchParams.get('customerId') || '';
-  const quotationId = searchParams.get('quotationId') || '';
 
   const { data: selectedCustomer, isLoading: isCustomerLoading } = useQuery<Customer>({
     queryKey: ['customers', 'project-form-initial', customerId],
@@ -51,39 +49,8 @@ export default function NewProjectPage() {
   });
   const statuses = projectOptions.filter((option) => option.group === 'project_status');
 
-  const { data: quotations = [], isLoading: isQuotationsLoading } = useQuery<Quotation[]>({
-    queryKey: ['quotations', 'project-create-options'],
-    queryFn: () => api.get<Quotation[]>('/quotations').then((response) => response.data),
-  });
-
-  const contextualQuotations = customerId
-    ? quotations.filter(
-        (item) =>
-          String(item.customerId || '') === customerId ||
-          (!item.customerId &&
-            selectedCustomer?.leadId &&
-            String(item.leadId || '') === String(selectedCustomer.leadId)),
-      )
-    : quotations;
-
-  const quotation = contextualQuotations.find(
-    (item) => String(item.id) === quotationId && !item.projectId && Boolean(item.customerId),
-  );
-
-  const quotationMetadata = quotation?.metadata || {};
-  const quotationProjectType = quotationMetadata.projectType;
   const defaultValues: Partial<ProjectFormValues> = {
-    customerId: quotation?.customerId ? String(quotation.customerId) : customerId,
-    quotationId: quotation ? String(quotation.id) : '',
-    serviceId: quotation?.serviceId ? String(quotation.serviceId) : '',
-    projectType:
-      quotationProjectType === 'K' || quotationProjectType === 'M' || quotationProjectType === 'N'
-        ? quotationProjectType
-        : 'K',
-    projectName:
-      typeof quotationMetadata.projectName === 'string' && quotationMetadata.projectName
-        ? quotationMetadata.projectName
-        : quotation?.serviceName || '',
+    customerId,
   };
 
   const createMutation = useMutation({
@@ -101,13 +68,7 @@ export default function NewProjectPage() {
     },
   });
 
-  if (
-    isCustomerLoading ||
-    isServicesLoading ||
-    isUsersLoading ||
-    isStatusesLoading ||
-    isQuotationsLoading
-  ) {
+  if (isCustomerLoading || isServicesLoading || isUsersLoading || isStatusesLoading) {
     return <ContentLoading />;
   }
 
@@ -135,11 +96,10 @@ export default function NewProjectPage() {
 
       <ProjectForm
         mode="create"
-        initialCustomer={selectedCustomer || quotation?.customer || null}
+        initialCustomer={selectedCustomer || null}
         services={services}
         users={users}
         statuses={statuses}
-        quotations={contextualQuotations}
         defaultValues={defaultValues}
         cancelHref={customerId ? `/customers/${customerId}` : '/projects'}
         isSubmitting={createMutation.isPending}

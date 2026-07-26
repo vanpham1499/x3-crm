@@ -3,7 +3,6 @@
 namespace App\Services;
 
 use App\Http\Resources\QuotationResource;
-use App\Models\Lead;
 use App\Models\Quotation;
 use App\Repositories\PaymentRepository;
 use App\Repositories\QuotationRepository;
@@ -47,14 +46,7 @@ class QuotationsService extends BaseService
             $data = $this->normalizePayload($data);
             unset($data['quotation_code']);
             $this->authorize('create', Quotation::class);
-
-            if (! empty($data['lead_id'])) {
-                $lead = Lead::query()->find($data['lead_id']);
-
-                if ($lead) {
-                    $this->authorize('update', $lead);
-                }
-            }
+            $data = $this->applyProjectDefaults($data);
 
             $quotationVatRate = array_key_exists('vat_rate', $data)
                 ? (float) $data['vat_rate']
@@ -66,7 +58,6 @@ class QuotationsService extends BaseService
             );
             $data = $this->applyItemTotals($data, $items);
             $data = $this->applyServiceDefaults($data);
-            $data = $this->applyCustomerDefaults($data);
             $data['quotation_code'] = $this->generateQuotationCode($data);
             $data['status'] = Quotation::STATUS_DRAFT;
 
@@ -111,6 +102,8 @@ class QuotationsService extends BaseService
             $data = $this->normalizePayload($data);
             unset($data['quotation_code']);
             unset($data['status']);
+            $data['project_id'] = $data['project_id'] ?? $currentQuotation->project_id;
+            $data = $this->applyProjectDefaults($data);
             $quotationVatRate = array_key_exists('vat_rate', $data)
                 ? (float) $data['vat_rate']
                 : null;
@@ -275,6 +268,7 @@ class QuotationsService extends BaseService
             'depositAmount' => 'deposit_amount',
             'accountReconciliationImageUrls' => 'account_reconciliation_image_urls',
             'validUntil' => 'valid_until',
+            'allocationOpen' => 'allocation_open',
         ];
 
         foreach ($map as $from => $to) {
@@ -293,59 +287,66 @@ class QuotationsService extends BaseService
             $service = DB::table('services')->where('id', $data['service_id'])->whereNull('deleted_at')->first();
 
             if ($service) {
-                $data['service_code'] = $data['service_code'] ?? $service->code;
-                $data['service_name'] = $data['service_name'] ?? $service->name;
+                $data['service_code'] = $service->code;
+                $data['service_name'] = $service->name;
             }
         }
 
         return $data;
     }
 
-    private function applyCustomerDefaults(array $data): array
+    private function applyProjectDefaults(array $data): array
     {
-        $leadId = $data['lead_id'] ?? null;
+        $projectId = $data['project_id'] ?? null;
 
-        if (! $leadId) {
-            return $data;
+        if (! $projectId) {
+            throw ValidationException::withMessages([
+                'projectId' => ['Vui lòng chọn dự án cho báo phí.'],
+            ]);
         }
 
-        if (! empty($data['customer_id'])) {
-            $customer = DB::table('customers')
-                ->where('id', $data['customer_id'])
-                ->whereNull('deleted_at')
-                ->first(['id', 'lead_id']);
-
-            if ($customer?->lead_id && (string) $customer->lead_id !== (string) $leadId) {
-                throw ValidationException::withMessages([
-                    'customerId' => ['Khách hàng không thuộc Lead đã chọn.'],
-                ]);
-            }
-
-            return $data;
-        }
-
-        $convertedCustomerId = DB::table('leads')
-            ->where('id', $leadId)
+        $project = DB::table('projects')
+            ->where('id', $projectId)
             ->whereNull('deleted_at')
-            ->value('converted_customer_id');
+            ->first([
+                'id',
+                'customer_id',
+                'service_id',
+                'project_code',
+                'project_name',
+                'project_type',
+            ]);
+
+        if (! $project) {
+            throw ValidationException::withMessages([
+                'projectId' => ['Dự án không tồn tại hoặc đã bị xóa.'],
+            ]);
+        }
 
         $customer = DB::table('customers')
-            ->where(function ($query) use ($convertedCustomerId, $leadId): void {
-                if ($convertedCustomerId) {
-                    $query->where('id', $convertedCustomerId)->orWhere('lead_id', $leadId);
-
-                    return;
-                }
-
-                $query->where('lead_id', $leadId);
-            })
+            ->where('id', $project->customer_id)
             ->whereNull('deleted_at')
-            ->orderByRaw('CASE WHEN id = ? THEN 0 ELSE 1 END', [$convertedCustomerId ?: 0])
-            ->first(['id']);
+            ->first(['id', 'lead_id', 'customer_name', 'company_name']);
 
-        if ($customer) {
-            $data['customer_id'] = $customer->id;
+        if (! $customer) {
+            throw ValidationException::withMessages([
+                'projectId' => ['Dự án chưa có khách hàng hợp lệ.'],
+            ]);
         }
+
+        $metadata = is_array($data['metadata'] ?? null) ? $data['metadata'] : [];
+        $metadata['customerMode'] = 'existing_customer';
+        $metadata['projectMode'] = 'existing_project';
+        $metadata['customerName'] = $customer->customer_name ?: $customer->company_name;
+        $metadata['projectName'] = $project->project_name;
+        $metadata['projectType'] = $project->project_type;
+        $metadata['projectCodeBase'] = $project->project_code;
+
+        $data['project_id'] = $project->id;
+        $data['customer_id'] = $customer->id;
+        $data['lead_id'] = $customer->lead_id;
+        $data['service_id'] = $project->service_id;
+        $data['metadata'] = $metadata;
 
         return $data;
     }

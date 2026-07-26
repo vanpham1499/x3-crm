@@ -105,6 +105,20 @@ export default function CostsPage() {
       notify.error(getApiErrorMessage(error, 'Không thể xác nhận đối soát khoản chi')),
   });
 
+  const confirmCidMutation = useMutation({
+    mutationFn: (costId: number) =>
+      api
+        .post<ProjectCost>(`/project-costs/${costId}/cid-incident/confirm`)
+        .then((response) => response.data),
+    onSuccess: () => {
+      void queryClient.invalidateQueries({ queryKey: ['project-costs'] });
+      void queryClient.invalidateQueries({ queryKey: ['projects'] });
+      notify.success('Đã xác nhận CID ngừng và hoàn hạn mức về dự án');
+    },
+    onError: (error) =>
+      notify.error(getApiErrorMessage(error, 'Không thể xác nhận báo cáo CID ngừng')),
+  });
+
   return (
     <CostManager
       costs={costs}
@@ -118,9 +132,9 @@ export default function CostsPage() {
       onPageChange={setPage}
       onPageSizeChange={setPageSize}
       isReconciling={reconcileMutation.isPending}
-      onReconcile={(costId, payload) =>
-        reconcileMutation.mutateAsync({ costId, payload })
-      }
+      isConfirmingCid={confirmCidMutation.isPending}
+      onReconcile={(costId, payload) => reconcileMutation.mutateAsync({ costId, payload })}
+      onConfirmCid={(costId) => confirmCidMutation.mutateAsync(costId)}
     />
   );
 }

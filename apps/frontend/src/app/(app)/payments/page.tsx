@@ -14,7 +14,7 @@ import type {
   Payment,
   PaymentAllocationInput,
   PaymentFilters,
-  PaymentLinkInput,
+  PaymentClassificationInput,
   PaymentRefund,
   PaymentRefundFilters,
   PaymentRefundInput,
@@ -220,14 +220,40 @@ export default function PaymentsPage() {
     onError: (error) => notify.error(getApiErrorMessage(error, 'Không thể xóa khoản trả khách')),
   });
 
-  const linkMutation = useMutation({
-    mutationFn: ({ paymentId, values }: { paymentId: number; values: PaymentLinkInput }) =>
-      api.post<Payment>(`/payments/${paymentId}/link`, values).then((response) => response.data),
+  const classifyMutation = useMutation({
+    mutationFn: ({
+      paymentId,
+      values,
+    }: {
+      paymentId: number;
+      values: PaymentClassificationInput;
+    }) =>
+      api
+        .post<Payment>(`/payments/${paymentId}/classification`, values)
+        .then((response) => response.data),
     onSuccess: () => {
       void refreshPaymentData();
-      notify.success('Đã cập nhật phân loại giao dịch');
+      notify.success('Đã phân loại giao dịch');
     },
-    onError: (error) => notify.error(getApiErrorMessage(error, 'Không thể cập nhật giao dịch')),
+    onError: (error) => notify.error(getApiErrorMessage(error, 'Không thể phân loại giao dịch')),
+  });
+
+  const updateInvoiceMutation = useMutation({
+    mutationFn: ({
+      paymentId,
+      invoiceNumber,
+    }: {
+      paymentId: number;
+      invoiceNumber: string | null;
+    }) =>
+      api
+        .patch<Payment>(`/payments/${paymentId}/invoice`, { invoiceNumber })
+        .then((response) => response.data),
+    onSuccess: () => {
+      void refreshPaymentData();
+      notify.success('Đã cập nhật số hóa đơn');
+    },
+    onError: (error) => notify.error(getApiErrorMessage(error, 'Không thể cập nhật số hóa đơn')),
   });
 
   const removeAllocationMutation = useMutation({
@@ -268,7 +294,8 @@ export default function PaymentsPage() {
         refundMutation.isPending ||
         updateRefundMutation.isPending ||
         deleteRefundMutation.isPending ||
-        linkMutation.isPending ||
+        classifyMutation.isPending ||
+        updateInvoiceMutation.isPending ||
         removeAllocationMutation.isPending
       }
       currentUser={currentUser}
@@ -285,7 +312,10 @@ export default function PaymentsPage() {
       onRefund={(paymentId, values) => refundMutation.mutateAsync({ paymentId, values })}
       onUpdateRefund={(refundId, values) => updateRefundMutation.mutateAsync({ refundId, values })}
       onDeleteRefund={(refundId) => deleteRefundMutation.mutateAsync(refundId)}
-      onLink={(paymentId, values) => linkMutation.mutateAsync({ paymentId, values })}
+      onClassify={(paymentId, values) => classifyMutation.mutateAsync({ paymentId, values })}
+      onUpdateInvoice={(paymentId, invoiceNumber) =>
+        updateInvoiceMutation.mutateAsync({ paymentId, invoiceNumber })
+      }
       onRemoveAllocation={(paymentId, allocationId) =>
         removeAllocationMutation.mutateAsync({ paymentId, allocationId })
       }

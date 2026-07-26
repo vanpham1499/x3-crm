@@ -10,7 +10,6 @@ import { getApiErrorMessage } from '@/lib/api-error';
 import { COMPANY_BANK_ACCOUNT_OPTION_GROUP } from '@/lib/company-bank-account-options';
 import { SERVICE_QUOTE_CONFIG_GROUP } from '@/lib/service-quote-config';
 import api from '@/services/api/client';
-import type { Lead } from '@/types/lead';
 import type { AppOption } from '@/types/option';
 import type { Quotation } from '@/types/quotation';
 import type { ServiceItem } from '@/types/service';
@@ -20,11 +19,6 @@ export default function EditQuotationPage() {
   const id = params.id as string;
   const queryClient = useQueryClient();
   const notify = useAppNotification();
-
-  const { data: leads = [], isLoading: isLeadsLoading } = useQuery<Lead[]>({
-    queryKey: ['leads', 'quotation-form-options'],
-    queryFn: () => api.get('/leads').then((response) => response.data),
-  });
 
   const { data: services = [], isLoading: isServicesLoading } = useQuery<ServiceItem[]>({
     queryKey: ['services', 'quotation-form-options'],
@@ -69,13 +63,7 @@ export default function EditQuotationPage() {
     },
   });
 
-  if (
-    isLeadsLoading ||
-    isServicesLoading ||
-    isQuoteConfigsLoading ||
-    isBankAccountsLoading ||
-    isQuotationLoading
-  ) {
+  if (isServicesLoading || isQuoteConfigsLoading || isBankAccountsLoading || isQuotationLoading) {
     return <ContentLoading />;
   }
 
@@ -91,7 +79,6 @@ export default function EditQuotationPage() {
     <QuotationForm
       mode="edit"
       quotation={quotation}
-      leads={leads}
       services={services}
       quoteConfigs={quoteConfigs}
       bankAccountOptions={bankAccountOptions}

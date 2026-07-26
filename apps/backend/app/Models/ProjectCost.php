@@ -4,6 +4,7 @@ namespace App\Models;
 
 use Illuminate\Database\Eloquent\Relations\BelongsTo;
 use Illuminate\Database\Eloquent\Relations\HasMany;
+use Illuminate\Database\Eloquent\Relations\HasOne;
 
 class ProjectCost extends BaseModel
 {
@@ -119,6 +120,16 @@ class ProjectCost extends BaseModel
         return $this->hasMany(ProjectCostAdjustment::class);
     }
 
+    public function cidIncident(): HasOne
+    {
+        return $this->hasOne(ProjectCostCidIncident::class)
+            ->whereIn('status', [
+                ProjectCostCidIncident::STATUS_PENDING,
+                ProjectCostCidIncident::STATUS_CONFIRMED,
+            ])
+            ->latestOfMany();
+    }
+
     public function cashOutAmount(): float
     {
         return round((float) ($this->total_amount ?? 0) + $this->completedAdjustmentTotal(ProjectCostAdjustment::EXTRA_COST_TYPES), 2);
@@ -126,7 +137,25 @@ class ProjectCost extends BaseModel
 
     public function actualCostAmount(): float
     {
-        if ($this->entry_type !== self::TYPE_AD_SPEND || ! $this->cid_is_dead) {
+        if ($this->entry_type !== self::TYPE_AD_SPEND) {
+            return round((float) ($this->total_amount ?? 0), 2);
+        }
+
+        $incident = $this->currentCidIncident();
+
+        if ($incident) {
+            if ($incident->status !== ProjectCostCidIncident::STATUS_CONFIRMED) {
+                return round((float) ($this->total_amount ?? 0), 2);
+            }
+
+            return round(min(
+                (float) ($this->total_amount ?? 0),
+                max(0, (float) $incident->spent_amount)
+                    + max(0, (float) $incident->unrecoverable_amount),
+            ), 2);
+        }
+
+        if (! $this->cid_is_dead) {
             return round((float) ($this->total_amount ?? 0), 2);
         }
 
@@ -142,7 +171,17 @@ class ProjectCost extends BaseModel
 
     public function originalBalanceAmount(): float
     {
-        if ($this->entry_type !== self::TYPE_AD_SPEND || ! $this->cid_is_dead) {
+        if ($this->entry_type !== self::TYPE_AD_SPEND) {
+            return 0.0;
+        }
+
+        $incident = $this->currentCidIncident();
+
+        if ($incident) {
+            return round(max(0, (float) $incident->released_amount), 2);
+        }
+
+        if (! $this->cid_is_dead) {
             return 0.0;
         }
 
@@ -154,6 +193,14 @@ class ProjectCost extends BaseModel
 
     public function handledBalanceAmount(): float
     {
+        $incident = $this->currentCidIncident();
+
+        if ($incident) {
+            return $incident->status === ProjectCostCidIncident::STATUS_CONFIRMED
+                ? round(max(0, (float) $incident->released_amount), 2)
+                : 0.0;
+        }
+
         return $this->reconciled_at
             ? $this->originalBalanceAmount()
             : 0.0;
@@ -175,7 +222,20 @@ class ProjectCost extends BaseModel
             return 'none';
         }
 
+        $incident = $this->currentCidIncident();
+
+        if ($incident) {
+            return $incident->status === ProjectCostCidIncident::STATUS_CONFIRMED
+                ? 'resolved'
+                : 'pending';
+        }
+
         return $this->reconciled_at ? 'resolved' : 'pending';
+    }
+
+    public function hasStoppedCid(): bool
+    {
+        return $this->cid_is_dead || $this->currentCidIncident() !== null;
     }
 
     private function completedAdjustmentTotal(array $types): float
@@ -188,5 +248,14 @@ class ProjectCost extends BaseModel
             ->where('status', ProjectCostAdjustment::STATUS_COMPLETED)
             ->whereIn('adjustment_type', $types)
             ->sum(fn (ProjectCostAdjustment $adjustment) => (float) ($adjustment->amount ?? 0)), 2);
+    }
+
+    private function currentCidIncident(): ?ProjectCostCidIncident
+    {
+        if ($this->relationLoaded('cidIncident')) {
+            return $this->cidIncident;
+        }
+
+        return $this->cidIncident()->first();
     }
 }

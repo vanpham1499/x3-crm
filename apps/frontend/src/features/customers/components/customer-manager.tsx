@@ -423,7 +423,7 @@ export function CustomerManager({
             { key: 'type', label: 'Loại', className: 'w-36' },
             { key: 'phone', label: 'Số điện thoại', className: 'w-36' },
             { key: 'email', label: 'Email', className: 'w-56' },
-            { key: 'representative', label: 'Người đại diện', className: 'w-48' },
+            { key: 'company', label: 'Tên công ty / cá nhân', className: 'w-48' },
             { key: 'sales', label: 'Người phụ trách', className: 'w-44' },
             { key: 'created', label: 'Người tạo', className: 'w-40' },
             { key: 'actions', className: 'w-36' },
@@ -460,8 +460,8 @@ export function CustomerManager({
                   </span>
                 </td>
                 <td className="px-3 py-4 text-slate-700">
-                  <span className="block truncate" title={customer.representativeName || ''}>
-                    {customer.representativeName || '-'}
+                  <span className="block truncate" title={customer.companyName || ''}>
+                    {customer.companyName || '-'}
                   </span>
                 </td>
                 <td className="px-3 py-4">

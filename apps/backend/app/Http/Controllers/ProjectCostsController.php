@@ -4,6 +4,7 @@ namespace App\Http\Controllers;
 
 use App\Http\Requests\ProjectCosts\CreateProjectCostRequest;
 use App\Http\Requests\ProjectCosts\ReconcileProjectCostRequest;
+use App\Http\Requests\ProjectCosts\ReportProjectCostCidIncidentRequest;
 use App\Http\Requests\ProjectCosts\UpdateProjectCostRequest;
 use App\Services\ProjectCostsService;
 use Illuminate\Http\JsonResponse;
@@ -23,6 +24,8 @@ class ProjectCostsController extends Controller
             'entryType' => $request->query('entry_type'),
             'status' => $request->query('status'),
             'reconciledStatus' => $request->query('reconciled_status'),
+            'reconciliationResult' => $request->query('reconciliation_result'),
+            'balanceStatus' => $request->query('balance_status'),
             'dateFrom' => $request->query('date_from'),
             'dateTo' => $request->query('date_to'),
             'groupByProject' => $request->boolean('group_by_project'),
@@ -62,5 +65,24 @@ class ProjectCostsController extends Controller
     public function reconcile(ReconcileProjectCostRequest $request, string $id): JsonResponse
     {
         return $this->success($this->costs->reconcile($id, $request->validatedData()));
+    }
+
+    public function reportCidIncident(
+        ReportProjectCostCidIncidentRequest $request,
+        string $id,
+    ): JsonResponse {
+        return $this->success(
+            $this->costs->reportCidIncident($id, $request->validatedData()),
+        );
+    }
+
+    public function confirmCidIncident(string $id): JsonResponse
+    {
+        return $this->success($this->costs->confirmCidIncident($id));
+    }
+
+    public function cancelCidIncident(string $id): JsonResponse
+    {
+        return $this->success($this->costs->cancelCidIncident($id));
     }
 }

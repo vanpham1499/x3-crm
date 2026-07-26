@@ -72,6 +72,7 @@ const ServerAutocompletePaper = forwardRef<HTMLDivElement, PaperProps>(
 type ServerPaginatedAutocompleteProps<T extends AutocompleteRecord> = {
   endpoint: string;
   queryKey: readonly unknown[];
+  additionalParams?: Record<string, string | number | boolean | undefined>;
   label: string;
   value: T | null;
   getOptionLabel: (option: T) => string;
@@ -82,12 +83,14 @@ type ServerPaginatedAutocompleteProps<T extends AutocompleteRecord> = {
   error?: boolean;
   helperText?: string;
   placeholder?: string;
+  noOptionsText?: string;
   pageSize?: number;
 };
 
 export function ServerPaginatedAutocomplete<T extends AutocompleteRecord>({
   endpoint,
   queryKey,
+  additionalParams,
   label,
   value,
   getOptionLabel,
@@ -98,6 +101,7 @@ export function ServerPaginatedAutocomplete<T extends AutocompleteRecord>({
   error = false,
   helperText,
   placeholder = 'Nhập mã hoặc tên để tìm kiếm',
+  noOptionsText = 'Chưa có dữ liệu',
   pageSize = 10,
 }: ServerPaginatedAutocompleteProps<T>) {
   const queryClient = useQueryClient();
@@ -123,11 +127,12 @@ export function ServerPaginatedAutocomplete<T extends AutocompleteRecord>({
   }, [getOptionLabel, open, value]);
 
   const { data, isFetching, isLoading } = useQuery<PaginatedResponse<T>>({
-    queryKey: [...queryKey, { keyword, page, pageSize }],
+    queryKey: [...queryKey, { additionalParams, keyword, page, pageSize }],
     queryFn: ({ signal }) =>
       api
         .get<PaginatedResponse<T>>(endpoint, {
           params: {
+            ...additionalParams,
             keyword: keyword || undefined,
             page,
             per_page: pageSize,
@@ -179,7 +184,7 @@ export function ServerPaginatedAutocomplete<T extends AutocompleteRecord>({
         disabled={disabled}
         loading={isLoading || isFetching}
         loadingText="Đang tải dữ liệu..."
-        noOptionsText={keyword ? 'Không có kết quả. Thử nhập mã hoặc tên khác.' : 'Chưa có dữ liệu'}
+        noOptionsText={keyword ? 'Không có kết quả. Thử nhập mã hoặc tên khác.' : noOptionsText}
         clearText="Xóa lựa chọn"
         closeText="Đóng"
         openText="Mở danh sách"

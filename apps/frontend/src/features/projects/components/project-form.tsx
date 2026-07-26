@@ -16,13 +16,11 @@ import { ServerPaginatedAutocomplete } from '@/components/form/server-paginated-
 import { applyApiErrorsToForm } from '@/lib/api-error';
 import { generateProjectCode, getProjectDefaults, getRootServiceCode } from '@/lib/project-utils';
 import { flattenServices } from '@/lib/service-utils';
-import { formatCurrency } from '@/lib/utils';
 import { getReportWeekdayLabel } from '@/lib/weekly-report-schedule';
 import api from '@/services/api/client';
 import type { Customer } from '@/types/customer';
 import type { AppOption } from '@/types/option';
 import type { ProjectFormValues, ProjectItem } from '@/types/project';
-import type { Quotation } from '@/types/quotation';
 import type { ServiceItem } from '@/types/service';
 import type { User } from '@/types/user';
 import type { WeeklyAssignmentSummary } from '@/types/weekly-report';
@@ -34,7 +32,6 @@ type ProjectFormProps = {
   services: ServiceItem[];
   users: User[];
   statuses: AppOption[];
-  quotations?: Quotation[];
   defaultValues?: Partial<ProjectFormValues>;
   cancelHref?: string;
   isSubmitting: boolean;
@@ -62,28 +59,6 @@ function serviceLabel(service: ReturnType<typeof flattenServices>[number]) {
   return `${service.code} - ${service.pathName}`;
 }
 
-const QUOTATION_STATUS_LABELS: Record<string, string> = {
-  draft: 'Báo phí',
-  won: 'Đã thanh toán',
-  refunded: 'Đã hoàn tiền',
-};
-
-function quotationLabel(quotation: Quotation) {
-  return [
-    quotation.quotationCode || `Báo phí #${quotation.id}`,
-    quotation.customer?.customerName,
-    quotation.serviceName,
-    formatCurrency(Number(quotation.totalAmount) || 0),
-  ]
-    .filter(Boolean)
-    .join(' · ');
-}
-
-function quotationMetadataText(quotation: Quotation, key: string) {
-  const value = quotation.metadata?.[key];
-  return typeof value === 'string' ? value.trim() : '';
-}
-
 export function ProjectForm({
   mode,
   project,
@@ -91,7 +66,6 @@ export function ProjectForm({
   services,
   users,
   statuses,
-  quotations = [],
   defaultValues,
   cancelHref = '/projects',
   isSubmitting,
@@ -106,13 +80,11 @@ export function ProjectForm({
     control,
     register,
     handleSubmit,
-    setValue,
     setError,
     formState: { errors },
   } = useForm<ProjectFormValues>({
     defaultValues: getProjectDefaults(project, defaultValues),
   });
-  const selectedQuotationId = useWatch({ control, name: 'quotationId' }) || '';
   const selectedServiceId = useWatch({ control, name: 'serviceId' }) || '';
   const projectName = useWatch({ control, name: 'projectName' }) || '';
   const projectType = useWatch({ control, name: 'projectType' }) || 'K';
@@ -148,13 +120,6 @@ export function ProjectForm({
         .then((response) => response.data),
     enabled: Boolean(selectedManagerUserId && reportWeekday),
   });
-  const selectedQuotation = quotations.find(
-    (quotation) => String(quotation.id) === selectedQuotationId,
-  );
-  const originQuotationOptions = useMemo(
-    () => quotations.filter((quotation) => !quotation.projectId),
-    [quotations],
-  );
   const selectedService = serviceOptions.find(
     (service) => String(service.id) === selectedServiceId,
   );
@@ -179,42 +144,6 @@ export function ProjectForm({
   );
   const displayedProjectCode = generatedProjectCode || project?.projectCode || '';
 
-  const applyOriginQuotation = (quotation: Quotation | null) => {
-    setValue('quotationId', quotation ? String(quotation.id) : '', {
-      shouldDirty: true,
-      shouldValidate: true,
-    });
-
-    if (!quotation) return;
-
-    setValue('customerId', quotation.customerId ? String(quotation.customerId) : '', {
-      shouldDirty: true,
-      shouldValidate: true,
-    });
-    setSelectedCustomer(quotation.customer || null);
-    setValue('serviceId', quotation.serviceId ? String(quotation.serviceId) : '', {
-      shouldDirty: true,
-      shouldValidate: true,
-    });
-    setValue(
-      'projectName',
-      quotationMetadataText(quotation, 'projectName') || quotation.serviceName || '',
-      { shouldDirty: true, shouldValidate: true },
-    );
-    const quotationProjectType = quotationMetadataText(quotation, 'projectType');
-
-    if (
-      quotationProjectType === 'K' ||
-      quotationProjectType === 'M' ||
-      quotationProjectType === 'N'
-    ) {
-      setValue('projectType', quotationProjectType, {
-        shouldDirty: true,
-        shouldValidate: true,
-      });
-    }
-  };
-
   const submitForm = handleSubmit(async (values) => {
     try {
       await onSubmit(values);
@@ -225,7 +154,6 @@ export function ProjectForm({
 
   return (
     <form className="flex w-full flex-1 flex-col gap-5" onSubmit={submitForm}>
-      {mode === 'edit' ? <input type="hidden" {...register('quotationId')} /> : null}
       <div className="grid w-full items-start gap-6 xl:grid-cols-12">
         <div className="space-y-6 xl:col-span-8">
           <FormSection title="Thông tin dự án">
@@ -240,7 +168,7 @@ export function ProjectForm({
                     queryKey={['customers', 'project-form-autocomplete']}
                     label="Mã khách hàng "
                     value={selectedCustomer}
-                    disabled={readOnly || Boolean(selectedQuotation)}
+                    disabled={readOnly}
                     required
                     error={Boolean(errors.customerId)}
                     helperText={errors.customerId?.message}
@@ -266,7 +194,7 @@ export function ProjectForm({
                     <Autocomplete
                       options={serviceOptions}
                       value={selectedServiceOption}
-                      disabled={readOnly || Boolean(selectedQuotation)}
+                      disabled={readOnly}
                       onChange={(_, nextValue) =>
                         field.onChange(nextValue?.id !== undefined ? String(nextValue.id) : '')
                       }
@@ -287,7 +215,7 @@ export function ProjectForm({
                         <FormInputField
                           {...params}
                           label="Dịch vụ "
-                          disabled={readOnly || Boolean(selectedQuotation)}
+                          disabled={readOnly}
                           placeholder="Tìm theo mã hoặc tên dịch vụ"
                           error={Boolean(errors.serviceId)}
                           helperText={errors.serviceId?.message}
@@ -455,80 +383,6 @@ export function ProjectForm({
         </div>
 
         <div className="space-y-6 xl:col-span-4">
-          {mode === 'create' ? (
-            <FormSection title="Báo phí khởi tạo">
-              <Controller
-                name="quotationId"
-                control={control}
-                render={({ field }) => (
-                  <Autocomplete
-                    options={originQuotationOptions}
-                    value={
-                      originQuotationOptions.find(
-                        (quotation) => String(quotation.id) === field.value,
-                      ) || null
-                    }
-                    disabled={readOnly}
-                    onChange={(_, nextValue) => applyOriginQuotation(nextValue)}
-                    getOptionLabel={quotationLabel}
-                    isOptionEqualToValue={(option, value) => option.id === value.id}
-                    getOptionDisabled={(option) => !option.customerId}
-                    noOptionsText="Không có báo phí chưa gắn dự án"
-                    renderOption={(props, option) => (
-                      <li {...props} key={option.id}>
-                        <div className="min-w-0 py-1">
-                          <p className="truncate text-sm font-bold text-slate-900">
-                            {option.quotationCode || `Báo phí #${option.id}`}
-                            <span className="ml-2 font-medium text-slate-400">
-                              {QUOTATION_STATUS_LABELS[option.status || ''] || option.status}
-                            </span>
-                          </p>
-                          <p className="mt-0.5 truncate text-xs text-slate-500">
-                            {option.customer?.customerName ||
-                              'Chưa có khách hàng — cần chuyển Lead thành khách hàng'}
-                            {' · '}
-                            {option.serviceName || 'Chưa chọn dịch vụ'}
-                            {' · '}
-                            {formatCurrency(Number(option.totalAmount) || 0)}
-                          </p>
-                        </div>
-                      </li>
-                    )}
-                    renderInput={(params) => (
-                      <FormInputField
-                        {...params}
-                        label="Báo phí"
-                        placeholder="Tìm theo mã, khách hàng hoặc dịch vụ"
-                      />
-                    )}
-                  />
-                )}
-              />
-
-              <div className="rounded-lg border border-sky-100 bg-sky-50 px-3 py-2.5">
-                {selectedQuotation ? (
-                  <>
-                    <div className="flex items-center justify-between gap-3">
-                      <p className="min-w-0 truncate text-sm font-bold text-slate-900">
-                        {selectedQuotation.quotationCode || `#${selectedQuotation.id}`}
-                      </p>
-                      <span className="shrink-0 text-sm font-extrabold tabular-nums text-slate-950">
-                        {formatCurrency(Number(selectedQuotation.totalAmount) || 0)}
-                      </span>
-                    </div>
-                    <p className="mt-1 truncate text-xs text-slate-500">
-                      {selectedQuotation.customer?.customerName || 'Chưa có khách hàng'}
-                      {' · '}
-                      {selectedQuotation.serviceName || 'Chưa chọn dịch vụ'}
-                    </p>
-                  </>
-                ) : (
-                  <p className="text-sm font-semibold text-slate-600">Tạo dự án độc lập</p>
-                )}
-              </div>
-            </FormSection>
-          ) : null}
-
           <FormSection title="Trạng thái & phụ trách">
             <Controller
               name="statusOptionId"

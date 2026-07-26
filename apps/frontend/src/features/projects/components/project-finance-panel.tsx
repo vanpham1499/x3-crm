@@ -133,16 +133,14 @@ export function ProjectFinancePanel({
           </div>
         ) : (
           <div className="overflow-x-auto">
-            <table className="w-full min-w-[760px] text-left text-sm">
+            <table className="w-full min-w-[560px] table-fixed text-left text-sm">
               <thead className="border-y border-slate-200 bg-slate-100 text-sm font-bold text-slate-700">
                 <tr>
-                  <th className="px-4 py-3">Báo phí</th>
-                  <th className="px-3 py-3 text-right">Tổng báo</th>
-                  <th className="px-3 py-3 text-right">Tiền cọc</th>
-                  <th className="px-3 py-3 text-right">Đã nhận</th>
-                  <th className="px-3 py-3 text-right">Đã trả KH</th>
-                  <th className="px-4 py-3 text-right">Còn thu</th>
-                  <th className="w-12 px-2 py-3">
+                  <th className="w-[42%] px-4 py-3">Báo phí</th>
+                  <th className="w-[19%] px-3 py-3 text-right">Tổng báo</th>
+                  <th className="w-[19%] px-3 py-3 text-right">Đã thu / trả</th>
+                  <th className="w-[15%] px-3 py-3 text-right">Còn thu</th>
+                  <th className="w-[5%] px-2 py-3">
                     <span className="sr-only">Tác vụ</span>
                   </th>
                 </tr>
@@ -170,7 +168,7 @@ export function ProjectFinancePanel({
                         <div className="flex min-w-0 items-center gap-2">
                           <Link
                             href={`/quotations/${quotation.id}`}
-                            className="truncate font-bold text-blue-700 hover:underline"
+                            className="truncate font-bold text-emerald-700 hover:underline"
                           >
                             {quotation.quotationCode || `#${quotation.id}`}
                           </Link>
@@ -187,40 +185,29 @@ export function ProjectFinancePanel({
                         </p>
                       </td>
                       <td className="px-3 py-3 text-right font-bold tabular-nums text-slate-950">
-                        {formatCurrency(total)}
-                      </td>
-                      <td className="px-3 py-3 text-right font-bold tabular-nums text-blue-700">
-                        <span className="whitespace-nowrap">{formatCurrency(deposit)}</span>
-                        {depositRefunded > 0 ? (
-                          <span className="mt-1 block whitespace-nowrap text-[10px] font-semibold text-rose-600">
-                            Đã hoàn {formatCurrency(depositRefunded)}
+                        <span className="whitespace-nowrap">{formatCurrency(total)}</span>
+                        {deposit > 0 ? (
+                          <span className="mt-1 block whitespace-nowrap text-[10px] font-semibold text-blue-700">
+                            Cọc {formatCurrency(deposit)}
                           </span>
                         ) : null}
                       </td>
-                      <td className="px-3 py-3 text-right font-bold tabular-nums text-emerald-700">
+                      <td className="px-3 py-3 text-right font-bold tabular-nums">
                         <span className="whitespace-nowrap">{formatCurrency(received)}</span>
-                      </td>
-                      <td className="px-3 py-3 text-right font-bold tabular-nums text-rose-700">
-                        <span className="whitespace-nowrap">{formatCurrency(outbound)}</span>
-                        {refunded > 0 || compensation > 0 ? (
-                          <div className="mt-1 flex items-center justify-end gap-1 text-[10px] font-semibold">
-                            {refunded > 0 ? (
-                              <span className="whitespace-nowrap text-rose-600">
-                                Hoàn {formatCurrency(refunded)}
-                              </span>
-                            ) : null}
-                            {compensation > 0 ? (
-                              <span className="whitespace-nowrap text-fuchsia-700">
-                                {refunded > 0 ? '· ' : ''}Bù {formatCurrency(compensation)}
-                              </span>
-                            ) : null}
-                          </div>
+                        {outbound > 0 ? (
+                          <span className="mt-1 block whitespace-nowrap text-[10px] font-semibold text-rose-600">
+                            Trả KH {formatCurrency(outbound)}
+                          </span>
+                        ) : depositRefunded > 0 ? (
+                          <span className="mt-1 block whitespace-nowrap text-[10px] font-semibold text-rose-600">
+                            Hoàn cọc {formatCurrency(depositRefunded)}
+                          </span>
                         ) : null}
                       </td>
                       <td
-                        className={`px-4 py-3 text-right font-bold tabular-nums ${remaining > 0 ? 'text-amber-700' : 'text-slate-500'}`}
+                        className={`px-3 py-3 text-right font-bold tabular-nums ${remaining > 0 ? 'text-amber-700' : 'text-slate-500'}`}
                       >
-                        {formatCurrency(remaining)}
+                        <span className="whitespace-nowrap">{formatCurrency(remaining)}</span>
                       </td>
                       <td className="px-2 py-3 text-right">
                         <IconButton
@@ -270,13 +257,12 @@ export function ProjectFinancePanel({
           </p>
         ) : (
           <div className="overflow-x-auto">
-            <table className="w-full min-w-[640px] text-left text-sm">
+            <table className="w-full min-w-[520px] table-fixed text-left text-sm">
               <thead className="border-y border-slate-200 bg-slate-100 text-sm font-bold text-slate-700">
                 <tr>
-                  <th className="px-4 py-3">Giao dịch</th>
-                  <th className="px-3 py-3 text-right">Tiền vào</th>
-                  <th className="px-3 py-3 text-right">Tiền ra</th>
-                  <th className="px-4 py-3">Báo phí / công nợ</th>
+                  <th className="w-[42%] px-4 py-3">Giao dịch</th>
+                  <th className="w-[24%] px-3 py-3 text-right">Dòng tiền</th>
+                  <th className="w-[34%] px-4 py-3">Báo phí / đối soát</th>
                 </tr>
               </thead>
               <tbody className="divide-y divide-slate-100">
@@ -299,17 +285,21 @@ export function ProjectFinancePanel({
                         </p>
                       </td>
                       <td className="px-3 py-3 text-right font-extrabold tabular-nums text-emerald-700">
-                        {formatCurrency(Number(payment.amount) || 0)}
-                      </td>
-                      <td className="px-3 py-3 text-right font-extrabold tabular-nums text-rose-700">
-                        {outboundAmount > 0 ? formatCurrency(outboundAmount) : '-'}
+                        <span className="whitespace-nowrap">
+                          + {formatCurrency(Number(payment.amount) || 0)}
+                        </span>
+                        {outboundAmount > 0 ? (
+                          <span className="mt-1 block whitespace-nowrap text-[11px] text-rose-700">
+                            − {formatCurrency(outboundAmount)}
+                          </span>
+                        ) : null}
                       </td>
                       <td className="px-4 py-3">
                         <div className="flex min-w-0 items-center gap-1.5">
                           {primaryQuotation ? (
                             <Link
                               href={`/quotations/${primaryQuotation.id}`}
-                              className="truncate text-xs font-bold text-blue-700 hover:underline"
+                              className="truncate text-xs font-bold text-emerald-700 hover:underline"
                             >
                               {primaryQuotation.quotationCode || `#${primaryQuotation.id}`}
                             </Link>

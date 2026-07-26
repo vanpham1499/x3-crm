@@ -132,25 +132,21 @@ export function UserForm({
                 <FormInputField label="Số điện thoại" type="tel" {...register('phone')} />
               </div>
 
-              <div className="grid gap-4 md:grid-cols-2">
-                {mode === 'create' ? (
-                  <FormInputField
-                    label="Mật khẩu *"
-                    type="password"
-                    error={Boolean(errors.password)}
-                    helperText={errors.password?.message}
-                    {...register('password', {
-                      required: 'Vui lòng nhập mật khẩu',
-                      minLength: { value: 6, message: 'Tối thiểu 6 ký tự' },
-                    })}
-                  />
-                ) : (
-                  <FormInputField
-                    label="Ngày tạo"
-                    value={formatDate(user?.createdAt || '')}
-                    disabled
-                  />
-                )}
+              <div
+                className={`grid gap-4 ${mode === 'edit' ? 'md:grid-cols-3' : 'md:grid-cols-2'}`}
+              >
+                <FormInputField
+                  label={mode === 'create' ? 'Mật khẩu *' : 'Mật khẩu mới'}
+                  type="password"
+                  autoComplete="new-password"
+                  error={Boolean(errors.password)}
+                  helperText={errors.password?.message}
+                  {...register('password', {
+                    required: mode === 'create' ? 'Vui lòng nhập mật khẩu' : false,
+                    validate: (value) =>
+                      !value || value.length >= 6 || 'Mật khẩu phải có tối thiểu 6 ký tự',
+                  })}
+                />
 
                 <Controller
                   name="role"
@@ -171,6 +167,14 @@ export function UserForm({
                     </FormSelectField>
                   )}
                 />
+
+                {mode === 'edit' ? (
+                  <FormInputField
+                    label="Ngày tạo"
+                    value={formatDate(user?.createdAt || '')}
+                    disabled
+                  />
+                ) : null}
               </div>
             </FormSection>
           </div>

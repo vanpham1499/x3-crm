@@ -202,30 +202,6 @@ class PaymentsService extends BaseService
         });
     }
 
-    public function matchProject(string $id, array $data): array
-    {
-        return $this->transaction(function () use ($id, $data): array {
-            $this->authorize('manage', Payment::class);
-            $data = $this->normalizePayload($data);
-            $quotation = ! empty($data['quotation_id'])
-                ? $this->quotations->findModel((string) $data['quotation_id'])
-                : null;
-
-            $this->paymentAllocations->link($id, [
-                'customer_id' => $quotation?->customer_id ?? $data['customer_id'] ?? null,
-                'project_id' => $quotation?->project_id ?? $data['project_id'] ?? null,
-                'receipt_type' => 'customer',
-            ]);
-
-            if ($quotation) {
-                $this->payments->update($id, $this->matchedPayload($quotation));
-                $this->paymentAllocations->autoAllocateToQuotation($id, $quotation->id, auth()->id());
-            }
-
-            return $this->paymentResource($this->payments->findWithRelationsOrFail($id));
-        });
-    }
-
     public function allocate(string $id, array $data): array
     {
         $this->authorize('manage', Payment::class);
@@ -266,10 +242,22 @@ class PaymentsService extends BaseService
         return ['message' => 'Đã xóa khoản hoàn và tính lại công nợ'];
     }
 
-    public function link(string $id, array $data): array
+    public function classify(string $id, array $data): array
     {
         $this->authorize('manage', Payment::class);
-        $this->paymentAllocations->link($id, $this->normalizeKeys($data));
+        $this->paymentAllocations->classify($id, $this->normalizeKeys($data));
+
+        return $this->paymentResource($this->payments->findWithRelationsOrFail($id));
+    }
+
+    public function updateInvoice(string $id, array $data): array
+    {
+        $this->authorize('manage', Payment::class);
+        $invoiceNumber = trim((string) ($data['invoiceNumber'] ?? ''));
+
+        $this->payments->update($id, [
+            'output_invoice_number' => $invoiceNumber !== '' ? $invoiceNumber : null,
+        ]);
 
         return $this->paymentResource($this->payments->findWithRelationsOrFail($id));
     }

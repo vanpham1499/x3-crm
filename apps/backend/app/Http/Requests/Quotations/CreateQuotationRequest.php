@@ -10,12 +10,12 @@ class CreateQuotationRequest extends BaseRequest
     public function rules(): array
     {
         return [
-            'lead_id' => ['required_without:leadId', 'integer', Rule::exists('leads', 'id')->whereNull('deleted_at')],
-            'leadId' => ['required_without:lead_id', 'integer', Rule::exists('leads', 'id')->whereNull('deleted_at')],
+            'lead_id' => ['nullable', 'integer', Rule::exists('leads', 'id')->whereNull('deleted_at')],
+            'leadId' => ['nullable', 'integer', Rule::exists('leads', 'id')->whereNull('deleted_at')],
             'customer_id' => ['nullable', 'integer', Rule::exists('customers', 'id')->whereNull('deleted_at')],
             'customerId' => ['nullable', 'integer', Rule::exists('customers', 'id')->whereNull('deleted_at')],
-            'project_id' => ['nullable', 'integer', Rule::exists('projects', 'id')->whereNull('deleted_at')],
-            'projectId' => ['nullable', 'integer', Rule::exists('projects', 'id')->whereNull('deleted_at')],
+            'project_id' => ['required_without:projectId', 'integer', Rule::exists('projects', 'id')->whereNull('deleted_at')],
+            'projectId' => ['required_without:project_id', 'integer', Rule::exists('projects', 'id')->whereNull('deleted_at')],
             'contract_id' => ['nullable', 'integer', Rule::exists('contracts', 'id')->whereNull('deleted_at')],
             'contractId' => ['nullable', 'integer', Rule::exists('contracts', 'id')->whereNull('deleted_at')],
             'service_id' => ['nullable', 'integer', Rule::exists('services', 'id')->whereNull('deleted_at')],
@@ -64,6 +64,14 @@ class CreateQuotationRequest extends BaseRequest
             'items.*.sort_order' => ['nullable', 'integer', 'min:0'],
             'items.*.sortOrder' => ['nullable', 'integer', 'min:0'],
             'items.*.metadata' => ['nullable', 'array'],
+        ];
+    }
+
+    public function messages(): array
+    {
+        return [
+            'project_id.required_without' => 'Vui lòng chọn dự án cho báo phí.',
+            'projectId.required_without' => 'Vui lòng chọn dự án cho báo phí.',
         ];
     }
 }

@@ -32,15 +32,10 @@ import {
 import { flattenServices } from '@/lib/service-utils';
 import api from '@/services/api/client';
 import type { AppOption } from '@/types/option';
-import type { Customer } from '@/types/customer';
-import type { Lead } from '@/types/lead';
 import type { ProjectItem, ProjectType } from '@/types/project';
 import type { Quotation, QuotationLineFormValue } from '@/types/quotation';
 import type { ServiceItem } from '@/types/service';
 import { QuotationItemsTable } from './quotation-items-table';
-
-type QuoteCustomerMode = 'new_customer' | 'existing_customer';
-type QuoteProjectMode = 'new_project' | 'existing_project';
 
 const NO_SETUP_PACKAGE_KEY = 'none';
 const NON_TAXABLE_DEPOSIT_MODE = 'non_taxable_addition_v1';
@@ -49,11 +44,9 @@ const VAT_RATE_OPTIONS = ['7', '8', '10'] as const;
 type QuotationFormProps = {
   mode: 'create' | 'edit';
   quotation?: Quotation | null;
-  leads: Lead[];
   services: ServiceItem[];
   quoteConfigs: AppOption[];
   bankAccountOptions: AppOption[];
-  defaultLeadId?: string;
   defaultProjectId?: string;
   isSubmitting: boolean;
   onSubmit: (payload: Record<string, unknown>) => Promise<unknown>;
@@ -106,55 +99,22 @@ function getLineUnit(line: { metadata?: Record<string, unknown> | null }) {
   return typeof unit === 'string' && unit ? unit : 'Dịch vụ';
 }
 
-function getCustomerOptionLabel(customer: Customer) {
-  return [customer.customerCode, customer.customerName || customer.companyName]
-    .filter(Boolean)
-    .join(' - ');
-}
-
 function getProjectOptionLabel(project: ProjectItem) {
   return project.projectCode || `Dự án #${project.id}`;
-}
-
-function getProjectCustomer(project: ProjectItem | null): Customer | null {
-  if (!project?.customer) return null;
-
-  return {
-    id: project.customer.id,
-    customerCode: project.customer.customerCode,
-    customerName: project.customer.customerName,
-    companyName: project.customer.companyName,
-    leadId: project.customer.leadId,
-    phone: project.customer.phone,
-    email: project.customer.email,
-  };
 }
 
 export function QuotationForm({
   mode,
   quotation,
-  leads,
   services,
   quoteConfigs,
   bankAccountOptions,
-  defaultLeadId,
   defaultProjectId,
   isSubmitting,
   onSubmit,
 }: QuotationFormProps) {
-  const [customerMode, setCustomerMode] = useState<QuoteCustomerMode>(
-    defaultProjectId ? 'existing_customer' : 'new_customer',
-  );
-  const [projectMode, setProjectMode] = useState<QuoteProjectMode>(
-    defaultProjectId ? 'existing_project' : 'new_project',
-  );
-  const [leadId, setLeadId] = useState(defaultLeadId || '');
-  const [customerId, setCustomerId] = useState('');
   const [projectId, setProjectId] = useState(defaultProjectId || '');
-  const [selectedCustomerOption, setSelectedCustomerOption] = useState<Customer | null>(null);
   const [selectedProjectOption, setSelectedProjectOption] = useState<ProjectItem | null>(null);
-  const [customerName, setCustomerName] = useState('');
-  const [projectName, setProjectName] = useState('');
   const [projectType, setProjectType] = useState<ProjectType>('K');
   const [vatRate, setVatRate] = useState('8');
   const [depositAmount, setDepositAmount] = useState('0');
@@ -177,21 +137,7 @@ export function QuotationForm({
     () => getCompanyBankAccounts(bankAccountOptions),
     [bankAccountOptions],
   );
-  const unconvertedLeads = useMemo(
-    () => leads.filter((lead) => !lead.convertedCustomerId && !lead.convertedCustomer?.id),
-    [leads],
-  );
-  const selectedLead = leads.find((lead) => String(lead.id) === leadId) || null;
-  const selectedCustomer = selectedCustomerOption;
   const selectedProject = selectedProjectOption;
-  const convertedCustomerId =
-    selectedLead?.convertedCustomerId || selectedLead?.convertedCustomer?.id || null;
-  const { data: convertedCustomer } = useQuery<Customer>({
-    queryKey: ['customers', convertedCustomerId, 'quotation-converted-lead'],
-    queryFn: () =>
-      api.get<Customer>(`/customers/${convertedCustomerId}`).then((response) => response.data),
-    enabled: mode === 'create' && customerMode === 'new_customer' && Boolean(convertedCustomerId),
-  });
   const { data: defaultProject } = useQuery<ProjectItem>({
     queryKey: ['projects', defaultProjectId, 'quotation-default-project'],
     queryFn: () =>
@@ -277,7 +223,7 @@ export function QuotationForm({
   const deposit = toNumber(depositAmount);
   const total = subtotal + vatAmount + deposit;
   const paymentContent = getQuotationPaymentContent(quotation);
-  const missingRequiredLead = mode === 'create' && !leadId;
+  const missingRequiredProject = !projectId;
   const storedTotalAmount = Number(quotation?.totalAmount) || 0;
   const storedPaidAmount = Number(quotation?.paidAmount) || 0;
   const isPaymentLocked =
@@ -289,30 +235,7 @@ export function QuotationForm({
     if (!quotation) return;
 
     const metadata = quotation.metadata || {};
-    const nextCustomerMode =
-      getMetadataValue(metadata, 'customerMode') === 'existing_customer' || quotation.customerId
-        ? 'existing_customer'
-        : 'new_customer';
-    const nextProjectMode =
-      getMetadataValue(metadata, 'projectMode') === 'existing_project' || quotation.projectId
-        ? 'existing_project'
-        : 'new_project';
-
-    setCustomerMode(nextCustomerMode);
-    setProjectMode(nextProjectMode);
-    setLeadId(idToString(quotation.leadId));
-    setCustomerId(idToString(quotation.customerId));
     setProjectId(idToString(quotation.projectId));
-    setSelectedCustomerOption(
-      quotation.customer
-        ? {
-            id: quotation.customer.id,
-            customerCode: quotation.customer.customerCode,
-            customerName: quotation.customer.customerName,
-            leadId: quotation.leadId,
-          }
-        : null,
-    );
     setSelectedProjectOption(
       quotation.project
         ? {
@@ -332,15 +255,6 @@ export function QuotationForm({
               : null,
           }
         : null,
-    );
-    setCustomerName(
-      getMetadataValue(metadata, 'customerName') ||
-        quotation.lead?.customerName ||
-        quotation.customer?.customerName ||
-        '',
-    );
-    setProjectName(
-      getMetadataValue(metadata, 'projectName') || quotation.project?.projectName || '',
     );
     const storedProjectType =
       getMetadataValue(metadata, 'projectType') || quotation.project?.projectType;
@@ -381,7 +295,8 @@ export function QuotationForm({
     if (!defaultProject || selectedProjectOption) return;
 
     setSelectedProjectOption(defaultProject);
-    setSelectedCustomerOption(getProjectCustomer(defaultProject));
+    setProjectId(String(defaultProject.id));
+    setSelectedServiceId(idToString(defaultProject.serviceId));
     setProjectType(normalizeProjectType(defaultProject.projectType));
   }, [defaultProject, selectedProjectOption]);
 
@@ -393,58 +308,12 @@ export function QuotationForm({
   }, [bankAccountOptions, bankAccounts, selectedBankAccountId]);
 
   useEffect(() => {
-    if (customerName || !selectedLead) return;
-    setCustomerName(selectedLead.customerName || '');
-  }, [customerName, selectedLead]);
+    if (!selectedProject) return;
 
-  useEffect(() => {
-    if (mode !== 'create' || customerMode !== 'new_customer' || !selectedLead || !convertedCustomer)
-      return;
-
-    setCustomerMode('existing_customer');
-    setProjectMode('new_project');
-    setSelectedCustomerOption(convertedCustomer);
-    setCustomerId(String(convertedCustomer.id));
-    setCustomerName(convertedCustomer.customerName || convertedCustomer.companyName || '');
-  }, [convertedCustomer, customerMode, mode, selectedLead]);
-
-  useEffect(() => {
-    if (mode !== 'create' || customerMode !== 'new_customer' || !selectedLead) return;
-    setCustomerName(selectedLead.customerName || '');
-    setCustomerId('');
-    setProjectId('');
-    setSelectedCustomerOption(null);
-    setSelectedProjectOption(null);
-  }, [customerMode, mode, selectedLead]);
-
-  useEffect(() => {
-    if (mode !== 'create' || customerMode !== 'existing_customer' || !selectedCustomer) return;
-    setLeadId(idToString(selectedCustomer.leadId));
-    setCustomerName(selectedCustomer.customerName || selectedCustomer.companyName || '');
-  }, [customerMode, mode, selectedCustomer]);
-
-  useEffect(() => {
-    if (
-      mode !== 'create' ||
-      customerMode !== 'existing_customer' ||
-      projectMode !== 'existing_project' ||
-      !selectedProject
-    )
-      return;
-
-    setProjectName(selectedProject.projectName || '');
-    setCustomerId(idToString(selectedProject.customerId));
-    setSelectedCustomerOption(getProjectCustomer(selectedProject));
-    setCustomerName(
-      selectedProject.customer?.customerName ||
-        selectedProject.customer?.companyName ||
-        selectedProject.projectName ||
-        '',
-    );
-    setLeadId(idToString(selectedProject.customer?.leadId));
+    setProjectId(String(selectedProject.id));
     setSelectedServiceId(idToString(selectedProject.serviceId));
     setProjectType(normalizeProjectType(selectedProject.projectType));
-  }, [customerMode, mode, projectMode, selectedProject]);
+  }, [selectedProject]);
 
   const updateLine = (lineId: number, values: Partial<QuotationLineFormValue>) => {
     setManualLines((current) =>
@@ -494,10 +363,14 @@ export function QuotationForm({
       note: note.trim() || null,
       metadata: {
         ...(quotation?.metadata || {}),
-        customerMode,
-        projectMode: customerMode === 'existing_customer' ? projectMode : 'new_project',
-        customerName,
-        projectName,
+        customerMode: 'existing_customer',
+        projectMode: 'existing_project',
+        customerName:
+          selectedProject?.customer?.customerName ||
+          selectedProject?.customer?.companyName ||
+          quotation?.customer?.customerName ||
+          '',
+        projectName: selectedProject?.projectName || quotation?.project?.projectName || '',
         projectType,
         budget,
         setupPackageKey,
@@ -551,22 +424,9 @@ export function QuotationForm({
         }),
     };
 
-    if (mode === 'create') {
-      const leadIdValue = leadId ? Number(leadId) : null;
-      const customerIdValue =
-        customerMode === 'existing_customer' && customerId ? Number(customerId) : null;
-      const projectIdValue =
-        customerMode === 'existing_customer' && projectMode === 'existing_project' && projectId
-          ? Number(projectId)
-          : null;
-
-      payload.leadId = leadIdValue;
-      payload.lead_id = leadIdValue;
-      payload.customerId = customerIdValue;
-      payload.customer_id = customerIdValue;
-      payload.projectId = projectIdValue;
-      payload.project_id = projectIdValue;
-    }
+    const projectIdValue = projectId ? Number(projectId) : null;
+    payload.projectId = projectIdValue;
+    payload.project_id = projectIdValue;
 
     try {
       setFieldErrors({});
@@ -581,20 +441,13 @@ export function QuotationForm({
       className="flex min-h-[calc(100vh-72px)] flex-col bg-slate-50/60 px-6 pt-6"
       onSubmit={(event) => {
         event.preventDefault();
-        if (!isSubmitting && !isUploadingReconciliationImages && !missingRequiredLead) submitForm();
+        if (!isSubmitting && !isUploadingReconciliationImages && !missingRequiredProject)
+          submitForm();
       }}
     >
       <PageHeader
         title={mode === 'edit' ? 'Chỉnh sửa báo phí' : 'Thêm báo phí'}
         currentLabel={mode === 'edit' ? quotation?.quotationCode || 'Chỉnh sửa' : undefined}
-        action={
-          mode === 'edit' && quotation && !quotation.projectId
-            ? {
-                label: 'Tạo dự án',
-                href: `/projects/new?quotationId=${quotation.id}`,
-              }
-            : undefined
-        }
       />
 
       {isPaymentLocked ? (
@@ -615,166 +468,70 @@ export function QuotationForm({
       <div className="grid items-start gap-6 xl:grid-cols-12">
         <div className="xl:col-span-5">
           <FormSection title="Thông tin báo phí">
-            <div className="grid gap-4 md:grid-cols-2">
-              <FormSelectField
-                label="Loại khách hàng"
-                value={customerMode}
-                disabled={mode === 'edit'}
-                onChange={(event) => {
-                  const nextMode = event.target.value as QuoteCustomerMode;
-                  setCustomerMode(nextMode);
-                  setLeadId('');
-                  setCustomerId('');
-                  setProjectId('');
-                  setSelectedCustomerOption(null);
-                  setSelectedProjectOption(null);
-                  setCustomerName('');
-                  setProjectName('');
-                  setProjectType('K');
-                  setProjectMode('new_project');
-                }}
-              >
-                <MenuItem value="new_customer">Lead</MenuItem>
-                <MenuItem value="existing_customer">Khách hàng</MenuItem>
-              </FormSelectField>
+            <ServerPaginatedAutocomplete<ProjectItem>
+              endpoint="/projects"
+              queryKey={['projects', 'quotation-autocomplete']}
+              label="Dự án"
+              value={selectedProject}
+              disabled={isPaymentLocked || (mode === 'edit' && Boolean(quotation?.projectId))}
+              required
+              error={Boolean(fieldErrors.projectId || fieldErrors.project_id)}
+              helperText={fieldErrors.projectId || fieldErrors.project_id}
+              placeholder="Nhập mã dự án, tên dự án hoặc khách hàng"
+              onChange={(value) => {
+                setSelectedProjectOption(value);
+                setProjectId(idToString(value?.id));
+                setSelectedServiceId(idToString(value?.serviceId));
+                setProjectType(normalizeProjectType(value?.projectType));
+              }}
+              getOptionLabel={getProjectOptionLabel}
+            />
 
-              {customerMode === 'new_customer' ? (
-                <Autocomplete
-                  options={unconvertedLeads}
-                  value={selectedLead}
-                  disabled={mode === 'edit'}
-                  onChange={(_, value) => {
-                    setLeadId(idToString(value?.id));
-                    setCustomerName(value?.customerName || '');
-                  }}
-                  getOptionLabel={(option) =>
-                    `${option.leadCode || ''} - ${option.customerName || ''}`
-                  }
-                  isOptionEqualToValue={(option, value) => option.id === value.id}
-                  renderInput={(params) => (
-                    <FormInputField
-                      {...params}
-                      required
-                      label="Lead"
-                      error={Boolean(fieldErrors.leadId)}
-                      helperText={fieldErrors.leadId}
-                    />
-                  )}
-                />
-              ) : (
-                <>
-                  <FormSelectField
-                    label="Loại dự án"
-                    value={projectMode}
-                    disabled={mode === 'edit'}
-                    onChange={(event) => {
-                      const nextMode = event.target.value as QuoteProjectMode;
-                      setProjectMode(nextMode);
-                      setProjectId('');
-                      setSelectedProjectOption(null);
-                      if (nextMode === 'new_project') {
-                        setProjectName('');
-                        setProjectType('K');
-                      }
-                    }}
-                  >
-                    <MenuItem value="new_project">Dự án mới</MenuItem>
-                    <MenuItem value="existing_project">Dự án cũ</MenuItem>
-                  </FormSelectField>
-
-                  {projectMode === 'existing_project' ? (
-                    <ServerPaginatedAutocomplete<ProjectItem>
-                      className="md:col-span-2"
-                      endpoint="/projects"
-                      queryKey={['projects', 'quotation-autocomplete']}
-                      label="Dự án cũ"
-                      value={selectedProject}
-                      disabled={mode === 'edit'}
-                      required
-                      error={Boolean(fieldErrors.projectId)}
-                      helperText={fieldErrors.projectId}
-                      placeholder="Nhập mã dự án, tên dự án hoặc khách hàng"
-                      onChange={(value) => {
-                        setSelectedProjectOption(value);
-                        setSelectedCustomerOption(getProjectCustomer(value));
-                        setProjectId(idToString(value?.id));
-                        setProjectName(value?.projectName || '');
-                        setCustomerId(idToString(value?.customerId));
-                        setCustomerName(
-                          value?.customer?.customerName || value?.customer?.companyName || '',
-                        );
-                        setLeadId(idToString(value?.customer?.leadId));
-                        setSelectedServiceId(idToString(value?.serviceId));
-                        setProjectType(normalizeProjectType(value?.projectType));
-                      }}
-                      getOptionLabel={getProjectOptionLabel}
-                    />
-                  ) : (
-                    <ServerPaginatedAutocomplete<Customer>
-                      endpoint="/customers"
-                      queryKey={['customers', 'quotation-autocomplete']}
-                      label="Khách hàng"
-                      value={selectedCustomer}
-                      disabled={mode === 'edit'}
-                      required
-                      error={Boolean(fieldErrors.customerId)}
-                      helperText={fieldErrors.customerId}
-                      placeholder="Nhập mã, tên, số điện thoại hoặc email"
-                      onChange={(value) => {
-                        setSelectedCustomerOption(value);
-                        setCustomerId(idToString(value?.id));
-                        setLeadId(idToString(value?.leadId));
-                        setCustomerName(value?.customerName || value?.companyName || '');
-                      }}
-                      getOptionLabel={getCustomerOptionLabel}
-                    />
-                  )}
-                </>
-              )}
-
-              {customerMode === 'new_customer' ? (
-                <FormInputField
-                  label="Khách hàng"
-                  value={customerName}
-                  disabled={isPaymentLocked}
-                  onChange={(event) => setCustomerName(event.target.value)}
-                />
-              ) : null}
-              {projectMode === 'new_project' ? (
-                <div className="grid grid-cols-[minmax(0,1fr)_80px] gap-3">
-                  <FormInputField
-                    label="Tên dự án"
-                    value={projectName}
-                    disabled={isPaymentLocked}
-                    onChange={(event) => setProjectName(event.target.value)}
-                  />
-                  <FormSelectField
-                    label="Loại *"
-                    value={projectType}
-                    disabled={isPaymentLocked}
-                    onChange={(event) => setProjectType(event.target.value as ProjectType)}
-                  >
-                    <MenuItem value="K">K</MenuItem>
-                    <MenuItem value="M">M</MenuItem>
-                    <MenuItem value="N">O</MenuItem>
-                  </FormSelectField>
+            {selectedProject ? (
+              <dl className="grid overflow-hidden rounded-xl border border-slate-200 bg-slate-50 md:grid-cols-[minmax(0,2fr)_minmax(0,2fr)_minmax(0,1fr)]">
+                <div className="min-w-0 px-3 py-2.5">
+                  <dt className="text-[11px] font-bold uppercase tracking-wide text-slate-400">
+                    Khách hàng
+                  </dt>
+                  <dd className="mt-1 truncate text-sm font-bold text-slate-800">
+                    {[
+                      selectedProject.customer?.customerCode,
+                      selectedProject.customer?.customerName ||
+                        selectedProject.customer?.companyName,
+                    ]
+                      .filter(Boolean)
+                      .join(' · ') || '-'}
+                  </dd>
                 </div>
-              ) : null}
-            </div>
+                <div className="min-w-0 border-slate-200 px-3 py-2.5 md:border-x">
+                  <dt className="text-[11px] font-bold uppercase tracking-wide text-slate-400">
+                    Dịch vụ
+                  </dt>
+                  <dd
+                    className="mt-1 truncate text-sm font-bold text-slate-800"
+                    title={
+                      selectedService ? `${selectedService.code} - ${selectedService.pathName}` : ''
+                    }
+                  >
+                    {selectedService
+                      ? `${selectedService.code} - ${selectedService.pathName}`
+                      : '-'}
+                  </dd>
+                </div>
+                <div className="min-w-0 px-3 py-2.5">
+                  <dt className="text-[11px] font-bold uppercase tracking-wide text-slate-400">
+                    Loại
+                  </dt>
+                  <dd className="mt-1 text-sm font-bold text-slate-800">
+                    {projectType === 'N' ? 'O' : projectType}
+                  </dd>
+                </div>
+              </dl>
+            ) : null}
 
             <div className="grid gap-4 md:grid-cols-12">
-              <Autocomplete
-                className="md:col-span-6"
-                options={serviceOptions}
-                value={selectedService}
-                disabled={isPaymentLocked}
-                onChange={(_, value) => setSelectedServiceId(idToString(value?.id))}
-                getOptionLabel={(option) => `${option.code} - ${option.pathName}`}
-                isOptionEqualToValue={(option, value) => option.id === value.id}
-                renderInput={(params) => <FormInputField {...params} label="Dịch vụ" />}
-              />
               <FormSelectField
-                className="md:col-span-3"
+                className="md:col-span-6"
                 label="VAT"
                 value={vatRate}
                 disabled={isPaymentLocked}
@@ -795,7 +552,7 @@ export function QuotationForm({
                 onValueChange={setDepositAmount}
                 error={Boolean(fieldErrors.depositAmount || fieldErrors.deposit_amount)}
                 helperText={fieldErrors.depositAmount || fieldErrors.deposit_amount}
-                className={`${compactFormFieldClassName} md:col-span-3`}
+                className={`${compactFormFieldClassName} md:col-span-6`}
               />
               {canUseAutoQuote && (
                 <>
@@ -972,7 +729,7 @@ export function QuotationForm({
           isPaymentLocked ? 'Lưu ghi chú' : mode === 'edit' ? 'Lưu thay đổi' : 'Tạo báo phí'
         }
         isSubmitting={isSubmitting || isUploadingReconciliationImages}
-        submitDisabled={missingRequiredLead || isUploadingReconciliationImages}
+        submitDisabled={missingRequiredProject || isUploadingReconciliationImages}
         submitIcon={<SaveRoundedIcon />}
       />
     </form>

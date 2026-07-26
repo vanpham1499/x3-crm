@@ -3,9 +3,9 @@ import type { Payment } from '@/types/payment';
 const PROCESSING_STATUS_LABELS: Record<string, string> = {
   unmatched: 'Chờ đối soát',
   unallocated: 'Chưa phân bổ',
-  matched_customer: 'Đã gắn khách hàng',
-  matched_quotation: 'Đã gắn báo phí',
-  matched_project: 'Đã gắn dự án',
+  matched_customer: 'Đã nhận diện khách hàng',
+  matched_quotation: 'Đã nhận diện báo phí',
+  matched_project: 'Đã nhận diện dự án',
   partially_allocated: 'Đã phân bổ + chuyển thừa',
   allocated: 'Đã phân bổ giao dịch',
   partially_refunded: 'Đã trả khách một phần',

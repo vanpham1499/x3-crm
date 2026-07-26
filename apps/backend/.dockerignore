@@ -7,5 +7,3 @@ storage/logs/*
 storage/framework/cache/*
 storage/framework/sessions/*
 storage/framework/views/*
-.deploy/frontend-context
-.deploy/artifacts

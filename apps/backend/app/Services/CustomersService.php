@@ -118,6 +118,14 @@ class CustomersService extends BaseService
             }
         }
 
+        if (array_key_exists('customer_name', $data) && is_string($data['customer_name'])) {
+            $data['customer_name'] = trim($data['customer_name']);
+        }
+
+        if (array_key_exists('company_name', $data) && is_string($data['company_name'])) {
+            $data['company_name'] = mb_strtoupper(trim($data['company_name']), 'UTF-8');
+        }
+
         foreach (['lead_id', 'customer_type_option_id', 'source_option_id', 'industry_option_id', 'sales_user_id'] as $key) {
             if (array_key_exists($key, $data) && $data[$key] === '') {
                 unset($data[$key]);

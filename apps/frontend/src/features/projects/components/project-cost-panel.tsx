@@ -41,6 +41,7 @@ import { useAuthStore } from '@/stores/auth-store';
 import type { AppOption } from '@/types/option';
 import type {
   ProjectCost,
+  ProjectCostCidIncidentInput,
   ProjectCostEntryType,
   ProjectCostFormValues,
   ProjectCostStatus,
@@ -60,6 +61,11 @@ function formatDate(value?: string | null) {
   return Number.isNaN(date.getTime()) ? value : date.toLocaleDateString('vi-VN');
 }
 
+function todayDateValue() {
+  const now = new Date();
+  return new Date(now.getTime() - now.getTimezoneOffset() * 60_000).toISOString().slice(0, 10);
+}
+
 function partnerLabel(option: AppOption | null | undefined) {
   if (!option) return '-';
   return [option.key, option.label].filter(Boolean).join(' · ');
@@ -73,31 +79,6 @@ function statusClass(status?: string | null) {
 
 function moneyValue(value: string | number | null | undefined) {
   return Number(value) || 0;
-}
-
-function balanceStatusBadge(cost: ProjectCost) {
-  const remainingBalance = moneyValue(cost.remainingBalanceAmount);
-  const releasedBalance = moneyValue(
-    cost.releasedBalanceAmount ?? cost.handledBalanceAmount ?? cost.originalBalanceAmount,
-  );
-
-  if (!cost.balanceStatus || cost.balanceStatus === 'none') {
-    return null;
-  }
-
-  if (remainingBalance > 0) {
-    return (
-      <span className="inline-flex whitespace-nowrap rounded-md bg-amber-50 px-2 py-1 text-xs font-bold text-amber-700 ring-1 ring-amber-200">
-        Chờ hoàn {formatCurrency(remainingBalance)}
-      </span>
-    );
-  }
-
-  return (
-    <span className="inline-flex whitespace-nowrap rounded-md bg-emerald-50 px-2 py-1 text-xs font-bold text-emerald-700 ring-1 ring-emerald-200">
-      Đã hoàn hạn mức {formatCurrency(releasedBalance)}
-    </span>
-  );
 }
 
 const COST_STATUSES: ProjectCostStatus[] = ['pending', 'completed', 'cancelled'];
@@ -175,48 +156,254 @@ function CostActionMenu({
   canManage,
   onEdit,
   onDelete,
+  onReportCidIncident,
+  onCancelCidIncident,
 }: {
   cost: ProjectCost;
   canManage: boolean;
   onEdit: () => void;
   onDelete: () => void;
+  onReportCidIncident: () => void;
+  onCancelCidIncident: () => void;
 }) {
   const [anchorEl, setAnchorEl] = useState<HTMLElement | null>(null);
   const locked = Boolean(cost.reconciledAt);
+  const pendingCidIncident = cost.cidIncident?.status === 'pending';
+  const canReportCidIncident =
+    cost.entryType === 'ad_spend' &&
+    locked &&
+    cost.status !== 'cancelled' &&
+    (!cost.cidIncident || pendingCidIncident) &&
+    (!cost.cidIsDead || pendingCidIncident);
+  const hasActions = !locked || canReportCidIncident;
 
   return (
     <>
       <IconButton
         size="small"
-        title={locked ? 'Khoản chi đã đối soát' : 'Thao tác'}
+        title={hasActions ? 'Thao tác' : 'Khoản chi đã đối soát'}
         aria-label={`Thao tác khoản chi ${cost.id}`}
-        disabled={!canManage || locked}
+        disabled={!canManage || !hasActions}
         onClick={(event) => setAnchorEl(event.currentTarget)}
       >
         <MoreVertRoundedIcon fontSize="small" />
       </IconButton>
       <Menu anchorEl={anchorEl} open={Boolean(anchorEl)} onClose={() => setAnchorEl(null)}>
-        <MenuItem
-          onClick={() => {
-            setAnchorEl(null);
-            onEdit();
-          }}
-        >
-          <EditOutlinedIcon fontSize="small" className="mr-2 text-slate-500" />
-          Chỉnh sửa
-        </MenuItem>
-        <MenuItem
-          className="!text-rose-600"
-          onClick={() => {
-            setAnchorEl(null);
-            onDelete();
-          }}
-        >
-          <DeleteOutlineRoundedIcon fontSize="small" className="mr-2" />
-          Xóa
-        </MenuItem>
+        {!locked ? (
+          <>
+            <MenuItem
+              onClick={() => {
+                setAnchorEl(null);
+                onEdit();
+              }}
+            >
+              <EditOutlinedIcon fontSize="small" className="mr-2 text-slate-500" />
+              Chỉnh sửa
+            </MenuItem>
+            <MenuItem
+              className="!text-rose-600"
+              onClick={() => {
+                setAnchorEl(null);
+                onDelete();
+              }}
+            >
+              <DeleteOutlineRoundedIcon fontSize="small" className="mr-2" />
+              Xóa
+            </MenuItem>
+          </>
+        ) : null}
+        {canReportCidIncident ? (
+          <MenuItem
+            className="!text-rose-700"
+            onClick={() => {
+              setAnchorEl(null);
+              onReportCidIncident();
+            }}
+          >
+            <WarningAmberRoundedIcon fontSize="small" className="mr-2" />
+            {pendingCidIncident ? 'Sửa báo cáo CID ngừng' : 'Báo CID ngừng hoạt động'}
+          </MenuItem>
+        ) : null}
+        {pendingCidIncident ? (
+          <MenuItem
+            className="!text-slate-600"
+            onClick={() => {
+              setAnchorEl(null);
+              onCancelCidIncident();
+            }}
+          >
+            <DeleteOutlineRoundedIcon fontSize="small" className="mr-2" />
+            Hủy báo cáo CID
+          </MenuItem>
+        ) : null}
       </Menu>
     </>
+  );
+}
+
+type CidIncidentFormValues = {
+  stoppedAt: string;
+  spentAmount: string;
+  unrecoverableAmount: string;
+  note: string;
+};
+
+function CidIncidentReportDialog({
+  cost,
+  loading,
+  onClose,
+  onSubmit,
+}: {
+  cost: ProjectCost | null;
+  loading: boolean;
+  onClose: () => void;
+  onSubmit: (payload: ProjectCostCidIncidentInput) => Promise<ProjectCost>;
+}) {
+  const incident = cost?.cidIncident;
+  const {
+    control,
+    register,
+    handleSubmit,
+    setError,
+    watch,
+    formState: { errors },
+  } = useForm<CidIncidentFormValues>({
+    values: {
+      stoppedAt: incident?.stoppedAt || todayDateValue(),
+      spentAmount: String(incident?.spentAmount ?? ''),
+      unrecoverableAmount: String(incident?.unrecoverableAmount ?? '0'),
+      note: incident?.note || '',
+    },
+  });
+
+  if (!cost) return null;
+
+  const totalAmount = moneyValue(cost.totalAmount);
+  const spentAmount = Math.max(0, Number(watch('spentAmount')) || 0);
+  const unrecoverableAmount = Math.max(0, Number(watch('unrecoverableAmount')) || 0);
+  const releasedAmount = Math.max(0, totalAmount - spentAmount - unrecoverableAmount);
+
+  return (
+    <AppFormDialog
+      open
+      title={incident ? 'Cập nhật báo cáo CID ngừng' : 'Báo CID ngừng hoạt động'}
+      maxWidth="md"
+      submitting={loading}
+      onClose={onClose}
+      onSubmit={handleSubmit(async (values) => {
+        if (spentAmount + unrecoverableAmount > totalAmount) {
+          setError('spentAmount', {
+            message: 'Tiền đã chạy và không thu hồi được không được vượt quá tiền đã nạp',
+          });
+          return;
+        }
+
+        try {
+          await onSubmit({
+            stoppedAt: values.stoppedAt,
+            spentAmount,
+            unrecoverableAmount,
+            note: values.note.trim() || null,
+          });
+          onClose();
+        } catch (error) {
+          applyApiErrorsToForm(error, setError);
+        }
+      })}
+      actions={
+        <>
+          <DialogActionButton onClick={onClose} disabled={loading}>
+            Hủy
+          </DialogActionButton>
+          <DialogActionButton type="submit" tone="primary" disabled={loading}>
+            {loading ? 'Đang gửi...' : incident ? 'Lưu báo cáo' : 'Gửi kế toán xác nhận'}
+          </DialogActionButton>
+        </>
+      }
+    >
+      <div className="space-y-4">
+        <div className="rounded-lg border border-rose-200 bg-rose-50 px-3 py-2.5">
+          <div className="flex items-center gap-2 text-sm font-bold text-rose-700">
+            <WarningAmberRoundedIcon className="!text-[18px]" />
+            CID {cost.cid || '-'} đã ngừng sau khi khoản nạp được đối soát
+          </div>
+          <p className="mt-1 pl-[26px] text-xs font-medium leading-5 text-slate-600">
+            Khoản chi gốc vẫn được khóa. Hạn mức còn lại chỉ tự cộng về dự án sau khi kế toán xác
+            nhận báo cáo này.
+          </p>
+        </div>
+
+        <div className="grid gap-3 md:grid-cols-2">
+          <Controller
+            name="stoppedAt"
+            control={control}
+            rules={{ required: 'Vui lòng chọn ngày CID ngừng' }}
+            render={({ field }) => (
+              <FormDatePicker
+                label="Ngày CID ngừng *"
+                value={field.value}
+                min={cost.transactionDate || undefined}
+                max={todayDateValue()}
+                onChange={field.onChange}
+                required
+                error={Boolean(errors.stoppedAt)}
+                helperText={errors.stoppedAt?.message}
+              />
+            )}
+          />
+          <Controller
+            name="spentAmount"
+            control={control}
+            rules={{ required: 'Vui lòng nhập số tiền CID đã chạy' }}
+            render={({ field }) => (
+              <MoneyInput
+                fullWidth
+                size="small"
+                label="Số tiền CID đã chạy *"
+                value={field.value}
+                onValueChange={field.onChange}
+                error={Boolean(errors.spentAmount)}
+                helperText={errors.spentAmount?.message}
+                className={compactFormFieldClassName}
+              />
+            )}
+          />
+          <Controller
+            name="unrecoverableAmount"
+            control={control}
+            render={({ field }) => (
+              <MoneyInput
+                fullWidth
+                size="small"
+                label="Số tiền không thu hồi được"
+                value={field.value}
+                onValueChange={field.onChange}
+                error={Boolean(errors.unrecoverableAmount)}
+                helperText={errors.unrecoverableAmount?.message}
+                className={compactFormFieldClassName}
+              />
+            )}
+          />
+          <FormInputField multiline minRows={2} label="Ghi chú" {...register('note')} />
+        </div>
+
+        <div className="grid overflow-hidden rounded-lg border border-slate-200 bg-white sm:grid-cols-4 sm:divide-x sm:divide-slate-200">
+          {[
+            ['Tiền đã nạp', totalAmount, 'text-slate-950'],
+            ['CID đã chạy', spentAmount, 'text-slate-950'],
+            ['Không thu hồi', unrecoverableAmount, 'text-rose-700'],
+            ['Sẽ hoàn hạn mức', releasedAmount, 'text-emerald-700'],
+          ].map(([label, amount, tone]) => (
+            <div key={String(label)} className="px-3 py-2.5">
+              <p className="text-[11px] font-bold uppercase text-slate-400">{label}</p>
+              <p className={`mt-1 whitespace-nowrap text-sm font-extrabold tabular-nums ${tone}`}>
+                {formatCurrency(Number(amount))}
+              </p>
+            </div>
+          ))}
+        </div>
+      </div>
+    </AppFormDialog>
   );
 }
 
@@ -225,7 +412,7 @@ function getCostDefaults(cost?: ProjectCost | null): ProjectCostFormValues {
 
   return {
     quotationId: cost?.quotationId ? String(cost.quotationId) : '',
-    transactionDate: cost?.transactionDate || new Date().toISOString().slice(0, 10),
+    transactionDate: cost?.transactionDate || todayDateValue(),
     status: cost?.status || 'pending',
     cid: cost?.cid || '',
     adAccount: cost?.adAccount || '',
@@ -586,6 +773,8 @@ export function ProjectCostPanel({
   const [dialogOpen, setDialogOpen] = useState(false);
   const [editingCost, setEditingCost] = useState<ProjectCost | null>(null);
   const [deleteTarget, setDeleteTarget] = useState<ProjectCost | null>(null);
+  const [cidIncidentTarget, setCidIncidentTarget] = useState<ProjectCost | null>(null);
+  const [cancelCidIncidentTarget, setCancelCidIncidentTarget] = useState<ProjectCost | null>(null);
 
   const saveMutation = useMutation({
     mutationFn: ({
@@ -664,6 +853,42 @@ export function ProjectCostPanel({
       notify.error(getApiErrorMessage(error, 'Không thể cập nhật trạng thái khoản chi')),
   });
 
+  const cidIncidentMutation = useMutation({
+    mutationFn: ({ cost, payload }: { cost: ProjectCost; payload: ProjectCostCidIncidentInput }) =>
+      api
+        .put<ProjectCost>(`/project-costs/${cost.id}/cid-incident`, payload)
+        .then((response) => response.data),
+    onSuccess: (updatedCost) => {
+      queryClient.setQueryData<ProjectCost[]>(
+        ['project-costs', 'by-project', String(projectId)],
+        (currentCosts) =>
+          currentCosts?.map((cost) => (cost.id === updatedCost.id ? updatedCost : cost)),
+      );
+      void queryClient.invalidateQueries({ queryKey: ['project-costs'] });
+      void queryClient.invalidateQueries({ queryKey: ['projects'] });
+      notify.success('Đã gửi báo cáo CID ngừng để kế toán xác nhận');
+    },
+    onError: (error) => notify.error(getApiErrorMessage(error, 'Không thể gửi báo cáo CID ngừng')),
+  });
+
+  const cancelCidIncidentMutation = useMutation({
+    mutationFn: (cost: ProjectCost) =>
+      api
+        .delete<ProjectCost>(`/project-costs/${cost.id}/cid-incident`)
+        .then((response) => response.data),
+    onSuccess: (updatedCost) => {
+      queryClient.setQueryData<ProjectCost[]>(
+        ['project-costs', 'by-project', String(projectId)],
+        (currentCosts) =>
+          currentCosts?.map((cost) => (cost.id === updatedCost.id ? updatedCost : cost)),
+      );
+      void queryClient.invalidateQueries({ queryKey: ['project-costs'] });
+      void queryClient.invalidateQueries({ queryKey: ['projects'] });
+      notify.success('Đã hủy báo cáo CID ngừng');
+    },
+    onError: (error) => notify.error(getApiErrorMessage(error, 'Không thể hủy báo cáo CID ngừng')),
+  });
+
   const openCreate = () => {
     setEditingCost(null);
     setDialogOpen(true);
@@ -694,23 +919,22 @@ export function ProjectCostPanel({
 
       <div className="overflow-x-auto">
         {entryType === 'ad_spend' ? (
-          <table className="w-full min-w-[920px] table-fixed text-left text-sm">
+          <table className="w-full min-w-[760px] table-fixed text-left text-sm">
             <thead className="border-y border-slate-200 bg-slate-100 text-sm font-bold text-slate-700">
               <tr>
-                <th className="w-[13%] px-4 py-3">Ngày nạp</th>
-                <th className="w-[20%] px-3 py-3">CID</th>
-                <th className="w-[16%] px-3 py-3">Thẻ nạp</th>
+                <th className="w-[12%] px-4 py-3">Ngày nạp</th>
+                <th className="w-[27%] px-3 py-3">CID / Thẻ nạp</th>
                 <th className="w-[13%] px-3 py-3 text-right">Đã nạp</th>
-                <th className="w-[13%] px-3 py-3 text-right">Đã chạy</th>
-                <th className="w-[13%] px-3 py-3 text-right">Hạn mức</th>
-                <th className="w-[17%] px-3 py-3">Trạng thái</th>
+                <th className="w-[12%] px-3 py-3 text-right">Đã chạy</th>
+                <th className="w-[12%] px-3 py-3 text-right">Hạn mức</th>
+                <th className="w-[19%] px-3 py-3">Trạng thái</th>
                 <th className="w-[5%] px-2 py-3" />
               </tr>
             </thead>
             <tbody className="divide-y divide-slate-100">
               {visibleCosts.length === 0 ? (
                 <tr>
-                  <td colSpan={8} className="px-4 py-10 text-center font-semibold text-slate-500">
+                  <td colSpan={7} className="px-4 py-10 text-center font-semibold text-slate-500">
                     Chưa có dữ liệu nạp quảng cáo
                   </td>
                 </tr>
@@ -723,33 +947,36 @@ export function ProjectCostPanel({
                       </p>
                     </td>
                     <td className="px-3 py-3">
-                      <div className="flex min-w-0 flex-col gap-1">
-                        <span className="truncate font-mono font-bold text-slate-800">
+                      <div className="flex min-w-0 items-center gap-2 whitespace-nowrap">
+                        <span className="shrink-0 font-mono font-bold text-slate-800">
                           {cost.cid || '-'}
                         </span>
                         {cost.cidIsDead ? (
-                          <div className="flex min-w-0 flex-wrap items-center gap-1.5">
-                            <span className="rounded-md bg-rose-50 px-1.5 py-0.5 text-[11px] font-bold text-rose-700 ring-1 ring-rose-200">
-                              Ngừng hoạt động
-                            </span>
-                            <span className="truncate text-xs font-bold tabular-nums text-rose-700">
-                              Chạy {formatCurrency(moneyValue(cost.cidSpentAmount ?? cost.actualCostAmount))}
-                            </span>
-                          </div>
+                          <span
+                            className={`shrink-0 rounded-md px-1.5 py-0.5 text-[11px] font-bold ring-1 ${
+                              cost.cidIncident?.status === 'pending'
+                                ? 'bg-amber-50 text-amber-700 ring-amber-200'
+                                : 'bg-rose-50 text-rose-700 ring-rose-200'
+                            }`}
+                          >
+                            CID ngừng
+                          </span>
                         ) : null}
+                        <span
+                          className="min-w-0 truncate text-xs font-medium text-slate-500"
+                          title={getAdTopupCardLabel(cost.bankAccountOption)}
+                        >
+                          · {getAdTopupCardLabel(cost.bankAccountOption)}
+                        </span>
                       </div>
-                    </td>
-                    <td
-                      className="truncate px-3 py-3 text-slate-700"
-                      title={getAdTopupCardLabel(cost.bankAccountOption)}
-                    >
-                      {getAdTopupCardLabel(cost.bankAccountOption)}
                     </td>
                     <td className="px-3 py-3 text-right font-extrabold tabular-nums text-slate-950">
                       {formatCurrency(moneyValue(cost.totalAmount))}
                     </td>
                     <td className="px-3 py-3 text-right font-bold tabular-nums text-slate-700">
-                      {cost.cidIsDead ? formatCurrency(moneyValue(cost.cidSpentAmount ?? cost.actualCostAmount)) : '-'}
+                      {cost.cidIsDead
+                        ? formatCurrency(moneyValue(cost.cidSpentAmount ?? cost.actualCostAmount))
+                        : '-'}
                     </td>
                     <td className="px-3 py-3 text-right font-bold tabular-nums">
                       {cost.balanceStatus && cost.balanceStatus !== 'none' ? (
@@ -762,7 +989,9 @@ export function ProjectCostPanel({
                           title={
                             cost.balanceStatus === 'resolved'
                               ? 'Đã tự hoàn vào số tiền có thể nạp'
-                              : 'Chờ xác nhận đối soát để hoàn hạn mức'
+                              : cost.cidIncident?.status === 'pending'
+                                ? 'Chờ kế toán xác nhận CID ngừng để hoàn hạn mức'
+                                : 'Chờ xác nhận đối soát để hoàn hạn mức'
                           }
                         >
                           {formatCurrency(
@@ -782,7 +1011,22 @@ export function ProjectCostPanel({
                       )}
                     </td>
                     <td className="px-3 py-3">
-                      <div className="flex min-w-0 flex-wrap items-center gap-1.5">
+                      {cost.cidIncident?.status === 'pending' ? (
+                        <span className="inline-flex items-center gap-1 whitespace-nowrap rounded-md bg-amber-50 px-2 py-1 text-xs font-bold text-amber-700 ring-1 ring-amber-200">
+                          <WarningAmberRoundedIcon className="!text-[14px]" />
+                          Chờ xác nhận CID
+                        </span>
+                      ) : cost.reconciledAt ? (
+                        <span className="inline-flex items-center gap-1 whitespace-nowrap rounded-md bg-emerald-50 px-2 py-1 text-xs font-bold text-emerald-700 ring-1 ring-emerald-200">
+                          <LockRoundedIcon className="!text-[14px]" />
+                          Đã khớp
+                        </span>
+                      ) : cost.cidIsDead && cost.balanceStatus === 'pending' ? (
+                        <span className="inline-flex items-center gap-1 whitespace-nowrap rounded-md bg-amber-50 px-2 py-1 text-xs font-bold text-amber-700 ring-1 ring-amber-200">
+                          <WarningAmberRoundedIcon className="!text-[14px]" />
+                          Chờ đối soát CID
+                        </span>
+                      ) : (
                         <InlineCostStatusSelect
                           cost={cost}
                           entryType={entryType}
@@ -792,23 +1036,12 @@ export function ProjectCostPanel({
                           }
                           disabled={
                             !canManage ||
-                            Boolean(cost.reconciledAt) ||
                             (statusMutation.isPending &&
                               statusMutation.variables?.cost.id === cost.id)
                           }
                           onChange={(status) => statusMutation.mutate({ cost, status })}
                         />
-                        {cost.reconciledAt ? (
-                          <span
-                            className="inline-flex items-center gap-1 rounded-md bg-emerald-50 px-2 py-1 text-xs font-bold text-emerald-700 ring-1 ring-emerald-200"
-                            title="Khoản chi đã đối soát"
-                          >
-                            <LockRoundedIcon className="!text-[14px]" />
-                            Đã khớp
-                          </span>
-                        ) : null}
-                        {balanceStatusBadge(cost)}
-                      </div>
+                      )}
                     </td>
                     <td className="px-2 py-3">
                       <div className="flex justify-end">
@@ -817,6 +1050,8 @@ export function ProjectCostPanel({
                           canManage={canManage}
                           onEdit={() => openEdit(cost)}
                           onDelete={() => setDeleteTarget(cost)}
+                          onReportCidIncident={() => setCidIncidentTarget(cost)}
+                          onCancelCidIncident={() => setCancelCidIncidentTarget(cost)}
                         />
                       </div>
                     </td>
@@ -901,6 +1136,8 @@ export function ProjectCostPanel({
                           canManage={canManage}
                           onEdit={() => openEdit(cost)}
                           onDelete={() => setDeleteTarget(cost)}
+                          onReportCidIncident={() => setCidIncidentTarget(cost)}
+                          onCancelCidIncident={() => setCancelCidIncidentTarget(cost)}
                         />
                       </div>
                     </td>
@@ -936,6 +1173,35 @@ export function ProjectCostPanel({
         onConfirm={() => {
           if (deleteTarget) deleteMutation.mutate(deleteTarget);
           setDeleteTarget(null);
+        }}
+      />
+
+      <CidIncidentReportDialog
+        key={cidIncidentTarget?.id || 'empty'}
+        cost={cidIncidentTarget}
+        loading={cidIncidentMutation.isPending}
+        onClose={() => {
+          if (!cidIncidentMutation.isPending) setCidIncidentTarget(null);
+        }}
+        onSubmit={(payload) =>
+          cidIncidentMutation.mutateAsync({ cost: cidIncidentTarget!, payload })
+        }
+      />
+
+      <ConfirmDialog
+        open={Boolean(cancelCidIncidentTarget)}
+        title="Hủy báo cáo CID ngừng?"
+        description="Báo cáo đang chờ kế toán xác nhận sẽ bị hủy. Khoản chi gốc và hạn mức dự án không thay đổi."
+        confirmText="Hủy báo cáo"
+        loading={cancelCidIncidentMutation.isPending}
+        onClose={() => {
+          if (!cancelCidIncidentMutation.isPending) setCancelCidIncidentTarget(null);
+        }}
+        onConfirm={() => {
+          if (!cancelCidIncidentTarget) return;
+          cancelCidIncidentMutation.mutate(cancelCidIncidentTarget, {
+            onSuccess: () => setCancelCidIncidentTarget(null),
+          });
         }}
       />
     </section>

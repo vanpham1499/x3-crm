@@ -1,9 +1,13 @@
 # Dependencies
 node_modules/
 apps/backend/vendor/
-apps/backend/.tools/
 .pnp
 .pnp.js
+
+# Local tooling artifacts
+tooling/binaries/
+tooling/backups/
+tooling/deployment/.work/
 
 # Build outputs
 dist/

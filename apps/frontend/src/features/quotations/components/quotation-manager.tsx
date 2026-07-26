@@ -144,7 +144,7 @@ export function QuotationManager({
         <div className="grid gap-3 p-4 lg:grid-cols-[minmax(280px,1fr)_176px]">
           <CompactSearchField
             label="Từ khóa"
-            placeholder="Tìm mã báo phí, lead, dịch vụ, ghi chú..."
+            placeholder="Tìm mã báo phí, dự án, khách hàng, dịch vụ..."
             value={filters.keyword}
             onChange={(value) => updateFilters({ keyword: value })}
           />

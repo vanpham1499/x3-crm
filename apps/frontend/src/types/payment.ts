@@ -154,6 +154,7 @@ export type Payment = {
   matchedAt?: string | null;
   note?: string | null;
   reference?: string | null;
+  invoiceNumber?: string | null;
   quotation?: Pick<Quotation, 'id' | 'quotationCode' | 'totalAmount'> | null;
   allocations?: PaymentAllocation[];
   refunds?: PaymentRefund[];
@@ -211,9 +212,7 @@ export type PaymentRefundUpdateInput = {
   note?: string;
 };
 
-export type PaymentLinkInput = {
-  projectId?: number | null;
-  customerId?: number | null;
+export type PaymentClassificationInput = {
   receiptType: PaymentReceiptType;
 };
 

@@ -37,7 +37,7 @@ class UsersService extends BaseService
     public function create(array $data): array
     {
         return $this->transaction(function () use ($data): array {
-            if ($this->users->existsByEmailOrCode($data['email'], $data['code'])) {
+            if ($this->users->existsActiveByEmailOrCode($data['email'], $data['code'])) {
                 throw new ConflictHttpException('Email hoặc mã nhân viên đã tồn tại');
             }
 
@@ -62,6 +62,14 @@ class UsersService extends BaseService
 
             if (array_key_exists('role', $data)) {
                 $data['role_id'] = $this->resolveRoleId($data['role']);
+            }
+
+            if (array_key_exists('password', $data)) {
+                if (filled($data['password'])) {
+                    $data['password'] = Hash::make($data['password']);
+                } else {
+                    unset($data['password']);
+                }
             }
 
             /** @var User $user */

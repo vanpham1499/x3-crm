@@ -101,6 +101,7 @@ class PaymentRepository extends BaseRepository
                 $query
                     ->where('transaction_content', 'ilike', "%{$keyword}%")
                     ->orWhere('reference', 'ilike', "%{$keyword}%")
+                    ->orWhere('output_invoice_number', 'ilike', "%{$keyword}%")
                     ->orWhere('bank_account', 'ilike', "%{$keyword}%")
                     ->orWhere('sender_name', 'ilike', "%{$keyword}%")
                     ->orWhere('customer_code_text', 'ilike', "%{$keyword}%")

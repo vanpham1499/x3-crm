@@ -44,6 +44,7 @@ export default function UserDetailPage() {
         avatar: values.avatarUrl || null,
         role: values.role,
         isActive: values.isActive,
+        password: values.password || undefined,
       }),
     onSuccess: (response) => {
       const updatedUser = response.data as User;

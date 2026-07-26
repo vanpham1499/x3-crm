@@ -15,8 +15,8 @@ class CreateCustomerRequest extends BaseRequest
             'customerCode' => ['nullable', 'string', 'max:50', Rule::unique('customers', 'customer_code')],
             'lead_id' => ['nullable', 'integer', Rule::exists('leads', 'id')->whereNull('deleted_at')],
             'leadId' => ['nullable', 'integer', Rule::exists('leads', 'id')->whereNull('deleted_at')],
-            'customer_name' => ['required_without:customerName', 'string', 'max:255'],
-            'customerName' => ['required_without:customer_name', 'string', 'max:255'],
+            'customer_name' => ['required_without:customerName', 'string', 'max:255', 'not_regex:/\s/u'],
+            'customerName' => ['required_without:customer_name', 'string', 'max:255', 'not_regex:/\s/u'],
             'customer_type' => ['nullable', 'string', 'max:50'],
             'customerType' => ['nullable', 'string', 'max:50'],
             'customer_type_option_id' => ['nullable', 'integer', Rule::exists('options', 'id')->where('group', Option::GROUP_CUSTOMER_TYPE)->whereNull('deleted_at')],
@@ -24,7 +24,7 @@ class CreateCustomerRequest extends BaseRequest
             'company_name' => ['nullable', 'string', 'max:255'],
             'companyName' => ['required_without:company_name', 'string', 'max:255'],
             'representative_name' => ['nullable', 'string', 'max:255'],
-            'representativeName' => ['required_without:representative_name', 'string', 'max:255'],
+            'representativeName' => ['nullable', 'string', 'max:255'],
             'tax_code' => ['nullable', 'string', 'max:100'],
             'taxCode' => ['required_without_all:tax_code,identity_no,identityNo', 'nullable', 'string', 'max:100'],
             'identity_no' => ['nullable', 'string', 'max:100'],
@@ -37,7 +37,7 @@ class CreateCustomerRequest extends BaseRequest
             'phone' => ['required', 'string', 'max:50'],
             'email' => ['nullable', 'email', 'max:255'],
             'invoice_email' => ['nullable', 'email', 'max:255'],
-            'invoiceEmail' => ['required_without:invoice_email', 'email', 'max:255'],
+            'invoiceEmail' => ['nullable', 'email', 'max:255'],
             'website' => ['nullable', 'string', 'max:255'],
             'industry' => ['nullable', 'string', 'max:255'],
             'industry_option_id' => ['nullable', 'integer', Rule::exists('options', 'id')->where('group', Option::GROUP_INDUSTRY)->whereNull('deleted_at')],
@@ -55,12 +55,26 @@ class CreateCustomerRequest extends BaseRequest
     {
         $normalized = [];
 
-        foreach (['customer_code', 'customerCode'] as $key) {
+        foreach (['customer_code', 'customerCode', 'customer_name', 'customerName'] as $key) {
             if ($this->exists($key) && is_string($this->input($key))) {
                 $normalized[$key] = trim($this->input($key));
             }
         }
 
+        foreach (['company_name', 'companyName'] as $key) {
+            if ($this->exists($key) && is_string($this->input($key))) {
+                $normalized[$key] = mb_strtoupper(trim($this->input($key)), 'UTF-8');
+            }
+        }
+
         $this->merge($normalized);
+    }
+
+    public function messages(): array
+    {
+        return [
+            'customer_name.not_regex' => 'Tên khách hàng không được chứa khoảng trắng.',
+            'customerName.not_regex' => 'Tên khách hàng không được chứa khoảng trắng.',
+        ];
     }
 }

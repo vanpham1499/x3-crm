@@ -9,6 +9,8 @@ class ProjectCostResource extends JsonResource
 {
     public function toArray(Request $request): array
     {
+        $cidIncident = $this->relationLoaded('cidIncident') ? $this->cidIncident : null;
+
         return [
             'id' => $this->id,
             'projectId' => $this->project_id,
@@ -18,8 +20,9 @@ class ProjectCostResource extends JsonResource
             'status' => $this->status,
             'cid' => $this->cid,
             'adAccount' => $this->ad_account,
-            'cidIsDead' => (bool) $this->cid_is_dead,
-            'cidSpentAmount' => $this->cid_spent_amount,
+            'cidIsDead' => $this->hasStoppedCid(),
+            'cidSpentAmount' => $cidIncident?->spent_amount ?? $this->cid_spent_amount,
+            'cidUnrecoverableAmount' => $cidIncident?->unrecoverable_amount ?? 0,
             'bankAccountOptionId' => $this->bank_account_option_id,
             'partnerOptionId' => $this->partner_option_id,
             'amountBeforeVat' => $this->amount_before_vat,
@@ -77,6 +80,27 @@ class ProjectCostResource extends JsonResource
                 'createdAt' => $adjustment->created_at?->toISOString(),
                 'updatedAt' => $adjustment->updated_at?->toISOString(),
             ])->values()),
+            'cidIncident' => $this->whenLoaded('cidIncident', fn () => $cidIncident ? [
+                'id' => $cidIncident->id,
+                'stoppedAt' => $cidIncident->stopped_at?->toDateString(),
+                'spentAmount' => $cidIncident->spent_amount,
+                'unrecoverableAmount' => $cidIncident->unrecoverable_amount,
+                'releasedAmount' => $cidIncident->released_amount,
+                'status' => $cidIncident->status,
+                'note' => $cidIncident->note,
+                'reportedAt' => $cidIncident->reported_at?->toISOString(),
+                'reportedBy' => $cidIncident->relationLoaded('reportedBy') && $cidIncident->reportedBy ? [
+                    'id' => $cidIncident->reportedBy->id,
+                    'code' => $cidIncident->reportedBy->code,
+                    'name' => $cidIncident->reportedBy->name,
+                ] : null,
+                'confirmedAt' => $cidIncident->confirmed_at?->toISOString(),
+                'confirmedBy' => $cidIncident->relationLoaded('confirmedBy') && $cidIncident->confirmedBy ? [
+                    'id' => $cidIncident->confirmedBy->id,
+                    'code' => $cidIncident->confirmedBy->code,
+                    'name' => $cidIncident->confirmedBy->name,
+                ] : null,
+            ] : null),
             'createdAt' => $this->created_at?->toISOString(),
             'updatedAt' => $this->updated_at?->toISOString(),
         ];

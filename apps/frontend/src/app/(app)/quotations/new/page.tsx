@@ -9,7 +9,6 @@ import { COMPANY_BANK_ACCOUNT_OPTION_GROUP } from '@/lib/company-bank-account-op
 import { SERVICE_QUOTE_CONFIG_GROUP } from '@/lib/service-quote-config';
 import { getApiErrorMessage } from '@/lib/api-error';
 import api from '@/services/api/client';
-import type { Lead } from '@/types/lead';
 import type { AppOption } from '@/types/option';
 import type { Quotation } from '@/types/quotation';
 import type { ServiceItem } from '@/types/service';
@@ -19,13 +18,7 @@ export default function NewQuotationPage() {
   const searchParams = useSearchParams();
   const queryClient = useQueryClient();
   const notify = useAppNotification();
-  const leadId = searchParams.get('leadId') || '';
   const projectId = searchParams.get('projectId') || '';
-
-  const { data: leads = [], isLoading: isLeadsLoading } = useQuery<Lead[]>({
-    queryKey: ['leads', 'quotation-form-options'],
-    queryFn: () => api.get('/leads').then((response) => response.data),
-  });
 
   const { data: services = [], isLoading: isServicesLoading } = useQuery<ServiceItem[]>({
     queryKey: ['services', 'quotation-form-options'],
@@ -56,27 +49,25 @@ export default function NewQuotationPage() {
       api.post<Quotation>('/quotations', payload).then((response) => response.data),
     onSuccess: (quotation) => {
       queryClient.invalidateQueries({ queryKey: ['quotations'] });
-      queryClient.invalidateQueries({ queryKey: ['leads'] });
+      queryClient.invalidateQueries({ queryKey: ['projects'] });
       notify.success('Tạo báo phí thành công');
-      router.push(quotation.leadId ? `/leads/${quotation.leadId}` : '/leads');
+      router.push(quotation.projectId ? `/projects/${quotation.projectId}` : '/quotations');
     },
     onError: (error) => {
       notify.error(getApiErrorMessage(error, 'Tạo báo phí thất bại'));
     },
   });
 
-  if (isLeadsLoading || isServicesLoading || isQuoteConfigsLoading || isBankAccountsLoading) {
+  if (isServicesLoading || isQuoteConfigsLoading || isBankAccountsLoading) {
     return <ContentLoading />;
   }
 
   return (
     <QuotationForm
       mode="create"
-      leads={leads}
       services={services}
       quoteConfigs={quoteConfigs}
       bankAccountOptions={bankAccountOptions}
-      defaultLeadId={leadId}
       defaultProjectId={projectId}
       isSubmitting={createMutation.isPending}
       onSubmit={(payload) => createMutation.mutateAsync(payload)}

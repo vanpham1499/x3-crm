@@ -29,7 +29,6 @@ import { getAdTopupCardLabel } from '@/lib/ad-topup-card-options';
 import type {
   ProjectCost,
   ProjectCostAdjustmentType,
-  ProjectCostBalanceStatus,
   ProjectCostEntryType,
   ProjectCostFilters,
   ProjectCostReconciliationInput,
@@ -46,10 +45,12 @@ type CostManagerProps = {
   totalItems: number;
   isFetching: boolean;
   isReconciling: boolean;
+  isConfirmingCid: boolean;
   onFiltersChange: (filters: ProjectCostFilters) => void;
   onPageChange: (page: number) => void;
   onPageSizeChange: (pageSize: number) => void;
   onReconcile: (costId: number, payload: ProjectCostReconciliationInput) => Promise<ProjectCost>;
+  onConfirmCid: (costId: number) => Promise<ProjectCost>;
 };
 
 type CostGroup = {
@@ -74,14 +75,13 @@ const INVOICE_LABELS: Record<string, string> = {
   not_required: 'Không yêu cầu',
 };
 
-const RECONCILIATION_RESULT_OPTIONS: { value: ProjectCostReconciliationResult; label: string }[] =
-  [
-    { value: 'matched', label: 'Khớp chuẩn' },
-    { value: 'matched_with_note', label: 'Khớp có lưu ý' },
-    { value: 'difference', label: 'Có chênh lệch' },
-    { value: 'pending_documents', label: 'Chờ chứng từ' },
-    { value: 'cancelled', label: 'Hủy giao dịch' },
-  ];
+const RECONCILIATION_RESULT_OPTIONS: { value: ProjectCostReconciliationResult; label: string }[] = [
+  { value: 'matched', label: 'Khớp chuẩn' },
+  { value: 'matched_with_note', label: 'Khớp có lưu ý' },
+  { value: 'difference', label: 'Có chênh lệch' },
+  { value: 'pending_documents', label: 'Chờ chứng từ' },
+  { value: 'cancelled', label: 'Hủy giao dịch' },
+];
 
 const INVOICE_STATUS_OPTIONS = [
   { value: 'pending', label: 'Chưa có hóa đơn' },
@@ -95,12 +95,6 @@ const INVOICE_RECIPIENT_OPTIONS = [
   { value: 'company', label: 'Công ty X3Sales' },
   { value: 'other', label: 'Chủ thể khác' },
 ];
-
-const BALANCE_STATUS_LABELS: Record<ProjectCostBalanceStatus, string> = {
-  none: 'Không có số dư',
-  pending: 'Chờ đối soát',
-  resolved: 'Đã hoàn hạn mức',
-};
 
 const ADJUSTMENT_TYPE_OPTIONS: { value: ProjectCostAdjustmentType; label: string }[] = [
   { value: 'transfer_to_cid', label: 'Chuyển sang CID khác' },
@@ -215,12 +209,6 @@ function invoiceStatusLabel(value?: string | null) {
   return INVOICE_STATUS_OPTIONS.find((option) => option.value === value)?.label || '-';
 }
 
-function balanceStatusClass(status?: ProjectCostBalanceStatus | null) {
-  if (status === 'pending') return 'bg-amber-50 text-amber-700 ring-amber-200';
-  if (status === 'resolved') return 'bg-emerald-50 text-emerald-700 ring-emerald-200';
-  return 'bg-slate-100 text-slate-500 ring-slate-200';
-}
-
 function releasedBalanceAmount(cost: ProjectCost) {
   return moneyValue(
     cost.releasedBalanceAmount ?? cost.handledBalanceAmount ?? cost.originalBalanceAmount,
@@ -233,7 +221,17 @@ function displayedBalanceAmount(cost: ProjectCost) {
     : moneyValue(cost.remainingBalanceAmount ?? cost.originalBalanceAmount);
 }
 
-function CostDetailDialog({ cost, onClose }: { cost: ProjectCost | null; onClose: () => void }) {
+function CostDetailDialog({
+  cost,
+  confirmingCid,
+  onClose,
+  onConfirmCid,
+}: {
+  cost: ProjectCost | null;
+  confirmingCid: boolean;
+  onClose: () => void;
+  onConfirmCid: (cost: ProjectCost) => void;
+}) {
   if (!cost) return null;
 
   const isAdSpend = cost.entryType === 'ad_spend';
@@ -249,33 +247,43 @@ function CostDetailDialog({ cost, onClose }: { cost: ProjectCost | null; onClose
       subtitle={formatDate(cost.transactionDate)}
       onClose={onClose}
       actions={
-        <DialogActionButton
-          tone="primary"
-          href={`/projects/${cost.projectId}`}
-          startIcon={<WorkRoundedIcon />}
-        >
-          Mở dự án
-        </DialogActionButton>
+        <>
+          {cost.cidIncident?.status === 'pending' ? (
+            <DialogActionButton
+              tone="primary"
+              startIcon={<CheckCircleRoundedIcon />}
+              disabled={confirmingCid}
+              onClick={() => onConfirmCid(cost)}
+            >
+              Xác nhận CID ngừng
+            </DialogActionButton>
+          ) : null}
+          <DialogActionButton
+            tone={cost.cidIncident?.status === 'pending' ? 'secondary' : 'primary'}
+            href={`/projects/${cost.projectId}`}
+            startIcon={<WorkRoundedIcon />}
+          >
+            Mở dự án
+          </DialogActionButton>
+        </>
       }
     >
       <div className="space-y-4 bg-slate-50/60 p-4">
         <section className="grid overflow-hidden rounded-xl border border-slate-200 bg-white sm:grid-cols-4 sm:divide-x sm:divide-slate-200">
           <div className="px-4 py-3">
-            <p className="text-xs font-bold uppercase tracking-wide text-slate-400">Tiền công ty chi</p>
+            <p className="text-xs font-bold uppercase tracking-wide text-slate-400">
+              Tiền công ty chi
+            </p>
             <p className="mt-1 text-lg font-extrabold tabular-nums text-rose-700">
               {formatCurrency(cost.cashOutAmount ?? cost.totalAmount)}
             </p>
           </div>
           <div className="px-4 py-3">
             <p className="text-xs font-bold uppercase tracking-wide text-slate-400">
-              {isAdSpend ? 'Chi phí thực chạy' : 'Chi phí ghi nhận'}
+              Chi phí ghi nhận
             </p>
             <p className="mt-1 text-lg font-extrabold tabular-nums text-slate-900">
-              {formatCurrency(
-                isAdSpend && cost.cidIsDead
-                  ? cost.cidSpentAmount
-                  : cost.realizedCostAmount ?? cost.actualCostAmount ?? cost.totalAmount,
-              )}
+              {formatCurrency(cost.realizedCostAmount ?? cost.actualCostAmount ?? cost.totalAmount)}
             </p>
           </div>
           <div className="px-4 py-3">
@@ -312,17 +320,67 @@ function CostDetailDialog({ cost, onClose }: { cost: ProjectCost | null; onClose
               }
             />
             <DetailRow label="Số hóa đơn" value={cost.invoiceNumber} />
-            <DetailRow label="Kết quả đối soát" value={reconciliationResultLabel(cost.reconciliationResult)} />
+            <DetailRow
+              label="Kết quả đối soát"
+              value={reconciliationResultLabel(cost.reconciliationResult)}
+            />
             <DetailRow label="Hóa đơn" value={invoiceStatusLabel(cost.invoiceStatus)} />
             {isAdSpend ? (
               <>
                 <DetailRow label="Mã CID" value={cost.cid} />
                 <DetailRow label="Thẻ nạp QC" value={getAdTopupCardLabel(cost.bankAccountOption)} />
                 {cost.cidIsDead ? (
-                  <DetailRow
-                    label="CID ngừng hoạt động"
-                    value={`Đã chạy ${formatCurrency(cost.cidSpentAmount)} · Dư gốc ${formatCurrency(cost.originalBalanceAmount)}`}
-                  />
+                  <>
+                    <DetailRow
+                      label="CID ngừng hoạt động"
+                      value={
+                        cost.cidIncident
+                          ? `${cost.cidIncident.status === 'pending' ? 'Chờ kế toán xác nhận' : 'Đã xác nhận'} · Ngừng ngày ${formatDate(cost.cidIncident.stoppedAt)}`
+                          : `Đã chạy ${formatCurrency(cost.cidSpentAmount)} · Dư gốc ${formatCurrency(cost.originalBalanceAmount)}`
+                      }
+                    />
+                    {cost.cidIncident ? (
+                      <>
+                        <DetailRow
+                          label="Tiền CID đã chạy"
+                          value={formatCurrency(cost.cidIncident.spentAmount)}
+                        />
+                        <DetailRow
+                          label="Không thu hồi được"
+                          value={formatCurrency(cost.cidIncident.unrecoverableAmount)}
+                        />
+                        <DetailRow
+                          label={
+                            cost.cidIncident.status === 'confirmed'
+                              ? 'Hạn mức đã hoàn'
+                              : 'Dự kiến hoàn hạn mức'
+                          }
+                          value={formatCurrency(cost.cidIncident.releasedAmount)}
+                        />
+                        <DetailRow
+                          label="Người báo"
+                          value={[
+                            cost.cidIncident.reportedBy?.name,
+                            formatDateTime(cost.cidIncident.reportedAt),
+                          ]
+                            .filter(Boolean)
+                            .join(' · ')}
+                        />
+                        {cost.cidIncident.status === 'confirmed' ? (
+                          <DetailRow
+                            label="Người xác nhận"
+                            value={[
+                              cost.cidIncident.confirmedBy?.name,
+                              formatDateTime(cost.cidIncident.confirmedAt),
+                            ]
+                              .filter(Boolean)
+                              .join(' · ')}
+                          />
+                        ) : null}
+                        <DetailRow label="Ghi chú CID" value={cost.cidIncident.note} />
+                      </>
+                    ) : null}
+                  </>
                 ) : null}
               </>
             ) : (
@@ -361,6 +419,100 @@ function CostDetailDialog({ cost, onClose }: { cost: ProjectCost | null; onClose
         </section>
       </div>
     </AppDetailDialog>
+  );
+}
+
+function CidIncidentConfirmDialog({
+  cost,
+  loading,
+  onClose,
+  onSubmit,
+}: {
+  cost: ProjectCost | null;
+  loading: boolean;
+  onClose: () => void;
+  onSubmit: (costId: number) => Promise<ProjectCost>;
+}) {
+  const incident = cost?.cidIncident;
+
+  if (!cost || !incident || incident.status !== 'pending') return null;
+
+  return (
+    <AppFormDialog
+      open
+      title="Xác nhận CID ngừng hoạt động"
+      maxWidth="sm"
+      submitting={loading}
+      onClose={onClose}
+      onSubmit={(event) => {
+        event.preventDefault();
+        void onSubmit(cost.id)
+          .then(onClose)
+          .catch(() => undefined);
+      }}
+      actions={
+        <>
+          <DialogActionButton onClick={onClose} disabled={loading}>
+            Kiểm tra lại
+          </DialogActionButton>
+          <DialogActionButton type="submit" tone="primary" disabled={loading}>
+            {loading ? 'Đang xác nhận...' : 'Xác nhận và hoàn hạn mức'}
+          </DialogActionButton>
+        </>
+      }
+    >
+      <div className="space-y-4">
+        <div className="rounded-lg border border-amber-200 bg-amber-50 px-3 py-2.5">
+          <div className="flex items-center gap-2 text-sm font-bold text-amber-800">
+            <WarningAmberRoundedIcon className="!text-[18px]" />
+            CID {cost.cid || '-'} ngừng ngày {formatDate(incident.stoppedAt)}
+          </div>
+          <p className="mt-1 pl-[26px] text-xs font-medium leading-5 text-slate-600">
+            Sau khi xác nhận, khoản chi gốc vẫn được khóa và phần hạn mức còn lại sẽ tự động cộng về
+            “Số tiền có thể nạp” của dự án.
+          </p>
+        </div>
+
+        <div className="grid overflow-hidden rounded-lg border border-slate-200 bg-white sm:grid-cols-2">
+          {[
+            { label: 'Tiền đã nạp', value: cost.totalAmount, tone: 'text-slate-950' },
+            { label: 'CID đã chạy', value: incident.spentAmount, tone: 'text-slate-950' },
+            {
+              label: 'Không thu hồi được',
+              value: incident.unrecoverableAmount,
+              tone: 'text-rose-700',
+            },
+            {
+              label: 'Tự hoàn hạn mức',
+              value: incident.releasedAmount,
+              tone: 'text-emerald-700',
+            },
+          ].map((item) => (
+            <div
+              key={item.label}
+              className="border-b border-slate-200 px-3 py-2.5 odd:border-r last:border-b-0"
+            >
+              <p className="text-[11px] font-bold uppercase text-slate-400">{item.label}</p>
+              <p
+                className={`mt-1 whitespace-nowrap text-base font-extrabold tabular-nums ${item.tone}`}
+              >
+                {formatCurrency(item.value)}
+              </p>
+            </div>
+          ))}
+        </div>
+
+        <dl className="rounded-lg border border-slate-200 bg-slate-50 px-3">
+          <DetailRow
+            label="Người báo"
+            value={[incident.reportedBy?.name, formatDateTime(incident.reportedAt)]
+              .filter(Boolean)
+              .join(' · ')}
+          />
+          <DetailRow label="Ghi chú" value={incident.note} />
+        </dl>
+      </div>
+    </AppFormDialog>
   );
 }
 
@@ -511,7 +663,9 @@ function CostReconciliationDialog({
             label="Trạng thái hóa đơn"
             value={invoiceStatus}
             onChange={(event) =>
-              setInvoiceStatus(event.target.value as ProjectCostReconciliationInput['invoiceStatus'])
+              setInvoiceStatus(
+                event.target.value as ProjectCostReconciliationInput['invoiceStatus'],
+              )
             }
           >
             {INVOICE_STATUS_OPTIONS.map((option) => (
@@ -572,15 +726,18 @@ export function CostManager({
   totalItems,
   isFetching,
   isReconciling,
+  isConfirmingCid,
   onFiltersChange,
   onPageChange,
   onPageSizeChange,
   onReconcile,
+  onConfirmCid,
 }: CostManagerProps) {
   const [viewTarget, setViewTarget] = useState<ProjectCost | null>(null);
   const [activeCost, setActiveCost] = useState<ProjectCost | null>(null);
   const [menuAnchorEl, setMenuAnchorEl] = useState<HTMLElement | null>(null);
   const [reconcileTarget, setReconcileTarget] = useState<ProjectCost | null>(null);
+  const [confirmCidTarget, setConfirmCidTarget] = useState<ProjectCost | null>(null);
   const costGroups = groupCostsByProject(costs);
 
   const updateFilters = (nextFilters: Partial<ProjectCostFilters>) => {
@@ -659,7 +816,7 @@ export function CostManager({
               label="Số dư"
               value={filters.balance_status}
               options={[
-                { value: 'pending', label: 'Chờ đối soát' },
+                { value: 'pending', label: 'Chờ xác nhận' },
                 { value: 'resolved', label: 'Đã hoàn hạn mức' },
                 { value: 'none', label: 'Không có' },
               ]}
@@ -686,24 +843,18 @@ export function CostManager({
 
         <AppDataTable
           columns={[
-            {
-              key: 'date',
-              label: 'Ngày nạp / chi',
-              className: 'sticky left-0 z-20 w-36 bg-slate-100',
-            },
-            { key: 'type', label: 'Loại chi phí', className: 'w-44' },
-            { key: 'amount', label: 'Số tiền', className: 'w-44 text-right' },
-            { key: 'balance', label: 'Số dư', className: 'w-40 text-right' },
-            { key: 'detail', label: 'Chi tiết', className: 'w-80' },
-            { key: 'project', label: 'Dự án', className: 'w-64' },
-            { key: 'status', label: 'Trạng thái', className: 'w-36' },
-            { key: 'reconcile', label: 'Đối soát', className: 'w-28 text-center' },
-            { key: 'actions', className: 'w-24' },
+            { key: 'date', label: 'Ngày chi', className: 'w-32' },
+            { key: 'type', label: 'Loại chi phí', className: 'w-40' },
+            { key: 'amount', label: 'Chi phí', className: 'w-52 text-right' },
+            { key: 'detail', label: 'Chi tiết', className: 'w-72' },
+            { key: 'project', label: 'Dự án', className: 'w-56' },
+            { key: 'processing', label: 'Xử lý', className: 'w-40 text-center' },
+            { key: 'actions', className: 'w-20' },
           ]}
           isLoading={isFetching}
           isEmpty={costs.length === 0}
           emptyText="Chưa có chi phí dự án"
-          minWidthClassName="min-w-[1380px]"
+          minWidthClassName="min-w-[1080px]"
         >
           {costGroups.flatMap((group) => {
             const firstCost = group.costs[0];
@@ -722,7 +873,7 @@ export function CostManager({
                       : 'group hover:bg-slate-50/80'
                   }
                 >
-                  <td className="sticky left-0 z-10 bg-white px-3 py-3.5 font-semibold tabular-nums text-slate-800 group-hover:bg-slate-50">
+                  <td className="px-3 py-3.5 font-semibold tabular-nums text-slate-800">
                     <span className="whitespace-nowrap">{formatDate(cost.transactionDate)}</span>
                   </td>
                   <td className="px-3 py-3.5">
@@ -737,32 +888,24 @@ export function CostManager({
                       {ENTRY_TYPE_LABELS[cost.entryType]}
                     </span>
                   </td>
-                  <td className="px-3 py-3.5 text-right font-extrabold tabular-nums text-rose-700">
-                    <span className="whitespace-nowrap">
-                      {formatCurrency(cost.cashOutAmount ?? cost.totalAmount)}
-                    </span>
-                  </td>
                   <td className="px-3 py-3.5 text-right">
-                    {cost.balanceStatus && cost.balanceStatus !== 'none' ? (
-                      <div className="inline-flex flex-col items-end gap-1">
+                    <div className="flex flex-col items-end gap-1">
+                      <span className="whitespace-nowrap font-extrabold tabular-nums text-rose-700">
+                        {formatCurrency(cost.cashOutAmount ?? cost.totalAmount)}
+                      </span>
+                      {cost.balanceStatus && cost.balanceStatus !== 'none' ? (
                         <span
-                          className={`rounded-md px-2 py-1 text-xs font-bold ring-1 ${balanceStatusClass(cost.balanceStatus)}`}
-                        >
-                          {BALANCE_STATUS_LABELS[cost.balanceStatus]}
-                        </span>
-                        <span
-                          className={`whitespace-nowrap text-xs font-extrabold tabular-nums ${
+                          className={`whitespace-nowrap text-xs font-bold tabular-nums ${
                             cost.balanceStatus === 'resolved'
                               ? 'text-emerald-700'
                               : 'text-amber-700'
                           }`}
                         >
+                          {cost.balanceStatus === 'resolved' ? 'Đã hoàn ' : 'Chờ xác nhận '}
                           {formatCurrency(displayedBalanceAmount(cost))}
                         </span>
-                      </div>
-                    ) : (
-                      <span className="text-slate-400">-</span>
-                    )}
+                      ) : null}
+                    </div>
                   </td>
                   <td className="px-3 py-3.5">
                     <p
@@ -795,15 +938,18 @@ export function CostManager({
                       </div>
                     </td>
                   ) : null}
-                  <td className="px-3 py-3.5">
-                    <span
-                      className={`inline-flex whitespace-nowrap rounded-md px-2 py-1 text-xs font-bold ring-1 ${statusClass(cost.status)}`}
-                    >
-                      {costStatusLabel(cost)}
-                    </span>
-                  </td>
                   <td className="px-3 py-3.5 text-center">
-                    {cost.reconciledAt ? (
+                    {cost.cidIncident?.status === 'pending' ? (
+                      <button
+                        type="button"
+                        className="inline-flex items-center gap-1 whitespace-nowrap rounded-md bg-amber-50 px-2 py-1 text-xs font-bold text-amber-700 ring-1 ring-amber-200 transition hover:bg-amber-100"
+                        title="Chi phí đã đối soát, CID đang chờ xác nhận số tiền đã chạy"
+                        onClick={() => setConfirmCidTarget(cost)}
+                      >
+                        <WarningAmberRoundedIcon className="!text-[15px]" />
+                        CID chờ xác nhận
+                      </button>
+                    ) : cost.reconciledAt ? (
                       <span
                         className="inline-flex items-center gap-1 whitespace-nowrap rounded-md bg-emerald-50 px-2 py-1 text-xs font-bold text-emerald-700 ring-1 ring-emerald-200"
                         title={`Đã khớp lúc ${formatDateTime(cost.reconciledAt)}${cost.invoiceNumber ? ` · Hóa đơn ${cost.invoiceNumber}` : ''}`}
@@ -811,17 +957,22 @@ export function CostManager({
                         <CheckCircleRoundedIcon className="!text-[16px]" />
                         Đã khớp
                       </span>
+                    ) : cost.status === 'cancelled' ? (
+                      <span
+                        className={`inline-flex whitespace-nowrap rounded-md px-2 py-1 text-xs font-bold ring-1 ${statusClass(cost.status)}`}
+                      >
+                        {costStatusLabel(cost)}
+                      </span>
                     ) : (
-                      <IconButton
-                        size="small"
+                      <button
+                        type="button"
                         disabled={isReconciling}
-                        title="Xác nhận đã khớp"
-                        aria-label={`Xác nhận khớp khoản chi ${cost.id}`}
-                        className="!text-slate-400 transition-colors hover:!bg-slate-100 hover:!text-slate-700"
+                        className="inline-flex items-center gap-1 whitespace-nowrap rounded-md bg-slate-50 px-2 py-1 text-xs font-bold text-slate-600 ring-1 ring-slate-200 transition hover:bg-amber-50 hover:text-amber-700 hover:ring-amber-200 disabled:cursor-not-allowed disabled:opacity-50"
                         onClick={() => openReconcileDialog(cost)}
                       >
-                        <CheckCircleOutlineRoundedIcon fontSize="small" />
-                      </IconButton>
+                        <CheckCircleOutlineRoundedIcon className="!text-[16px]" />
+                        Chờ đối soát
+                      </button>
                     )}
                   </td>
                   <td className="py-3.5">
@@ -873,18 +1024,37 @@ export function CostManager({
           Xem chi tiết
         </MenuItem>
         {activeCost ? (
-          <MenuItem
-            component={Link}
-            href={`/projects/${activeCost.projectId}`}
-            onClick={closeActionMenu}
-          >
-            <OpenInNewRoundedIcon fontSize="small" className="mr-2 text-blue-600" />
-            Mở dự án
-          </MenuItem>
+          <>
+            {activeCost.cidIncident?.status === 'pending' ? (
+              <MenuItem
+                className="!text-amber-700"
+                onClick={() => {
+                  setConfirmCidTarget(activeCost);
+                  closeActionMenu();
+                }}
+              >
+                <CheckCircleRoundedIcon fontSize="small" className="mr-2" />
+                Xác nhận CID ngừng
+              </MenuItem>
+            ) : null}
+            <MenuItem
+              component={Link}
+              href={`/projects/${activeCost.projectId}`}
+              onClick={closeActionMenu}
+            >
+              <OpenInNewRoundedIcon fontSize="small" className="mr-2 text-blue-600" />
+              Mở dự án
+            </MenuItem>
+          </>
         ) : null}
       </Menu>
 
-      <CostDetailDialog cost={viewTarget} onClose={() => setViewTarget(null)} />
+      <CostDetailDialog
+        cost={viewTarget}
+        confirmingCid={isConfirmingCid}
+        onClose={() => setViewTarget(null)}
+        onConfirmCid={(cost) => setConfirmCidTarget(cost)}
+      />
 
       <CostReconciliationDialog
         key={reconcileTarget?.id || 'empty'}
@@ -892,6 +1062,20 @@ export function CostManager({
         loading={isReconciling}
         onClose={closeReconcileDialog}
         onSubmit={(payload) => onReconcile(reconcileTarget!.id, payload)}
+      />
+
+      <CidIncidentConfirmDialog
+        key={confirmCidTarget?.id || 'empty'}
+        cost={confirmCidTarget}
+        loading={isConfirmingCid}
+        onClose={() => {
+          if (!isConfirmingCid) setConfirmCidTarget(null);
+        }}
+        onSubmit={async (costId) => {
+          const updatedCost = await onConfirmCid(costId);
+          if (viewTarget?.id === updatedCost.id) setViewTarget(updatedCost);
+          return updatedCost;
+        }}
       />
     </div>
   );

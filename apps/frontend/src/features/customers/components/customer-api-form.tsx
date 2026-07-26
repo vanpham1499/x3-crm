@@ -117,39 +117,56 @@ export function CustomerApiForm({
                 />
               </div>
               <div className="md:col-span-4">
-                <FormInputField
-                  label="Tên khách hàng *"
-                  placeholder="K.HYUNDAINGOCAN - C.Mai"
-                  disabled={readOnly}
-                  error={Boolean(errors.customerName)}
-                  helperText={errors.customerName?.message}
-                  {...register('customerName', { required: 'Vui lòng nhập tên khách hàng' })}
+                <Controller
+                  name="customerName"
+                  control={control}
+                  rules={{
+                    required: 'Vui lòng nhập tên khách hàng',
+                    validate: (value) =>
+                      !/\s/u.test(value) || 'Tên khách hàng không được chứa khoảng trắng',
+                  }}
+                  render={({ field }) => (
+                    <FormInputField
+                      {...field}
+                      label="Tên khách hàng *"
+                      placeholder="KHYUNDAINGOCAN"
+                      disabled={readOnly}
+                      error={Boolean(errors.customerName)}
+                      helperText={errors.customerName?.message}
+                      onChange={(event) => field.onChange(event.target.value.replace(/\s+/gu, ''))}
+                    />
+                  )}
                 />
               </div>
               <div className="md:col-span-5">
-                <FormInputField
-                  required
-                  label="Tên công ty / cá nhân"
-                  disabled={readOnly}
-                  error={Boolean(errors.companyName)}
-                  helperText={errors.companyName?.message}
-                  {...register('companyName', {
+                <Controller
+                  name="companyName"
+                  control={control}
+                  rules={{
                     validate: (value) =>
                       value.trim() !== '' || 'Vui lòng nhập tên công ty / cá nhân',
-                  })}
+                  }}
+                  render={({ field }) => (
+                    <FormInputField
+                      {...field}
+                      required
+                      label="Tên công ty / cá nhân"
+                      disabled={readOnly}
+                      error={Boolean(errors.companyName)}
+                      helperText={errors.companyName?.message}
+                      onChange={(event) =>
+                        field.onChange(event.target.value.toLocaleUpperCase('vi-VN'))
+                      }
+                    />
+                  )}
                 />
               </div>
             </div>
             <div className="grid gap-4 md:grid-cols-2">
               <FormInputField
-                required
                 label="Người đại diện"
                 disabled={readOnly}
-                error={Boolean(errors.representativeName)}
-                helperText={errors.representativeName?.message}
-                {...register('representativeName', {
-                  validate: (value) => value.trim() !== '' || 'Vui lòng nhập người đại diện',
-                })}
+                {...register('representativeName')}
               />
               <FormInputField
                 required
@@ -171,14 +188,12 @@ export function CustomerApiForm({
                 {...register('email')}
               />
               <FormInputField
-                required
                 type="email"
                 label="Email nhận hóa đơn"
                 disabled={readOnly}
                 error={Boolean(errors.invoiceEmail)}
                 helperText={errors.invoiceEmail?.message}
                 {...register('invoiceEmail', {
-                  validate: (value) => value.trim() !== '' || 'Vui lòng nhập email nhận hóa đơn',
                   pattern: {
                     value: /^[^\s@]+@[^\s@]+\.[^\s@]+$/,
                     message: 'Email nhận hóa đơn không hợp lệ',

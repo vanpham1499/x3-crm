@@ -78,7 +78,6 @@ export type ProjectFilters = {
 export type ProjectFormValues = {
   projectCode: string;
   customerId: string;
-  quotationId: string;
   serviceId: string;
   projectName: string;
   projectType: ProjectType;

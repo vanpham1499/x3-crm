@@ -34,6 +34,7 @@ class Payment extends BaseModel
         'note',
         'webhook_payload',
         'reference',
+        'output_invoice_number',
         'created_by',
         'updated_by',
         'deleted_by',

@@ -23,6 +23,7 @@ class QuotationsController extends Controller
             'contractId' => $request->query('contract_id'),
             'serviceId' => $request->query('service_id'),
             'status' => $request->query('status'),
+            'allocationOpen' => $request->query('allocation_open'),
         ];
 
         if ($request->query->has('page') || $request->query->has('per_page')) {

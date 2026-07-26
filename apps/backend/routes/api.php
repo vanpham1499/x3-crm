@@ -101,6 +101,9 @@ Route::middleware(['auth:sanctum', 'active'])->group(function (): void {
     Route::get('/project-costs', [ProjectCostsController::class, 'index']);
     Route::post('/project-costs', [ProjectCostsController::class, 'store']);
     Route::post('/project-costs/{id}/reconcile', [ProjectCostsController::class, 'reconcile']);
+    Route::put('/project-costs/{id}/cid-incident', [ProjectCostsController::class, 'reportCidIncident']);
+    Route::post('/project-costs/{id}/cid-incident/confirm', [ProjectCostsController::class, 'confirmCidIncident']);
+    Route::delete('/project-costs/{id}/cid-incident', [ProjectCostsController::class, 'cancelCidIncident']);
     Route::get('/project-costs/{id}', [ProjectCostsController::class, 'show']);
     Route::put('/project-costs/{id}', [ProjectCostsController::class, 'update']);
     Route::patch('/project-costs/{id}', [ProjectCostsController::class, 'update']);
@@ -154,11 +157,11 @@ Route::middleware(['auth:sanctum', 'active'])->group(function (): void {
     Route::delete('/payment-refunds/{id}', [PaymentsController::class, 'destroyRefund']);
     Route::get('/payments', [PaymentsController::class, 'index']);
     Route::post('/payments', [PaymentsController::class, 'store']);
-    Route::post('/payments/{id}/match-project', [PaymentsController::class, 'matchProject']);
     Route::post('/payments/{id}/allocations', [PaymentsController::class, 'allocate']);
     Route::delete('/payments/{paymentId}/allocations/{allocationId}', [PaymentsController::class, 'removeAllocation']);
     Route::post('/payments/{id}/refunds', [PaymentsController::class, 'refund']);
-    Route::post('/payments/{id}/link', [PaymentsController::class, 'link']);
+    Route::post('/payments/{id}/classification', [PaymentsController::class, 'classify']);
+    Route::patch('/payments/{id}/invoice', [PaymentsController::class, 'updateInvoice']);
     Route::get('/payments/{id}', [PaymentsController::class, 'show']);
     Route::put('/payments/{id}', [PaymentsController::class, 'update']);
     Route::patch('/payments/{id}', [PaymentsController::class, 'update']);

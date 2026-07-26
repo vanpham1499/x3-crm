@@ -3,9 +3,10 @@
 namespace App\Http\Controllers;
 
 use App\Http\Requests\Payments\AllocatePaymentRequest;
+use App\Http\Requests\Payments\ClassifyPaymentRequest;
 use App\Http\Requests\Payments\CreatePaymentRequest;
-use App\Http\Requests\Payments\LinkPaymentRequest;
 use App\Http\Requests\Payments\RefundPaymentRequest;
+use App\Http\Requests\Payments\UpdatePaymentInvoiceRequest;
 use App\Http\Requests\Payments\UpdatePaymentRefundRequest;
 use App\Http\Requests\Payments\UpdatePaymentRequest;
 use App\Http\Requests\Payments\WebhookPaymentRequest;
@@ -88,11 +89,6 @@ class PaymentsController extends Controller
         return response()->json(['success' => true]);
     }
 
-    public function matchProject(Request $request, string $id): JsonResponse
-    {
-        return $this->success($this->payments->matchProject($id, $request->all()));
-    }
-
     public function allocate(AllocatePaymentRequest $request, string $id): JsonResponse
     {
         return $this->success($this->payments->allocate($id, $request->validatedData()));
@@ -118,8 +114,13 @@ class PaymentsController extends Controller
         return $this->success($this->payments->removeRefund($id));
     }
 
-    public function link(LinkPaymentRequest $request, string $id): JsonResponse
+    public function classify(ClassifyPaymentRequest $request, string $id): JsonResponse
     {
-        return $this->success($this->payments->link($id, $request->validatedData()));
+        return $this->success($this->payments->classify($id, $request->validatedData()));
+    }
+
+    public function updateInvoice(UpdatePaymentInvoiceRequest $request, string $id): JsonResponse
+    {
+        return $this->success($this->payments->updateInvoice($id, $request->validatedData()));
     }
 }

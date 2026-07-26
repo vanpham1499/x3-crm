@@ -3,6 +3,7 @@
 namespace App\Repositories;
 
 use App\Models\ProjectCost;
+use App\Models\ProjectCostCidIncident;
 use Illuminate\Contracts\Pagination\LengthAwarePaginator;
 use Illuminate\Database\Eloquent\Builder;
 use Illuminate\Database\Eloquent\Collection;
@@ -112,6 +113,8 @@ class ProjectCostRepository extends BaseRepository
                 $query
                     ->where('cid', 'ilike', "%{$keyword}%")
                     ->orWhere('ad_account', 'ilike', "%{$keyword}%")
+                    ->orWhereHas('cidIncident', fn ($relation) => $relation
+                        ->where('note', 'ilike', "%{$keyword}%"))
                     ->orWhere('invoice_number', 'ilike', "%{$keyword}%")
                     ->orWhere('note', 'ilike', "%{$keyword}%")
                     ->orWhereHas('project', fn ($relation) => $relation
@@ -167,6 +170,8 @@ class ProjectCostRepository extends BaseRepository
             'partnerOption',
             'reconciledBy',
             'adjustments',
+            'cidIncident.reportedBy',
+            'cidIncident.confirmedBy',
         ];
     }
 
@@ -176,21 +181,36 @@ class ProjectCostRepository extends BaseRepository
 
         if ($status === 'none') {
             return $query->where(function ($query) use ($balanceSql): void {
-                $query
-                    ->where('entry_type', '!=', ProjectCost::TYPE_AD_SPEND)
-                    ->orWhere('cid_is_dead', false)
-                    ->orWhereRaw("{$balanceSql} <= 0");
+                $query->where(function ($legacy) use ($balanceSql): void {
+                    $legacy
+                        ->where('entry_type', '!=', ProjectCost::TYPE_AD_SPEND)
+                        ->orWhere('cid_is_dead', false)
+                        ->orWhereRaw("{$balanceSql} <= 0");
+                })->whereDoesntHave('cidIncident', fn ($incident) => $incident
+                    ->where('released_amount', '>', 0));
             });
         }
 
-        return $query
-            ->where('entry_type', ProjectCost::TYPE_AD_SPEND)
-            ->where('cid_is_dead', true)
-            ->whereRaw("{$balanceSql} > 0")
-            ->when(
-                $status === 'pending',
-                fn ($query) => $query->whereNull('reconciled_at'),
-                fn ($query) => $query->whereNotNull('reconciled_at'),
-            );
+        $incidentStatus = $status === 'pending'
+            ? ProjectCostCidIncident::STATUS_PENDING
+            : ProjectCostCidIncident::STATUS_CONFIRMED;
+
+        return $query->where(function ($query) use ($balanceSql, $status, $incidentStatus): void {
+            $query
+                ->where(function ($legacy) use ($balanceSql, $status): void {
+                    $legacy
+                        ->where('entry_type', ProjectCost::TYPE_AD_SPEND)
+                        ->where('cid_is_dead', true)
+                        ->whereRaw("{$balanceSql} > 0")
+                        ->when(
+                            $status === 'pending',
+                            fn ($legacy) => $legacy->whereNull('reconciled_at'),
+                            fn ($legacy) => $legacy->whereNotNull('reconciled_at'),
+                        );
+                })
+                ->orWhereHas('cidIncident', fn ($incident) => $incident
+                    ->where('status', $incidentStatus)
+                    ->where('released_amount', '>', 0));
+        });
     }
 }

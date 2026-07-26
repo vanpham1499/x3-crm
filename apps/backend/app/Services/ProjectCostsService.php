@@ -5,6 +5,7 @@ namespace App\Services;
 use App\Http\Resources\ProjectCostResource;
 use App\Models\ProjectCost;
 use App\Models\ProjectCostAdjustment;
+use App\Models\ProjectCostCidIncident;
 use App\Repositories\ProjectCostRepository;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Validation\ValidationException;
@@ -111,6 +112,138 @@ class ProjectCostsService extends BaseService
 
             $this->costs->update($id, $updates);
             $this->syncAdjustments($cost, $adjustments);
+
+            return $this->apiResource(
+                $this->costs->findWithRelationsOrFail($id),
+                ProjectCostResource::class,
+            );
+        });
+    }
+
+    public function reportCidIncident(string $id, array $data): array
+    {
+        return $this->transaction(function () use ($id, $data): array {
+            $cost = $this->costs->findForUpdateOrFail($id);
+            $this->authorizeProjectOwnership($cost->project_id);
+            $this->ensureCidIncidentEligible($cost);
+
+            $incident = ProjectCostCidIncident::query()
+                ->where('project_cost_id', $cost->id)
+                ->whereIn('status', [
+                    ProjectCostCidIncident::STATUS_PENDING,
+                    ProjectCostCidIncident::STATUS_CONFIRMED,
+                ])
+                ->latest('id')
+                ->lockForUpdate()
+                ->first();
+
+            if ($incident?->status === ProjectCostCidIncident::STATUS_CONFIRMED) {
+                throw ValidationException::withMessages([
+                    'cidIncident' => ['CID đã được kế toán xác nhận ngừng hoạt động.'],
+                ]);
+            }
+
+            $stoppedAt = (string) ($data['stoppedAt'] ?? '');
+
+            if ($cost->transaction_date && $stoppedAt < $cost->transaction_date->toDateString()) {
+                throw ValidationException::withMessages([
+                    'stoppedAt' => ['Ngày CID ngừng không được trước ngày nạp.'],
+                ]);
+            }
+
+            $spentAmount = round(max(0, (float) ($data['spentAmount'] ?? 0)), 2);
+            $unrecoverableAmount = round(max(0, (float) ($data['unrecoverableAmount'] ?? 0)), 2);
+            $totalAmount = round(max(0, (float) ($cost->total_amount ?? 0)), 2);
+
+            if ($spentAmount + $unrecoverableAmount > $totalAmount + 0.01) {
+                throw ValidationException::withMessages([
+                    'spentAmount' => ['Tổng tiền đã chạy và không thu hồi được không được vượt quá tiền đã nạp.'],
+                ]);
+            }
+
+            $payload = [
+                'project_cost_id' => $cost->id,
+                'stopped_at' => $stoppedAt,
+                'spent_amount' => $spentAmount,
+                'unrecoverable_amount' => $unrecoverableAmount,
+                'released_amount' => round(max(0, $totalAmount - $spentAmount - $unrecoverableAmount), 2),
+                'status' => ProjectCostCidIncident::STATUS_PENDING,
+                'note' => trim((string) ($data['note'] ?? '')) ?: null,
+                'reported_by' => auth()->id(),
+                'reported_at' => now(),
+                'confirmed_by' => null,
+                'confirmed_at' => null,
+                'cancelled_by' => null,
+                'cancelled_at' => null,
+            ];
+
+            if ($incident) {
+                $incident->fill($payload)->save();
+            } else {
+                ProjectCostCidIncident::query()->create($payload);
+            }
+
+            return $this->apiResource(
+                $this->costs->findWithRelationsOrFail($id),
+                ProjectCostResource::class,
+            );
+        });
+    }
+
+    public function confirmCidIncident(string $id): array
+    {
+        return $this->transaction(function () use ($id): array {
+            $this->authorizeAccounting();
+            $cost = $this->costs->findForUpdateOrFail($id);
+            $incident = ProjectCostCidIncident::query()
+                ->where('project_cost_id', $cost->id)
+                ->where('status', ProjectCostCidIncident::STATUS_PENDING)
+                ->latest('id')
+                ->lockForUpdate()
+                ->first();
+
+            if (! $incident) {
+                throw ValidationException::withMessages([
+                    'cidIncident' => ['Không có báo cáo CID ngừng hoạt động đang chờ xác nhận.'],
+                ]);
+            }
+
+            $incident->fill([
+                'status' => ProjectCostCidIncident::STATUS_CONFIRMED,
+                'confirmed_by' => auth()->id(),
+                'confirmed_at' => now(),
+            ])->save();
+
+            return $this->apiResource(
+                $this->costs->findWithRelationsOrFail($id),
+                ProjectCostResource::class,
+            );
+        });
+    }
+
+    public function cancelCidIncident(string $id): array
+    {
+        return $this->transaction(function () use ($id): array {
+            $cost = $this->costs->findForUpdateOrFail($id);
+            $this->authorizeProjectOwnership($cost->project_id);
+            $incident = ProjectCostCidIncident::query()
+                ->where('project_cost_id', $cost->id)
+                ->where('status', ProjectCostCidIncident::STATUS_PENDING)
+                ->latest('id')
+                ->lockForUpdate()
+                ->first();
+
+            if (! $incident) {
+                throw ValidationException::withMessages([
+                    'cidIncident' => ['Không có báo cáo CID đang chờ để hủy.'],
+                ]);
+            }
+
+            $incident->fill([
+                'status' => ProjectCostCidIncident::STATUS_CANCELLED,
+                'cancelled_by' => auth()->id(),
+                'cancelled_at' => now(),
+            ])->save();
 
             return $this->apiResource(
                 $this->costs->findWithRelationsOrFail($id),
@@ -241,6 +374,33 @@ class ProjectCostsService extends BaseService
         throw ValidationException::withMessages([
             'cost' => ['Khoản chi đã được đối soát nên không thể chỉnh sửa hoặc xóa.'],
         ]);
+    }
+
+    private function ensureCidIncidentEligible(ProjectCost $cost): void
+    {
+        if ($cost->entry_type !== ProjectCost::TYPE_AD_SPEND) {
+            throw ValidationException::withMessages([
+                'cidIncident' => ['Chỉ khoản nạp quảng cáo mới có thể báo CID ngừng hoạt động.'],
+            ]);
+        }
+
+        if (! $cost->reconciled_at) {
+            throw ValidationException::withMessages([
+                'cidIncident' => ['Khoản nạp chưa đối soát, hãy cập nhật CID trực tiếp trong lần nạp.'],
+            ]);
+        }
+
+        if ($cost->cid_is_dead) {
+            throw ValidationException::withMessages([
+                'cidIncident' => ['CID đã được ghi nhận ngừng trước khi đối soát.'],
+            ]);
+        }
+
+        if ($cost->status === ProjectCost::STATUS_CANCELLED) {
+            throw ValidationException::withMessages([
+                'cidIncident' => ['Không thể báo CID ngừng cho khoản nạp đã hủy.'],
+            ]);
+        }
     }
 
     private function validateQuotationProject(array $data): void

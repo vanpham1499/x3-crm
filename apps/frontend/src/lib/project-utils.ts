@@ -37,7 +37,6 @@ export function getProjectDefaults(
   return {
     projectCode: project?.projectCode || defaults?.projectCode || '',
     customerId: idToString(project?.customerId) || defaults?.customerId || '',
-    quotationId: idToString(project?.quotationId) || defaults?.quotationId || '',
     serviceId: idToString(project?.serviceId) || defaults?.serviceId || '',
     projectName: project?.projectName || defaults?.projectName || '',
     projectType:
@@ -66,7 +65,6 @@ export function getProjectDefaults(
 export function toProjectPayload(values: ProjectFormValues) {
   const payload: Record<string, unknown> = {
     customerId: values.customerId,
-    quotationId: values.quotationId || null,
     serviceId: values.serviceId,
     projectName: values.projectName.trim(),
     projectType: values.projectType,

@@ -46,11 +46,15 @@ class UserRepository extends BaseRepository
         return $user;
     }
 
-    public function existsByEmailOrCode(string $email, string $code): bool
+    public function existsActiveByEmailOrCode(string $email, string $code): bool
     {
         return $this->query()
-            ->where('email', $email)
-            ->orWhere('code', $code)
+            ->whereNull('deleted_at')
+            ->where(function ($query) use ($email, $code): void {
+                $query
+                    ->where('email', $email)
+                    ->orWhere('code', $code);
+            })
             ->exists();
     }
 

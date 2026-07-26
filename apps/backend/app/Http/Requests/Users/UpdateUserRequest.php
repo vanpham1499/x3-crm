@@ -11,6 +11,7 @@ class UpdateUserRequest extends BaseRequest
     {
         return [
             'name' => ['sometimes', 'string', 'max:255'],
+            'password' => ['sometimes', 'nullable', 'string', 'min:6'],
             'phone' => ['sometimes', 'nullable', 'string', 'max:50'],
             'avatar' => ['sometimes', 'nullable', 'string', 'max:2048'],
             'role' => [

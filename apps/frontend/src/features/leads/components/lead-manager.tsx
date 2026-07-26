@@ -454,23 +454,14 @@ function LeadViewDialog({
               Mở khách hàng
             </DialogActionButton>
           ) : (
-            <>
-              <DialogActionButton
-                href={`/quotations/new?leadId=${lead.id}`}
-                startIcon={<RequestQuoteRoundedIcon />}
-                disabled={!canEditLead(currentUser, lead)}
-              >
-                Tạo báo phí
-              </DialogActionButton>
-              <DialogActionButton
-                href={`/customers/new?leadId=${lead.id}`}
-                tone="primary"
-                startIcon={<PersonAddAlt1RoundedIcon />}
-                disabled={!canEditLead(currentUser, lead)}
-              >
-                Tạo khách hàng mới
-              </DialogActionButton>
-            </>
+            <DialogActionButton
+              href={`/customers/new?leadId=${lead.id}`}
+              tone="primary"
+              startIcon={<PersonAddAlt1RoundedIcon />}
+              disabled={!canEditLead(currentUser, lead)}
+            >
+              Tạo khách hàng mới
+            </DialogActionButton>
           )}
           <DialogActionButton
             href={`/leads/${lead.id}`}
@@ -548,15 +539,6 @@ function LeadViewDialog({
                 <h3 className="text-sm font-bold text-slate-950">
                   Lịch sử báo phí ({quotations.length})
                 </h3>
-                {!lead.convertedCustomerId && (
-                  <DialogActionButton
-                    href={`/quotations/new?leadId=${lead.id}`}
-                    startIcon={<RequestQuoteRoundedIcon />}
-                    disabled={!canEditLead(currentUser, lead)}
-                  >
-                    Tạo báo phí
-                  </DialogActionButton>
-                )}
               </div>
 
               {quotations.length === 0 ? (
@@ -603,12 +585,9 @@ function LeadViewDialog({
                         >
                           {getQuotationStatusLabel(quotation.status)}
                         </span>
-                        {!quotation.projectId && lead.convertedCustomerId ? (
-                          <DialogActionButton
-                            href={`/projects/new?customerId=${lead.convertedCustomerId}&quotationId=${quotation.id}`}
-                            disabled={!canEditLead(currentUser, lead)}
-                          >
-                            Tạo dự án
+                        {quotation.projectId ? (
+                          <DialogActionButton href={`/projects/${quotation.projectId}`}>
+                            Mở dự án
                           </DialogActionButton>
                         ) : (
                           <DialogActionButton href={`/quotations/${quotation.id}`}>
