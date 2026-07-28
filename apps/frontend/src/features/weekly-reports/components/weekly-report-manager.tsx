@@ -8,7 +8,8 @@ import EditRoundedIcon from '@mui/icons-material/EditRounded';
 import MoreVertRoundedIcon from '@mui/icons-material/MoreVertRounded';
 import ReplayRoundedIcon from '@mui/icons-material/ReplayRounded';
 import SendRoundedIcon from '@mui/icons-material/SendRounded';
-import { IconButton, Menu, MenuItem } from '@mui/material';
+import VisibilityOutlinedIcon from '@mui/icons-material/VisibilityOutlined';
+import { IconButton, Menu, MenuItem, Tooltip } from '@mui/material';
 import { ConfirmDialog } from '@/components/feedback/confirm-dialog';
 import { CompactAutocompleteField } from '@/components/form/compact-autocomplete-field';
 import { CompactSelectField } from '@/components/form/compact-select-field';
@@ -20,6 +21,7 @@ import { formatDate } from '@/lib/utils';
 import type { ProjectItem } from '@/types/project';
 import type { User } from '@/types/user';
 import type { WeeklyReport, WeeklyReportFilters } from '@/types/weekly-report';
+import { WeeklyReportCustomerPreviewDialog } from './weekly-report-customer-preview-dialog';
 
 type WeeklyReportManagerProps = {
   embedded?: boolean;
@@ -91,6 +93,7 @@ export function WeeklyReportManager({
   const [activeReport, setActiveReport] = useState<WeeklyReport | null>(null);
   const [deleteTarget, setDeleteTarget] = useState<WeeklyReport | null>(null);
   const [returnTarget, setReturnTarget] = useState<WeeklyReport | null>(null);
+  const [customerPreviewTarget, setCustomerPreviewTarget] = useState<WeeklyReport | null>(null);
 
   const openActionMenu = (event: MouseEvent<HTMLButtonElement>, report: WeeklyReport) => {
     setMenuAnchorEl(event.currentTarget);
@@ -143,7 +146,7 @@ export function WeeklyReportManager({
           { key: 'reporter', label: 'Người thực hiện', className: 'w-[180px]' },
           { key: 'condition', label: 'Tình trạng tuần', className: 'w-[160px]' },
           { key: 'status', label: 'Tiến độ', className: 'w-[130px]' },
-          { key: 'actions', className: 'w-[56px]' },
+          { key: 'actions', className: 'w-[132px]' },
         ]}
         isLoading={isFetching}
         isEmpty={reports.length === 0}
@@ -185,14 +188,37 @@ export function WeeklyReportManager({
               </span>
             </td>
             <td className="px-3 py-3.5 text-right">
-              <IconButton
-                size="small"
-                aria-label={`Tác vụ báo cáo ${report.project?.projectCode || report.id}`}
-                title="Tác vụ"
-                onClick={(event) => openActionMenu(event, report)}
-              >
-                <MoreVertRoundedIcon fontSize="small" />
-              </IconButton>
+              <div className="flex items-center justify-end gap-1">
+                <Tooltip title="Bản gửi khách">
+                  <IconButton
+                    size="small"
+                    aria-label={`Mở bản gửi khách ${report.project?.projectCode || report.id}`}
+                    onClick={() => setCustomerPreviewTarget(report)}
+                  >
+                    <VisibilityOutlinedIcon fontSize="small" />
+                  </IconButton>
+                </Tooltip>
+                <Tooltip title="Chỉnh sửa báo cáo">
+                  <IconButton
+                    component={Link}
+                    href={`/weekly-reports/${report.id}`}
+                    size="small"
+                    color={report.status === 'draft' ? 'primary' : 'default'}
+                    aria-label={`Chỉnh sửa báo cáo ${report.project?.projectCode || report.id}`}
+                  >
+                    <EditRoundedIcon fontSize="small" />
+                  </IconButton>
+                </Tooltip>
+                <Tooltip title="Tác vụ">
+                  <IconButton
+                    size="small"
+                    aria-label={`Tác vụ báo cáo ${report.project?.projectCode || report.id}`}
+                    onClick={(event) => openActionMenu(event, report)}
+                  >
+                    <MoreVertRoundedIcon fontSize="small" />
+                  </IconButton>
+                </Tooltip>
+              </div>
             </td>
           </tr>
         ))}
@@ -213,7 +239,7 @@ export function WeeklyReportManager({
           href={activeReport ? `/weekly-reports/${activeReport.id}` : '/weekly-reports'}
           onClick={closeActionMenu}
         >
-          <EditRoundedIcon fontSize="small" className="mr-2 text-slate-500" />
+          <VisibilityOutlinedIcon fontSize="small" className="mr-2 text-slate-500" />
           Xem báo cáo
         </MenuItem>
         {activeReport?.status === 'draft' ? (
@@ -268,6 +294,11 @@ export function WeeklyReportManager({
           </MenuItem>
         ) : null}
       </Menu>
+
+      <WeeklyReportCustomerPreviewDialog
+        report={customerPreviewTarget}
+        onClose={() => setCustomerPreviewTarget(null)}
+      />
 
       <ConfirmDialog
         open={Boolean(deleteTarget)}

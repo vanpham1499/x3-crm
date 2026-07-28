@@ -12,7 +12,7 @@ class AuthService extends BaseService
 {
     public function __construct(private readonly UsersService $users) {}
 
-    public function login(string $email, string $password): array
+    public function login(string $email, string $password, bool $remember = false): array
     {
         $user = $this->users->findByEmail($email);
 
@@ -24,7 +24,9 @@ class AuthService extends BaseService
             throw new UnauthorizedHttpException('', 'Sai mật khẩu');
         }
 
-        Auth::guard('web')->login($user);
+        $guard = Auth::guard('web');
+        $guard->setRememberDuration((int) config('auth.remember_duration', 43200));
+        $guard->login($user, $remember);
 
         return $this->getProfile($user);
     }

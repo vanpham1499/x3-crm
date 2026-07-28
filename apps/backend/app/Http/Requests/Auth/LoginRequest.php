@@ -11,6 +11,7 @@ class LoginRequest extends BaseRequest
         return [
             'email' => ['required', 'email'],
             'password' => ['required', 'string', 'min:6'],
+            'remember' => ['sometimes', 'boolean'],
         ];
     }
 }

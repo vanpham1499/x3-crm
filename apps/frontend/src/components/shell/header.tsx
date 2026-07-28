@@ -114,10 +114,6 @@ export function Header({ calculatorOpen = false, onToggleCalculator }: HeaderPro
             className="h-auto w-28"
           />
         </div>
-
-        <HeaderIconButton title="Tìm kiếm">
-          <SearchRoundedIcon />
-        </HeaderIconButton>
       </div>
 
       <div className="flex items-center gap-1">

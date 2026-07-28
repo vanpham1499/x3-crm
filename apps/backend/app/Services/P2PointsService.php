@@ -2,19 +2,19 @@
 
 namespace App\Services;
 
-use App\Http\Resources\KpiPointResource;
-use App\Models\KpiPoint;
+use App\Http\Resources\P2PointResource;
 use App\Models\Option;
-use App\Repositories\KpiPointRepository;
+use App\Models\P2Point;
+use App\Repositories\P2PointRepository;
 use Symfony\Component\HttpKernel\Exception\UnprocessableEntityHttpException;
 
-class KpiPointsService extends BaseService
+class P2PointsService extends BaseService
 {
-    public function __construct(private readonly KpiPointRepository $points) {}
+    public function __construct(private readonly P2PointRepository $points) {}
 
     public function findAll(array $filters = [])
     {
-        return $this->apiCollection($this->points->findAll($this->normalizeFilters($filters)), KpiPointResource::class);
+        return $this->apiCollection($this->points->findAll($this->normalizeFilters($filters)), P2PointResource::class);
     }
 
     public function findPaginated(array $filters, int $perPage, int $page): array
@@ -22,11 +22,11 @@ class KpiPointsService extends BaseService
         $filters = $this->normalizeFilters($filters);
         $result = $this->apiPaginatedCollection(
             $this->points->findPaginated($filters, $perPage, $page),
-            KpiPointResource::class,
+            P2PointResource::class,
         );
         $summary = $this->points
             ->summarizeByUser($filters)
-            ->map(fn (KpiPoint $point): array => [
+            ->map(fn (P2Point $point): array => [
                 'userId' => (int) $point->user_id,
                 'code' => $point->user?->code,
                 'name' => $point->user?->name ?: 'NV #'.$point->user_id,
@@ -51,20 +51,20 @@ class KpiPointsService extends BaseService
 
     public function findOne(string $id): array
     {
-        return $this->apiResource($this->points->findWithRelationsOrFail($id), KpiPointResource::class);
+        return $this->apiResource($this->points->findWithRelationsOrFail($id), P2PointResource::class);
     }
 
     public function create(array $data): array
     {
         return $this->transaction(function () use ($data): array {
             $data = $this->preparePayload($data);
-            $this->authorize('create', [KpiPoint::class, $data['project_id'] ?? null]);
+            $this->authorize('create', [P2Point::class, $data['project_id'] ?? null]);
             $data['created_by'] = $this->currentUser()?->id;
 
-            /** @var KpiPoint $point */
+            /** @var P2Point $point */
             $point = $this->points->create($data);
 
-            return $this->apiResource($point->load(['user', 'project', 'approver']), KpiPointResource::class);
+            return $this->apiResource($point->load(['user', 'project', 'approver']), P2PointResource::class);
         });
     }
 
@@ -74,10 +74,10 @@ class KpiPointsService extends BaseService
             $data = $this->preparePayload($data);
             $data['updated_by'] = $this->currentUser()?->id;
 
-            /** @var KpiPoint $point */
+            /** @var P2Point $point */
             $point = $this->points->update($id, $data);
 
-            return $this->apiResource($point->load(['user', 'project', 'approver']), KpiPointResource::class);
+            return $this->apiResource($point->load(['user', 'project', 'approver']), P2PointResource::class);
         });
     }
 
@@ -86,7 +86,7 @@ class KpiPointsService extends BaseService
         return $this->transaction(function () use ($id): array {
             $this->points->delete($id);
 
-            return ['message' => 'Xóa điểm KPI thành công'];
+            return ['message' => 'Xóa điểm P2 thành công'];
         });
     }
 
@@ -95,14 +95,14 @@ class KpiPointsService extends BaseService
         return $this->transaction(function () use ($id): array {
             $this->authorize('approve', $this->points->findWithRelationsOrFail($id));
 
-            /** @var KpiPoint $point */
+            /** @var P2Point $point */
             $point = $this->points->update($id, [
                 'is_approved' => true,
                 'approved_by' => $this->currentUser()?->id,
                 'approved_at' => now(),
             ]);
 
-            return $this->apiResource($point->load(['user', 'project', 'approver']), KpiPointResource::class);
+            return $this->apiResource($point->load(['user', 'project', 'approver']), P2PointResource::class);
         });
     }
 
@@ -112,12 +112,12 @@ class KpiPointsService extends BaseService
 
         if (array_key_exists('category', $data)) {
             $option = Option::query()
-                ->where('group', Option::GROUP_KPI_CATEGORY)
+                ->where('group', Option::GROUP_P2_CATEGORY)
                 ->where('key', $data['category'])
                 ->first();
 
             if (! $option || empty($option->meta['type'])) {
-                throw new UnprocessableEntityHttpException('Hạng mục KPI không hợp lệ');
+                throw new UnprocessableEntityHttpException('Hạng mục P2 không hợp lệ');
             }
 
             $data['type'] = $option->meta['type'];

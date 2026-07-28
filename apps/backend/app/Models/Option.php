@@ -18,7 +18,7 @@ class Option extends BaseModel
 
     public const GROUP_PROJECT_STATUS = 'project_status';
 
-    public const GROUP_KPI_CATEGORY = 'kpi_category';
+    public const GROUP_P2_CATEGORY = 'p2_category';
 
     public const GROUP_AD_TOPUP_CARD = 'ad_topup_card';
 

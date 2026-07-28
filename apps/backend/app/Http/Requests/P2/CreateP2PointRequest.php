@@ -1,13 +1,13 @@
 <?php
 
-namespace App\Http\Requests\Kpi;
+namespace App\Http\Requests\P2;
 
 use App\Http\Requests\BaseRequest;
-use App\Models\KpiPoint;
 use App\Models\Option;
+use App\Models\P2Point;
 use Illuminate\Validation\Rule;
 
-class CreateKpiPointRequest extends BaseRequest
+class CreateP2PointRequest extends BaseRequest
 {
     public function rules(): array
     {
@@ -22,10 +22,10 @@ class CreateKpiPointRequest extends BaseRequest
                 'required',
                 'string',
                 Rule::exists('options', 'key')->where(function ($query): void {
-                    $query->where('group', Option::GROUP_KPI_CATEGORY)->whereNull('deleted_at');
+                    $query->where('group', Option::GROUP_P2_CATEGORY)->whereNull('deleted_at');
                 }),
             ],
-            'type' => ['nullable', 'string', Rule::in([KpiPoint::TYPE_BONUS, KpiPoint::TYPE_PENALTY])],
+            'type' => ['nullable', 'string', Rule::in([P2Point::TYPE_BONUS, P2Point::TYPE_PENALTY])],
             'score' => ['required', 'numeric'],
             'customer_ref' => ['nullable', 'string', 'max:255'],
             'customerRef' => ['nullable', 'string', 'max:255'],

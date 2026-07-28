@@ -221,6 +221,59 @@
   border: 0 !important;
 }
 
+.sidebar-scrollbar {
+  scrollbar-color: transparent transparent;
+  scrollbar-gutter: stable;
+  scrollbar-width: thin;
+}
+
+.sidebar-scrollbar:hover,
+.sidebar-scrollbar:focus-within {
+  scrollbar-color: rgb(203 213 225) transparent;
+}
+
+.sidebar-scrollbar::-webkit-scrollbar {
+  width: 6px;
+}
+
+.sidebar-scrollbar::-webkit-scrollbar-track {
+  background: transparent;
+}
+
+.sidebar-scrollbar::-webkit-scrollbar-button {
+  display: none;
+  width: 0;
+  height: 0;
+}
+
+.sidebar-scrollbar::-webkit-scrollbar-corner {
+  background: transparent;
+}
+
+.sidebar-scrollbar::-webkit-scrollbar-thumb {
+  border-radius: 999px;
+  background-color: transparent;
+}
+
+.sidebar-scrollbar:hover::-webkit-scrollbar-thumb,
+.sidebar-scrollbar:focus-within::-webkit-scrollbar-thumb {
+  background-color: rgb(203 213 225);
+}
+
+.sidebar-scrollbar:hover::-webkit-scrollbar-thumb:hover {
+  background-color: rgb(148 163 184);
+}
+
+.dark .sidebar-scrollbar:hover,
+.dark .sidebar-scrollbar:focus-within {
+  scrollbar-color: rgb(71 85 105) transparent;
+}
+
+.dark .sidebar-scrollbar:hover::-webkit-scrollbar-thumb,
+.dark .sidebar-scrollbar:focus-within::-webkit-scrollbar-thumb {
+  background-color: rgb(71 85 105);
+}
+
 /* Ensure disabled MUI actionable elements always read as disabled: dimmed and
    non-interactive, even when rendered via `component={Link}` (a real <a> tag,
    whose default cursor/click behavior MUI's `disabled` prop alone can't fully

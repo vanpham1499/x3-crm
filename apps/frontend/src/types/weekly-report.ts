@@ -40,6 +40,10 @@ export type WeeklyReport = {
   projectStatus?: string | null;
   weeklyCondition?: string | null;
   status: WeeklyReportStatus;
+  weeklySpendAmount?: string | number | null;
+  averageWeeklyBudget?: string | number | null;
+  remainingAccountBudget?: string | number | null;
+  totalBudget?: string | number | null;
   monthlyBudget?: string | number | null;
   managementFeeRate?: string | number | null;
   problemSolution?: string | null;

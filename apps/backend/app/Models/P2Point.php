@@ -4,11 +4,13 @@ namespace App\Models;
 
 use Illuminate\Database\Eloquent\Relations\BelongsTo;
 
-class KpiPoint extends BaseModel
+class P2Point extends BaseModel
 {
     public const TYPE_BONUS = 'bonus';
 
     public const TYPE_PENALTY = 'penalty';
+
+    protected $table = 'p2_points';
 
     protected $fillable = [
         'user_id',
@@ -54,6 +56,6 @@ class KpiPoint extends BaseModel
 
     public function categoryOption(): BelongsTo
     {
-        return $this->belongsTo(Option::class, 'category', 'key')->where('group', Option::GROUP_KPI_CATEGORY);
+        return $this->belongsTo(Option::class, 'category', 'key')->where('group', Option::GROUP_P2_CATEGORY);
     }
 }

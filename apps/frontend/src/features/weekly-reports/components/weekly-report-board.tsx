@@ -3,15 +3,20 @@
 import Link from 'next/link';
 import { useState, type MouseEvent } from 'react';
 import AddRoundedIcon from '@mui/icons-material/AddRounded';
+import AssignmentOutlinedIcon from '@mui/icons-material/AssignmentOutlined';
 import CheckCircleOutlineRoundedIcon from '@mui/icons-material/CheckCircleOutlineRounded';
 import DeleteRoundedIcon from '@mui/icons-material/DeleteRounded';
 import EditRoundedIcon from '@mui/icons-material/EditRounded';
 import MoreVertRoundedIcon from '@mui/icons-material/MoreVertRounded';
+import PendingActionsRoundedIcon from '@mui/icons-material/PendingActionsRounded';
 import ReplayRoundedIcon from '@mui/icons-material/ReplayRounded';
 import SendRoundedIcon from '@mui/icons-material/SendRounded';
+import TaskAltRoundedIcon from '@mui/icons-material/TaskAltRounded';
+import TodayOutlinedIcon from '@mui/icons-material/TodayOutlined';
 import VisibilityOutlinedIcon from '@mui/icons-material/VisibilityOutlined';
-import { IconButton, Menu, MenuItem } from '@mui/material';
-import { TabActionButton } from '@/components/actions/tab-action-button';
+import WarningAmberRoundedIcon from '@mui/icons-material/WarningAmberRounded';
+import { IconButton, Menu, MenuItem, Tooltip } from '@mui/material';
+import { SummaryMetricCard } from '@/components/data-display/summary-metric-card';
 import { ConfirmDialog } from '@/components/feedback/confirm-dialog';
 import { CompactSearchField } from '@/components/form/compact-search-field';
 import { CompactSelectField } from '@/components/form/compact-select-field';
@@ -21,6 +26,7 @@ import { TablePaginationBar } from '@/components/table/table-pagination-bar';
 import { canApproveWeeklyReport } from '@/lib/ownership';
 import { getReportWeekdayLabel } from '@/lib/weekly-report-schedule';
 import { formatDate } from '@/lib/utils';
+import { WeeklyReportCustomerPreviewDialog } from './weekly-report-customer-preview-dialog';
 import type { User } from '@/types/user';
 import type { AppOption } from '@/types/option';
 import type {
@@ -78,10 +84,10 @@ const PROGRESS_STATUS_LABELS: Record<string, string> = {
 };
 
 function dueStatusClass(status: string) {
-  if (status === 'overdue') return 'bg-rose-50 text-rose-700 ring-rose-200';
-  if (status === 'due_today' || status === 'late') {
-    return 'bg-amber-50 text-amber-700 ring-amber-200';
+  if (status === 'overdue' || status === 'late') {
+    return 'bg-rose-50 text-rose-700 ring-rose-200';
   }
+  if (status === 'due_today') return 'bg-amber-50 text-amber-700 ring-amber-200';
   if (status === 'on_time') return 'bg-emerald-50 text-emerald-700 ring-emerald-200';
   return 'bg-slate-100 text-slate-600 ring-slate-200';
 }
@@ -106,42 +112,68 @@ export function WeeklyReportSummary({
   onFiltersChange,
 }: WeeklyReportSummaryProps) {
   const metricItems = [
-    { label: 'Cần báo cáo', value: summary.total, dueStatus: '', progressStatus: '' },
+    {
+      label: 'Cần báo cáo',
+      helper: 'Tất cả dự án trong kỳ',
+      value: summary.total,
+      dueStatus: '',
+      progressStatus: '',
+      tone: 'blue' as const,
+      icon: <AssignmentOutlinedIcon />,
+    },
     {
       label: 'Đến hạn hôm nay',
+      helper: 'Cần gửi báo cáo trong hôm nay',
       value: summary.dueToday,
       dueStatus: 'due_today',
       progressStatus: '',
+      tone: 'amber' as const,
+      icon: <TodayOutlinedIcon />,
     },
-    { label: 'Quá hạn', value: summary.overdue, dueStatus: 'overdue', progressStatus: '' },
+    {
+      label: 'Quá hạn',
+      helper: 'Chưa có báo cáo sau hạn',
+      value: summary.overdue,
+      dueStatus: 'overdue',
+      progressStatus: '',
+      tone: 'rose' as const,
+      icon: <WarningAmberRoundedIcon />,
+    },
     {
       label: 'Chờ duyệt',
+      helper: 'Đã gửi và đang chờ xử lý',
       value: summary.waitingApproval,
       dueStatus: '',
       progressStatus: 'submitted',
+      tone: 'blue' as const,
+      icon: <PendingActionsRoundedIcon />,
     },
     {
       label: 'Đã hoàn thành',
+      helper: 'Báo cáo đã được duyệt',
       value: summary.completed,
       dueStatus: '',
       progressStatus: 'approved',
+      tone: 'emerald' as const,
+      icon: <TaskAltRoundedIcon />,
     },
   ];
 
   return (
-    <section className="mb-4 grid overflow-hidden rounded-xl border border-slate-200 bg-white shadow-sm sm:grid-cols-2 xl:grid-cols-5">
+    <section className="mb-4 grid gap-3 sm:grid-cols-2 xl:grid-cols-5">
       {metricItems.map((item) => {
         const active =
           filters.dueStatus === item.dueStatus && filters.progressStatus === item.progressStatus;
 
         return (
-          <button
+          <SummaryMetricCard
             key={item.label}
-            type="button"
-            aria-pressed={active}
-            className={`min-h-[76px] cursor-pointer border-b border-slate-200 px-4 py-3 text-left transition-colors last:border-b-0 sm:border-r xl:border-b-0 ${
-              active ? 'bg-emerald-50 ring-1 ring-inset ring-primary/30' : 'hover:bg-slate-50'
-            }`}
+            label={item.label}
+            helper={item.helper}
+            value={item.value}
+            icon={item.icon}
+            tone={item.tone}
+            active={active}
             onClick={() =>
               onFiltersChange({
                 ...filters,
@@ -149,14 +181,7 @@ export function WeeklyReportSummary({
                 progressStatus: item.progressStatus,
               })
             }
-          >
-            <span className="block text-[11px] font-bold uppercase tracking-wide text-slate-500">
-              {item.label}
-            </span>
-            <strong className="mt-1 block text-xl font-black tabular-nums text-slate-900">
-              {item.value}
-            </strong>
-          </button>
+          />
         );
       })}
     </section>
@@ -192,6 +217,7 @@ export function WeeklyReportBoard({
   const [activeRow, setActiveRow] = useState<WeeklyReportBoardRow | null>(null);
   const [deleteTarget, setDeleteTarget] = useState<WeeklyReport | null>(null);
   const [returnTarget, setReturnTarget] = useState<WeeklyReport | null>(null);
+  const [customerPreviewTarget, setCustomerPreviewTarget] = useState<WeeklyReport | null>(null);
 
   const updateFilters = (values: Partial<WeeklyReportBoardFilters>) => {
     onFiltersChange({ ...filters, ...values });
@@ -272,18 +298,18 @@ export function WeeklyReportBoard({
             { key: 'period', label: 'Kỳ dữ liệu', className: 'w-[190px]' },
             { key: 'progress', label: 'Tiến độ', className: 'w-[130px]' },
             { key: 'condition', label: 'Tình trạng tuần', className: 'w-[150px]' },
-            { key: 'actions', className: 'w-[170px]' },
+            { key: 'actions', className: 'w-[132px]' },
           ]}
           isLoading={isFetching}
           isEmpty={rows.length === 0}
           emptyText="Không có dự án phù hợp trong kỳ này"
-          minWidthClassName="min-w-[1310px]"
+          minWidthClassName="min-w-[1272px]"
         >
           {rows.map((row) => {
             const report = row.report;
             const editHref = report ? `/weekly-reports/${report.id}` : '';
             const createHref = `/weekly-reports/new?projectId=${row.projectId}&weekStart=${weekStart}`;
-
+            const projectLabel = row.project.projectCode || `Dự án #${row.projectId}`;
             return (
               <tr key={row.settingId} className="hover:bg-slate-50/80">
                 <td className="px-3 py-3.5">
@@ -331,33 +357,55 @@ export function WeeklyReportBoard({
                 <td className="px-3 py-3.5">
                   <div className="flex items-center justify-end gap-1">
                     {!report ? (
-                      <TabActionButton href={createHref} startIcon={<AddRoundedIcon />}>
-                        {row.dueStatus === 'overdue' ? 'Tạo báo cáo bù' : 'Tạo báo cáo'}
-                      </TabActionButton>
-                    ) : (
-                      <TabActionButton
-                        href={editHref}
-                        tone={report.status === 'draft' ? 'primary' : 'secondary'}
-                        startIcon={
-                          report.status === 'draft' ? (
-                            <EditRoundedIcon />
-                          ) : (
-                            <VisibilityOutlinedIcon />
-                          )
-                        }
+                      <Tooltip
+                        title={row.dueStatus === 'overdue' ? 'Tạo báo cáo bù' : 'Tạo báo cáo'}
                       >
-                        {report.status === 'draft' ? 'Tiếp tục' : 'Xem'}
-                      </TabActionButton>
+                        <IconButton
+                          component={Link}
+                          href={createHref}
+                          size="small"
+                          color="primary"
+                          aria-label={`${
+                            row.dueStatus === 'overdue' ? 'Tạo báo cáo bù' : 'Tạo báo cáo'
+                          } cho ${projectLabel}`}
+                        >
+                          <AddRoundedIcon fontSize="small" />
+                        </IconButton>
+                      </Tooltip>
+                    ) : (
+                      <>
+                        <Tooltip title="Bản gửi khách">
+                          <IconButton
+                            size="small"
+                            aria-label={`Mở bản gửi khách ${projectLabel}`}
+                            onClick={() => setCustomerPreviewTarget(report)}
+                          >
+                            <VisibilityOutlinedIcon fontSize="small" />
+                          </IconButton>
+                        </Tooltip>
+                        <Tooltip title="Chỉnh sửa báo cáo">
+                          <IconButton
+                            component={Link}
+                            href={editHref}
+                            size="small"
+                            color={report.status === 'draft' ? 'primary' : 'default'}
+                            aria-label={`Chỉnh sửa báo cáo ${projectLabel}`}
+                          >
+                            <EditRoundedIcon fontSize="small" />
+                          </IconButton>
+                        </Tooltip>
+                      </>
                     )}
                     {report ? (
-                      <IconButton
-                        size="small"
-                        aria-label={`Tác vụ báo cáo ${row.project.projectCode || row.projectId}`}
-                        title="Tác vụ"
-                        onClick={(event) => openActionMenu(event, row)}
-                      >
-                        <MoreVertRoundedIcon fontSize="small" />
-                      </IconButton>
+                      <Tooltip title="Tác vụ">
+                        <IconButton
+                          size="small"
+                          aria-label={`Tác vụ báo cáo ${projectLabel}`}
+                          onClick={(event) => openActionMenu(event, row)}
+                        >
+                          <MoreVertRoundedIcon fontSize="small" />
+                        </IconButton>
+                      </Tooltip>
                     ) : null}
                   </div>
                 </td>
@@ -439,6 +487,11 @@ export function WeeklyReportBoard({
           </MenuItem>
         ) : null}
       </Menu>
+
+      <WeeklyReportCustomerPreviewDialog
+        report={customerPreviewTarget}
+        onClose={() => setCustomerPreviewTarget(null)}
+      />
 
       <ConfirmDialog
         open={Boolean(deleteTarget)}

@@ -4,9 +4,10 @@ namespace App\Models;
 
 use Illuminate\Database\Eloquent\Factories\HasFactory;
 use Illuminate\Database\Eloquent\Relations\BelongsTo;
+use Illuminate\Database\Eloquent\Relations\BelongsToMany;
 use Illuminate\Database\Eloquent\Relations\HasMany;
-use Illuminate\Foundation\Auth\User as Authenticatable;
 use Illuminate\Database\Eloquent\SoftDeletes;
+use Illuminate\Foundation\Auth\User as Authenticatable;
 use Illuminate\Support\Collection;
 
 class User extends Authenticatable
@@ -15,9 +16,13 @@ class User extends Authenticatable
     use SoftDeletes;
 
     public const ROLE_ADMIN = 'ADMIN';
+
     public const ROLE_LEADER = 'LEADER';
+
     public const ROLE_EMPLOYEE = 'EMPLOYEE';
+
     public const ROLE_ACCOUNTANT = 'ACCOUNTANT';
+
     public const ROLE_SALES = 'SALES';
 
     public const ROLES = [
@@ -121,5 +126,17 @@ class User extends Authenticatable
     public function weeklyReports(): HasMany
     {
         return $this->hasMany(WeeklyReport::class, 'reporter_user_id');
+    }
+
+    public function organizedMeetings(): HasMany
+    {
+        return $this->hasMany(Meeting::class, 'organizer_user_id');
+    }
+
+    public function meetingParticipations(): BelongsToMany
+    {
+        return $this->belongsToMany(Meeting::class, 'meeting_participants')
+            ->withPivot('attendance_status')
+            ->withTimestamps();
     }
 }

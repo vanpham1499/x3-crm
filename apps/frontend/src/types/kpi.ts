@@ -1,83 +1,80 @@
-import type { AppOption } from '@/types/option';
-import type { ProjectItem } from '@/types/project';
-import type { User } from '@/types/user';
+export type KpiScopeType = 'service' | 'department';
+export type KpiPeriodMode = 'month' | 'quarter' | 'year' | 'range';
 
-export type KpiPointType = 'bonus' | 'penalty';
-
-export const KPI_CATEGORY_OPTION_GROUP = 'kpi_category';
-
-export type KpiCategory = {
-  key: string;
-  label: string;
-  type: KpiPointType;
-  defaultScore: number;
+export type KpiSummary = {
+  targetAmount: number;
+  actualAmount: number;
+  completionRate: number | null;
 };
 
-export function kpiCategoryFromOption(option: AppOption): KpiCategory {
-  const meta = option.meta || {};
-  const defaultScore = Number(meta.defaultScore);
-
-  return {
-    key: option.key || '',
-    label: option.label,
-    type: meta.type === 'bonus' ? 'bonus' : 'penalty',
-    defaultScore: Number.isFinite(defaultScore) ? defaultScore : 0,
-  };
-}
-
-export type KpiPoint = {
+export type ServiceKpiRow = {
   id: number;
-  userId: number;
-  projectId?: number | null;
-  entryDate: string;
-  category: string;
-  categoryLabel?: string;
-  type: KpiPointType;
-  score: string | number;
-  customerRef?: string | null;
-  note?: string | null;
-  isApproved: boolean;
-  approvedBy?: number | null;
-  approvedAt?: string | null;
-  user?: Pick<User, 'id' | 'name' | 'code'> | null;
-  project?: Pick<ProjectItem, 'id' | 'projectCode' | 'projectName' | 'managerUserId'> | null;
-  approver?: Pick<User, 'id' | 'name'> | null;
-  createdAt?: string;
-  updatedAt?: string;
-};
-
-export type KpiPointSummary = {
-  userId: number;
+  scopeType: 'service';
   code?: string | null;
   name: string;
-  bonusScore: number;
-  penaltyScore: number;
-  total: number;
-  count: number;
-  pendingCount: number;
+  isActive: boolean;
+  isDeleted: boolean;
+  targetAmount: number;
+  receivedAmount: number;
+  costAmount: number;
+  refundAmount: number;
+  actualAmount: number;
+  completionRate: number | null;
 };
 
-export type KpiPointOverview = {
-  bonusScore: number;
-  penaltyScore: number;
-  netScore: number;
-  pendingCount: number;
+export type DepartmentKpiRow = {
+  id: number;
+  scopeType: 'department';
+  name: string;
+  targetAmount: number;
+  implementationReceivedAmount: number;
+  implementationCostAmount: number;
+  implementationRefundAmount: number;
+  implementationAmount: number;
+  acquisitionCreditAmount: number;
+  acquisitionRefundAmount: number;
+  acquisitionAmount: number;
+  actualAmount: number;
+  completionRate: number | null;
 };
 
-export type KpiPointFilters = {
-  userId: string;
-  category: string;
-  type: string;
-  approvalStatus: string;
-  dateFrom: string;
-  dateTo: string;
+export type KpiMonthlyReport = {
+  period: string;
+  services: ServiceKpiRow[];
+  departments: DepartmentKpiRow[];
+  summary: {
+    services: KpiSummary;
+    departments: KpiSummary;
+  };
 };
 
-export type KpiPointFormValues = {
-  userId: string;
-  projectId: string;
-  entryDate: string;
-  category: string;
-  score: string;
-  note: string;
+export type KpiReport = {
+  periodFrom: string;
+  periodTo: string;
+  calculationBasis: {
+    currency: 'VND';
+    sourceAmountBasis: 'gross_including_vat';
+    profitAmountBasis: 'before_vat';
+    projectScope: 'existing_projects';
+    sourceDepositIncluded: true;
+    serviceProfitDepositIncluded: false;
+    acquisitionProfitDepositIncluded: true;
+  };
+  periods: KpiMonthlyReport[];
+};
+
+export type KpiPeriodFilters = {
+  mode: KpiPeriodMode;
+  month: string;
+  quarter: string;
+  year: string;
+  periodFrom: string;
+  periodTo: string;
+};
+
+export type KpiTargetPayload = {
+  period: string;
+  scopeType: KpiScopeType;
+  scopeId: number;
+  targetAmount: number;
 };

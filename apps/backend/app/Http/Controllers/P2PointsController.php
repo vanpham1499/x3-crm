@@ -2,15 +2,15 @@
 
 namespace App\Http\Controllers;
 
-use App\Http\Requests\Kpi\CreateKpiPointRequest;
-use App\Http\Requests\Kpi\UpdateKpiPointRequest;
-use App\Services\KpiPointsService;
+use App\Http\Requests\P2\CreateP2PointRequest;
+use App\Http\Requests\P2\UpdateP2PointRequest;
+use App\Services\P2PointsService;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Http\Request;
 
-class KpiPointsController extends Controller
+class P2PointsController extends Controller
 {
-    public function __construct(private readonly KpiPointsService $points) {}
+    public function __construct(private readonly P2PointsService $points) {}
 
     public function index(Request $request): JsonResponse
     {
@@ -40,12 +40,12 @@ class KpiPointsController extends Controller
         return $this->success($this->points->findOne($id));
     }
 
-    public function store(CreateKpiPointRequest $request): JsonResponse
+    public function store(CreateP2PointRequest $request): JsonResponse
     {
         return $this->success($this->points->create($request->validatedData()), 201);
     }
 
-    public function update(UpdateKpiPointRequest $request, string $id): JsonResponse
+    public function update(UpdateP2PointRequest $request, string $id): JsonResponse
     {
         return $this->success($this->points->update($id, $request->validatedData()));
     }

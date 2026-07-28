@@ -1,11 +1,8 @@
 'use client';
 
-import { useMemo, useState } from 'react';
+import { useMemo } from 'react';
 import EmailRoundedIcon from '@mui/icons-material/EmailRounded';
-import PeopleAltTwoToneIcon from '@mui/icons-material/PeopleAltTwoTone';
-import PersonRoundedIcon from '@mui/icons-material/PersonRounded';
 import PhoneRoundedIcon from '@mui/icons-material/PhoneRounded';
-import WorkTwoToneIcon from '@mui/icons-material/WorkTwoTone';
 import { Avatar } from '@mui/material';
 import { useQuery } from '@tanstack/react-query';
 import profileCover from '@assets/images/background-3-blur.webp';
@@ -32,18 +29,6 @@ type AuthProfileResponse = {
   } | null;
   permissions?: string[];
 };
-
-type ProfileTab = 'profile' | 'projects' | 'customers';
-
-const tabs: Array<{
-  id: ProfileTab;
-  label: string;
-  icon: React.ElementType;
-}> = [
-  { id: 'profile', label: 'Hồ sơ', icon: PersonRoundedIcon },
-  { id: 'projects', label: 'Dự án', icon: WorkTwoToneIcon },
-  { id: 'customers', label: 'Khách hàng', icon: PeopleAltTwoToneIcon },
-];
 
 function normalizeProfile(data?: AuthProfileResponse | User | null) {
   if (!data) return null;
@@ -78,20 +63,8 @@ function InfoItem({
   );
 }
 
-function PlaceholderPanel({ title }: { title: string }) {
-  return (
-    <div className="rounded-2xl border border-dashed border-slate-200 bg-white p-8 text-center">
-      <p className="text-sm font-bold text-slate-950">{title}</p>
-      <p className="mt-2 text-sm text-slate-500">
-        Khu vực này đã được chuẩn bị để gắn dữ liệu khi cần mở rộng.
-      </p>
-    </div>
-  );
-}
-
 export function ProfileOverview() {
   const { user: cachedUser, status, setAuth } = useAuthStore();
-  const [activeTab, setActiveTab] = useState<ProfileTab>('profile');
 
   const { data: profileUser = cachedUser, isFetching } = useQuery({
     queryKey: ['auth', 'profile'],
@@ -185,88 +158,52 @@ export function ProfileOverview() {
               </div>
             </div>
           </div>
-
-          <div className="flex flex-wrap justify-end gap-2 border-t border-slate-100 px-4 sm:px-6">
-            {tabs.map((tab) => {
-              const Icon = tab.icon;
-              const active = activeTab === tab.id;
-
-              return (
-                <button
-                  key={tab.id}
-                  type="button"
-                  onClick={() => setActiveTab(tab.id)}
-                  className={`inline-flex h-12 items-center gap-2 border-b-2 px-3 text-sm font-bold transition ${
-                    active
-                      ? 'border-slate-950 text-slate-950'
-                      : 'border-transparent text-slate-500 hover:text-slate-800'
-                  }`}
-                >
-                  <Icon className="text-[20px]" />
-                  {tab.label}
-                </button>
-              );
-            })}
-          </div>
         </section>
 
-        {activeTab === 'profile' ? (
-          <div className="grid gap-6 xl:grid-cols-[minmax(0,1fr)_360px]">
-            <section className="rounded-2xl border border-slate-200 bg-white p-6 shadow-sm">
-              <div className="flex items-center justify-between gap-4">
-                <div>
-                  <h2 className="text-lg font-bold text-slate-950">Thông tin cá nhân</h2>
-                  <p className="mt-1 text-sm text-slate-500">
-                    Thông tin tài khoản đang đăng nhập trong hệ thống.
-                  </p>
-                </div>
-                {isFetching ? (
-                  <span className="rounded-full bg-slate-100 px-3 py-1 text-xs font-bold text-slate-500">
-                    Đang cập nhật
-                  </span>
-                ) : null}
-              </div>
-
-              <div className="mt-6 grid gap-4 md:grid-cols-2">
-                <InfoItem
-                  label="Email"
-                  value={profileUser?.email}
-                  icon={<EmailRoundedIcon fontSize="small" />}
-                />
-                <InfoItem
-                  label="Số điện thoại"
-                  value={profileUser?.phone || '-'}
-                  icon={<PhoneRoundedIcon fontSize="small" />}
-                />
-              </div>
-
-              <div className="mt-6 rounded-xl bg-slate-50 p-5">
-                <p className="text-sm font-bold text-slate-950">Ghi chú</p>
-                <p className="mt-2 text-sm leading-6 text-slate-500">
-                  Trang profile hiện chỉ hiển thị thông tin cá nhân. Các tab Dự án và Khách hàng đã
-                  được giữ sẵn để nối dữ liệu liên quan đến user trong các bước tiếp theo.
+        <div className="grid gap-6 xl:grid-cols-[minmax(0,1fr)_360px]">
+          <section className="rounded-2xl border border-slate-200 bg-white p-6 shadow-sm">
+            <div className="flex items-center justify-between gap-4">
+              <div>
+                <h2 className="text-lg font-bold text-slate-950">Thông tin cá nhân</h2>
+                <p className="mt-1 text-sm text-slate-500">
+                  Thông tin tài khoản đang đăng nhập trong hệ thống.
                 </p>
               </div>
-            </section>
+              {isFetching ? (
+                <span className="rounded-full bg-slate-100 px-3 py-1 text-xs font-bold text-slate-500">
+                  Đang cập nhật
+                </span>
+              ) : null}
+            </div>
 
-            <aside className="rounded-2xl border border-slate-200 bg-white p-6 shadow-sm">
-              <h2 className="text-lg font-bold text-slate-950">Tài khoản</h2>
-              <div className="mt-5 space-y-3">
-                {profileFacts.map((item) => (
-                  <div key={item.label} className="flex items-center justify-between gap-4">
-                    <span className="text-sm font-semibold text-slate-500">{item.label}</span>
-                    <span className="min-w-0 truncate text-right text-sm font-bold text-slate-950">
-                      {item.value || '-'}
-                    </span>
-                  </div>
-                ))}
-              </div>
-            </aside>
-          </div>
-        ) : null}
+            <div className="mt-6 grid gap-4 md:grid-cols-2">
+              <InfoItem
+                label="Email"
+                value={profileUser?.email}
+                icon={<EmailRoundedIcon fontSize="small" />}
+              />
+              <InfoItem
+                label="Số điện thoại"
+                value={profileUser?.phone || '-'}
+                icon={<PhoneRoundedIcon fontSize="small" />}
+              />
+            </div>
+          </section>
 
-        {activeTab === 'projects' ? <PlaceholderPanel title="Dự án của user" /> : null}
-        {activeTab === 'customers' ? <PlaceholderPanel title="Khách hàng của user" /> : null}
+          <aside className="rounded-2xl border border-slate-200 bg-white p-6 shadow-sm">
+            <h2 className="text-lg font-bold text-slate-950">Tài khoản</h2>
+            <div className="mt-5 space-y-3">
+              {profileFacts.map((item) => (
+                <div key={item.label} className="flex items-center justify-between gap-4">
+                  <span className="text-sm font-semibold text-slate-500">{item.label}</span>
+                  <span className="min-w-0 truncate text-right text-sm font-bold text-slate-950">
+                    {item.value || '-'}
+                  </span>
+                </div>
+              ))}
+            </div>
+          </aside>
+        </div>
       </div>
     </div>
   );

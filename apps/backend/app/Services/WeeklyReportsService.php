@@ -195,7 +195,7 @@ class WeeklyReportsService extends BaseService
     public function create(array $data): array
     {
         return $this->transaction(function () use ($data): array {
-            $this->authorize('create', \App\Models\WeeklyReport::class);
+            $this->authorize('create', WeeklyReport::class);
             $items = $data['items'] ?? [];
             unset($data['items']);
 
@@ -353,6 +353,7 @@ class WeeklyReportsService extends BaseService
             if ($setting) {
                 $data['monthly_budget'] = $data['monthly_budget'] ?? $setting->monthly_budget;
                 $data['management_fee_rate'] = $data['management_fee_rate'] ?? $setting->management_fee_rate;
+                $data['total_budget'] = $data['total_budget'] ?? $setting->monthly_budget;
             }
 
             if ($isCreating && $cycleWeekStart) {
@@ -539,6 +540,10 @@ class WeeklyReportsService extends BaseService
             'reportDate' => 'report_date',
             'projectStatus' => 'project_status',
             'weeklyCondition' => 'weekly_condition',
+            'weeklySpendAmount' => 'weekly_spend_amount',
+            'averageWeeklyBudget' => 'average_weekly_budget',
+            'remainingAccountBudget' => 'remaining_account_budget',
+            'totalBudget' => 'total_budget',
             'monthlyBudget' => 'monthly_budget',
             'managementFeeRate' => 'management_fee_rate',
             'problemSolution' => 'problem_solution',

@@ -79,11 +79,21 @@ class DatabaseSeeder extends Seeder
             ['module' => 'weeklyreport', 'code' => 'weeklyreport.approve', 'name' => 'Duyệt báo cáo tuần (dự án mình quản lý)'],
             ['module' => 'weeklyreport', 'code' => 'weeklyreport.approve_all', 'name' => 'Duyệt mọi báo cáo tuần'],
 
-            ['module' => 'kpipoint', 'code' => 'kpipoint.view', 'name' => 'Xem điểm KPI'],
-            ['module' => 'kpipoint', 'code' => 'kpipoint.create', 'name' => 'Ghi nhận KPI (dự án mình quản lý)'],
-            ['module' => 'kpipoint', 'code' => 'kpipoint.create_all', 'name' => 'Ghi nhận KPI không cần dự án'],
-            ['module' => 'kpipoint', 'code' => 'kpipoint.approve', 'name' => 'Duyệt KPI (dự án mình quản lý)'],
-            ['module' => 'kpipoint', 'code' => 'kpipoint.approve_all', 'name' => 'Duyệt mọi điểm KPI'],
+            ['module' => 'meeting', 'code' => 'meeting.view', 'name' => 'Xem lịch hẹn'],
+            ['module' => 'meeting', 'code' => 'meeting.create', 'name' => 'Tạo lịch hẹn'],
+            ['module' => 'meeting', 'code' => 'meeting.update', 'name' => 'Cập nhật lịch hẹn thuộc phạm vi'],
+            ['module' => 'meeting', 'code' => 'meeting.update_all', 'name' => 'Cập nhật mọi lịch hẹn'],
+            ['module' => 'meeting', 'code' => 'meeting.delete', 'name' => 'Xóa lịch hẹn thuộc phạm vi'],
+            ['module' => 'meeting', 'code' => 'meeting.delete_all', 'name' => 'Xóa mọi lịch hẹn'],
+
+            ['module' => 'p2point', 'code' => 'p2point.view', 'name' => 'Xem điểm P2'],
+            ['module' => 'p2point', 'code' => 'p2point.create', 'name' => 'Ghi nhận P2 (dự án mình quản lý)'],
+            ['module' => 'p2point', 'code' => 'p2point.create_all', 'name' => 'Ghi nhận P2 không cần dự án'],
+            ['module' => 'p2point', 'code' => 'p2point.approve', 'name' => 'Duyệt P2 (dự án mình quản lý)'],
+            ['module' => 'p2point', 'code' => 'p2point.approve_all', 'name' => 'Duyệt mọi điểm P2'],
+
+            ['module' => 'kpi', 'code' => 'kpi.view', 'name' => 'Xem KPI'],
+            ['module' => 'kpi', 'code' => 'kpi.manage', 'name' => 'Quản lý kế hoạch KPI'],
 
             ['module' => 'payment', 'code' => 'payment.manage', 'name' => 'Đối soát / chốt thanh toán'],
 
@@ -115,7 +125,9 @@ class DatabaseSeeder extends Seeder
             'project.view', 'project.create', 'project.update', 'project.delete',
             'quotation.view', 'quotation.create', 'quotation.update', 'quotation.delete',
             'weeklyreport.view', 'weeklyreport.create', 'weeklyreport.approve',
-            'kpipoint.view', 'kpipoint.create', 'kpipoint.approve',
+            'meeting.view', 'meeting.create', 'meeting.update', 'meeting.delete',
+            'p2point.view', 'p2point.create', 'p2point.approve',
+            'kpi.view',
         ];
 
         $rolePermissionCodes = [

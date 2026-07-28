@@ -12,10 +12,12 @@ import CreditCardRoundedIcon from '@mui/icons-material/CreditCardRounded';
 import CorporateFareRoundedIcon from '@mui/icons-material/CorporateFareRounded';
 import DesignServicesRoundedIcon from '@mui/icons-material/DesignServicesRounded';
 import EmojiEventsRoundedIcon from '@mui/icons-material/EmojiEventsRounded';
+import EventNoteRoundedIcon from '@mui/icons-material/EventNoteRounded';
 import GradingRoundedIcon from '@mui/icons-material/GradingRounded';
 import GridViewRoundedIcon from '@mui/icons-material/GridViewRounded';
 import GroupsRoundedIcon from '@mui/icons-material/GroupsRounded';
 import HandshakeRoundedIcon from '@mui/icons-material/HandshakeRounded';
+import InsightsRoundedIcon from '@mui/icons-material/InsightsRounded';
 import KeyboardArrowDownRoundedIcon from '@mui/icons-material/KeyboardArrowDownRounded';
 import KeyboardArrowLeftRoundedIcon from '@mui/icons-material/KeyboardArrowLeftRounded';
 import KeyboardArrowRightRoundedIcon from '@mui/icons-material/KeyboardArrowRightRounded';
@@ -53,6 +55,12 @@ const navGroups = [
         permissions: ['project.view'],
       },
       {
+        href: '/meetings',
+        label: 'Lịch hẹn',
+        icon: EventNoteRoundedIcon,
+        permissions: ['meeting.view'],
+      },
+      {
         href: '/quotations',
         label: 'Báo phí',
         icon: RequestQuoteRoundedIcon,
@@ -71,7 +79,18 @@ const navGroups = [
         icon: CalendarMonthRoundedIcon,
         permissions: ['weeklyreport.view'],
       },
-      { href: '/kpi', label: 'KPI', icon: EmojiEventsRoundedIcon, permissions: ['kpipoint.view'] },
+      {
+        href: '/kpi',
+        label: 'KPI',
+        icon: InsightsRoundedIcon,
+        permissions: ['kpi.view'],
+      },
+      {
+        href: '/p2-points',
+        label: 'Điểm P2',
+        icon: EmojiEventsRoundedIcon,
+        permissions: ['p2point.view'],
+      },
       { href: '/media-library', label: 'Thư viện', icon: PhotoLibraryRoundedIcon },
       {
         href: '/users',
@@ -124,8 +143,8 @@ const navGroups = [
             icon: CreditCardRoundedIcon,
           },
           {
-            href: '/settings/kpi-categories',
-            label: 'Hạng mục KPI',
+            href: '/settings/p2-categories',
+            label: 'Hạng mục P2',
             icon: GradingRoundedIcon,
           },
           { href: '/settings/options', label: 'Danh mục chung', icon: TuneRoundedIcon },
@@ -233,7 +252,9 @@ export function Sidebar() {
         )}
       </button>
 
-      <div className={`z-0 flex-1 overflow-y-auto pb-2 ${collapsed ? 'px-3' : 'px-4'}`}>
+      <div
+        className={`sidebar-scrollbar z-0 flex-1 overflow-y-auto pb-2 ${collapsed ? 'px-3' : 'px-4'}`}
+      >
         {visibleNavGroups.map((group) => (
           <div key={group.label} className="mb-5">
             {!collapsed && (

@@ -254,7 +254,7 @@ Rollback image:
 cd /opt/x3crm
 docker image ls --filter 'reference=x3crm-*'
 
-# Thay <release> bằng release cần rollback.
+# Thay <release> bằng release cần rollback
 docker tag x3crm-backend:rollback-<release> x3crm-backend:deploy
 docker tag x3crm-frontend:rollback-<release> x3crm-frontend:deploy
 docker compose up -d --force-recreate backend frontend nginx
@@ -265,4 +265,3 @@ docker compose logs --since=5m --tail=200
 > Không chạy `docker compose down -v` trên production. Lệnh này có thể xóa
 > database volume. Restore và reset dữ liệu là thao tác phá hủy; xem quy trình,
 > điều kiện backup và cảnh báo đầy đủ trong `../README.md` trước khi chạy.
-

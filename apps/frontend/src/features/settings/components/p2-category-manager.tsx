@@ -18,18 +18,18 @@ import { AppDataTable } from '@/components/table/app-data-table';
 import { TablePaginationBar } from '@/components/table/table-pagination-bar';
 import { usePagination } from '@/hooks/use-pagination';
 import { applyApiErrorsToForm } from '@/lib/api-error';
-import { getKpiCategoryDefaults, type KpiCategoryFormValues } from '@/lib/kpi-category-options';
+import { getP2CategoryDefaults, type P2CategoryFormValues } from '@/lib/p2-category-options';
 import { canManageCatalog } from '@/lib/ownership';
 import { useAuthStore } from '@/stores/auth-store';
-import { kpiCategoryFromOption } from '@/types/kpi';
+import { p2CategoryFromOption } from '@/types/p2';
 import type { AppOption } from '@/types/option';
 
-type KpiCategoryManagerProps = {
+type P2CategoryManagerProps = {
   categories: AppOption[];
   isFetching: boolean;
   isSubmitting: boolean;
   isDeleting: boolean;
-  onSubmit: (values: KpiCategoryFormValues, category?: AppOption | null) => Promise<unknown>;
+  onSubmit: (values: P2CategoryFormValues, category?: AppOption | null) => Promise<unknown>;
   onDelete: (category: AppOption) => void;
 };
 
@@ -44,7 +44,7 @@ function CategoryDialog({
   state: DialogState | null;
   isSubmitting: boolean;
   onClose: () => void;
-  onSubmit: (values: KpiCategoryFormValues, category?: AppOption | null) => Promise<unknown>;
+  onSubmit: (values: P2CategoryFormValues, category?: AppOption | null) => Promise<unknown>;
 }) {
   const category = state?.mode === 'edit' ? state.category : null;
   const {
@@ -54,8 +54,8 @@ function CategoryDialog({
     reset,
     setError,
     formState: { errors },
-  } = useForm<KpiCategoryFormValues>({
-    values: getKpiCategoryDefaults(category),
+  } = useForm<P2CategoryFormValues>({
+    values: getP2CategoryDefaults(category),
   });
 
   const closeDialog = () => {
@@ -66,7 +66,7 @@ function CategoryDialog({
   return (
     <AppFormDialog
       open={Boolean(state)}
-      title={state?.mode === 'edit' ? 'Chỉnh sửa hạng mục KPI' : 'Thêm hạng mục KPI'}
+      title={state?.mode === 'edit' ? 'Chỉnh sửa hạng mục P2' : 'Thêm hạng mục P2'}
       maxWidth="sm"
       submitting={isSubmitting}
       contentClassName="space-y-4"
@@ -132,7 +132,7 @@ function CategoryDialog({
               size="small"
               checked={field.value}
               onChange={(event) => field.onChange(event.target.checked)}
-              slotProps={{ input: { 'aria-label': 'Đang áp dụng hạng mục KPI' } }}
+              slotProps={{ input: { 'aria-label': 'Đang áp dụng hạng mục P2' } }}
             />
           )}
         />
@@ -141,14 +141,14 @@ function CategoryDialog({
   );
 }
 
-export function KpiCategoryManager({
+export function P2CategoryManager({
   categories,
   isFetching,
   isSubmitting,
   isDeleting,
   onSubmit,
   onDelete,
-}: KpiCategoryManagerProps) {
+}: P2CategoryManagerProps) {
   const currentUser = useAuthStore((state) => state.user);
   const canManage = canManageCatalog(currentUser);
   const [dialogState, setDialogState] = useState<DialogState | null>(null);
@@ -180,7 +180,7 @@ export function KpiCategoryManager({
   return (
     <div className="min-h-[calc(100vh-72px)] w-full bg-slate-50/60 p-6">
       <PageHeader
-        title="Hạng mục KPI"
+        title="Hạng mục P2"
         action={{
           label: 'Thêm hạng mục',
           icon: <AddRoundedIcon />,
@@ -200,11 +200,11 @@ export function KpiCategoryManager({
           ]}
           isLoading={isFetching}
           isEmpty={pageItems.length === 0}
-          emptyText="Chưa có hạng mục KPI"
+          emptyText="Chưa có hạng mục P2"
           minWidthClassName="min-w-[760px]"
         >
           {pageItems.map((option) => {
-            const category = kpiCategoryFromOption(option);
+            const category = p2CategoryFromOption(option);
 
             return (
               <tr key={option.id} className="hover:bg-slate-50/80">
@@ -304,7 +304,7 @@ export function KpiCategoryManager({
       <ConfirmDialog
         open={Boolean(deleteTarget)}
         title="Xóa hạng mục?"
-        description={`Bạn có chắc muốn xóa hạng mục "${deleteTarget?.label || ''}"? Các điểm KPI đã ghi nhận trước đó sẽ vẫn giữ nguyên nhưng không còn liên kết với hạng mục này.`}
+        description={`Bạn có chắc muốn xóa hạng mục "${deleteTarget?.label || ''}"? Các điểm P2 đã ghi nhận trước đó sẽ vẫn giữ nguyên nhưng không còn liên kết với hạng mục này.`}
         confirmText="Xóa hạng mục"
         loading={isDeleting}
         onClose={() => setDeleteTarget(null)}

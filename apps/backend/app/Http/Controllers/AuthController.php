@@ -17,7 +17,11 @@ class AuthController extends Controller
     {
         $data = $request->validatedData();
 
-        $response = $this->auth->login($data['email'], $data['password']);
+        $response = $this->auth->login(
+            $data['email'],
+            $data['password'],
+            (bool) ($data['remember'] ?? false),
+        );
 
         $request->session()->regenerate();
 

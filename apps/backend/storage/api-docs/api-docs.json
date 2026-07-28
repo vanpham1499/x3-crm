@@ -642,6 +642,1483 @@
                 ]
             }
         },
+        "/p2-points": {
+            "get": {
+                "tags": [
+                    "P2 Points"
+                ],
+                "summary": "List P2 points",
+                "operationId": "p2PointsIndex",
+                "parameters": [
+                    {
+                        "name": "user_id",
+                        "in": "query",
+                        "schema": {
+                            "type": "integer"
+                        }
+                    },
+                    {
+                        "name": "category",
+                        "in": "query",
+                        "schema": {
+                            "type": "string"
+                        }
+                    },
+                    {
+                        "name": "type",
+                        "in": "query",
+                        "schema": {
+                            "type": "string",
+                            "enum": [
+                                "bonus",
+                                "penalty"
+                            ]
+                        }
+                    },
+                    {
+                        "name": "is_approved",
+                        "in": "query",
+                        "schema": {
+                            "type": "boolean"
+                        }
+                    },
+                    {
+                        "name": "date_from",
+                        "in": "query",
+                        "schema": {
+                            "type": "string",
+                            "format": "date"
+                        }
+                    },
+                    {
+                        "name": "date_to",
+                        "in": "query",
+                        "schema": {
+                            "type": "string",
+                            "format": "date"
+                        }
+                    },
+                    {
+                        "name": "page",
+                        "in": "query",
+                        "schema": {
+                            "type": "integer",
+                            "minimum": 1
+                        }
+                    },
+                    {
+                        "name": "per_page",
+                        "in": "query",
+                        "schema": {
+                            "type": "integer",
+                            "maximum": 100,
+                            "minimum": 1
+                        }
+                    }
+                ],
+                "responses": {
+                    "200": {
+                        "description": "P2 point list",
+                        "content": {
+                            "application/json": {
+                                "schema": {
+                                    "$ref": "#/components/schemas/GenericList"
+                                }
+                            }
+                        }
+                    },
+                    "403": {
+                        "description": "Missing p2point.view permission",
+                        "content": {
+                            "application/json": {
+                                "schema": {
+                                    "$ref": "#/components/schemas/ApiError"
+                                }
+                            }
+                        }
+                    }
+                },
+                "security": [
+                    {
+                        "cookieAuth": []
+                    }
+                ],
+                "servers": [
+                    {
+                        "url": "http://localhost:4000/api",
+                        "description": "Local API server"
+                    }
+                ]
+            },
+            "post": {
+                "tags": [
+                    "P2 Points"
+                ],
+                "summary": "Create a P2 point",
+                "operationId": "p2PointsStore",
+                "requestBody": {
+                    "required": true,
+                    "content": {
+                        "application/json": {
+                            "schema": {
+                                "$ref": "#/components/schemas/P2PointRequest"
+                            }
+                        }
+                    }
+                },
+                "responses": {
+                    "201": {
+                        "description": "P2 point created",
+                        "content": {
+                            "application/json": {
+                                "schema": {
+                                    "$ref": "#/components/schemas/GenericObject"
+                                }
+                            }
+                        }
+                    },
+                    "403": {
+                        "description": "Permission or project ownership denied",
+                        "content": {
+                            "application/json": {
+                                "schema": {
+                                    "$ref": "#/components/schemas/ApiError"
+                                }
+                            }
+                        }
+                    },
+                    "422": {
+                        "description": "Validation error",
+                        "content": {
+                            "application/json": {
+                                "schema": {
+                                    "$ref": "#/components/schemas/ApiError"
+                                }
+                            }
+                        }
+                    }
+                },
+                "security": [
+                    {
+                        "cookieAuth": []
+                    }
+                ],
+                "servers": [
+                    {
+                        "url": "http://localhost:4000/api",
+                        "description": "Local API server"
+                    }
+                ]
+            }
+        },
+        "/p2-points/{id}": {
+            "get": {
+                "tags": [
+                    "P2 Points"
+                ],
+                "summary": "Show a P2 point",
+                "operationId": "p2PointsShow",
+                "parameters": [
+                    {
+                        "name": "id",
+                        "in": "path",
+                        "required": true,
+                        "schema": {
+                            "type": "integer"
+                        }
+                    }
+                ],
+                "responses": {
+                    "200": {
+                        "description": "P2 point",
+                        "content": {
+                            "application/json": {
+                                "schema": {
+                                    "$ref": "#/components/schemas/GenericObject"
+                                }
+                            }
+                        }
+                    },
+                    "403": {
+                        "description": "Missing p2point.view permission",
+                        "content": {
+                            "application/json": {
+                                "schema": {
+                                    "$ref": "#/components/schemas/ApiError"
+                                }
+                            }
+                        }
+                    },
+                    "404": {
+                        "description": "P2 point not found",
+                        "content": {
+                            "application/json": {
+                                "schema": {
+                                    "$ref": "#/components/schemas/ApiError"
+                                }
+                            }
+                        }
+                    }
+                },
+                "security": [
+                    {
+                        "cookieAuth": []
+                    }
+                ],
+                "servers": [
+                    {
+                        "url": "http://localhost:4000/api",
+                        "description": "Local API server"
+                    }
+                ]
+            },
+            "put": {
+                "tags": [
+                    "P2 Points"
+                ],
+                "summary": "Update a P2 point",
+                "operationId": "p2PointsPut",
+                "parameters": [
+                    {
+                        "name": "id",
+                        "in": "path",
+                        "required": true,
+                        "schema": {
+                            "type": "integer"
+                        }
+                    }
+                ],
+                "requestBody": {
+                    "required": true,
+                    "content": {
+                        "application/json": {
+                            "schema": {
+                                "$ref": "#/components/schemas/P2PointRequest"
+                            }
+                        }
+                    }
+                },
+                "responses": {
+                    "200": {
+                        "description": "P2 point updated",
+                        "content": {
+                            "application/json": {
+                                "schema": {
+                                    "$ref": "#/components/schemas/GenericObject"
+                                }
+                            }
+                        }
+                    },
+                    "422": {
+                        "description": "Validation error",
+                        "content": {
+                            "application/json": {
+                                "schema": {
+                                    "$ref": "#/components/schemas/ApiError"
+                                }
+                            }
+                        }
+                    }
+                },
+                "security": [
+                    {
+                        "cookieAuth": []
+                    }
+                ],
+                "servers": [
+                    {
+                        "url": "http://localhost:4000/api",
+                        "description": "Local API server"
+                    }
+                ]
+            },
+            "delete": {
+                "tags": [
+                    "P2 Points"
+                ],
+                "summary": "Delete a P2 point",
+                "operationId": "p2PointsDestroy",
+                "parameters": [
+                    {
+                        "name": "id",
+                        "in": "path",
+                        "required": true,
+                        "schema": {
+                            "type": "integer"
+                        }
+                    }
+                ],
+                "responses": {
+                    "200": {
+                        "description": "P2 point deleted",
+                        "content": {
+                            "application/json": {
+                                "schema": {
+                                    "$ref": "#/components/schemas/ApiMessage"
+                                }
+                            }
+                        }
+                    },
+                    "404": {
+                        "description": "P2 point not found",
+                        "content": {
+                            "application/json": {
+                                "schema": {
+                                    "$ref": "#/components/schemas/ApiError"
+                                }
+                            }
+                        }
+                    }
+                },
+                "security": [
+                    {
+                        "cookieAuth": []
+                    }
+                ],
+                "servers": [
+                    {
+                        "url": "http://localhost:4000/api",
+                        "description": "Local API server"
+                    }
+                ]
+            },
+            "patch": {
+                "tags": [
+                    "P2 Points"
+                ],
+                "summary": "Patch a P2 point",
+                "operationId": "p2PointsPatch",
+                "parameters": [
+                    {
+                        "name": "id",
+                        "in": "path",
+                        "required": true,
+                        "schema": {
+                            "type": "integer"
+                        }
+                    }
+                ],
+                "requestBody": {
+                    "required": true,
+                    "content": {
+                        "application/json": {
+                            "schema": {
+                                "$ref": "#/components/schemas/P2PointRequest"
+                            }
+                        }
+                    }
+                },
+                "responses": {
+                    "200": {
+                        "description": "P2 point updated",
+                        "content": {
+                            "application/json": {
+                                "schema": {
+                                    "$ref": "#/components/schemas/GenericObject"
+                                }
+                            }
+                        }
+                    },
+                    "422": {
+                        "description": "Validation error",
+                        "content": {
+                            "application/json": {
+                                "schema": {
+                                    "$ref": "#/components/schemas/ApiError"
+                                }
+                            }
+                        }
+                    }
+                },
+                "security": [
+                    {
+                        "cookieAuth": []
+                    }
+                ],
+                "servers": [
+                    {
+                        "url": "http://localhost:4000/api",
+                        "description": "Local API server"
+                    }
+                ]
+            }
+        },
+        "/p2-points/{id}/approve": {
+            "post": {
+                "tags": [
+                    "P2 Points"
+                ],
+                "summary": "Approve a P2 point",
+                "operationId": "p2PointsApprove",
+                "parameters": [
+                    {
+                        "name": "id",
+                        "in": "path",
+                        "required": true,
+                        "schema": {
+                            "type": "integer"
+                        }
+                    }
+                ],
+                "responses": {
+                    "200": {
+                        "description": "P2 point approved",
+                        "content": {
+                            "application/json": {
+                                "schema": {
+                                    "$ref": "#/components/schemas/GenericObject"
+                                }
+                            }
+                        }
+                    },
+                    "403": {
+                        "description": "Permission or project ownership denied",
+                        "content": {
+                            "application/json": {
+                                "schema": {
+                                    "$ref": "#/components/schemas/ApiError"
+                                }
+                            }
+                        }
+                    }
+                },
+                "security": [
+                    {
+                        "cookieAuth": []
+                    }
+                ],
+                "servers": [
+                    {
+                        "url": "http://localhost:4000/api",
+                        "description": "Local API server"
+                    }
+                ]
+            }
+        },
+        "/kpi": {
+            "get": {
+                "tags": [
+                    "KPI"
+                ],
+                "summary": "KPI report for existing projects by month range, root service and department",
+                "operationId": "kpiReport",
+                "parameters": [
+                    {
+                        "name": "period",
+                        "in": "query",
+                        "description": "Backward-compatible single month in YYYY-MM format",
+                        "schema": {
+                            "type": "string",
+                            "example": "2026-07"
+                        }
+                    },
+                    {
+                        "name": "period_from",
+                        "in": "query",
+                        "description": "First month in YYYY-MM format; defaults to current month",
+                        "schema": {
+                            "type": "string",
+                            "example": "2026-01"
+                        }
+                    },
+                    {
+                        "name": "period_to",
+                        "in": "query",
+                        "description": "Last month in YYYY-MM format; defaults to period_from, maximum range 36 months",
+                        "schema": {
+                            "type": "string",
+                            "example": "2026-12"
+                        }
+                    }
+                ],
+                "responses": {
+                    "200": {
+                        "description": "KPI report with gross source amounts, before-VAT profit, calculationBasis and one monthly result per item in periods; soft-deleted projects are excluded",
+                        "content": {
+                            "application/json": {
+                                "schema": {
+                                    "$ref": "#/components/schemas/GenericObject"
+                                }
+                            }
+                        }
+                    },
+                    "403": {
+                        "description": "Missing kpi.view permission",
+                        "content": {
+                            "application/json": {
+                                "schema": {
+                                    "$ref": "#/components/schemas/ApiError"
+                                }
+                            }
+                        }
+                    },
+                    "422": {
+                        "description": "Validation error",
+                        "content": {
+                            "application/json": {
+                                "schema": {
+                                    "$ref": "#/components/schemas/ApiError"
+                                }
+                            }
+                        }
+                    }
+                },
+                "security": [
+                    {
+                        "cookieAuth": []
+                    }
+                ],
+                "servers": [
+                    {
+                        "url": "http://localhost:4000/api",
+                        "description": "Local API server"
+                    }
+                ]
+            }
+        },
+        "/kpi/targets": {
+            "put": {
+                "tags": [
+                    "KPI"
+                ],
+                "summary": "Create or replace a monthly KPI target",
+                "operationId": "kpiTargetUpsert",
+                "requestBody": {
+                    "required": true,
+                    "content": {
+                        "application/json": {
+                            "schema": {
+                                "$ref": "#/components/schemas/KpiTargetRequest"
+                            }
+                        }
+                    }
+                },
+                "responses": {
+                    "200": {
+                        "description": "KPI target saved",
+                        "content": {
+                            "application/json": {
+                                "schema": {
+                                    "$ref": "#/components/schemas/GenericObject"
+                                }
+                            }
+                        }
+                    },
+                    "403": {
+                        "description": "Missing kpi.manage permission",
+                        "content": {
+                            "application/json": {
+                                "schema": {
+                                    "$ref": "#/components/schemas/ApiError"
+                                }
+                            }
+                        }
+                    },
+                    "422": {
+                        "description": "Validation error",
+                        "content": {
+                            "application/json": {
+                                "schema": {
+                                    "$ref": "#/components/schemas/ApiError"
+                                }
+                            }
+                        }
+                    }
+                },
+                "security": [
+                    {
+                        "cookieAuth": []
+                    }
+                ],
+                "servers": [
+                    {
+                        "url": "http://localhost:4000/api",
+                        "description": "Local API server"
+                    }
+                ]
+            }
+        },
+        "/weekly-reports": {
+            "get": {
+                "tags": [
+                    "Weekly Reports"
+                ],
+                "summary": "List weekly reports",
+                "operationId": "weeklyReportsIndex",
+                "responses": {
+                    "200": {
+                        "description": "Weekly report list",
+                        "content": {
+                            "application/json": {
+                                "schema": {
+                                    "$ref": "#/components/schemas/GenericList"
+                                }
+                            }
+                        }
+                    }
+                },
+                "security": [
+                    {
+                        "cookieAuth": []
+                    }
+                ],
+                "servers": [
+                    {
+                        "url": "http://localhost:4000/api",
+                        "description": "Local API server"
+                    }
+                ]
+            },
+            "post": {
+                "tags": [
+                    "Weekly Reports"
+                ],
+                "summary": "Create a weekly report draft",
+                "operationId": "weeklyReportsStore",
+                "requestBody": {
+                    "required": true,
+                    "content": {
+                        "application/json": {
+                            "schema": {
+                                "$ref": "#/components/schemas/WeeklyReportRequest"
+                            }
+                        }
+                    }
+                },
+                "responses": {
+                    "201": {
+                        "description": "Weekly report created",
+                        "content": {
+                            "application/json": {
+                                "schema": {
+                                    "$ref": "#/components/schemas/GenericObject"
+                                }
+                            }
+                        }
+                    },
+                    "422": {
+                        "description": "Validation error",
+                        "content": {
+                            "application/json": {
+                                "schema": {
+                                    "$ref": "#/components/schemas/ApiError"
+                                }
+                            }
+                        }
+                    }
+                },
+                "security": [
+                    {
+                        "cookieAuth": []
+                    }
+                ],
+                "servers": [
+                    {
+                        "url": "http://localhost:4000/api",
+                        "description": "Local API server"
+                    }
+                ]
+            }
+        },
+        "/weekly-reports/board": {
+            "get": {
+                "tags": [
+                    "Weekly Reports"
+                ],
+                "summary": "Weekly report tracking board",
+                "operationId": "weeklyReportsBoard",
+                "parameters": [
+                    {
+                        "name": "week_start",
+                        "in": "query",
+                        "schema": {
+                            "type": "string",
+                            "format": "date"
+                        }
+                    }
+                ],
+                "responses": {
+                    "200": {
+                        "description": "Weekly report board",
+                        "content": {
+                            "application/json": {
+                                "schema": {
+                                    "$ref": "#/components/schemas/GenericObject"
+                                }
+                            }
+                        }
+                    }
+                },
+                "security": [
+                    {
+                        "cookieAuth": []
+                    }
+                ],
+                "servers": [
+                    {
+                        "url": "http://localhost:4000/api",
+                        "description": "Local API server"
+                    }
+                ]
+            }
+        },
+        "/weekly-reports/{id}": {
+            "get": {
+                "tags": [
+                    "Weekly Reports"
+                ],
+                "summary": "Show a weekly report",
+                "operationId": "weeklyReportsShow",
+                "parameters": [
+                    {
+                        "name": "id",
+                        "in": "path",
+                        "required": true,
+                        "schema": {
+                            "type": "integer"
+                        }
+                    }
+                ],
+                "responses": {
+                    "200": {
+                        "description": "Weekly report",
+                        "content": {
+                            "application/json": {
+                                "schema": {
+                                    "$ref": "#/components/schemas/GenericObject"
+                                }
+                            }
+                        }
+                    },
+                    "404": {
+                        "description": "Weekly report not found",
+                        "content": {
+                            "application/json": {
+                                "schema": {
+                                    "$ref": "#/components/schemas/ApiError"
+                                }
+                            }
+                        }
+                    }
+                },
+                "security": [
+                    {
+                        "cookieAuth": []
+                    }
+                ],
+                "servers": [
+                    {
+                        "url": "http://localhost:4000/api",
+                        "description": "Local API server"
+                    }
+                ]
+            },
+            "put": {
+                "tags": [
+                    "Weekly Reports"
+                ],
+                "summary": "Update a weekly report draft",
+                "operationId": "weeklyReportsPut",
+                "parameters": [
+                    {
+                        "name": "id",
+                        "in": "path",
+                        "required": true,
+                        "schema": {
+                            "type": "integer"
+                        }
+                    }
+                ],
+                "requestBody": {
+                    "required": true,
+                    "content": {
+                        "application/json": {
+                            "schema": {
+                                "$ref": "#/components/schemas/WeeklyReportRequest"
+                            }
+                        }
+                    }
+                },
+                "responses": {
+                    "200": {
+                        "description": "Weekly report updated",
+                        "content": {
+                            "application/json": {
+                                "schema": {
+                                    "$ref": "#/components/schemas/GenericObject"
+                                }
+                            }
+                        }
+                    },
+                    "422": {
+                        "description": "Validation error",
+                        "content": {
+                            "application/json": {
+                                "schema": {
+                                    "$ref": "#/components/schemas/ApiError"
+                                }
+                            }
+                        }
+                    }
+                },
+                "security": [
+                    {
+                        "cookieAuth": []
+                    }
+                ],
+                "servers": [
+                    {
+                        "url": "http://localhost:4000/api",
+                        "description": "Local API server"
+                    }
+                ]
+            },
+            "patch": {
+                "tags": [
+                    "Weekly Reports"
+                ],
+                "summary": "Patch a weekly report draft",
+                "operationId": "weeklyReportsPatch",
+                "parameters": [
+                    {
+                        "name": "id",
+                        "in": "path",
+                        "required": true,
+                        "schema": {
+                            "type": "integer"
+                        }
+                    }
+                ],
+                "requestBody": {
+                    "required": true,
+                    "content": {
+                        "application/json": {
+                            "schema": {
+                                "$ref": "#/components/schemas/WeeklyReportRequest"
+                            }
+                        }
+                    }
+                },
+                "responses": {
+                    "200": {
+                        "description": "Weekly report updated",
+                        "content": {
+                            "application/json": {
+                                "schema": {
+                                    "$ref": "#/components/schemas/GenericObject"
+                                }
+                            }
+                        }
+                    },
+                    "422": {
+                        "description": "Validation error",
+                        "content": {
+                            "application/json": {
+                                "schema": {
+                                    "$ref": "#/components/schemas/ApiError"
+                                }
+                            }
+                        }
+                    }
+                },
+                "security": [
+                    {
+                        "cookieAuth": []
+                    }
+                ],
+                "servers": [
+                    {
+                        "url": "http://localhost:4000/api",
+                        "description": "Local API server"
+                    }
+                ]
+            }
+        },
+        "/meetings": {
+            "get": {
+                "tags": [
+                    "Meetings"
+                ],
+                "summary": "List visible meetings in calendar or paginated mode",
+                "operationId": "meetingsIndex",
+                "parameters": [
+                    {
+                        "name": "keyword",
+                        "in": "query",
+                        "schema": {
+                            "type": "string"
+                        }
+                    },
+                    {
+                        "name": "organizer_user_id",
+                        "in": "query",
+                        "schema": {
+                            "type": "integer"
+                        }
+                    },
+                    {
+                        "name": "department_id",
+                        "in": "query",
+                        "schema": {
+                            "type": "integer"
+                        }
+                    },
+                    {
+                        "name": "meeting_type",
+                        "in": "query",
+                        "schema": {
+                            "type": "string",
+                            "enum": [
+                                "online",
+                                "onsite",
+                                "phone"
+                            ]
+                        }
+                    },
+                    {
+                        "name": "status",
+                        "in": "query",
+                        "schema": {
+                            "type": "string",
+                            "enum": [
+                                "scheduled",
+                                "confirmed",
+                                "completed",
+                                "cancelled",
+                                "no_show",
+                                "overdue"
+                            ]
+                        }
+                    },
+                    {
+                        "name": "scope",
+                        "in": "query",
+                        "schema": {
+                            "type": "string",
+                            "enum": [
+                                "today",
+                                "upcoming",
+                                "waiting",
+                                "overdue"
+                            ]
+                        }
+                    },
+                    {
+                        "name": "date_from",
+                        "in": "query",
+                        "schema": {
+                            "type": "string",
+                            "format": "date-time"
+                        }
+                    },
+                    {
+                        "name": "date_to",
+                        "in": "query",
+                        "schema": {
+                            "type": "string",
+                            "format": "date-time"
+                        }
+                    },
+                    {
+                        "name": "page",
+                        "in": "query",
+                        "schema": {
+                            "type": "integer",
+                            "minimum": 1
+                        }
+                    },
+                    {
+                        "name": "per_page",
+                        "in": "query",
+                        "schema": {
+                            "type": "integer",
+                            "maximum": 100,
+                            "minimum": 1
+                        }
+                    }
+                ],
+                "responses": {
+                    "200": {
+                        "description": "Meeting list",
+                        "content": {
+                            "application/json": {
+                                "schema": {
+                                    "$ref": "#/components/schemas/GenericList"
+                                }
+                            }
+                        }
+                    },
+                    "403": {
+                        "description": "Missing meeting.view permission",
+                        "content": {
+                            "application/json": {
+                                "schema": {
+                                    "$ref": "#/components/schemas/ApiError"
+                                }
+                            }
+                        }
+                    }
+                },
+                "security": [
+                    {
+                        "cookieAuth": []
+                    }
+                ],
+                "servers": [
+                    {
+                        "url": "http://localhost:4000/api",
+                        "description": "Local API server"
+                    }
+                ]
+            },
+            "post": {
+                "tags": [
+                    "Meetings"
+                ],
+                "summary": "Create a meeting",
+                "operationId": "meetingsStore",
+                "requestBody": {
+                    "required": true,
+                    "content": {
+                        "application/json": {
+                            "schema": {
+                                "$ref": "#/components/schemas/MeetingRequest"
+                            }
+                        }
+                    }
+                },
+                "responses": {
+                    "201": {
+                        "description": "Meeting created",
+                        "content": {
+                            "application/json": {
+                                "schema": {
+                                    "$ref": "#/components/schemas/GenericObject"
+                                }
+                            }
+                        }
+                    },
+                    "422": {
+                        "description": "Validation or schedule conflict",
+                        "content": {
+                            "application/json": {
+                                "schema": {
+                                    "$ref": "#/components/schemas/ApiError"
+                                }
+                            }
+                        }
+                    }
+                },
+                "security": [
+                    {
+                        "cookieAuth": []
+                    }
+                ],
+                "servers": [
+                    {
+                        "url": "http://localhost:4000/api",
+                        "description": "Local API server"
+                    }
+                ]
+            }
+        },
+        "/meetings/summary": {
+            "get": {
+                "tags": [
+                    "Meetings"
+                ],
+                "summary": "Meeting summary for today, next seven days, waiting confirmation and overdue",
+                "operationId": "meetingsSummary",
+                "responses": {
+                    "200": {
+                        "description": "Meeting summary",
+                        "content": {
+                            "application/json": {
+                                "schema": {
+                                    "$ref": "#/components/schemas/GenericObject"
+                                }
+                            }
+                        }
+                    }
+                },
+                "security": [
+                    {
+                        "cookieAuth": []
+                    }
+                ],
+                "servers": [
+                    {
+                        "url": "http://localhost:4000/api",
+                        "description": "Local API server"
+                    }
+                ]
+            }
+        },
+        "/meetings/{id}": {
+            "get": {
+                "tags": [
+                    "Meetings"
+                ],
+                "summary": "Show a visible meeting with participants, guests and history",
+                "operationId": "meetingsShow",
+                "parameters": [
+                    {
+                        "name": "id",
+                        "in": "path",
+                        "required": true,
+                        "schema": {
+                            "type": "integer"
+                        }
+                    }
+                ],
+                "responses": {
+                    "200": {
+                        "description": "Meeting",
+                        "content": {
+                            "application/json": {
+                                "schema": {
+                                    "$ref": "#/components/schemas/GenericObject"
+                                }
+                            }
+                        }
+                    },
+                    "404": {
+                        "description": "Meeting not found in current scope",
+                        "content": {
+                            "application/json": {
+                                "schema": {
+                                    "$ref": "#/components/schemas/ApiError"
+                                }
+                            }
+                        }
+                    }
+                },
+                "security": [
+                    {
+                        "cookieAuth": []
+                    }
+                ],
+                "servers": [
+                    {
+                        "url": "http://localhost:4000/api",
+                        "description": "Local API server"
+                    }
+                ]
+            },
+            "put": {
+                "tags": [
+                    "Meetings"
+                ],
+                "summary": "Update or reschedule an active meeting",
+                "operationId": "meetingsPut",
+                "parameters": [
+                    {
+                        "name": "id",
+                        "in": "path",
+                        "required": true,
+                        "schema": {
+                            "type": "integer"
+                        }
+                    }
+                ],
+                "requestBody": {
+                    "required": true,
+                    "content": {
+                        "application/json": {
+                            "schema": {
+                                "$ref": "#/components/schemas/MeetingRequest"
+                            }
+                        }
+                    }
+                },
+                "responses": {
+                    "200": {
+                        "description": "Meeting updated",
+                        "content": {
+                            "application/json": {
+                                "schema": {
+                                    "$ref": "#/components/schemas/GenericObject"
+                                }
+                            }
+                        }
+                    },
+                    "422": {
+                        "description": "Validation, status or schedule conflict",
+                        "content": {
+                            "application/json": {
+                                "schema": {
+                                    "$ref": "#/components/schemas/ApiError"
+                                }
+                            }
+                        }
+                    }
+                },
+                "security": [
+                    {
+                        "cookieAuth": []
+                    }
+                ],
+                "servers": [
+                    {
+                        "url": "http://localhost:4000/api",
+                        "description": "Local API server"
+                    }
+                ]
+            },
+            "delete": {
+                "tags": [
+                    "Meetings"
+                ],
+                "summary": "Soft-delete a meeting",
+                "operationId": "meetingsDestroy",
+                "parameters": [
+                    {
+                        "name": "id",
+                        "in": "path",
+                        "required": true,
+                        "schema": {
+                            "type": "integer"
+                        }
+                    }
+                ],
+                "responses": {
+                    "200": {
+                        "description": "Meeting deleted",
+                        "content": {
+                            "application/json": {
+                                "schema": {
+                                    "$ref": "#/components/schemas/ApiMessage"
+                                }
+                            }
+                        }
+                    }
+                },
+                "security": [
+                    {
+                        "cookieAuth": []
+                    }
+                ],
+                "servers": [
+                    {
+                        "url": "http://localhost:4000/api",
+                        "description": "Local API server"
+                    }
+                ]
+            }
+        },
+        "/meetings/{id}/confirm": {
+            "post": {
+                "tags": [
+                    "Meetings"
+                ],
+                "summary": "Confirm a scheduled meeting",
+                "operationId": "meetingsConfirm",
+                "parameters": [
+                    {
+                        "name": "id",
+                        "in": "path",
+                        "required": true,
+                        "schema": {
+                            "type": "integer"
+                        }
+                    }
+                ],
+                "responses": {
+                    "200": {
+                        "description": "Meeting confirmed",
+                        "content": {
+                            "application/json": {
+                                "schema": {
+                                    "$ref": "#/components/schemas/GenericObject"
+                                }
+                            }
+                        }
+                    }
+                },
+                "security": [
+                    {
+                        "cookieAuth": []
+                    }
+                ],
+                "servers": [
+                    {
+                        "url": "http://localhost:4000/api",
+                        "description": "Local API server"
+                    }
+                ]
+            }
+        },
+        "/meetings/{id}/complete": {
+            "post": {
+                "tags": [
+                    "Meetings"
+                ],
+                "summary": "Complete a meeting and record result and next action",
+                "operationId": "meetingsComplete",
+                "parameters": [
+                    {
+                        "name": "id",
+                        "in": "path",
+                        "required": true,
+                        "schema": {
+                            "type": "integer"
+                        }
+                    }
+                ],
+                "requestBody": {
+                    "required": true,
+                    "content": {
+                        "application/json": {
+                            "schema": {
+                                "required": [
+                                    "result"
+                                ],
+                                "properties": {
+                                    "result": {
+                                        "type": "string"
+                                    },
+                                    "nextAction": {
+                                        "type": "string",
+                                        "nullable": true
+                                    },
+                                    "nextActionDate": {
+                                        "type": "string",
+                                        "format": "date",
+                                        "nullable": true
+                                    }
+                                },
+                                "type": "object"
+                            }
+                        }
+                    }
+                },
+                "responses": {
+                    "200": {
+                        "description": "Meeting completed",
+                        "content": {
+                            "application/json": {
+                                "schema": {
+                                    "$ref": "#/components/schemas/GenericObject"
+                                }
+                            }
+                        }
+                    }
+                },
+                "security": [
+                    {
+                        "cookieAuth": []
+                    }
+                ],
+                "servers": [
+                    {
+                        "url": "http://localhost:4000/api",
+                        "description": "Local API server"
+                    }
+                ]
+            }
+        },
+        "/meetings/{id}/cancel": {
+            "post": {
+                "tags": [
+                    "Meetings"
+                ],
+                "summary": "Cancel an active meeting",
+                "operationId": "meetingsCancel",
+                "parameters": [
+                    {
+                        "name": "id",
+                        "in": "path",
+                        "required": true,
+                        "schema": {
+                            "type": "integer"
+                        }
+                    }
+                ],
+                "requestBody": {
+                    "required": true,
+                    "content": {
+                        "application/json": {
+                            "schema": {
+                                "required": [
+                                    "reason"
+                                ],
+                                "properties": {
+                                    "reason": {
+                                        "type": "string"
+                                    }
+                                },
+                                "type": "object"
+                            }
+                        }
+                    }
+                },
+                "responses": {
+                    "200": {
+                        "description": "Meeting cancelled",
+                        "content": {
+                            "application/json": {
+                                "schema": {
+                                    "$ref": "#/components/schemas/GenericObject"
+                                }
+                            }
+                        }
+                    }
+                },
+                "security": [
+                    {
+                        "cookieAuth": []
+                    }
+                ],
+                "servers": [
+                    {
+                        "url": "http://localhost:4000/api",
+                        "description": "Local API server"
+                    }
+                ]
+            }
+        },
+        "/meetings/{id}/no-show": {
+            "post": {
+                "tags": [
+                    "Meetings"
+                ],
+                "summary": "Mark an active meeting as customer no-show",
+                "operationId": "meetingsNoShow",
+                "parameters": [
+                    {
+                        "name": "id",
+                        "in": "path",
+                        "required": true,
+                        "schema": {
+                            "type": "integer"
+                        }
+                    }
+                ],
+                "responses": {
+                    "200": {
+                        "description": "Meeting marked as no-show",
+                        "content": {
+                            "application/json": {
+                                "schema": {
+                                    "$ref": "#/components/schemas/GenericObject"
+                                }
+                            }
+                        }
+                    }
+                },
+                "security": [
+                    {
+                        "cookieAuth": []
+                    }
+                ],
+                "servers": [
+                    {
+                        "url": "http://localhost:4000/api",
+                        "description": "Local API server"
+                    }
+                ]
+            }
+        },
         "/payments/webhook": {
             "post": {
                 "tags": [
@@ -752,6 +2229,48 @@
                             "application/json": {
                                 "schema": {
                                     "$ref": "#/components/schemas/GenericObject"
+                                }
+                            }
+                        }
+                    }
+                },
+                "security": [
+                    {
+                        "cookieAuth": []
+                    }
+                ],
+                "servers": [
+                    {
+                        "url": "http://localhost:4000/api",
+                        "description": "Local API server"
+                    }
+                ]
+            }
+        },
+        "/services/reorder": {
+            "patch": {
+                "tags": [
+                    "Services"
+                ],
+                "summary": "Reorder sibling services",
+                "operationId": "servicesReorder",
+                "requestBody": {
+                    "required": true,
+                    "content": {
+                        "application/json": {
+                            "schema": {
+                                "$ref": "#/components/schemas/GenericObject"
+                            }
+                        }
+                    }
+                },
+                "responses": {
+                    "200": {
+                        "description": "Reordered service tree",
+                        "content": {
+                            "application/json": {
+                                "schema": {
+                                    "$ref": "#/components/schemas/GenericList"
                                 }
                             }
                         }
@@ -2802,13 +4321,13 @@
                 ]
             }
         },
-        "/payments/{id}/match-project": {
+        "/payments/{id}/classification": {
             "post": {
                 "tags": [
                     "Payments"
                 ],
-                "summary": "Match payment to quotation/project",
-                "operationId": "paymentsMatchProject",
+                "summary": "Classify payment receipt type",
+                "operationId": "paymentsClassify",
                 "parameters": [
                     {
                         "name": "id",
@@ -2821,7 +4340,7 @@
                     }
                 ],
                 "requestBody": {
-                    "required": false,
+                    "required": true,
                     "content": {
                         "application/json": {
                             "schema": {
@@ -2832,7 +4351,70 @@
                 },
                 "responses": {
                     "200": {
-                        "description": "Matched",
+                        "description": "Classified",
+                        "content": {
+                            "application/json": {
+                                "schema": {
+                                    "$ref": "#/components/schemas/GenericObject"
+                                }
+                            }
+                        }
+                    }
+                },
+                "security": [
+                    {
+                        "cookieAuth": []
+                    }
+                ],
+                "servers": [
+                    {
+                        "url": "http://localhost:4000/api",
+                        "description": "Local API server"
+                    }
+                ]
+            }
+        },
+        "/payments/{id}/invoice": {
+            "patch": {
+                "tags": [
+                    "Payments"
+                ],
+                "summary": "Update customer output invoice number for a payment",
+                "operationId": "paymentsUpdateInvoice",
+                "parameters": [
+                    {
+                        "name": "id",
+                        "in": "path",
+                        "required": true,
+                        "schema": {
+                            "type": "string",
+                            "format": "uuid"
+                        }
+                    }
+                ],
+                "requestBody": {
+                    "required": true,
+                    "content": {
+                        "application/json": {
+                            "schema": {
+                                "required": [
+                                    "invoiceNumber"
+                                ],
+                                "properties": {
+                                    "invoiceNumber": {
+                                        "type": "string",
+                                        "nullable": true,
+                                        "maxLength": 100
+                                    }
+                                },
+                                "type": "object"
+                            }
+                        }
+                    }
+                },
+                "responses": {
+                    "200": {
+                        "description": "Invoice number updated",
                         "content": {
                             "application/json": {
                                 "schema": {
@@ -3023,6 +4605,225 @@
                             "application/json": {
                                 "schema": {
                                     "$ref": "#/components/schemas/GenericObject"
+                                }
+                            }
+                        }
+                    }
+                },
+                "security": [
+                    {
+                        "cookieAuth": []
+                    }
+                ],
+                "servers": [
+                    {
+                        "url": "http://localhost:4000/api",
+                        "description": "Local API server"
+                    }
+                ]
+            }
+        },
+        "/project-costs": {
+            "get": {
+                "tags": [
+                    "Costs"
+                ],
+                "summary": "List project costs",
+                "operationId": "projectCostsIndex",
+                "responses": {
+                    "200": {
+                        "description": "Project cost list",
+                        "content": {
+                            "application/json": {
+                                "schema": {
+                                    "$ref": "#/components/schemas/GenericList"
+                                }
+                            }
+                        }
+                    }
+                },
+                "security": [
+                    {
+                        "cookieAuth": []
+                    }
+                ],
+                "servers": [
+                    {
+                        "url": "http://localhost:4000/api",
+                        "description": "Local API server"
+                    }
+                ]
+            }
+        },
+        "/project-costs/{id}/cid-incident": {
+            "put": {
+                "tags": [
+                    "Costs"
+                ],
+                "summary": "Report a CID stopped after cost reconciliation",
+                "operationId": "projectCostsReportCidIncident",
+                "parameters": [
+                    {
+                        "name": "id",
+                        "in": "path",
+                        "required": true,
+                        "schema": {
+                            "type": "integer"
+                        }
+                    }
+                ],
+                "requestBody": {
+                    "required": true,
+                    "content": {
+                        "application/json": {
+                            "schema": {
+                                "required": [
+                                    "stoppedAt",
+                                    "spentAmount"
+                                ],
+                                "properties": {
+                                    "stoppedAt": {
+                                        "type": "string",
+                                        "format": "date"
+                                    },
+                                    "spentAmount": {
+                                        "type": "number",
+                                        "format": "float"
+                                    },
+                                    "unrecoverableAmount": {
+                                        "type": "number",
+                                        "format": "float",
+                                        "default": 0
+                                    },
+                                    "note": {
+                                        "type": "string",
+                                        "nullable": true
+                                    }
+                                },
+                                "type": "object"
+                            }
+                        }
+                    }
+                },
+                "responses": {
+                    "200": {
+                        "description": "CID incident reported",
+                        "content": {
+                            "application/json": {
+                                "schema": {
+                                    "$ref": "#/components/schemas/GenericObject"
+                                }
+                            }
+                        }
+                    },
+                    "422": {
+                        "description": "Validation error",
+                        "content": {
+                            "application/json": {
+                                "schema": {
+                                    "$ref": "#/components/schemas/ApiError"
+                                }
+                            }
+                        }
+                    }
+                },
+                "security": [
+                    {
+                        "cookieAuth": []
+                    }
+                ],
+                "servers": [
+                    {
+                        "url": "http://localhost:4000/api",
+                        "description": "Local API server"
+                    }
+                ]
+            },
+            "delete": {
+                "tags": [
+                    "Costs"
+                ],
+                "summary": "Cancel a pending CID incident report",
+                "operationId": "projectCostsCancelCidIncident",
+                "parameters": [
+                    {
+                        "name": "id",
+                        "in": "path",
+                        "required": true,
+                        "schema": {
+                            "type": "integer"
+                        }
+                    }
+                ],
+                "responses": {
+                    "200": {
+                        "description": "CID incident cancelled",
+                        "content": {
+                            "application/json": {
+                                "schema": {
+                                    "$ref": "#/components/schemas/GenericObject"
+                                }
+                            }
+                        }
+                    },
+                    "422": {
+                        "description": "Validation error",
+                        "content": {
+                            "application/json": {
+                                "schema": {
+                                    "$ref": "#/components/schemas/ApiError"
+                                }
+                            }
+                        }
+                    }
+                },
+                "security": [
+                    {
+                        "cookieAuth": []
+                    }
+                ],
+                "servers": [
+                    {
+                        "url": "http://localhost:4000/api",
+                        "description": "Local API server"
+                    }
+                ]
+            }
+        },
+        "/project-costs/{id}/cid-incident/confirm": {
+            "post": {
+                "tags": [
+                    "Costs"
+                ],
+                "summary": "Confirm CID incident and automatically release the remaining budget",
+                "operationId": "projectCostsConfirmCidIncident",
+                "parameters": [
+                    {
+                        "name": "id",
+                        "in": "path",
+                        "required": true,
+                        "schema": {
+                            "type": "integer"
+                        }
+                    }
+                ],
+                "responses": {
+                    "200": {
+                        "description": "CID incident confirmed",
+                        "content": {
+                            "application/json": {
+                                "schema": {
+                                    "$ref": "#/components/schemas/GenericObject"
+                                }
+                            }
+                        }
+                    },
+                    "422": {
+                        "description": "Validation error",
+                        "content": {
+                            "application/json": {
+                                "schema": {
+                                    "$ref": "#/components/schemas/ApiError"
                                 }
                             }
                         }
@@ -3441,6 +5242,11 @@
                     "password": {
                         "type": "string",
                         "format": "password"
+                    },
+                    "remember": {
+                        "description": "Keep this device signed in for the configured remember duration",
+                        "type": "boolean",
+                        "default": false
                     }
                 },
                 "type": "object"
@@ -3458,6 +5264,201 @@
                     "newPassword": {
                         "type": "string",
                         "format": "password"
+                    }
+                },
+                "type": "object"
+            },
+            "P2PointRequest": {
+                "required": [
+                    "userId",
+                    "entryDate",
+                    "category",
+                    "score"
+                ],
+                "properties": {
+                    "userId": {
+                        "type": "integer"
+                    },
+                    "projectId": {
+                        "type": "integer",
+                        "nullable": true
+                    },
+                    "entryDate": {
+                        "type": "string",
+                        "format": "date"
+                    },
+                    "category": {
+                        "type": "string"
+                    },
+                    "score": {
+                        "type": "number",
+                        "format": "float"
+                    },
+                    "note": {
+                        "type": "string",
+                        "nullable": true
+                    }
+                },
+                "type": "object"
+            },
+            "KpiTargetRequest": {
+                "required": [
+                    "period",
+                    "scopeType",
+                    "scopeId",
+                    "targetAmount"
+                ],
+                "properties": {
+                    "period": {
+                        "type": "string",
+                        "example": "2026-07"
+                    },
+                    "scopeType": {
+                        "type": "string",
+                        "enum": [
+                            "service",
+                            "department"
+                        ]
+                    },
+                    "scopeId": {
+                        "type": "integer",
+                        "minimum": 1
+                    },
+                    "targetAmount": {
+                        "type": "number",
+                        "format": "float",
+                        "minimum": 0
+                    }
+                },
+                "type": "object"
+            },
+            "WeeklyReportRequest": {
+                "properties": {
+                    "projectId": {
+                        "type": "integer",
+                        "nullable": true
+                    },
+                    "cycleWeekStart": {
+                        "type": "string",
+                        "format": "date",
+                        "nullable": true
+                    },
+                    "weeklyCondition": {
+                        "type": "string",
+                        "nullable": true,
+                        "maxLength": 50
+                    },
+                    "weeklySpendAmount": {
+                        "type": "number",
+                        "format": "float",
+                        "minimum": 0
+                    },
+                    "averageWeeklyBudget": {
+                        "type": "number",
+                        "format": "float",
+                        "minimum": 0
+                    },
+                    "remainingAccountBudget": {
+                        "type": "number",
+                        "format": "float",
+                        "minimum": 0
+                    },
+                    "totalBudget": {
+                        "type": "number",
+                        "format": "float",
+                        "minimum": 0
+                    },
+                    "summary": {
+                        "type": "string",
+                        "nullable": true
+                    },
+                    "items": {
+                        "type": "array",
+                        "items": {
+                            "type": "object",
+                            "additionalProperties": true
+                        }
+                    }
+                },
+                "type": "object"
+            },
+            "MeetingRequest": {
+                "required": [
+                    "organizerUserId",
+                    "subject",
+                    "meetingType",
+                    "startsAt",
+                    "endsAt"
+                ],
+                "properties": {
+                    "leadId": {
+                        "type": "integer",
+                        "nullable": true
+                    },
+                    "customerId": {
+                        "type": "integer",
+                        "nullable": true
+                    },
+                    "projectId": {
+                        "type": "integer",
+                        "nullable": true
+                    },
+                    "organizerUserId": {
+                        "type": "integer"
+                    },
+                    "subject": {
+                        "type": "string",
+                        "maxLength": 255
+                    },
+                    "meetingType": {
+                        "type": "string",
+                        "enum": [
+                            "online",
+                            "onsite",
+                            "phone"
+                        ]
+                    },
+                    "startsAt": {
+                        "type": "string",
+                        "format": "date-time"
+                    },
+                    "endsAt": {
+                        "type": "string",
+                        "format": "date-time"
+                    },
+                    "timezone": {
+                        "type": "string",
+                        "example": "Asia/Ho_Chi_Minh"
+                    },
+                    "location": {
+                        "type": "string",
+                        "nullable": true
+                    },
+                    "meetingUrl": {
+                        "type": "string",
+                        "format": "uri",
+                        "nullable": true
+                    },
+                    "agenda": {
+                        "type": "string",
+                        "nullable": true
+                    },
+                    "participantUserIds": {
+                        "type": "array",
+                        "items": {
+                            "type": "integer"
+                        }
+                    },
+                    "guests": {
+                        "type": "array",
+                        "items": {
+                            "type": "object",
+                            "additionalProperties": true
+                        }
+                    },
+                    "allowConflict": {
+                        "type": "boolean",
+                        "default": false
                     }
                 },
                 "type": "object"
@@ -3539,6 +5540,21 @@
         },
         {
             "name": "Payments"
+        },
+        {
+            "name": "Costs"
+        },
+        {
+            "name": "Weekly Reports"
+        },
+        {
+            "name": "Meetings"
+        },
+        {
+            "name": "P2 Points"
+        },
+        {
+            "name": "KPI"
         },
         {
             "name": "Roles"

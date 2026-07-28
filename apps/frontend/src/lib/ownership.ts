@@ -1,5 +1,5 @@
 import type { Customer } from '@/types/customer';
-import type { KpiPoint } from '@/types/kpi';
+import type { P2Point } from '@/types/p2';
 import type { Lead } from '@/types/lead';
 import type { ProjectItem } from '@/types/project';
 import type { Quotation } from '@/types/quotation';
@@ -103,9 +103,7 @@ export function canCreateQuotation(user: User | null | undefined): boolean {
 
 function quotationOwnershipHolds(user: User, quotation: Quotation): boolean {
   if (quotation.project) {
-    return (
-      quotation.project.managerUserId === user.id || quotation.project.salesUserId === user.id
-    );
+    return quotation.project.managerUserId === user.id || quotation.project.salesUserId === user.id;
   }
 
   if (quotation.customer) {
@@ -135,7 +133,10 @@ export function canDeleteQuotation(user: User | null | undefined, quotation: Quo
 
 // ---- Weekly report — mirrors WeeklyReportPolicy ----
 
-export function canApproveWeeklyReport(user: User | null | undefined, report: WeeklyReport): boolean {
+export function canApproveWeeklyReport(
+  user: User | null | undefined,
+  report: WeeklyReport,
+): boolean {
   if (!user) return false;
   if (hasPermission(user, 'weeklyreport.approve_all')) return true;
   if (!hasPermission(user, 'weeklyreport.approve')) return false;
@@ -147,23 +148,23 @@ export function canApproveWeeklyReport(user: User | null | undefined, report: We
   return report.reporterUserId !== managerUserId;
 }
 
-// ---- KPI point — mirrors KpiPointPolicy ----
+// ---- P2 point — mirrors P2PointPolicy ----
 
 /**
- * Whether the user is allowed to open the "create KPI point" dialog at all.
+ * Whether the user is allowed to open the "create P2 point" dialog at all.
  * The dialog lets the user pick any project; which project they may actually
  * log a point against (their own managed projects) is enforced by the backend
  * at submit time, since the client doesn't have a cheap way to know every
  * project a user manages up front.
  */
-export function canOpenKpiCreateDialog(user: User | null | undefined): boolean {
-  return hasPermission(user, 'kpipoint.create_all') || hasPermission(user, 'kpipoint.create');
+export function canOpenP2CreateDialog(user: User | null | undefined): boolean {
+  return hasPermission(user, 'p2point.create_all') || hasPermission(user, 'p2point.create');
 }
 
-export function canApproveKpiPoint(user: User | null | undefined, point: KpiPoint): boolean {
+export function canApproveP2Point(user: User | null | undefined, point: P2Point): boolean {
   if (!user) return false;
-  if (hasPermission(user, 'kpipoint.approve_all')) return true;
-  if (!hasPermission(user, 'kpipoint.approve')) return false;
+  if (hasPermission(user, 'p2point.approve_all')) return true;
+  if (!hasPermission(user, 'p2point.approve')) return false;
 
   return Boolean(point.project?.managerUserId && point.project.managerUserId === user.id);
 }
@@ -178,7 +179,7 @@ export function canManagePayments(user: User | null | undefined): boolean {
   return hasPermission(user, 'payment.manage');
 }
 
-// ---- Catalogs (options/services/partners/bank-accounts/kpi-categories) ----
+// ---- Catalogs (options/services/partners/bank-accounts/P2 categories) ----
 
 export function canManageCatalog(user: User | null | undefined): boolean {
   return hasPermission(user, 'option.manage');

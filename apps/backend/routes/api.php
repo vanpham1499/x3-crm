@@ -4,10 +4,12 @@ use App\Http\Controllers\AuthController;
 use App\Http\Controllers\ContractsController;
 use App\Http\Controllers\CustomersController;
 use App\Http\Controllers\DepartmentsController;
-use App\Http\Controllers\KpiPointsController;
+use App\Http\Controllers\KpiController;
 use App\Http\Controllers\LeadsController;
 use App\Http\Controllers\MediaController;
+use App\Http\Controllers\MeetingsController;
 use App\Http\Controllers\OptionsController;
+use App\Http\Controllers\P2PointsController;
 use App\Http\Controllers\PaymentsController;
 use App\Http\Controllers\PermissionsController;
 use App\Http\Controllers\ProjectCostsController;
@@ -76,10 +78,10 @@ Route::middleware(['auth:sanctum', 'active'])->group(function (): void {
     Route::patch('/departments/{id}', [DepartmentsController::class, 'update'])->middleware('permission:user.update');
     Route::delete('/departments/{id}', [DepartmentsController::class, 'destroy'])->middleware('permission:user.delete');
 
-    Route::get('/leads', [LeadsController::class, 'index']);
+    Route::get('/leads', [LeadsController::class, 'index'])->middleware('permission:lead.view');
     Route::post('/leads', [LeadsController::class, 'store']);
     Route::post('/leads/{id}/convert', [LeadsController::class, 'convert']);
-    Route::get('/leads/{id}', [LeadsController::class, 'show']);
+    Route::get('/leads/{id}', [LeadsController::class, 'show'])->middleware('permission:lead.view');
     Route::put('/leads/{id}', [LeadsController::class, 'update']);
     Route::patch('/leads/{id}', [LeadsController::class, 'update']);
     Route::delete('/leads/{id}', [LeadsController::class, 'destroy']);
@@ -144,13 +146,30 @@ Route::middleware(['auth:sanctum', 'active'])->group(function (): void {
     Route::post('/weekly-reports/{id}/attachments', [WeeklyReportAttachmentsController::class, 'store']);
     Route::delete('/weekly-report-attachments/{id}', [WeeklyReportAttachmentsController::class, 'destroy']);
 
-    Route::get('/kpi-points', [KpiPointsController::class, 'index']);
-    Route::post('/kpi-points', [KpiPointsController::class, 'store']);
-    Route::get('/kpi-points/{id}', [KpiPointsController::class, 'show']);
-    Route::put('/kpi-points/{id}', [KpiPointsController::class, 'update']);
-    Route::patch('/kpi-points/{id}', [KpiPointsController::class, 'update']);
-    Route::delete('/kpi-points/{id}', [KpiPointsController::class, 'destroy']);
-    Route::post('/kpi-points/{id}/approve', [KpiPointsController::class, 'approve']);
+    Route::middleware('permission:meeting.view')->group(function (): void {
+        Route::get('/meetings/summary', [MeetingsController::class, 'summary']);
+        Route::get('/meetings', [MeetingsController::class, 'index']);
+        Route::post('/meetings', [MeetingsController::class, 'store'])->middleware('permission:meeting.create');
+        Route::get('/meetings/{id}', [MeetingsController::class, 'show']);
+        Route::put('/meetings/{id}', [MeetingsController::class, 'update']);
+        Route::patch('/meetings/{id}', [MeetingsController::class, 'update']);
+        Route::delete('/meetings/{id}', [MeetingsController::class, 'destroy']);
+        Route::post('/meetings/{id}/confirm', [MeetingsController::class, 'confirm']);
+        Route::post('/meetings/{id}/complete', [MeetingsController::class, 'complete']);
+        Route::post('/meetings/{id}/cancel', [MeetingsController::class, 'cancel']);
+        Route::post('/meetings/{id}/no-show', [MeetingsController::class, 'markNoShow']);
+    });
+
+    Route::get('/p2-points', [P2PointsController::class, 'index'])->middleware('permission:p2point.view');
+    Route::post('/p2-points', [P2PointsController::class, 'store']);
+    Route::get('/p2-points/{id}', [P2PointsController::class, 'show'])->middleware('permission:p2point.view');
+    Route::put('/p2-points/{id}', [P2PointsController::class, 'update']);
+    Route::patch('/p2-points/{id}', [P2PointsController::class, 'update']);
+    Route::delete('/p2-points/{id}', [P2PointsController::class, 'destroy']);
+    Route::post('/p2-points/{id}/approve', [P2PointsController::class, 'approve']);
+
+    Route::get('/kpi', [KpiController::class, 'report'])->middleware('permission:kpi.view');
+    Route::put('/kpi/targets', [KpiController::class, 'upsertTarget'])->middleware('permission:kpi.manage');
 
     Route::get('/payment-refunds', [PaymentsController::class, 'refundIndex']);
     Route::patch('/payment-refunds/{id}', [PaymentsController::class, 'updateRefund']);

@@ -1,22 +1,22 @@
-import { KPI_CATEGORY_OPTION_GROUP, kpiCategoryFromOption } from '@/types/kpi';
-import type { KpiPointType } from '@/types/kpi';
+import { P2_CATEGORY_OPTION_GROUP, p2CategoryFromOption } from '@/types/p2';
+import type { P2PointType } from '@/types/p2';
 import type { AppOption } from '@/types/option';
 
-export { KPI_CATEGORY_OPTION_GROUP };
+export { P2_CATEGORY_OPTION_GROUP };
 
-export type KpiCategoryFormValues = {
+export type P2CategoryFormValues = {
   label: string;
-  type: KpiPointType;
+  type: P2PointType;
   defaultScore: string;
   isActive: boolean;
 };
 
-export function getKpiCategoryDefaults(option?: AppOption | null): KpiCategoryFormValues {
+export function getP2CategoryDefaults(option?: AppOption | null): P2CategoryFormValues {
   if (!option) {
     return { label: '', type: 'bonus', defaultScore: '1', isActive: true };
   }
 
-  const category = kpiCategoryFromOption(option);
+  const category = p2CategoryFromOption(option);
 
   return {
     label: category.label,
@@ -26,9 +26,9 @@ export function getKpiCategoryDefaults(option?: AppOption | null): KpiCategoryFo
   };
 }
 
-export function toKpiCategoryPayload(values: KpiCategoryFormValues, sortOrder?: number | null) {
+export function toP2CategoryPayload(values: P2CategoryFormValues, sortOrder?: number | null) {
   return {
-    group: KPI_CATEGORY_OPTION_GROUP,
+    group: P2_CATEGORY_OPTION_GROUP,
     label: values.label.trim(),
     sortOrder: sortOrder ?? undefined,
     meta: {

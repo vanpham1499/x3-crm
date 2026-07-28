@@ -1,59 +1,59 @@
 'use client';
 
-import { useEffect, useState } from 'react';
+import { useState } from 'react';
+import { useMemo } from 'react';
 import { keepPreviousData, useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import { useAppNotification } from '@/components/feedback/notification-provider';
 import { ContentLoading } from '@/components/shell/content-loading';
 import { KpiManager } from '@/features/kpi/components/kpi-manager';
 import { getApiErrorMessage } from '@/lib/api-error';
-import { useAuthStore } from '@/stores/auth-store';
+import { hasPermission } from '@/lib/ownership';
 import api from '@/services/api/client';
-import type { AppOption } from '@/types/option';
-import type { PaginatedResponse, PaginationMeta } from '@/types/pagination';
-import type { User } from '@/types/user';
-import {
-  KPI_CATEGORY_OPTION_GROUP,
-  kpiCategoryFromOption,
-  type KpiPoint,
-  type KpiPointFilters,
-  type KpiPointFormValues,
-  type KpiPointOverview,
-  type KpiPointSummary,
-} from '@/types/kpi';
+import { useAuthStore } from '@/stores/auth-store';
+import type { KpiPeriodFilters, KpiReport, KpiTargetPayload } from '@/types/kpi';
 
-const KPI_PAGE_SIZE = 10;
-const KPI_LIST_QUERY_KEY = ['kpi-points', 'list'] as const;
-
-type KpiPointsPage = PaginatedResponse<KpiPoint> & {
-  meta: PaginationMeta & {
-    summary?: KpiPointSummary[];
-    overview?: KpiPointOverview;
-  };
-};
-
-function getCurrentDate() {
+function currentPeriod() {
   const today = new Date();
-  return `${today.getFullYear()}-${String(today.getMonth() + 1).padStart(2, '0')}-${String(
-    today.getDate(),
-  ).padStart(2, '0')}`;
+
+  return `${today.getFullYear()}-${String(today.getMonth() + 1).padStart(2, '0')}`;
 }
 
-const initialDate = getCurrentDate();
-const initialMonthStart = `${initialDate.slice(0, 7)}-01`;
+function currentQuarter() {
+  return String(Math.floor(new Date().getMonth() / 3) + 1);
+}
 
-function kpiParams(filters: KpiPointFilters) {
+function monthValue(year: string, month: number) {
+  return `${year}-${String(month).padStart(2, '0')}`;
+}
+
+function resolvePeriodRange(filters: KpiPeriodFilters) {
+  if (filters.mode === 'quarter') {
+    const quarter = Math.min(4, Math.max(1, Number(filters.quarter) || 1));
+    const firstMonth = (quarter - 1) * 3 + 1;
+
+    return {
+      periodFrom: monthValue(filters.year, firstMonth),
+      periodTo: monthValue(filters.year, firstMonth + 2),
+    };
+  }
+
+  if (filters.mode === 'year') {
+    return {
+      periodFrom: monthValue(filters.year, 1),
+      periodTo: monthValue(filters.year, 12),
+    };
+  }
+
+  if (filters.mode === 'range') {
+    return {
+      periodFrom: filters.periodFrom,
+      periodTo: filters.periodTo,
+    };
+  }
+
   return {
-    user_id: filters.userId || undefined,
-    category: filters.category || undefined,
-    type: filters.type || undefined,
-    is_approved:
-      filters.approvalStatus === 'approved'
-        ? 1
-        : filters.approvalStatus === 'pending'
-          ? 0
-          : undefined,
-    date_from: filters.dateFrom || undefined,
-    date_to: filters.dateTo || undefined,
+    periodFrom: filters.month,
+    periodTo: filters.month,
   };
 }
 
@@ -61,46 +61,29 @@ export default function KpiPage() {
   const queryClient = useQueryClient();
   const notify = useAppNotification();
   const currentUser = useAuthStore((state) => state.user);
-  const [page, setPage] = useState(1);
-  const [pageSize, setPageSize] = useState(KPI_PAGE_SIZE);
-  const [filters, setFilters] = useState<KpiPointFilters>({
-    userId: '',
-    category: '',
-    type: '',
-    approvalStatus: '',
-    dateFrom: initialMonthStart,
-    dateTo: initialDate,
+  const initialMonth = currentPeriod();
+  const [filters, setFilters] = useState<KpiPeriodFilters>({
+    mode: 'month',
+    month: initialMonth,
+    quarter: currentQuarter(),
+    year: initialMonth.slice(0, 4),
+    periodFrom: initialMonth,
+    periodTo: initialMonth,
   });
-
-  const { data: users = [], isLoading: isUsersLoading } = useQuery<User[]>({
-    queryKey: ['users', 'kpi-options'],
-    queryFn: () => api.get('/users').then((response) => response.data),
-  });
-
-  const { data: categoryOptions = [], isLoading: isCategoriesLoading } = useQuery<AppOption[]>({
-    queryKey: ['options', KPI_CATEGORY_OPTION_GROUP],
-    queryFn: () =>
-      api
-        .get<AppOption[]>('/options', { params: { groups: KPI_CATEGORY_OPTION_GROUP } })
-        .then((response) => response.data),
-  });
-  const categories = categoryOptions
-    .filter((option) => option.isActive !== false)
-    .map(kpiCategoryFromOption);
+  const range = useMemo(() => resolvePeriodRange(filters), [filters]);
 
   const {
-    data: pointsPage,
-    isFetching,
+    data: report,
     isLoading,
-  } = useQuery<KpiPointsPage>({
-    queryKey: [...KPI_LIST_QUERY_KEY, filters, page, pageSize],
+    isFetching,
+  } = useQuery<KpiReport>({
+    queryKey: ['kpi', range.periodFrom, range.periodTo],
     queryFn: ({ signal }) =>
       api
-        .get<KpiPointsPage>('/kpi-points', {
+        .get<KpiReport>('/kpi', {
           params: {
-            ...kpiParams(filters),
-            page,
-            per_page: pageSize,
+            period_from: range.periodFrom,
+            period_to: range.periodTo,
           },
           signal,
         })
@@ -108,105 +91,28 @@ export default function KpiPage() {
     placeholderData: keepPreviousData,
   });
 
-  const points = pointsPage?.data || [];
-  const pagination = pointsPage?.meta || {
-    currentPage: page,
-    lastPage: 1,
-    perPage: pageSize,
-    total: 0,
-    from: null,
-    to: null,
-    summary: [],
-    overview: undefined,
-  };
-
-  useEffect(() => {
-    if (page > pagination.lastPage) {
-      setPage(Math.max(1, pagination.lastPage));
-    }
-  }, [page, pagination.lastPage]);
-
-  const handlePageSizeChange = (nextPageSize: number) => {
-    void queryClient.cancelQueries({ queryKey: KPI_LIST_QUERY_KEY });
-    setPage(1);
-    setPageSize(nextPageSize);
-  };
-
-  const saveMutation = useMutation({
-    mutationFn: (values: KpiPointFormValues) =>
-      api.post<KpiPoint>('/kpi-points', {
-        userId: Number(values.userId),
-        user_id: Number(values.userId),
-        projectId: values.projectId ? Number(values.projectId) : null,
-        project_id: values.projectId ? Number(values.projectId) : null,
-        entryDate: values.entryDate,
-        entry_date: values.entryDate,
-        category: values.category,
-        score: Number(values.score) || 0,
-        note: values.note.trim() || null,
-      }),
+  const targetMutation = useMutation({
+    mutationFn: (payload: KpiTargetPayload) => api.put('/kpi/targets', payload),
     onSuccess: () => {
-      queryClient.invalidateQueries({ queryKey: ['kpi-points'] });
-      notify.success('Đã ghi nhận điểm KPI');
+      queryClient.invalidateQueries({ queryKey: ['kpi'] });
+      notify.success('Đã cập nhật kế hoạch KPI');
     },
-    onError: (error) => notify.error(getApiErrorMessage(error, 'Không thể lưu điểm KPI')),
+    onError: (error) => notify.error(getApiErrorMessage(error, 'Không thể cập nhật kế hoạch KPI')),
   });
 
-  const deleteMutation = useMutation({
-    mutationFn: (point: KpiPoint) => api.delete(`/kpi-points/${point.id}`),
-    onSuccess: () => {
-      queryClient.invalidateQueries({ queryKey: ['kpi-points'] });
-      notify.success('Đã xóa điểm KPI');
-    },
-    onError: (error) => notify.error(getApiErrorMessage(error, 'Không thể xóa điểm KPI')),
-  });
-
-  const approveMutation = useMutation({
-    mutationFn: (point: KpiPoint) => api.post(`/kpi-points/${point.id}/approve`),
-    onSuccess: () => {
-      queryClient.invalidateQueries({ queryKey: ['kpi-points'] });
-      notify.success('Đã duyệt điểm KPI');
-    },
-    onError: (error) => notify.error(getApiErrorMessage(error, 'Duyệt điểm KPI thất bại')),
-  });
-
-  if (isLoading || isUsersLoading || isCategoriesLoading) {
+  if (isLoading || !report) {
     return <ContentLoading />;
   }
 
   return (
     <KpiManager
-      points={points}
-      summary={pagination.summary || []}
-      overview={
-        pagination.overview || {
-          bonusScore: 0,
-          penaltyScore: 0,
-          netScore: 0,
-          pendingCount: 0,
-        }
-      }
-      users={users}
-      categories={categories}
+      report={report}
       filters={filters}
+      canManage={hasPermission(currentUser, 'kpi.manage')}
       isFetching={isFetching}
-      isSaving={saveMutation.isPending}
-      isDeleting={deleteMutation.isPending}
-      isApproving={approveMutation.isPending}
-      currentUser={currentUser}
-      page={page}
-      totalPages={pagination.lastPage}
-      totalItems={pagination.total}
-      pageSize={pageSize}
-      onPageChange={setPage}
-      onPageSizeChange={handlePageSizeChange}
-      onFiltersChange={(nextFilters) => {
-        setPage(1);
-        setFilters(nextFilters);
-      }}
-      onSave={(values) => saveMutation.mutateAsync(values)}
-      onDelete={(point) => deleteMutation.mutate(point)}
-      onApprove={(point) => approveMutation.mutate(point)}
+      isSaving={targetMutation.isPending}
+      onFiltersChange={setFilters}
+      onSaveTarget={(payload) => targetMutation.mutateAsync(payload)}
     />
   );
 }

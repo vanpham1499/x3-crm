@@ -14,6 +14,7 @@ const MAX_REPORT_IMAGES = 20;
 
 type ExistingModeProps = {
   mode: 'existing';
+  title?: string;
   reportId: number;
   attachments: WeeklyReportAttachment[];
   readOnly?: boolean;
@@ -21,6 +22,7 @@ type ExistingModeProps = {
 
 type PendingModeProps = {
   mode: 'pending';
+  title?: string;
   imageUrls: string[];
   onImageUrlsChange: (urls: string[]) => void;
 };
@@ -29,11 +31,19 @@ function isImageAttachment(attachment: WeeklyReportAttachment) {
   return Boolean(attachment.mimeType?.startsWith('image/'));
 }
 
-function PanelShell({ isBusy, children }: { isBusy: boolean; children: React.ReactNode }) {
+function PanelShell({
+  title,
+  isBusy,
+  children,
+}: {
+  title: string;
+  isBusy: boolean;
+  children: React.ReactNode;
+}) {
   return (
     <section className="h-full overflow-hidden rounded-2xl border border-slate-200 bg-white shadow-sm">
       <div className="flex min-h-14 items-center border-b border-slate-200 px-5 py-3.5">
-        <h2 className="text-base font-bold text-slate-950">Hình ảnh</h2>
+        <h2 className="text-base font-bold text-slate-950">{title}</h2>
       </div>
       {isBusy && <LinearProgress color="primary" />}
       <div className="p-5">{children}</div>
@@ -58,11 +68,15 @@ export function WeeklyReportAttachmentsPanel(props: ExistingModeProps | PendingM
   return <ExistingImagesPanel {...props} />;
 }
 
-function PendingImagesPanel({ imageUrls, onImageUrlsChange }: PendingModeProps) {
+function PendingImagesPanel({
+  title = 'Hình ảnh',
+  imageUrls,
+  onImageUrlsChange,
+}: PendingModeProps) {
   const [isUploading, setIsUploading] = useState(false);
 
   return (
-    <PanelShell isBusy={isUploading}>
+    <PanelShell title={title} isBusy={isUploading}>
       <MultiImageUpload
         value={imageUrls}
         onChange={onImageUrlsChange}
@@ -77,7 +91,12 @@ function PendingImagesPanel({ imageUrls, onImageUrlsChange }: PendingModeProps) 
   );
 }
 
-function ExistingImagesPanel({ reportId, attachments, readOnly = false }: ExistingModeProps) {
+function ExistingImagesPanel({
+  title = 'Hình ảnh',
+  reportId,
+  attachments,
+  readOnly = false,
+}: ExistingModeProps) {
   const [isUploading, setIsUploading] = useState(false);
   const queryClient = useQueryClient();
   const notify = useAppNotification();
@@ -122,7 +141,7 @@ function ExistingImagesPanel({ reportId, attachments, readOnly = false }: Existi
   };
 
   return (
-    <PanelShell isBusy={isBusy}>
+    <PanelShell title={title} isBusy={isBusy}>
       {imageUrls.length === 0 && readOnly ? (
         <EmptyImages />
       ) : (

@@ -1,8 +1,8 @@
 <?php
 
-namespace App\Http\Requests\Kpi;
+namespace App\Http\Requests\P2;
 
-class UpdateKpiPointRequest extends CreateKpiPointRequest
+class UpdateP2PointRequest extends CreateP2PointRequest
 {
     public function rules(): array
     {

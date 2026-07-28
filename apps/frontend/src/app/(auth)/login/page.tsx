@@ -7,7 +7,9 @@ import VisibilityOffRoundedIcon from '@mui/icons-material/VisibilityOffRounded';
 import VisibilityRoundedIcon from '@mui/icons-material/VisibilityRounded';
 import {
   Button,
+  Checkbox,
   FormControl,
+  FormControlLabel,
   FormHelperText,
   IconButton,
   InputAdornment,
@@ -24,6 +26,7 @@ import { api, initializeCsrfProtection } from '@/services/api/client';
 const schema = z.object({
   email: z.string().email('Email không hợp lệ'),
   password: z.string().min(6, 'Mật khẩu tối thiểu 6 ký tự'),
+  remember: z.boolean(),
 });
 
 type FormData = z.infer<typeof schema>;
@@ -41,6 +44,11 @@ export default function LoginPage() {
     formState: { errors },
   } = useForm<FormData>({
     resolver: zodResolver(schema),
+    defaultValues: {
+      email: '',
+      password: '',
+      remember: false,
+    },
   });
 
   useEffect(() => {
@@ -104,15 +112,6 @@ export default function LoginPage() {
         </FormControl>
 
         <div className="space-y-3">
-          <div className="flex justify-end">
-            <NextLink
-              href="/forgot-password"
-              className="text-sm font-semibold text-slate-950 hover:underline"
-            >
-              Quên mật khẩu?
-            </NextLink>
-          </div>
-
           <FormControl error={Boolean(errors.password)} fullWidth>
             <TextField
               label="Mật khẩu"
@@ -141,6 +140,24 @@ export default function LoginPage() {
             />
             {errors.password && <FormHelperText>{errors.password.message}</FormHelperText>}
           </FormControl>
+
+          <div className="flex min-h-11 items-center justify-between gap-3">
+            <FormControlLabel
+              className="!m-0"
+              control={<Checkbox size="small" {...register('remember')} />}
+              label={
+                <span className="text-sm font-semibold text-slate-600">
+                  Ghi nhớ đăng nhập trong 30 ngày
+                </span>
+              }
+            />
+            <NextLink
+              href="/forgot-password"
+              className="shrink-0 text-sm font-semibold text-slate-950 hover:underline"
+            >
+              Quên mật khẩu?
+            </NextLink>
+          </div>
         </div>
 
         {(error || status === 'unavailable') && (

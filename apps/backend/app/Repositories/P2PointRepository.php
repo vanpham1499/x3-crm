@@ -2,19 +2,19 @@
 
 namespace App\Repositories;
 
-use App\Models\KpiPoint;
+use App\Models\P2Point;
 use Illuminate\Contracts\Pagination\LengthAwarePaginator;
 use Illuminate\Database\Eloquent\Builder;
 use Illuminate\Database\Eloquent\Collection;
 use Symfony\Component\HttpKernel\Exception\NotFoundHttpException;
 
-class KpiPointRepository extends BaseRepository
+class P2PointRepository extends BaseRepository
 {
-    protected string $notFoundMessage = 'Điểm KPI không tồn tại';
+    protected string $notFoundMessage = 'Điểm P2 không tồn tại';
 
     protected function model(): string
     {
-        return KpiPoint::class;
+        return P2Point::class;
     }
 
     public function findAll(array $filters = []): Collection
@@ -45,7 +45,7 @@ class KpiPointRepository extends BaseRepository
                 SUM(score) as total_score,
                 COUNT(*) as point_count,
                 SUM(CASE WHEN is_approved = false THEN 1 ELSE 0 END) as pending_count',
-                [KpiPoint::TYPE_BONUS, KpiPoint::TYPE_PENALTY],
+                [P2Point::TYPE_BONUS, P2Point::TYPE_PENALTY],
             )
             ->groupBy('user_id')
             ->with('user:id,code,name')
@@ -74,9 +74,9 @@ class KpiPointRepository extends BaseRepository
             ->when($filters['date_to'] ?? null, fn ($query, $value) => $query->whereDate('entry_date', '<=', $value));
     }
 
-    public function findWithRelationsOrFail(string $id): KpiPoint
+    public function findWithRelationsOrFail(string $id): P2Point
     {
-        /** @var KpiPoint|null $point */
+        /** @var P2Point|null $point */
         $point = $this->query()
             ->with(['user', 'project', 'approver', 'categoryOption'])
             ->whereKey($id)

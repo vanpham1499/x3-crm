@@ -15,13 +15,17 @@ export function getPermissionModuleLabel(module: string) {
     contracts: 'Hợp đồng',
     invoices: 'Hóa đơn',
     reports: 'Báo cáo',
+    p2point: 'Điểm P2',
+    kpi: 'KPI',
   };
 
   return labels[module] || module || '-';
 }
 
 export function getPermissionModules(permissions: Permission[]) {
-  return Array.from(new Set(permissions.map((permission) => permission.module).filter(Boolean))).sort();
+  return Array.from(
+    new Set(permissions.map((permission) => permission.module).filter(Boolean)),
+  ).sort();
 }
 
 export function groupPermissionsByModule(permissions: Permission[]) {

@@ -1,680 +1,754 @@
 'use client';
 
-import { useState, type MouseEvent, type ReactNode } from 'react';
-import AddRoundedIcon from '@mui/icons-material/AddRounded';
-import BalanceRoundedIcon from '@mui/icons-material/BalanceRounded';
-import CheckCircleOutlineRoundedIcon from '@mui/icons-material/CheckCircleOutlineRounded';
-import DeleteOutlineRoundedIcon from '@mui/icons-material/DeleteOutlineRounded';
-import EmojiEventsOutlinedIcon from '@mui/icons-material/EmojiEventsOutlined';
-import HistoryRoundedIcon from '@mui/icons-material/HistoryRounded';
-import MoreVertRoundedIcon from '@mui/icons-material/MoreVertRounded';
-import PendingActionsRoundedIcon from '@mui/icons-material/PendingActionsRounded';
+import { useState } from 'react';
+import AccountBalanceWalletOutlinedIcon from '@mui/icons-material/AccountBalanceWalletOutlined';
+import CorporateFareRoundedIcon from '@mui/icons-material/CorporateFareRounded';
+import DonutLargeRoundedIcon from '@mui/icons-material/DonutLargeRounded';
+import EditRoundedIcon from '@mui/icons-material/EditRounded';
+import FlagOutlinedIcon from '@mui/icons-material/FlagOutlined';
+import RemoveRoundedIcon from '@mui/icons-material/RemoveRounded';
+import RoomServiceRoundedIcon from '@mui/icons-material/RoomServiceRounded';
 import TrendingDownRoundedIcon from '@mui/icons-material/TrendingDownRounded';
 import TrendingUpRoundedIcon from '@mui/icons-material/TrendingUpRounded';
-import { Autocomplete, IconButton, Menu, MenuItem } from '@mui/material';
+import { IconButton, LinearProgress, MenuItem, Tooltip } from '@mui/material';
 import { Controller, useForm } from 'react-hook-form';
 import { DialogActionButton } from '@/components/actions/dialog-action-button';
+import { SummaryMetricCard } from '@/components/data-display/summary-metric-card';
 import { AppFormDialog } from '@/components/dialog/app-form-dialog';
-import { ConfirmDialog } from '@/components/feedback/confirm-dialog';
-import { CompactAutocompleteField } from '@/components/form/compact-autocomplete-field';
-import { CompactSelectField } from '@/components/form/compact-select-field';
-import { FormDatePicker } from '@/components/form/form-date-picker';
-import { FormInputField } from '@/components/form/form-input-field';
-import { ServerPaginatedAutocomplete } from '@/components/form/server-paginated-autocomplete';
+import { CompactMonthPicker } from '@/components/form/compact-month-picker';
+import { CompactYearPicker } from '@/components/form/compact-year-picker';
+import { FormSelectField } from '@/components/form/form-select-field';
+import { MoneyInput } from '@/components/form/money-input';
 import { IconTabs } from '@/components/navigation/icon-tabs';
 import { PageHeader } from '@/components/shell/page-header';
 import { AppDataTable } from '@/components/table/app-data-table';
-import { TablePaginationBar } from '@/components/table/table-pagination-bar';
+import { ServiceTableCell } from '@/components/table/service-table-cell';
 import { applyApiErrorsToForm } from '@/lib/api-error';
-import { canApproveKpiPoint, canOpenKpiCreateDialog } from '@/lib/ownership';
-import { formatDate } from '@/lib/utils';
+import { formatCurrency } from '@/lib/utils';
 import type {
-  KpiCategory,
-  KpiPoint,
-  KpiPointFilters,
-  KpiPointFormValues,
-  KpiPointOverview,
-  KpiPointSummary,
+  DepartmentKpiRow,
+  KpiMonthlyReport,
+  KpiPeriodFilters,
+  KpiReport,
+  KpiSummary,
+  KpiTargetPayload,
+  ServiceKpiRow,
 } from '@/types/kpi';
-import type { ProjectItem } from '@/types/project';
-import type { User } from '@/types/user';
 
-function getDefaults(userId: string): KpiPointFormValues {
+type KpiRow = ServiceKpiRow | DepartmentKpiRow;
+type TargetDialogState = { row: KpiRow; period: string };
+
+type KpiManagerProps = {
+  report: KpiReport;
+  filters: KpiPeriodFilters;
+  canManage: boolean;
+  isFetching: boolean;
+  isSaving: boolean;
+  onFiltersChange: (filters: KpiPeriodFilters) => void;
+  onSaveTarget: (payload: KpiTargetPayload) => Promise<unknown>;
+};
+
+type TargetFormValues = {
+  targetAmount: string;
+};
+
+function formatPercent(value: number | null) {
+  if (value === null) return 'Chưa có kế hoạch';
+
+  return `${new Intl.NumberFormat('vi-VN', { maximumFractionDigits: 2 }).format(value)}%`;
+}
+
+function formatMonthLabel(period: string) {
+  const [year, month] = period.split('-');
+
+  return `Tháng ${month}/${year}`;
+}
+
+function amountTone(value: number) {
+  return value < 0 ? 'text-rose-700' : 'text-emerald-700';
+}
+
+function aggregateSummary(
+  periods: KpiMonthlyReport[],
+  scope: 'services' | 'departments',
+): KpiSummary {
+  const targetAmount = periods.reduce((sum, period) => sum + period.summary[scope].targetAmount, 0);
+  const actualAmount = periods.reduce((sum, period) => sum + period.summary[scope].actualAmount, 0);
+
   return {
-    userId,
-    projectId: '',
-    entryDate: new Date().toISOString().slice(0, 10),
-    category: '',
-    score: '',
-    note: '',
+    targetAmount,
+    actualAmount,
+    completionRate: targetAmount > 0 ? (actualAmount / targetAmount) * 100 : null,
   };
 }
 
-function getProjectOptionLabel(project: ProjectItem) {
-  const code = project.projectCode || `Dự án #${project.id}`;
-  return project.projectName ? `${code} - ${project.projectName}` : code;
-}
-
-function formatScore(value: number) {
-  return new Intl.NumberFormat('vi-VN', { maximumFractionDigits: 2 }).format(Math.abs(value));
-}
-
-function ScoreMetric({
-  label,
-  value,
-  icon,
-  tone,
-  prefix = '',
-}: {
-  label: string;
-  value: number;
-  icon: ReactNode;
-  tone: 'emerald' | 'rose' | 'blue' | 'amber';
-  prefix?: string;
-}) {
-  const toneClasses = {
-    emerald: 'bg-emerald-50 text-emerald-700 ring-emerald-100',
-    rose: 'bg-rose-50 text-rose-700 ring-rose-100',
-    blue: 'bg-blue-50 text-blue-700 ring-blue-100',
-    amber: 'bg-amber-50 text-amber-700 ring-amber-100',
-  }[tone];
+function CompletionCell({ value }: { value: number | null }) {
+  const progress = value === null ? 0 : Math.min(100, Math.max(0, value));
+  const colorClass =
+    value === null
+      ? 'text-slate-500'
+      : value < 0
+        ? 'text-rose-700'
+        : value >= 100
+          ? 'text-emerald-700'
+          : 'text-blue-700';
 
   return (
-    <div className="flex min-w-0 items-center gap-3 border-b border-slate-200 px-4 py-4 last:border-b-0 sm:border-b-0 sm:border-r sm:last:border-r-0">
-      <span className={`grid size-10 shrink-0 place-items-center rounded-xl ring-1 ${toneClasses}`}>
-        {icon}
+    <div className="ml-auto w-32">
+      <span className={`block text-right text-xs font-extrabold tabular-nums ${colorClass}`}>
+        {formatPercent(value)}
       </span>
-      <div className="min-w-0">
-        <p className="truncate text-xs font-bold uppercase tracking-wide text-slate-400">{label}</p>
-        <p className="mt-1 text-xl font-extrabold tabular-nums text-slate-950">
-          {value !== 0 ? prefix : ''}
-          {formatScore(value)}
-        </p>
-      </div>
+      <LinearProgress
+        variant="determinate"
+        value={progress}
+        aria-label={value === null ? 'Chưa có kế hoạch KPI' : `Hoàn thành ${formatPercent(value)}`}
+        className="mt-1.5 !h-1.5 !rounded-full !bg-slate-100"
+        sx={{
+          '& .MuiLinearProgress-bar': {
+            borderRadius: 999,
+            backgroundColor:
+              value !== null && value < 0
+                ? '#be123c'
+                : value !== null && value >= 100
+                  ? '#047857'
+                  : '#2563eb',
+          },
+        }}
+      />
     </div>
   );
 }
 
-function KpiDialog({
-  open,
-  users,
-  categories,
-  defaultUserId,
-  isSubmitting,
+function TargetDialog({
+  state,
+  isSaving,
   onClose,
-  onSubmit,
+  onSave,
 }: {
-  open: boolean;
-  users: User[];
-  categories: KpiCategory[];
-  defaultUserId: string;
-  isSubmitting: boolean;
+  state: TargetDialogState | null;
+  isSaving: boolean;
   onClose: () => void;
-  onSubmit: (values: KpiPointFormValues) => Promise<unknown>;
+  onSave: (payload: KpiTargetPayload) => Promise<unknown>;
 }) {
   const {
     control,
-    register,
     handleSubmit,
     reset,
-    setValue,
     setError,
     formState: { errors },
-  } = useForm<KpiPointFormValues>({ values: getDefaults(defaultUserId) });
-  const [selectedProject, setSelectedProject] = useState<ProjectItem | null>(null);
+  } = useForm<TargetFormValues>({
+    values: {
+      targetAmount: state ? String(state.row.targetAmount) : '0',
+    },
+  });
 
-  const closeDialog = () => {
+  const close = () => {
     reset();
-    setSelectedProject(null);
     onClose();
   };
 
   return (
     <AppFormDialog
-      open={open}
-      title="Ghi nhận điểm KPI"
-      maxWidth="sm"
-      submitting={isSubmitting}
-      onClose={closeDialog}
+      open={Boolean(state)}
+      title={`Cập nhật kế hoạch · ${state?.row.name || ''}`}
+      maxWidth="xs"
+      submitting={isSaving}
+      onClose={close}
       onSubmit={handleSubmit(async (values) => {
+        if (!state) return;
+
         try {
-          await onSubmit(values);
-          closeDialog();
+          await onSave({
+            period: state.period,
+            scopeType: state.row.scopeType,
+            scopeId: state.row.id,
+            targetAmount: Number(values.targetAmount) || 0,
+          });
+          close();
         } catch (error) {
           applyApiErrorsToForm(error, setError);
         }
       })}
       actions={
         <>
-          <DialogActionButton disabled={isSubmitting} onClick={closeDialog}>
+          <DialogActionButton onClick={close} disabled={isSaving}>
             Hủy
           </DialogActionButton>
-          <DialogActionButton type="submit" tone="primary" disabled={isSubmitting}>
-            {isSubmitting ? 'Đang lưu...' : 'Lưu điểm KPI'}
+          <DialogActionButton type="submit" tone="primary" disabled={isSaving}>
+            {isSaving ? 'Đang lưu...' : 'Lưu kế hoạch'}
           </DialogActionButton>
         </>
       }
     >
-      <div className="grid gap-4 md:grid-cols-2">
-        <Controller
-          name="userId"
-          control={control}
-          rules={{ required: 'Vui lòng chọn nhân viên' }}
-          render={({ field }) => (
-            <Autocomplete
-              className="md:col-span-2"
-              options={users}
-              value={users.find((user) => String(user.id) === field.value) || null}
-              onChange={(_, value) => field.onChange(value ? String(value.id) : '')}
-              getOptionLabel={(option) => option.name}
-              isOptionEqualToValue={(option, value) => option.id === value.id}
-              noOptionsText="Không tìm thấy nhân viên"
-              renderInput={(params) => (
-                <FormInputField
-                  {...params}
-                  required
-                  label="Nhân viên"
-                  error={Boolean(errors.userId)}
-                  helperText={errors.userId?.message}
-                />
-              )}
-            />
-          )}
-        />
-
-        <Controller
-          name="projectId"
-          control={control}
-          render={({ field }) => (
-            <ServerPaginatedAutocomplete<ProjectItem>
-              className="md:col-span-2"
-              endpoint="/projects"
-              queryKey={['projects', 'kpi-dialog-options']}
-              label="Dự án"
-              value={selectedProject}
-              placeholder="Nhập mã hoặc tên dự án"
-              getOptionLabel={getProjectOptionLabel}
-              onChange={(project) => {
-                setSelectedProject(project);
-                field.onChange(project ? String(project.id) : '');
-              }}
-            />
-          )}
-        />
-
-        <Controller
-          name="category"
-          control={control}
-          rules={{ required: 'Vui lòng chọn hạng mục' }}
-          render={({ field }) => (
-            <Autocomplete
-              className="md:col-span-2"
-              options={categories}
-              value={categories.find((category) => category.key === field.value) || null}
-              getOptionLabel={(category) => category.label}
-              isOptionEqualToValue={(category, selected) => category.key === selected.key}
-              groupBy={(category) => (category.type === 'bonus' ? 'Thành tích' : 'Lỗi')}
-              noOptionsText="Không tìm thấy hạng mục"
-              onChange={(_, category) => {
-                field.onChange(category?.key || '');
-                setValue('score', category ? String(category.defaultScore) : '');
-              }}
-              renderOption={(props, category) => (
-                <li {...props} key={category.key} className={`${props.className || ''} !gap-3`}>
-                  <span className="min-w-0 flex-1 truncate">{category.label}</span>
-                  <span
-                    className={`shrink-0 text-xs font-bold tabular-nums ${
-                      category.type === 'bonus' ? 'text-emerald-700' : 'text-rose-700'
-                    }`}
-                  >
-                    {category.defaultScore > 0 ? '+' : ''}
-                    {category.defaultScore}
-                  </span>
-                </li>
-              )}
-              renderInput={(params) => (
-                <FormInputField
-                  {...params}
-                  required
-                  label="Lỗi / Thành tích"
-                  placeholder="Nhập tên hạng mục để tìm"
-                  error={Boolean(errors.category)}
-                  helperText={errors.category?.message}
-                />
-              )}
-            />
-          )}
-        />
-
-        <FormInputField
-          required
-          type="number"
-          label="Điểm số"
-          className="[&_.MuiInputBase-root]:bg-slate-50"
-          error={Boolean(errors.score)}
-          helperText={errors.score?.message}
-          slotProps={{ input: { readOnly: true }, htmlInput: { step: 0.5 } }}
-          {...register('score', { required: 'Vui lòng nhập điểm số' })}
-        />
-
-        <Controller
-          name="entryDate"
-          control={control}
-          rules={{ required: 'Vui lòng chọn ngày ghi nhận' }}
-          render={({ field }) => (
-            <FormDatePicker
-              required
-              label="Ngày ghi nhận"
-              value={field.value}
-              error={Boolean(errors.entryDate)}
-              helperText={errors.entryDate?.message}
-              onChange={field.onChange}
-            />
-          )}
-        />
-
-        <FormInputField
-          multiline
-          minRows={2}
-          label="Ghi chú / Minh chứng"
-          className="md:col-span-2"
-          {...register('note')}
-        />
-      </div>
+      <p className="mb-4 text-sm font-semibold text-slate-600">
+        {state ? formatMonthLabel(state.period) : ''}
+      </p>
+      <Controller
+        name="targetAmount"
+        control={control}
+        rules={{
+          required: 'Vui lòng nhập kế hoạch',
+          min: { value: 0, message: 'Kế hoạch không được âm' },
+        }}
+        render={({ field }) => (
+          <MoneyInput
+            fullWidth
+            size="small"
+            label="Kế hoạch lợi nhuận tháng (VND)"
+            value={field.value}
+            onValueChange={field.onChange}
+            onBlur={field.onBlur}
+            inputRef={field.ref}
+            error={Boolean(errors.targetAmount)}
+            helperText={errors.targetAmount?.message}
+          />
+        )}
+      />
     </AppFormDialog>
   );
 }
 
-export function KpiManager({
-  points,
-  summary,
-  overview,
-  users,
-  categories,
+function PeriodFilters({
   filters,
+  onChange,
+}: {
+  filters: KpiPeriodFilters;
+  onChange: (filters: KpiPeriodFilters) => void;
+}) {
+  const update = (next: Partial<KpiPeriodFilters>) => onChange({ ...filters, ...next });
+
+  return (
+    <div className="flex flex-wrap items-start gap-3 border-b border-slate-200 p-4">
+      <div className="w-full sm:w-[176px]">
+        <FormSelectField
+          label="Kỳ báo cáo"
+          value={filters.mode}
+          onChange={(event) => update({ mode: event.target.value as KpiPeriodFilters['mode'] })}
+        >
+          <MenuItem value="month">Theo tháng</MenuItem>
+          <MenuItem value="quarter">Theo quý</MenuItem>
+          <MenuItem value="year">Theo năm</MenuItem>
+          <MenuItem value="range">Khoảng tháng</MenuItem>
+        </FormSelectField>
+      </div>
+
+      {filters.mode === 'month' && (
+        <div className="w-full sm:w-[176px]">
+          <CompactMonthPicker
+            label="Tháng"
+            value={filters.month}
+            onChange={(month) => month && update({ month })}
+          />
+        </div>
+      )}
+
+      {filters.mode === 'quarter' && (
+        <>
+          <div className="w-full sm:w-[176px]">
+            <FormSelectField
+              label="Quý"
+              value={filters.quarter}
+              onChange={(event) => update({ quarter: event.target.value })}
+            >
+              <MenuItem value="1">Quý 1</MenuItem>
+              <MenuItem value="2">Quý 2</MenuItem>
+              <MenuItem value="3">Quý 3</MenuItem>
+              <MenuItem value="4">Quý 4</MenuItem>
+            </FormSelectField>
+          </div>
+          <div className="w-full sm:w-[176px]">
+            <CompactYearPicker value={filters.year} onChange={(year) => year && update({ year })} />
+          </div>
+        </>
+      )}
+
+      {filters.mode === 'year' && (
+        <div className="w-full sm:w-[176px]">
+          <CompactYearPicker value={filters.year} onChange={(year) => year && update({ year })} />
+        </div>
+      )}
+
+      {filters.mode === 'range' && (
+        <>
+          <div className="w-full sm:w-[176px]">
+            <CompactMonthPicker
+              label="Từ tháng"
+              value={filters.periodFrom}
+              onChange={(periodFrom) => {
+                if (!periodFrom) return;
+                update({
+                  periodFrom,
+                  periodTo: periodFrom > filters.periodTo ? periodFrom : filters.periodTo,
+                });
+              }}
+            />
+          </div>
+          <div className="w-full sm:w-[176px]">
+            <CompactMonthPicker
+              label="Đến tháng"
+              value={filters.periodTo}
+              onChange={(periodTo) => {
+                if (!periodTo) return;
+                update({
+                  periodFrom: periodTo < filters.periodFrom ? periodTo : filters.periodFrom,
+                  periodTo,
+                });
+              }}
+            />
+          </div>
+        </>
+      )}
+    </div>
+  );
+}
+
+function ComparisonTable({
+  periods,
+  scope,
+  isFetching,
+}: {
+  periods: KpiMonthlyReport[];
+  scope: 'services' | 'departments';
+  isFetching: boolean;
+}) {
+  if (periods.length < 2) return null;
+
+  return (
+    <div>
+      <header className="border-b border-slate-200 px-4 py-3">
+        <h2 className="font-bold text-slate-950">So sánh giữa các tháng</h2>
+      </header>
+      <AppDataTable
+        columns={[
+          { key: 'month', label: 'Tháng', className: 'w-[160px]' },
+          {
+            key: 'target',
+            label: 'Kế hoạch',
+            className: 'w-[190px] text-right',
+          },
+          {
+            key: 'actual',
+            label: 'Lợi nhuận trước VAT',
+            className: 'w-[190px] text-right',
+          },
+          { key: 'completion', label: 'Hoàn thành', className: 'w-[170px] text-right' },
+          { key: 'change', label: 'So với tháng trước', className: 'w-[230px] text-right' },
+        ]}
+        isLoading={isFetching}
+        isEmpty={false}
+        minWidthClassName="min-w-[940px]"
+      >
+        {periods.map((period, index) => {
+          const summary = period.summary[scope];
+          const previous = index > 0 ? periods[index - 1].summary[scope] : null;
+          const changeAmount = previous ? summary.actualAmount - previous.actualAmount : null;
+          const changeRate =
+            previous && previous.actualAmount !== 0
+              ? ((summary.actualAmount - previous.actualAmount) / Math.abs(previous.actualAmount)) *
+                100
+              : null;
+
+          return (
+            <tr key={period.period} className="hover:bg-slate-50/80">
+              <td className="px-3 py-3.5 font-bold text-slate-900">
+                {formatMonthLabel(period.period)}
+              </td>
+              <td className="whitespace-nowrap px-3 py-3.5 text-right font-bold tabular-nums text-slate-800">
+                {formatCurrency(summary.targetAmount)}
+              </td>
+              <td
+                className={`whitespace-nowrap px-3 py-3.5 text-right font-extrabold tabular-nums ${amountTone(summary.actualAmount)}`}
+              >
+                {formatCurrency(summary.actualAmount)}
+              </td>
+              <td className="px-3 py-3.5">
+                <CompletionCell value={summary.completionRate} />
+              </td>
+              <td className="px-3 py-3.5 text-right">
+                {changeAmount === null ? (
+                  <span className="inline-flex items-center gap-1 font-semibold text-slate-500">
+                    <RemoveRoundedIcon fontSize="small" />
+                    Tháng đầu kỳ
+                  </span>
+                ) : (
+                  <span
+                    className={`inline-flex items-center justify-end gap-1 font-extrabold tabular-nums ${
+                      changeAmount < 0 ? 'text-rose-700' : 'text-emerald-700'
+                    }`}
+                  >
+                    {changeAmount < 0 ? (
+                      <TrendingDownRoundedIcon fontSize="small" />
+                    ) : (
+                      <TrendingUpRoundedIcon fontSize="small" />
+                    )}
+                    {formatCurrency(changeAmount)}
+                    {changeRate !== null && (
+                      <span className="text-xs">({formatPercent(changeRate)})</span>
+                    )}
+                  </span>
+                )}
+              </td>
+            </tr>
+          );
+        })}
+      </AppDataTable>
+    </div>
+  );
+}
+
+function ServiceMonthTable({
+  report,
+  canManage,
+  isFetching,
+  onEdit,
+}: {
+  report: KpiMonthlyReport;
+  canManage: boolean;
+  isFetching: boolean;
+  onEdit: (state: TargetDialogState) => void;
+}) {
+  return (
+    <AppDataTable
+      columns={[
+        { key: 'service', label: 'Dịch vụ', className: 'w-[230px]' },
+        {
+          key: 'target',
+          label: 'Kế hoạch',
+          className: 'w-[165px] text-right',
+        },
+        {
+          key: 'received',
+          label: 'Đã thu',
+          className: 'w-[190px] text-right',
+        },
+        {
+          key: 'cost',
+          label: 'Chi phí thực tế',
+          className: 'w-[175px] text-right',
+        },
+        {
+          key: 'refund',
+          label: 'Hoàn tiền',
+          className: 'w-[190px] text-right',
+        },
+        {
+          key: 'actual',
+          label: 'Lợi nhuận trước VAT',
+          className: 'w-[165px] text-right',
+        },
+        { key: 'completion', label: 'Hoàn thành', className: 'w-[165px] text-right' },
+        { key: 'actions', className: 'w-[56px]' },
+      ]}
+      isLoading={isFetching}
+      isEmpty={report.services.length === 0}
+      emptyText="Chưa có dịch vụ gốc để tính KPI"
+      minWidthClassName="min-w-[1336px]"
+    >
+      {report.services.map((row) => (
+        <tr key={row.id} className="hover:bg-slate-50/80">
+          <td className="px-3 py-4">
+            <ServiceTableCell
+              code={row.code}
+              name={`${row.name}${
+                row.isDeleted ? ' (Đã xóa)' : row.isActive ? '' : ' (Ngừng hoạt động)'
+              }`}
+            />
+          </td>
+          <td className="whitespace-nowrap px-3 py-4 text-right font-bold tabular-nums text-slate-800">
+            {formatCurrency(row.targetAmount)}
+          </td>
+          <td className="whitespace-nowrap px-3 py-4 text-right font-semibold tabular-nums text-emerald-700">
+            {formatCurrency(row.receivedAmount)}
+          </td>
+          <td className="whitespace-nowrap px-3 py-4 text-right font-semibold tabular-nums text-rose-700">
+            {formatCurrency(row.costAmount)}
+          </td>
+          <td className="whitespace-nowrap px-3 py-4 text-right font-semibold tabular-nums text-rose-700">
+            {formatCurrency(row.refundAmount)}
+          </td>
+          <td
+            className={`whitespace-nowrap px-3 py-4 text-right font-extrabold tabular-nums ${amountTone(row.actualAmount)}`}
+          >
+            {formatCurrency(row.actualAmount)}
+          </td>
+          <td className="px-3 py-4">
+            <CompletionCell value={row.completionRate} />
+          </td>
+          <td className="px-3 py-4 text-right">
+            {canManage && (
+              <Tooltip title="Cập nhật kế hoạch">
+                <IconButton
+                  size="small"
+                  aria-label={`Cập nhật kế hoạch KPI cho ${row.name} ${formatMonthLabel(report.period)}`}
+                  onClick={() => onEdit({ row, period: report.period })}
+                >
+                  <EditRoundedIcon fontSize="small" />
+                </IconButton>
+              </Tooltip>
+            )}
+          </td>
+        </tr>
+      ))}
+    </AppDataTable>
+  );
+}
+
+function DepartmentProfitBreakdown({
+  profit,
+  items,
+}: {
+  profit: number;
+  items: Array<{ label: string; value: number }>;
+}) {
+  return (
+    <div className="ml-auto w-full max-w-[320px]">
+      <div className="flex items-baseline justify-between gap-4">
+        <span className="text-xs font-bold text-slate-600">Lợi nhuận trước VAT</span>
+        <strong
+          className={`whitespace-nowrap text-sm font-extrabold tabular-nums ${amountTone(profit)}`}
+        >
+          {formatCurrency(profit)}
+        </strong>
+      </div>
+      <div className="mt-2 border-t border-slate-200 pt-2">
+        <p className="mb-1 text-[10px] font-bold uppercase tracking-wide text-slate-400">
+          Số đối soát có VAT
+        </p>
+        <dl className="space-y-1">
+          {items.map((item) => (
+            <div key={item.label} className="flex items-baseline justify-between gap-4 text-xs">
+              <dt className="font-medium text-slate-500">{item.label}</dt>
+              <dd className="whitespace-nowrap font-semibold tabular-nums text-slate-700">
+                {formatCurrency(item.value)}
+              </dd>
+            </div>
+          ))}
+        </dl>
+      </div>
+    </div>
+  );
+}
+
+function DepartmentMonthTable({
+  report,
+  canManage,
+  isFetching,
+  onEdit,
+}: {
+  report: KpiMonthlyReport;
+  canManage: boolean;
+  isFetching: boolean;
+  onEdit: (state: TargetDialogState) => void;
+}) {
+  return (
+    <AppDataTable
+      columns={[
+        { key: 'department', label: 'Phòng ban', className: 'w-[230px]' },
+        {
+          key: 'target',
+          label: 'Kế hoạch',
+          className: 'w-[165px] text-right',
+        },
+        {
+          key: 'implementation',
+          label: 'Nhánh triển khai',
+          className: 'w-[330px] text-right',
+        },
+        {
+          key: 'acquisition',
+          label: 'Nhánh phụ trách khách hàng',
+          className: 'w-[320px] text-right',
+        },
+        {
+          key: 'actual',
+          label: 'Tổng lợi nhuận trước VAT',
+          className: 'w-[175px] text-right',
+        },
+        { key: 'completion', label: 'Hoàn thành', className: 'w-[165px] text-right' },
+        { key: 'actions', className: 'w-[56px]' },
+      ]}
+      isLoading={isFetching}
+      isEmpty={report.departments.length === 0}
+      emptyText="Chưa có phòng ban để tính KPI"
+      minWidthClassName="min-w-[1480px]"
+    >
+      {report.departments.map((row) => (
+        <tr key={row.id} className="hover:bg-slate-50/80">
+          <td className="px-3 py-4">
+            <span className="flex min-w-0 items-center gap-2 font-bold text-slate-950">
+              <CorporateFareRoundedIcon className="!text-[19px] text-primary" />
+              <span className="truncate" title={row.name}>
+                {row.name}
+              </span>
+            </span>
+          </td>
+          <td className="whitespace-nowrap px-3 py-4 text-right font-bold tabular-nums text-slate-800">
+            {formatCurrency(row.targetAmount)}
+          </td>
+          <td className="px-3 py-4 text-right">
+            <DepartmentProfitBreakdown
+              profit={row.implementationAmount}
+              items={[
+                { label: 'Đã thu', value: row.implementationReceivedAmount },
+                { label: 'Chi phí thực tế', value: row.implementationCostAmount },
+                { label: 'Hoàn tiền', value: row.implementationRefundAmount },
+              ]}
+            />
+          </td>
+          <td className="px-3 py-4 text-right">
+            <DepartmentProfitBreakdown
+              profit={row.acquisitionAmount}
+              items={[
+                { label: 'Báo phí ghi nhận', value: row.acquisitionCreditAmount },
+                { label: 'Hoàn tiền', value: row.acquisitionRefundAmount },
+              ]}
+            />
+          </td>
+          <td
+            className={`whitespace-nowrap px-3 py-4 text-right font-extrabold tabular-nums ${amountTone(row.actualAmount)}`}
+          >
+            {formatCurrency(row.actualAmount)}
+          </td>
+          <td className="px-3 py-4">
+            <CompletionCell value={row.completionRate} />
+          </td>
+          <td className="px-3 py-4 text-right">
+            {canManage && (
+              <Tooltip title="Cập nhật kế hoạch">
+                <IconButton
+                  size="small"
+                  aria-label={`Cập nhật kế hoạch KPI cho ${row.name} ${formatMonthLabel(report.period)}`}
+                  onClick={() => onEdit({ row, period: report.period })}
+                >
+                  <EditRoundedIcon fontSize="small" />
+                </IconButton>
+              </Tooltip>
+            )}
+          </td>
+        </tr>
+      ))}
+    </AppDataTable>
+  );
+}
+
+export function KpiManager({
+  report,
+  filters,
+  canManage,
   isFetching,
   isSaving,
-  isDeleting,
-  isApproving,
-  currentUser,
-  page,
-  totalPages,
-  totalItems,
-  pageSize,
-  onPageChange,
-  onPageSizeChange,
   onFiltersChange,
-  onSave,
-  onDelete,
-  onApprove,
-}: {
-  points: KpiPoint[];
-  summary: KpiPointSummary[];
-  overview: KpiPointOverview;
-  users: User[];
-  categories: KpiCategory[];
-  filters: KpiPointFilters;
-  isFetching: boolean;
-  isSaving: boolean;
-  isDeleting: boolean;
-  isApproving: boolean;
-  currentUser: User | null;
-  page: number;
-  totalPages: number;
-  totalItems: number;
-  pageSize: number;
-  onPageChange: (page: number) => void;
-  onPageSizeChange: (pageSize: number) => void;
-  onFiltersChange: (filters: KpiPointFilters) => void;
-  onSave: (values: KpiPointFormValues) => Promise<unknown>;
-  onDelete: (point: KpiPoint) => void;
-  onApprove: (point: KpiPoint) => void;
-}) {
+  onSaveTarget,
+}: KpiManagerProps) {
   const [activeTab, setActiveTab] = useState(0);
-  const [dialogOpen, setDialogOpen] = useState(false);
-  const [menuAnchorEl, setMenuAnchorEl] = useState<HTMLElement | null>(null);
-  const [activePoint, setActivePoint] = useState<KpiPoint | null>(null);
-  const [deleteTarget, setDeleteTarget] = useState<KpiPoint | null>(null);
-
-  const updateFilters = (next: Partial<KpiPointFilters>) => {
-    onFiltersChange({ ...filters, ...next });
-  };
-
-  const openActionMenu = (event: MouseEvent<HTMLButtonElement>, point: KpiPoint) => {
-    setMenuAnchorEl(event.currentTarget);
-    setActivePoint(point);
-  };
-
-  const closeActionMenu = () => {
-    setMenuAnchorEl(null);
-    setActivePoint(null);
-  };
+  const [targetDialog, setTargetDialog] = useState<TargetDialogState | null>(null);
+  const isServiceTab = activeTab === 0;
+  const scope = isServiceTab ? 'services' : 'departments';
+  const summary = aggregateSummary(report.periods, scope);
+  const scopeLabel = isServiceTab ? 'dịch vụ' : 'phòng ban';
+  const summaryItems = [
+    {
+      label: 'Kế hoạch',
+      helper: `Tổng kế hoạch ${scopeLabel} trong kỳ`,
+      value: formatCurrency(summary.targetAmount),
+      valueClassName: 'text-slate-950',
+      tone: 'blue' as const,
+      icon: <FlagOutlinedIcon />,
+    },
+    {
+      label: 'Lợi nhuận trước VAT',
+      helper: 'Tổng lợi nhuận ghi nhận trong kỳ',
+      value: formatCurrency(summary.actualAmount),
+      valueClassName: amountTone(summary.actualAmount),
+      tone: summary.actualAmount < 0 ? ('rose' as const) : ('emerald' as const),
+      icon: <AccountBalanceWalletOutlinedIcon />,
+    },
+    {
+      label: 'Hoàn thành',
+      helper: 'Tỷ lệ lợi nhuận trên kế hoạch',
+      value: formatPercent(summary.completionRate),
+      valueClassName:
+        summary.completionRate === null
+          ? 'text-slate-500'
+          : summary.completionRate < 0
+            ? 'text-rose-700'
+            : summary.completionRate >= 100
+              ? 'text-emerald-700'
+              : 'text-blue-700',
+      tone:
+        summary.completionRate === null
+          ? ('slate' as const)
+          : summary.completionRate < 0
+            ? ('rose' as const)
+            : summary.completionRate >= 100
+              ? ('emerald' as const)
+              : ('blue' as const),
+      icon: <DonutLargeRoundedIcon />,
+    },
+  ];
 
   return (
     <div className="min-h-[calc(100vh-72px)] w-full bg-slate-50/60 p-6">
-      <PageHeader
-        title="KPI nhân viên"
-        action={{
-          label: 'Ghi nhận điểm KPI',
-          icon: <AddRoundedIcon />,
-          onClick: () => setDialogOpen(true),
-          disabled: !canOpenKpiCreateDialog(currentUser),
-        }}
-      />
+      <PageHeader title="KPI" />
 
-      <section className="mb-4 overflow-hidden rounded-2xl border border-slate-200 bg-white shadow-sm">
-        <div className="grid sm:grid-cols-2 xl:grid-cols-4">
-          <ScoreMetric
-            label="Tổng điểm cộng"
-            value={overview.bonusScore}
-            prefix="+"
-            tone="emerald"
-            icon={<TrendingUpRoundedIcon fontSize="small" />}
+      <section className="mb-4 grid gap-3 sm:grid-cols-2 xl:grid-cols-3">
+        {summaryItems.map((item) => (
+          <SummaryMetricCard
+            key={item.label}
+            label={item.label}
+            helper={item.helper}
+            value={item.value}
+            valueClassName={item.valueClassName}
+            tone={item.tone}
+            icon={item.icon}
           />
-          <ScoreMetric
-            label="Tổng điểm trừ"
-            value={overview.penaltyScore}
-            prefix="−"
-            tone="rose"
-            icon={<TrendingDownRoundedIcon fontSize="small" />}
-          />
-          <ScoreMetric
-            label="Điểm thực nhận"
-            value={overview.netScore}
-            prefix={overview.netScore > 0 ? '+' : overview.netScore < 0 ? '−' : ''}
-            tone="blue"
-            icon={<BalanceRoundedIcon fontSize="small" />}
-          />
-          <ScoreMetric
-            label="Mục chờ duyệt"
-            value={overview.pendingCount}
-            tone="amber"
-            icon={<PendingActionsRoundedIcon fontSize="small" />}
-          />
-        </div>
+        ))}
       </section>
 
       <section className="w-full overflow-hidden rounded-2xl border border-slate-200 bg-white shadow-sm">
         <IconTabs
           value={activeTab}
-          ariaLabel="Nội dung KPI"
+          ariaLabel="Phạm vi báo cáo KPI"
           onChange={setActiveTab}
           items={[
-            { label: 'Tổng quan nhân sự', icon: <EmojiEventsOutlinedIcon fontSize="small" /> },
-            { label: 'Lịch sử ghi nhận', icon: <HistoryRoundedIcon fontSize="small" /> },
+            { label: 'Theo dịch vụ', icon: <RoomServiceRoundedIcon fontSize="small" /> },
+            { label: 'Theo phòng ban', icon: <CorporateFareRoundedIcon fontSize="small" /> },
           ]}
         />
 
-        <div className="grid items-center gap-3 p-4 xl:grid-cols-[repeat(6,minmax(0,1fr))]">
-          <FormDatePicker
-            label="Ngày bắt đầu"
-            value={filters.dateFrom}
-            max={filters.dateTo || undefined}
-            onChange={(dateFrom) => updateFilters({ dateFrom })}
-          />
-          <FormDatePicker
-            label="Ngày kết thúc"
-            value={filters.dateTo}
-            min={filters.dateFrom || undefined}
-            onChange={(dateTo) => updateFilters({ dateTo })}
-          />
-          <CompactAutocompleteField
-            label="Nhân viên"
-            value={filters.userId}
-            allLabel="Tất cả nhân viên"
-            options={users.map((user) => ({ value: String(user.id), label: user.name }))}
-            onChange={(userId) => updateFilters({ userId })}
-          />
-          <CompactAutocompleteField
-            label="Hạng mục KPI"
-            value={filters.category}
-            allLabel="Tất cả hạng mục"
-            options={categories.map((category) => ({
-              value: category.key,
-              label: category.label,
-            }))}
-            onChange={(category) => updateFilters({ category })}
-          />
-          <CompactSelectField
-            label="Loại"
-            value={filters.type}
-            options={[
-              { value: 'bonus', label: 'Thành tích' },
-              { value: 'penalty', label: 'Lỗi' },
-            ]}
-            onChange={(type) => updateFilters({ type })}
-          />
-          <CompactSelectField
-            label="Trạng thái"
-            value={filters.approvalStatus}
-            options={[
-              { value: 'pending', label: 'Chờ duyệt' },
-              { value: 'approved', label: 'Đã duyệt' },
-            ]}
-            onChange={(approvalStatus) => updateFilters({ approvalStatus })}
-          />
-        </div>
+        <PeriodFilters filters={filters} onChange={onFiltersChange} />
 
-        {activeTab === 0 ? (
-          <AppDataTable
-            columns={[
-              { key: 'rank', label: 'Hạng', className: 'w-[80px] text-center' },
-              { key: 'user', label: 'Nhân viên', className: 'w-[260px]' },
-              { key: 'bonus', label: 'Thành tích', className: 'w-[140px] text-right' },
-              { key: 'penalty', label: 'Lỗi', className: 'w-[140px] text-right' },
-              { key: 'total', label: 'Tổng điểm', className: 'w-[140px] text-right' },
-              { key: 'count', label: 'Số ghi nhận', className: 'w-[140px] text-center' },
-              { key: 'pending', label: 'Chờ duyệt', className: 'w-[130px] text-center' },
-            ]}
-            isLoading={isFetching}
-            isEmpty={summary.length === 0}
-            emptyText="Chưa có dữ liệu KPI trong kỳ"
-            minWidthClassName="min-w-[1030px]"
-          >
-            {summary.map((row, index) => (
-              <tr key={row.userId} className="hover:bg-slate-50/80">
-                <td className="px-3 py-3.5 text-center">
-                  <span
-                    className={`inline-grid size-7 place-items-center rounded-full text-xs font-extrabold ${
-                      index === 0
-                        ? 'bg-amber-100 text-amber-700'
-                        : index === 1
-                          ? 'bg-slate-200 text-slate-700'
-                          : index === 2
-                            ? 'bg-orange-100 text-orange-700'
-                            : 'bg-slate-100 text-slate-500'
-                    }`}
-                  >
-                    {index + 1}
-                  </span>
-                </td>
-                <td className="px-3 py-3.5">
-                  <div className="flex min-w-0 items-center gap-2">
-                    {row.code && (
-                      <span className="shrink-0 rounded-md bg-slate-100 px-2 py-1 text-xs font-bold text-slate-600">
-                        {row.code}
-                      </span>
-                    )}
-                    <span className="truncate font-bold text-slate-900" title={row.name}>
-                      {row.name}
-                    </span>
-                  </div>
-                </td>
-                <td className="whitespace-nowrap px-3 py-3.5 text-right font-extrabold tabular-nums text-emerald-700">
-                  +{formatScore(row.bonusScore)}
-                </td>
-                <td className="whitespace-nowrap px-3 py-3.5 text-right font-extrabold tabular-nums text-rose-700">
-                  −{formatScore(row.penaltyScore)}
-                </td>
-                <td
-                  className={`whitespace-nowrap px-3 py-3.5 text-right font-extrabold tabular-nums ${row.total >= 0 ? 'text-blue-700' : 'text-rose-700'}`}
-                >
-                  {row.total > 0 ? '+' : row.total < 0 ? '−' : ''}
-                  {formatScore(row.total)}
-                </td>
-                <td className="px-3 py-3.5 text-center font-bold tabular-nums text-slate-700">
-                  {row.count}
-                </td>
-                <td className="px-3 py-3.5 text-center">
-                  <span
-                    className={`inline-flex min-w-7 justify-center rounded-full px-2 py-1 text-xs font-bold ${
-                      row.pendingCount > 0
-                        ? 'bg-amber-50 text-amber-700 ring-1 ring-amber-200'
-                        : 'bg-slate-100 text-slate-500'
-                    }`}
-                  >
-                    {row.pendingCount}
-                  </span>
-                </td>
-              </tr>
-            ))}
-          </AppDataTable>
-        ) : (
-          <>
-            <AppDataTable
-              columns={[
-                { key: 'date', label: 'Ngày', className: 'w-[120px]' },
-                { key: 'user', label: 'Nhân viên', className: 'w-[190px]' },
-                { key: 'category', label: 'Hạng mục', className: 'w-[330px]' },
-                { key: 'score', label: 'Điểm', className: 'w-[100px] text-right' },
-                { key: 'approval', label: 'Trạng thái duyệt', className: 'w-[150px]' },
-                { key: 'note', label: 'Ghi chú', className: 'w-[260px]' },
-                { key: 'actions', className: 'w-[56px]' },
-              ]}
-              isLoading={isFetching}
-              isEmpty={points.length === 0}
-              emptyText="Chưa có lịch sử ghi nhận KPI"
-              minWidthClassName="min-w-[1206px]"
-            >
-              {points.map((point) => {
-                const score = Number(point.score) || 0;
+        <ComparisonTable periods={report.periods} scope={scope} isFetching={isFetching} />
 
-                return (
-                  <tr key={point.id} className="hover:bg-slate-50/80">
-                    <td className="whitespace-nowrap px-3 py-3.5 font-semibold text-slate-800">
-                      {formatDate(point.entryDate)}
-                    </td>
-                    <td className="truncate px-3 py-3.5 font-bold text-slate-900">
-                      {point.user?.name || '-'}
-                    </td>
-                    <td className="px-3 py-3.5">
-                      <div className="flex min-w-0 items-center gap-2">
-                        <span
-                          className={`shrink-0 rounded-full px-2 py-1 text-[11px] font-bold ring-1 ${
-                            point.type === 'bonus'
-                              ? 'bg-emerald-50 text-emerald-700 ring-emerald-200'
-                              : 'bg-rose-50 text-rose-700 ring-rose-200'
-                          }`}
-                        >
-                          {point.type === 'bonus' ? 'Thành tích' : 'Lỗi'}
-                        </span>
-                        <span
-                          className="min-w-0 truncate font-medium text-slate-700"
-                          title={point.categoryLabel || point.category}
-                        >
-                          {point.categoryLabel || point.category}
-                        </span>
-                      </div>
-                    </td>
-                    <td
-                      className={`whitespace-nowrap px-3 py-3.5 text-right font-extrabold tabular-nums ${
-                        score >= 0 ? 'text-emerald-700' : 'text-rose-700'
-                      }`}
-                    >
-                      {score > 0 ? '+' : score < 0 ? '−' : ''}
-                      {formatScore(score)}
-                    </td>
-                    <td className="px-3 py-3.5">
-                      <span
-                        className={`inline-flex rounded-full px-2 py-1 text-xs font-bold ring-1 ${
-                          point.isApproved
-                            ? 'bg-emerald-50 text-emerald-700 ring-emerald-200'
-                            : 'bg-amber-50 text-amber-700 ring-amber-200'
-                        }`}
-                      >
-                        {point.isApproved ? 'Đã duyệt' : 'Chờ duyệt'}
-                      </span>
-                    </td>
-                    <td
-                      className="truncate px-3 py-3.5 text-slate-600"
-                      title={point.note || undefined}
-                    >
-                      {point.note || '-'}
-                    </td>
-                    <td className="px-3 py-3.5 text-right">
-                      <IconButton
-                        size="small"
-                        title="Tác vụ"
-                        aria-label={`Tác vụ KPI của ${point.user?.name || 'nhân viên'}`}
-                        onClick={(event) => openActionMenu(event, point)}
-                      >
-                        <MoreVertRoundedIcon fontSize="small" />
-                      </IconButton>
-                    </td>
-                  </tr>
-                );
-              })}
-            </AppDataTable>
-
-            <TablePaginationBar
-              page={page}
-              totalPages={totalPages}
-              totalItems={totalItems}
-              pageSize={pageSize}
-              onPageChange={onPageChange}
-              onPageSizeChange={onPageSizeChange}
-            />
-          </>
-        )}
+        {report.periods.map((monthlyReport) => (
+          <div key={`${scope}-${monthlyReport.period}`} className="border-t border-slate-200">
+            <header className="border-b border-slate-200 px-4 py-3">
+              <h2 className="font-bold text-slate-950">{formatMonthLabel(monthlyReport.period)}</h2>
+            </header>
+            {isServiceTab ? (
+              <ServiceMonthTable
+                report={monthlyReport}
+                canManage={canManage}
+                isFetching={isFetching}
+                onEdit={setTargetDialog}
+              />
+            ) : (
+              <DepartmentMonthTable
+                report={monthlyReport}
+                canManage={canManage}
+                isFetching={isFetching}
+                onEdit={setTargetDialog}
+              />
+            )}
+          </div>
+        ))}
       </section>
 
-      <Menu anchorEl={menuAnchorEl} open={Boolean(menuAnchorEl)} onClose={closeActionMenu}>
-        {activePoint && !activePoint.isApproved && canApproveKpiPoint(currentUser, activePoint) && (
-          <MenuItem
-            disabled={isApproving}
-            onClick={() => {
-              onApprove(activePoint);
-              closeActionMenu();
-            }}
-          >
-            <CheckCircleOutlineRoundedIcon fontSize="small" className="mr-2 text-emerald-600" />
-            Duyệt điểm KPI
-          </MenuItem>
-        )}
-        <MenuItem
-          className="text-rose-600"
-          disabled={isDeleting}
-          onClick={() => {
-            setDeleteTarget(activePoint);
-            closeActionMenu();
-          }}
-        >
-          <DeleteOutlineRoundedIcon fontSize="small" className="mr-2" />
-          Xóa
-        </MenuItem>
-      </Menu>
-
-      <KpiDialog
-        open={dialogOpen}
-        users={users}
-        categories={categories}
-        defaultUserId={filters.userId}
-        isSubmitting={isSaving}
-        onClose={() => setDialogOpen(false)}
-        onSubmit={onSave}
-      />
-
-      <ConfirmDialog
-        open={Boolean(deleteTarget)}
-        title="Xóa điểm KPI?"
-        description="Điểm KPI này sẽ bị xóa vĩnh viễn."
-        confirmText="Xóa"
-        loading={isDeleting}
-        onClose={() => setDeleteTarget(null)}
-        onConfirm={() => {
-          if (deleteTarget) onDelete(deleteTarget);
-          setDeleteTarget(null);
-        }}
+      <TargetDialog
+        state={targetDialog}
+        isSaving={isSaving}
+        onClose={() => setTargetDialog(null)}
+        onSave={onSaveTarget}
       />
     </div>
   );
