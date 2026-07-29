@@ -4,6 +4,7 @@ namespace App\Repositories;
 
 use App\Models\Customer;
 use App\Models\Option;
+use App\Models\User;
 use Illuminate\Contracts\Pagination\LengthAwarePaginator;
 use Illuminate\Database\Eloquent\Builder;
 use Illuminate\Database\Eloquent\Collection;
@@ -18,18 +19,86 @@ class CustomerRepository extends BaseRepository
         return Customer::class;
     }
 
-    public function findAll(array $filters = []): Collection
+    public function findAll(array $filters = [], ?User $user = null): Collection
     {
-        return $this->filteredQuery($filters)->get();
+        return $this->filteredQuery($filters, $user)->get();
     }
 
-    public function findPaginated(array $filters, int $perPage, int $page): LengthAwarePaginator
+    public function findPaginated(array $filters, int $perPage, int $page, ?User $user = null): LengthAwarePaginator
     {
-        return $this->filteredQuery($filters)
+        return $this->filteredQuery($filters, $user)
             ->paginate($perPage, ['*'], 'page', $page);
     }
 
-    private function filteredQuery(array $filters): Builder
+    public function findLookupPaginated(array $filters, int $perPage, int $page, ?User $user = null): LengthAwarePaginator
+    {
+        return $this->lookupQuery($filters, $user)
+            ->paginate($perPage, ['*'], 'page', $page);
+    }
+
+    public function findLookupOrFail(string $id, ?User $user = null): Customer
+    {
+        /** @var Customer|null $customer */
+        $customer = $this->lookupQuery(['id' => $id], $user)->first();
+
+        if (! $customer) {
+            throw new NotFoundHttpException($this->notFoundMessage);
+        }
+
+        return $customer;
+    }
+
+    private function lookupQuery(array $filters, ?User $user = null): Builder
+    {
+        $keyword = trim((string) ($filters['keyword'] ?? $filters['search'] ?? ''));
+        $id = $filters['id'] ?? null;
+
+        $query = $this->query()->with('salesUser');
+
+        $this->applyProjectLookupScope($query, $user);
+
+        return $query
+            ->when($id, fn (Builder $query) => $query->whereKey($id))
+            ->when($keyword !== '', function (Builder $query) use ($keyword): void {
+                $query->where(function (Builder $query) use ($keyword): void {
+                    $query
+                        ->where('customer_code', 'ilike', "%{$keyword}%")
+                        ->orWhere('customer_name', 'ilike', "%{$keyword}%")
+                        ->orWhere('company_name', 'ilike', "%{$keyword}%")
+                        ->orWhere('phone', 'ilike', "%{$keyword}%")
+                        ->orWhere('email', 'ilike', "%{$keyword}%");
+                });
+            })
+            ->orderBy('customer_code');
+    }
+
+    private function applyProjectLookupScope(Builder $query, ?User $user): void
+    {
+        if (! $user) {
+            $query->whereRaw('1 = 0');
+
+            return;
+        }
+
+        if ($user->hasPermission('project.view_all') || $user->hasPermission('project.update_all')) {
+            return;
+        }
+
+        if (
+            $user->department_id
+            && ($user->hasPermission('project.view_department')
+                || $user->hasPermission('project.update_department'))
+        ) {
+            $query->whereHas('salesUser', fn (Builder $salesUser) => $salesUser
+                ->where('department_id', $user->department_id));
+
+            return;
+        }
+
+        $query->where('sales_user_id', $user->id);
+    }
+
+    private function filteredQuery(array $filters, ?User $user = null): Builder
     {
         $keyword = trim((string) ($filters['keyword'] ?? $filters['search'] ?? ''));
         $customerTypeOptionId = $filters['customer_type_option_id'] ?? null;
@@ -41,8 +110,12 @@ class CustomerRepository extends BaseRepository
         $salesUserId = $filters['sales_user_id'] ?? null;
         $leadId = $filters['lead_id'] ?? null;
 
-        return $this->query()
-            ->with(['lead', 'customerTypeOption', 'sourceOption', 'industryOption', 'salesUser', 'createdBy'])
+        $query = $this->query()
+            ->with(['lead', 'customerTypeOption', 'sourceOption', 'industryOption', 'salesUser', 'createdBy']);
+
+        $this->applyViewScope($query, $user);
+
+        return $query
             ->when($keyword !== '', function ($query) use ($keyword): void {
                 $query->where(function ($query) use ($keyword): void {
                     $query
@@ -64,6 +137,28 @@ class CustomerRepository extends BaseRepository
             ->when($salesUserId, fn ($query) => $query->where('sales_user_id', $salesUserId))
             ->when($leadId, fn ($query) => $query->where('lead_id', $leadId))
             ->orderByDesc('created_at');
+    }
+
+    private function applyViewScope(Builder $query, ?User $user): void
+    {
+        if (! $user || $user->hasPermission('customer.view_all')) {
+            return;
+        }
+
+        if ($user->hasPermission('customer.view_department') && $user->department_id) {
+            $query->whereHas('salesUser', fn (Builder $salesUser) => $salesUser
+                ->where('department_id', $user->department_id));
+
+            return;
+        }
+
+        if ($user->hasPermission('customer.view')) {
+            $query->where('sales_user_id', $user->id);
+
+            return;
+        }
+
+        $query->whereRaw('1 = 0');
     }
 
     public function findWithRelationsOrFail(string $id): Customer

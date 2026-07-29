@@ -20,13 +20,21 @@ class WeeklyReportsService extends BaseService
 
     public function findAll(array $filters = [])
     {
-        return $this->apiCollection($this->reports->findAll($this->normalizeKeys($filters)), WeeklyReportResource::class);
+        return $this->apiCollection(
+            $this->reports->findAll($this->currentUser(), $this->normalizeKeys($filters)),
+            WeeklyReportResource::class,
+        );
     }
 
     public function findPaginated(array $filters, int $perPage, int $page): array
     {
         return $this->apiPaginatedCollection(
-            $this->reports->findPaginated($this->normalizeKeys($filters), $perPage, $page),
+            $this->reports->findPaginated(
+                $this->currentUser(),
+                $this->normalizeKeys($filters),
+                $perPage,
+                $page,
+            ),
             WeeklyReportResource::class,
         );
     }
@@ -37,7 +45,7 @@ class WeeklyReportsService extends BaseService
         $weekMonday = $this->resolveBoardWeek($filters['week_start'] ?? null);
         $weekSunday = $weekMonday->addDays(6);
         $today = CarbonImmutable::today(config('app.timezone'));
-        $settings = $this->weeklySettings->findActiveForBoard($filters);
+        $settings = $this->weeklySettings->findActiveForBoard($filters, $this->currentUser());
         $projectIds = $settings->pluck('project_id')->map(fn ($id) => (int) $id)->all();
         $reports = $this->reports->findForBoardPeriods(
             $projectIds,
@@ -189,17 +197,21 @@ class WeeklyReportsService extends BaseService
 
     public function findOne(string $id): array
     {
-        return $this->apiResource($this->reports->findWithRelationsOrFail($id), WeeklyReportResource::class);
+        $report = $this->reports->findVisibleWithRelationsOrFail($this->currentUser(), $id);
+        $this->authorize('view', $report);
+
+        return $this->apiResource($report, WeeklyReportResource::class);
     }
 
     public function create(array $data): array
     {
         return $this->transaction(function () use ($data): array {
-            $this->authorize('create', WeeklyReport::class);
             $items = $data['items'] ?? [];
             unset($data['items']);
 
             $data = $this->preparePayload($data, true);
+            $project = Project::query()->find($data['project_id'] ?? null);
+            $this->authorize('create', [WeeklyReport::class, $project]);
             $data['status'] = WeeklyReport::STATUS_DRAFT;
             $data['created_by'] = $this->currentUser()?->id;
 
@@ -226,6 +238,7 @@ class WeeklyReportsService extends BaseService
         return $this->transaction(function () use ($id, $data): array {
             /** @var WeeklyReport $existingReport */
             $existingReport = $this->reports->findWithRelationsOrFail($id);
+            $this->authorize('update', $existingReport);
             $this->assertStatus($existingReport, WeeklyReport::STATUS_DRAFT, 'Chỉ báo cáo nháp mới được chỉnh sửa.');
             $hasItems = array_key_exists('items', $data);
             $items = $data['items'] ?? [];
@@ -259,6 +272,7 @@ class WeeklyReportsService extends BaseService
         return $this->transaction(function () use ($id): array {
             /** @var WeeklyReport $report */
             $report = $this->reports->findWithRelationsOrFail($id);
+            $this->authorize('delete', $report);
             $this->assertStatus($report, WeeklyReport::STATUS_DRAFT, 'Chỉ báo cáo nháp mới được xóa.');
             $this->reports->delete($id);
 
@@ -271,6 +285,7 @@ class WeeklyReportsService extends BaseService
         return $this->transaction(function () use ($id): array {
             /** @var WeeklyReport $existingReport */
             $existingReport = $this->reports->findWithRelationsOrFail($id);
+            $this->authorize('update', $existingReport);
             $this->assertStatus($existingReport, WeeklyReport::STATUS_DRAFT, 'Chỉ báo cáo nháp mới được gửi duyệt.');
             /** @var WeeklyReport $report */
             $report = $this->reports->update($id, [

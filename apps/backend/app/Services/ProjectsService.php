@@ -23,20 +23,23 @@ class ProjectsService extends BaseService
 
     public function findAll(array $filters = [])
     {
-        return $this->apiCollection($this->projects->findAll($this->normalizeKeys($filters)), ProjectResource::class);
+        return $this->apiCollection($this->projects->findAll($this->normalizeKeys($filters), $this->currentUser()), ProjectResource::class);
     }
 
     public function findPaginated(array $filters, int $perPage, int $page): array
     {
         return $this->apiPaginatedCollection(
-            $this->projects->findPaginated($this->normalizeKeys($filters), $perPage, $page),
+            $this->projects->findPaginated($this->normalizeKeys($filters), $perPage, $page, $this->currentUser()),
             ProjectResource::class,
         );
     }
 
     public function findOne(string $id): array
     {
-        return $this->apiResource($this->projects->findWithRelationsOrFail($id), ProjectResource::class);
+        $project = $this->projects->findWithRelationsOrFail($id);
+        $this->authorize('view', $project);
+
+        return $this->apiResource($project, ProjectResource::class);
     }
 
     public function create(array $data, bool $checkAuthorization = true): array
@@ -88,6 +91,7 @@ class ProjectsService extends BaseService
             unset($data['contract']);
 
             $data = $this->normalizePayload($data);
+
             $hasReportWeekday = array_key_exists('report_weekday', $data);
             $reportWeekday = $hasReportWeekday ? (int) $data['report_weekday'] : null;
             unset($data['report_weekday']);
@@ -95,6 +99,15 @@ class ProjectsService extends BaseService
             unset($data['project_code']);
             $before = $this->loadProjectRelations($this->projects->findWithRelationsOrFail($id));
             $this->authorize('update', $before);
+
+            if (
+                array_key_exists('customer_id', $data)
+                && (string) $data['customer_id'] !== (string) $before->customer_id
+            ) {
+                $nextCustomer = Customer::query()->findOrFail($data['customer_id']);
+                $this->authorize('useCustomer', [Project::class, $nextCustomer]);
+            }
+
             $this->validateQuotationLink($data, $before);
             $codeData = [
                 'customer_id' => $data['customer_id'] ?? $before->customer_id,
@@ -146,6 +159,10 @@ class ProjectsService extends BaseService
 
         if (array_key_exists('project_code', $data) && ($data['project_code'] === '' || $data['project_code'] === null)) {
             unset($data['project_code']);
+        }
+
+        if (($data['project_type'] ?? null) === 'N') {
+            $data['project_type'] = 'O';
         }
 
         foreach (['status_id', 'status_option_id', 'manager_user_id', 'sales_user_id'] as $key) {
@@ -539,13 +556,13 @@ class ProjectsService extends BaseService
         $projectType = $data['project_type'] ?? null;
         $projectName = $data['project_name'] ?? null;
 
-        if (! $customerCode || ! $serviceCode || ! in_array($projectType, ['K', 'M', 'N'], true) || ! is_string($projectName) || trim($projectName) === '') {
+        if (! $customerCode || ! $serviceCode || ! in_array($projectType, ['K', 'M', 'O', 'N'], true) || ! is_string($projectName) || trim($projectName) === '') {
             return null;
         }
 
         $codeParts = [$customerCode, $serviceCode];
 
-        if ($projectType !== 'N') {
+        if (! in_array($projectType, ['O', 'N'], true)) {
             $codeParts[] = $projectType;
         }
 

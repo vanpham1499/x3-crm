@@ -13,10 +13,16 @@ import { IconButton, Menu, MenuItem, Tooltip } from '@mui/material';
 import { ConfirmDialog } from '@/components/feedback/confirm-dialog';
 import { CompactAutocompleteField } from '@/components/form/compact-autocomplete-field';
 import { CompactSelectField } from '@/components/form/compact-select-field';
+import { ListFilterBar } from '@/components/form/list-filter-bar';
 import { AppDataTable } from '@/components/table/app-data-table';
 import { EntityTableLink } from '@/components/table/entity-table-link';
 import { TablePaginationBar } from '@/components/table/table-pagination-bar';
-import { canApproveWeeklyReport } from '@/lib/ownership';
+import {
+  canApproveWeeklyReport,
+  canAuthorWeeklyReport,
+  canDeleteWeeklyReport,
+  canUpdateWeeklyReport,
+} from '@/lib/ownership';
 import { formatDate } from '@/lib/utils';
 import type { ProjectItem } from '@/types/project';
 import type { User } from '@/types/user';
@@ -94,6 +100,7 @@ export function WeeklyReportManager({
   const [deleteTarget, setDeleteTarget] = useState<WeeklyReport | null>(null);
   const [returnTarget, setReturnTarget] = useState<WeeklyReport | null>(null);
   const [customerPreviewTarget, setCustomerPreviewTarget] = useState<WeeklyReport | null>(null);
+  const canAuthor = canAuthorWeeklyReport(currentUser);
 
   const openActionMenu = (event: MouseEvent<HTMLButtonElement>, report: WeeklyReport) => {
     setMenuAnchorEl(event.currentTarget);
@@ -115,7 +122,7 @@ export function WeeklyReportManager({
         embedded ? '' : 'rounded-2xl border border-slate-200 shadow-sm'
       }`}
     >
-      <div className="grid gap-3 p-4 lg:grid-cols-[minmax(280px,1fr)_190px]">
+      <ListFilterBar className="p-4">
         <CompactAutocompleteField
           label="Dự án"
           value={filters.projectId}
@@ -136,7 +143,7 @@ export function WeeklyReportManager({
           ]}
           onChange={(status) => updateFilters({ status })}
         />
-      </div>
+      </ListFilterBar>
 
       <AppDataTable
         columns={[
@@ -198,17 +205,19 @@ export function WeeklyReportManager({
                     <VisibilityOutlinedIcon fontSize="small" />
                   </IconButton>
                 </Tooltip>
-                <Tooltip title="Chỉnh sửa báo cáo">
-                  <IconButton
-                    component={Link}
-                    href={`/weekly-reports/${report.id}`}
-                    size="small"
-                    color={report.status === 'draft' ? 'primary' : 'default'}
-                    aria-label={`Chỉnh sửa báo cáo ${report.project?.projectCode || report.id}`}
-                  >
-                    <EditRoundedIcon fontSize="small" />
-                  </IconButton>
-                </Tooltip>
+                {canUpdateWeeklyReport(currentUser, report) ? (
+                  <Tooltip title="Chỉnh sửa báo cáo">
+                    <IconButton
+                      component={Link}
+                      href={`/weekly-reports/${report.id}`}
+                      size="small"
+                      color={report.status === 'draft' ? 'primary' : 'default'}
+                      aria-label={`Chỉnh sửa báo cáo ${report.project?.projectCode || report.id}`}
+                    >
+                      <EditRoundedIcon fontSize="small" />
+                    </IconButton>
+                  </Tooltip>
+                ) : null}
                 <Tooltip title="Tác vụ">
                   <IconButton
                     size="small"
@@ -242,7 +251,7 @@ export function WeeklyReportManager({
           <VisibilityOutlinedIcon fontSize="small" className="mr-2 text-slate-500" />
           Xem báo cáo
         </MenuItem>
-        {activeReport?.status === 'draft' ? (
+        {activeReport?.status === 'draft' && canUpdateWeeklyReport(currentUser, activeReport) ? (
           <MenuItem
             disabled={isSubmitting}
             onClick={() => {
@@ -280,7 +289,7 @@ export function WeeklyReportManager({
             Trả về nháp
           </MenuItem>
         ) : null}
-        {activeReport?.status === 'draft' ? (
+        {activeReport?.status === 'draft' && canDeleteWeeklyReport(currentUser, activeReport) ? (
           <MenuItem
             className="text-rose-600"
             disabled={isDeleting}

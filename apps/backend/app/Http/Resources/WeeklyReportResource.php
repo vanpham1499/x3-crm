@@ -48,6 +48,7 @@ class WeeklyReportResource extends JsonResource
                 'id' => $this->reporter->id,
                 'code' => $this->reporter->code,
                 'name' => $this->reporter->name,
+                'departmentId' => $this->reporter->department_id,
             ] : null),
             'approver' => $this->whenLoaded('approver', fn () => $this->approver ? [
                 'id' => $this->approver->id,
@@ -55,6 +56,9 @@ class WeeklyReportResource extends JsonResource
             ] : null),
             'items' => WeeklyReportItemResource::collection($this->whenLoaded('items')),
             'attachments' => WeeklyReportAttachmentResource::collection($this->whenLoaded('attachments')),
+            'canUpdate' => (bool) ($request->user()?->can('update', $this->resource) ?? false),
+            'canDelete' => (bool) ($request->user()?->can('delete', $this->resource) ?? false),
+            'canApprove' => (bool) ($request->user()?->can('approve', $this->resource) ?? false),
             'createdAt' => $this->created_at?->toISOString(),
             'updatedAt' => $this->updated_at?->toISOString(),
         ];

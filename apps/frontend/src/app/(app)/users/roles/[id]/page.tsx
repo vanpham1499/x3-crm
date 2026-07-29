@@ -3,12 +3,19 @@
 import { useState } from 'react';
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import { useParams, useRouter } from 'next/navigation';
+import { ErrorState } from '@/components/feedback/error-state';
 import { ConfirmDialog } from '@/components/feedback/confirm-dialog';
 import { useAppNotification } from '@/components/feedback/notification-provider';
 import { ContentLoading } from '@/components/shell/content-loading';
-import { RoleForm, RoleFormValues, getRoleFormDefaults } from '@/features/access-control/components/role-form';
+import {
+  RoleForm,
+  RoleFormValues,
+  getRoleFormDefaults,
+} from '@/features/access-control/components/role-form';
 import { getApiErrorMessage } from '@/lib/api-error';
+import { canDeleteRoles, canEditRoles } from '@/lib/ownership';
 import api from '@/services/api/client';
+import { useAuthStore } from '@/stores/auth-store';
 import type { Permission, Role } from '@/types/access-control';
 
 export default function EditRolePage() {
@@ -17,6 +24,8 @@ export default function EditRolePage() {
   const router = useRouter();
   const queryClient = useQueryClient();
   const notify = useAppNotification();
+  const currentUser = useAuthStore((state) => state.user);
+  const canEdit = canEditRoles(currentUser);
   const [deleteDialogOpen, setDeleteDialogOpen] = useState(false);
 
   const { data: role, isLoading: isRoleLoading } = useQuery<Role>({
@@ -25,23 +34,21 @@ export default function EditRolePage() {
     enabled: Boolean(id),
   });
 
-  const { data: permissions = [] } = useQuery<Permission[]>({
+  const { data: permissions = [], isLoading: isPermissionsLoading } = useQuery<Permission[]>({
     queryKey: ['permissions'],
     queryFn: () => api.get('/permissions').then((response) => response.data),
+    enabled: canEdit,
   });
 
   const updateMutation = useMutation({
     mutationFn: async (values: RoleFormValues) => {
-      const response = await api.put<Role>(`/roles/${id}`, {
-        name: values.name,
-        description: values.description || null,
-      });
-
-      await api.post(`/roles/${id}/permissions`, {
-        permission_ids: values.permissionIds,
-      });
-
-      return response.data;
+      return api
+        .put<Role>(`/roles/${id}`, {
+          name: values.name,
+          description: values.description || null,
+          permission_ids: values.permissionIds,
+        })
+        .then((response) => response.data);
     },
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ['roles'] });
@@ -67,7 +74,24 @@ export default function EditRolePage() {
     },
   });
 
-  if (isRoleLoading || !role) return <ContentLoading label="Đang tải vai trò..." />;
+  if (isRoleLoading || isPermissionsLoading || !role) {
+    return <ContentLoading label="Đang tải vai trò và danh mục quyền..." />;
+  }
+
+  if (!canEdit) {
+    return (
+      <ErrorState
+        compact
+        code="403"
+        title="Không có quyền chỉnh sửa vai trò"
+        description="Bạn cần đồng thời quyền cập nhật vai trò và quyền gán permission."
+        primaryHref="/users/roles"
+        primaryLabel="Về danh sách vai trò"
+        secondaryHref="/dashboard"
+        secondaryLabel="Về Dashboard"
+      />
+    );
+  }
 
   return (
     <>
@@ -79,7 +103,7 @@ export default function EditRolePage() {
         isSubmitting={updateMutation.isPending}
         isDeleting={deleteMutation.isPending}
         onSubmit={(values) => updateMutation.mutateAsync(values)}
-        onDelete={() => setDeleteDialogOpen(true)}
+        onDelete={canDeleteRoles(currentUser) ? () => setDeleteDialogOpen(true) : undefined}
       />
 
       <ConfirmDialog

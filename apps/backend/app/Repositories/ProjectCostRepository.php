@@ -165,6 +165,8 @@ class ProjectCostRepository extends BaseRepository
     {
         return [
             'project.customer',
+            'project.managerUser:id,department_id',
+            'project.salesUser:id,department_id',
             'quotation',
             'bankAccountOption',
             'partnerOption',

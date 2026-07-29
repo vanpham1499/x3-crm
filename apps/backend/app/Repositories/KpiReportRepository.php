@@ -9,6 +9,7 @@ use App\Models\Project;
 use App\Models\ProjectCost;
 use App\Models\Quotation;
 use App\Models\Service;
+use App\Models\User;
 use Illuminate\Database\Eloquent\Builder;
 use Illuminate\Support\Collection;
 
@@ -30,16 +31,41 @@ class KpiReportRepository
             ->get(['id', 'name']);
     }
 
+    public function users(): Collection
+    {
+        return User::query()
+            ->withTrashed()
+            ->with('department:id,name')
+            ->orderBy('code')
+            ->orderBy('name')
+            ->get(['id', 'code', 'name', 'department_id', 'is_active', 'deleted_at']);
+    }
+
     public function activeProjects(): Collection
     {
         return Project::query()
             ->whereNull('deleted_at')
             ->with([
-                'managerUser:id,department_id',
+                'managerUser' => fn ($query) => $query
+                    ->withTrashed()
+                    ->select(['id', 'code', 'name', 'department_id', 'deleted_at']),
+                'salesUser' => fn ($query) => $query
+                    ->withTrashed()
+                    ->select(['id', 'code', 'name', 'department_id', 'deleted_at']),
                 'customer:id,sales_user_id',
-                'customer.salesUser:id,department_id',
+                'customer.salesUser' => fn ($query) => $query
+                    ->withTrashed()
+                    ->select(['id', 'code', 'name', 'department_id', 'deleted_at']),
+                'statusOption:id,key,label',
             ])
-            ->get(['id', 'service_id', 'manager_user_id', 'customer_id']);
+            ->get([
+                'id',
+                'service_id',
+                'manager_user_id',
+                'sales_user_id',
+                'customer_id',
+                'status_option_id',
+            ]);
     }
 
     public function quotations(Collection $projectIds): Collection
@@ -58,6 +84,7 @@ class KpiReportRepository
                 'vat_amount',
                 'total_amount',
                 'deposit_amount',
+                'created_at',
             ]);
     }
 

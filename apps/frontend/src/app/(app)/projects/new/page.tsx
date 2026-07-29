@@ -10,9 +10,8 @@ import { ProjectForm } from '@/features/projects/components/project-form';
 import { getApiErrorMessage } from '@/lib/api-error';
 import { toProjectPayload } from '@/lib/project-utils';
 import api from '@/services/api/client';
-import type { Customer } from '@/types/customer';
 import type { AppOption } from '@/types/option';
-import type { ProjectFormValues, ProjectItem } from '@/types/project';
+import type { ProjectCustomerSummary, ProjectFormValues, ProjectItem } from '@/types/project';
 import type { ServiceItem } from '@/types/service';
 import type { User } from '@/types/user';
 
@@ -23,11 +22,16 @@ export default function NewProjectPage() {
   const notify = useAppNotification();
   const customerId = searchParams.get('customerId') || '';
 
-  const { data: selectedCustomer, isLoading: isCustomerLoading } = useQuery<Customer>({
-    queryKey: ['customers', 'project-form-initial', customerId],
-    queryFn: () => api.get<Customer>(`/customers/${customerId}`).then((response) => response.data),
-    enabled: Boolean(customerId),
-  });
+  const { data: selectedCustomer, isLoading: isCustomerLoading } = useQuery<ProjectCustomerSummary>(
+    {
+      queryKey: ['customers', 'lookup', 'project-form-initial', customerId],
+      queryFn: () =>
+        api
+          .get<ProjectCustomerSummary>(`/customers/lookup/${customerId}`)
+          .then((response) => response.data),
+      enabled: Boolean(customerId),
+    },
+  );
 
   const { data: services = [], isLoading: isServicesLoading } = useQuery<ServiceItem[]>({
     queryKey: ['services', 'project-form-options'],
@@ -37,7 +41,7 @@ export default function NewProjectPage() {
 
   const { data: users = [], isLoading: isUsersLoading } = useQuery<User[]>({
     queryKey: ['users', 'project-form-options'],
-    queryFn: () => api.get('/users').then((response) => response.data),
+    queryFn: () => api.get('/users/lookup?context=project').then((response) => response.data),
   });
 
   const { data: projectOptions = [], isLoading: isStatusesLoading } = useQuery<AppOption[]>({

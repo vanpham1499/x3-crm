@@ -40,15 +40,18 @@ export function getProjectDefaults(
     serviceId: idToString(project?.serviceId) || defaults?.serviceId || '',
     projectName: project?.projectName || defaults?.projectName || '',
     projectType:
-      project?.projectType === 'M' || project?.projectType === 'K' || project?.projectType === 'N'
-        ? project.projectType
-        : defaults?.projectType || 'K',
+      project?.projectType === 'N'
+        ? 'O'
+        : project?.projectType === 'M' ||
+            project?.projectType === 'K' ||
+            project?.projectType === 'O'
+          ? project.projectType
+          : defaults?.projectType || 'K',
     statusOptionId: idToString(project?.statusOptionId) || defaults?.statusOptionId || '',
     managerUserId: idToString(project?.managerUserId) || defaults?.managerUserId || '',
     weeklyReportWeekday:
       idToString(project?.weeklySetting?.reportWeekday) || defaults?.weeklyReportWeekday || '',
     planLink: project?.planLink || defaults?.planLink || '',
-    weeklyReportLink: project?.weeklyReportLink || defaults?.weeklyReportLink || '',
     customerTrackingReportLink:
       project?.customerTrackingReportLink || defaults?.customerTrackingReportLink || '',
     adminWebAccount: project?.adminWebAccount || defaults?.adminWebAccount || '',
@@ -72,7 +75,6 @@ export function toProjectPayload(values: ProjectFormValues) {
     managerUserId: values.managerUserId || null,
     reportWeekday: values.weeklyReportWeekday ? Number(values.weeklyReportWeekday) : null,
     planLink: values.planLink.trim() || null,
-    weeklyReportLink: values.weeklyReportLink.trim() || null,
     customerTrackingReportLink: values.customerTrackingReportLink.trim() || null,
     adminWebAccount: values.adminWebAccount.trim() || null,
     startDate: values.startDate || null,
@@ -131,7 +133,7 @@ export function generateProjectCode({
   const parts = [
     customerCode,
     rootServiceCode,
-    ...(projectType === 'N' ? [] : [projectType]),
+    ...(projectType === 'O' ? [] : [projectType]),
     projectName,
   ].map((part) => toCodeSegment(part));
 

@@ -29,7 +29,7 @@ class LeadsService extends BaseService
     {
         $filters = $this->normalizeFilters($filters);
 
-        return $this->apiCollection($this->leads->findAll($filters), LeadResource::class);
+        return $this->apiCollection($this->leads->findAll($filters, $this->currentUser()), LeadResource::class);
     }
 
     public function findPaginated(array $filters, int $perPage, int $page): array
@@ -37,14 +37,17 @@ class LeadsService extends BaseService
         $filters = $this->normalizeFilters($filters);
 
         return $this->apiPaginatedCollection(
-            $this->leads->findPaginated($filters, $perPage, $page),
+            $this->leads->findPaginated($filters, $perPage, $page, $this->currentUser()),
             LeadResource::class,
         );
     }
 
     public function findOne(string $id): array
     {
-        return $this->apiResource($this->leads->findWithRelationsOrFail($id), LeadResource::class);
+        $lead = $this->leads->findWithRelationsOrFail($id);
+        $this->authorize('view', $lead);
+
+        return $this->apiResource($lead, LeadResource::class);
     }
 
     public function create(array $data): array
@@ -53,6 +56,7 @@ class LeadsService extends BaseService
             $this->authorize('create', Lead::class);
             $serviceOptionIds = $this->extractServiceOptionIds($data);
             $data = $this->normalizePayload($data);
+            $this->validateAssigneeScope('lead', $data['assigned_user_id'] ?? null, 'assignedUserId');
             $data['lead_code'] = $this->generateLeadCode();
             $data['status_option_id'] = $data['status_option_id'] ?? $this->defaultStatusOptionId();
 
@@ -82,6 +86,11 @@ class LeadsService extends BaseService
 
             $before = $this->loadLeadRelations($this->leads->findWithRelationsOrFail($id));
             $this->authorize('update', $before);
+
+            if (array_key_exists('assigned_user_id', $data)) {
+                $this->validateAssigneeScope('lead', $data['assigned_user_id'], 'assignedUserId');
+            }
+
             $beforeServiceOptionIds = $before->interestedServiceOptions->pluck('id')->sort()->values()->all();
 
             if ($serviceOptionIds !== null) {
@@ -96,6 +105,7 @@ class LeadsService extends BaseService
             }
 
             $lead = $this->loadLeadRelations($lead);
+            $this->syncInheritedCustomerFields($lead);
             $afterServiceOptionIds = $lead->interestedServiceOptions->pluck('id')->sort()->values()->all();
             $changes = $this->describeLeadChanges($before, $lead, $data);
 
@@ -382,6 +392,25 @@ class LeadsService extends BaseService
     private function loadLeadRelations(Lead $lead): Lead
     {
         return $lead->load(['statusOption', 'assignedUser', 'createdBy', 'sourceOption', 'industryOption', 'interestedServiceOption', 'interestedServiceOptions', 'interestedService', 'convertedCustomer', 'timelines.createdBy']);
+    }
+
+    private function syncInheritedCustomerFields(Lead $lead): void
+    {
+        $customer = $lead->convertedCustomer ?: $lead->customer()->first();
+
+        if (! $customer) {
+            return;
+        }
+
+        $customer->fill([
+            'source_option_id' => $lead->source_option_id,
+            'industry' => $lead->industry,
+            'industry_option_id' => $lead->industry_option_id,
+        ]);
+
+        if ($customer->isDirty()) {
+            $customer->save();
+        }
     }
 
     private function recordTimeline(Lead $lead, string $type, array $content): void

@@ -38,10 +38,28 @@ export type DepartmentKpiRow = {
   completionRate: number | null;
 };
 
+export type EmployeeKpiRow = {
+  id: number;
+  code?: string | null;
+  name: string;
+  departmentId?: number | null;
+  departmentName?: string | null;
+  isActive: boolean;
+  implementationReceivedAmount: number;
+  implementationCostAmount: number;
+  implementationRefundAmount: number;
+  implementationAmount: number;
+  acquisitionCreditAmount: number;
+  acquisitionRefundAmount: number;
+  acquisitionAmount: number;
+  actualAmount: number;
+};
+
 export type KpiMonthlyReport = {
   period: string;
   services: ServiceKpiRow[];
   departments: DepartmentKpiRow[];
+  employees: EmployeeKpiRow[];
   summary: {
     services: KpiSummary;
     departments: KpiSummary;

@@ -27,6 +27,7 @@ class P2PointResource extends JsonResource
                 'id' => $this->user->id,
                 'code' => $this->user->code,
                 'name' => $this->user->name,
+                'departmentId' => $this->user->department_id,
             ] : null),
             'project' => $this->whenLoaded('project', fn () => $this->project ? [
                 'id' => $this->project->id,
@@ -38,6 +39,9 @@ class P2PointResource extends JsonResource
                 'id' => $this->approver->id,
                 'name' => $this->approver->name,
             ] : null),
+            'canUpdate' => (bool) ($request->user()?->can('update', $this->resource) ?? false),
+            'canDelete' => (bool) ($request->user()?->can('delete', $this->resource) ?? false),
+            'canApprove' => (bool) ($request->user()?->can('approve', $this->resource) ?? false),
             'createdAt' => $this->created_at?->toISOString(),
             'updatedAt' => $this->updated_at?->toISOString(),
         ];

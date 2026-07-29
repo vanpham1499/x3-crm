@@ -75,7 +75,7 @@ export default function WeeklyReportsPage() {
 
   const { data: users = [] } = useQuery<User[]>({
     queryKey: ['users', 'weekly-report-options'],
-    queryFn: () => api.get('/users').then((response) => response.data),
+    queryFn: () => api.get('/users/lookup?context=weeklyreport').then((response) => response.data),
   });
 
   const { data: weeklyConditionOptions = [] } = useQuery<AppOption[]>({

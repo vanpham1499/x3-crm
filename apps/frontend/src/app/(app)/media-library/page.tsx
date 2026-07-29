@@ -6,7 +6,9 @@ import { useAppNotification } from '@/components/feedback/notification-provider'
 import { MediaManager } from '@/features/media/components/media-manager';
 import { useServerListState } from '@/hooks/use-server-list-state';
 import { getApiErrorMessage } from '@/lib/api-error';
+import { hasPermission } from '@/lib/ownership';
 import api from '@/services/api/client';
+import { useAuthStore } from '@/stores/auth-store';
 import type { MediaItem } from '@/types/media';
 import type { PaginatedResponse } from '@/types/pagination';
 
@@ -16,6 +18,7 @@ const MEDIA_LIST_QUERY_KEY = ['media', 'library'] as const;
 export default function MediaLibraryPage() {
   const queryClient = useQueryClient();
   const notify = useAppNotification();
+  const currentUser = useAuthStore((state) => state.user);
   const { filters, requestFilters, page, pageSize, setPage, setPageSize, onFiltersChange } =
     useServerListState({
       initialFilters: { keyword: '' },
@@ -29,7 +32,6 @@ export default function MediaLibraryPage() {
       api
         .get<PaginatedResponse<MediaItem>>('/media', {
           params: {
-            scope: 'all',
             keyword: requestFilters.keyword.trim() || undefined,
             page,
             per_page: pageSize,
@@ -113,6 +115,7 @@ export default function MediaLibraryPage() {
       isFetching={isFetching}
       isSubmitting={createMutation.isPending || updateMutation.isPending}
       isDeleting={deleteMutation.isPending}
+      canCreate={hasPermission(currentUser, 'media.create')}
       onKeywordChange={(keyword) => onFiltersChange({ keyword })}
       onPageChange={setPage}
       onPageSizeChange={setPageSize}

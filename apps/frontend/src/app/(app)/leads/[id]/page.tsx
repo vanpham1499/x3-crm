@@ -43,7 +43,7 @@ export default function EditLeadPage() {
 
   const { data: users = [], isLoading: usersLoading } = useQuery<User[]>({
     queryKey: ['users', 'lead-options'],
-    queryFn: () => api.get('/users').then((response) => response.data),
+    queryFn: () => api.get('/users/lookup?context=lead').then((response) => response.data),
   });
 
   const { data: leadOptions = [], isLoading: optionsLoading } = useQuery<AppOption[]>({

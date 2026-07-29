@@ -73,8 +73,9 @@ class ProjectCostsService extends BaseService
     public function reconcile(string $id, array $data): array
     {
         return $this->transaction(function () use ($id, $data): array {
-            $this->authorizeAccounting();
             $cost = $this->costs->findForUpdateOrFail($id);
+            $cost->load('project.managerUser', 'project.salesUser');
+            $this->authorize('approve', $cost);
             $cost->load('adjustments');
             $data = $this->normalizeKeys($data);
             $adjustments = $data['adjustments'] ?? [];
@@ -193,8 +194,9 @@ class ProjectCostsService extends BaseService
     public function confirmCidIncident(string $id): array
     {
         return $this->transaction(function () use ($id): array {
-            $this->authorizeAccounting();
             $cost = $this->costs->findForUpdateOrFail($id);
+            $cost->load('project.managerUser', 'project.salesUser');
+            $this->authorize('approve', $cost);
             $incident = ProjectCostCidIncident::query()
                 ->where('project_cost_id', $cost->id)
                 ->where('status', ProjectCostCidIncident::STATUS_PENDING)

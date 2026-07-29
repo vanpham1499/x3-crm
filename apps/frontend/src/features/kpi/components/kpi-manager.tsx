@@ -18,6 +18,7 @@ import { AppFormDialog } from '@/components/dialog/app-form-dialog';
 import { CompactMonthPicker } from '@/components/form/compact-month-picker';
 import { CompactYearPicker } from '@/components/form/compact-year-picker';
 import { FormSelectField } from '@/components/form/form-select-field';
+import { ListFilterBar } from '@/components/form/list-filter-bar';
 import { MoneyInput } from '@/components/form/money-input';
 import { IconTabs } from '@/components/navigation/icon-tabs';
 import { PageHeader } from '@/components/shell/page-header';
@@ -218,8 +219,8 @@ function PeriodFilters({
   const update = (next: Partial<KpiPeriodFilters>) => onChange({ ...filters, ...next });
 
   return (
-    <div className="flex flex-wrap items-start gap-3 border-b border-slate-200 p-4">
-      <div className="w-full sm:w-[176px]">
+    <ListFilterBar className="items-start border-b border-slate-200 p-4">
+      <div>
         <FormSelectField
           label="Kỳ báo cáo"
           value={filters.mode}
@@ -233,7 +234,7 @@ function PeriodFilters({
       </div>
 
       {filters.mode === 'month' && (
-        <div className="w-full sm:w-[176px]">
+        <div>
           <CompactMonthPicker
             label="Tháng"
             value={filters.month}
@@ -244,7 +245,7 @@ function PeriodFilters({
 
       {filters.mode === 'quarter' && (
         <>
-          <div className="w-full sm:w-[176px]">
+          <div>
             <FormSelectField
               label="Quý"
               value={filters.quarter}
@@ -256,21 +257,21 @@ function PeriodFilters({
               <MenuItem value="4">Quý 4</MenuItem>
             </FormSelectField>
           </div>
-          <div className="w-full sm:w-[176px]">
+          <div>
             <CompactYearPicker value={filters.year} onChange={(year) => year && update({ year })} />
           </div>
         </>
       )}
 
       {filters.mode === 'year' && (
-        <div className="w-full sm:w-[176px]">
+        <div>
           <CompactYearPicker value={filters.year} onChange={(year) => year && update({ year })} />
         </div>
       )}
 
       {filters.mode === 'range' && (
         <>
-          <div className="w-full sm:w-[176px]">
+          <div>
             <CompactMonthPicker
               label="Từ tháng"
               value={filters.periodFrom}
@@ -283,7 +284,7 @@ function PeriodFilters({
               }}
             />
           </div>
-          <div className="w-full sm:w-[176px]">
+          <div>
             <CompactMonthPicker
               label="Đến tháng"
               value={filters.periodTo}
@@ -298,7 +299,7 @@ function PeriodFilters({
           </div>
         </>
       )}
-    </div>
+    </ListFilterBar>
   );
 }
 

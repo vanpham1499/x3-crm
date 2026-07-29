@@ -40,7 +40,12 @@ const navGroups = [
   {
     label: 'CRM',
     items: [
-      { href: '/dashboard', label: 'Dashboard', icon: GridViewRoundedIcon },
+      {
+        href: '/dashboard',
+        label: 'Dashboard',
+        icon: GridViewRoundedIcon,
+        permissions: ['dashboard.view'],
+      },
       { href: '/leads', label: 'Lead', icon: PersonSearchRoundedIcon, permissions: ['lead.view'] },
       {
         href: '/customers',
@@ -66,12 +71,17 @@ const navGroups = [
         icon: RequestQuoteRoundedIcon,
         permissions: ['quotation.view'],
       },
-      { href: '/payments', label: 'Thanh toán', icon: AccountBalanceWalletRoundedIcon },
+      {
+        href: '/payments',
+        label: 'Thanh toán',
+        icon: AccountBalanceWalletRoundedIcon,
+        permissions: ['payment.view'],
+      },
       {
         href: '/costs',
         label: 'Chi phí',
         icon: TrendingDownRoundedIcon,
-        permissions: ['project.view'],
+        permissions: ['cost.view'],
       },
       {
         href: '/weekly-reports',
@@ -91,12 +101,17 @@ const navGroups = [
         icon: EmojiEventsRoundedIcon,
         permissions: ['p2point.view'],
       },
-      { href: '/media-library', label: 'Thư viện', icon: PhotoLibraryRoundedIcon },
+      {
+        href: '/media-library',
+        label: 'Thư viện',
+        icon: PhotoLibraryRoundedIcon,
+        permissions: ['media.view'],
+      },
       {
         href: '/users',
         label: 'Tài khoản',
         icon: ManageAccountsRoundedIcon,
-        permissions: ['user.view', 'role.view'],
+        permissions: ['user.view', 'department.view', 'role.view', 'permission.view'],
         children: [
           {
             href: '/users',
@@ -108,7 +123,7 @@ const navGroups = [
             href: '/users/departments',
             label: 'Phòng ban',
             icon: CorporateFareRoundedIcon,
-            permissions: ['user.view'],
+            permissions: ['department.view'],
           },
           {
             href: '/users/roles',
@@ -120,7 +135,7 @@ const navGroups = [
             href: '/users/permissions',
             label: 'Phân quyền',
             icon: PolicyRoundedIcon,
-            permissions: ['role.view'],
+            permissions: ['permission.view'],
           },
         ],
       },
@@ -128,26 +143,51 @@ const navGroups = [
         href: '/settings',
         label: 'Cài đặt',
         icon: SettingsRoundedIcon,
-        permissions: ['option.manage'],
+        permissions: [
+          'service.view',
+          'partner.view',
+          'bankaccount.view',
+          'adtopupcard.view',
+          'p2category.view',
+          'option.view',
+        ],
         children: [
-          { href: '/projects/services', label: 'Dịch vụ', icon: DesignServicesRoundedIcon },
-          { href: '/projects/partners', label: 'Đối tác', icon: HandshakeRoundedIcon },
+          {
+            href: '/settings/services',
+            label: 'Dịch vụ',
+            icon: DesignServicesRoundedIcon,
+            permissions: ['service.view'],
+          },
+          {
+            href: '/settings/partners',
+            label: 'Đối tác',
+            icon: HandshakeRoundedIcon,
+            permissions: ['partner.view'],
+          },
           {
             href: '/settings/bank-accounts',
             label: 'Ngân hàng',
             icon: AccountBalanceRoundedIcon,
+            permissions: ['bankaccount.view'],
           },
           {
             href: '/settings/ad-topup-cards',
             label: 'Thẻ nạp QC',
             icon: CreditCardRoundedIcon,
+            permissions: ['adtopupcard.view'],
           },
           {
             href: '/settings/p2-categories',
             label: 'Hạng mục P2',
             icon: GradingRoundedIcon,
+            permissions: ['p2category.view'],
           },
-          { href: '/settings/options', label: 'Danh mục chung', icon: TuneRoundedIcon },
+          {
+            href: '/settings/options',
+            label: 'Danh mục chung',
+            icon: TuneRoundedIcon,
+            permissions: ['option.view'],
+          },
         ],
       },
     ],
@@ -192,12 +232,6 @@ function isActivePath(pathname: string, href: string) {
   if (href === '/users') return isSettingsUserPath(pathname);
 
   return pathname === href || pathname.startsWith(`${href}/`);
-}
-
-function isSettingsCatalogPath(pathname: string) {
-  return ['/projects/services', '/projects/partners'].some(
-    (path) => pathname === path || pathname.startsWith(`${path}/`),
-  );
 }
 
 export function Sidebar() {
@@ -273,8 +307,7 @@ export function Sidebar() {
                 const active =
                   pathname === item.href ||
                   (item.href !== '/dashboard' &&
-                    pathname.startsWith(`${item.href}/`) &&
-                    !(item.href === '/projects' && isSettingsCatalogPath(pathname))) ||
+                    pathname.startsWith(`${item.href}/`)) ||
                   childActive;
                 const isOpen = openNavItems[item.href] ?? active;
 

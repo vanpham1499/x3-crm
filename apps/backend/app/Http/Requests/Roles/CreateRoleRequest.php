@@ -12,6 +12,13 @@ class CreateRoleRequest extends BaseRequest
         return [
             'name' => ['required', 'string', 'max:100', Rule::unique('roles', 'name')->whereNull('deleted_at')],
             'description' => ['nullable', 'string'],
+            'permission_ids' => ['sometimes', 'array'],
+            'permission_ids.*' => [
+                'required',
+                'integer',
+                'distinct',
+                Rule::exists('permissions', 'id')->whereNull('deleted_at'),
+            ],
         ];
     }
 }

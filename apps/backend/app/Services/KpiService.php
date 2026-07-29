@@ -12,6 +12,7 @@ use App\Models\ProjectCost;
 use App\Models\ProjectCostAdjustment;
 use App\Models\Quotation;
 use App\Models\Service;
+use App\Models\User;
 use App\Repositories\KpiReportRepository;
 use App\Repositories\KpiTargetRepository;
 use Carbon\CarbonImmutable;
@@ -39,6 +40,7 @@ class KpiService extends BaseService
 
         $services = $this->reports->services();
         $departments = $this->reports->departments();
+        $users = $this->reports->users();
         $projects = $this->reports->activeProjects();
         $projectIds = $projects->pluck('id');
         $quotations = $this->reports->quotations($projectIds);
@@ -88,6 +90,7 @@ class KpiService extends BaseService
             $periodStart->format('Y-m'),
             $services,
             $departments,
+            $users,
             $allocations,
             $quotationMap,
             $projectMap,
@@ -138,6 +141,7 @@ class KpiService extends BaseService
         string $periodKey,
         Collection $services,
         Collection $departments,
+        Collection $users,
         Collection $allocations,
         Collection $quotationMap,
         Collection $projectMap,
@@ -150,6 +154,7 @@ class KpiService extends BaseService
     ): array {
         $serviceActuals = $this->emptyServiceActuals($rootServiceIds);
         $departmentActuals = $this->emptyDepartmentActuals($departments->pluck('id'));
+        $employeeActuals = $this->emptyEmployeeActuals($users->pluck('id'));
         $targetMap = $targets
             ->keyBy(fn (KpiTarget $target): string => $target->scope_type.':'.$target->scope_id);
 
@@ -161,6 +166,7 @@ class KpiService extends BaseService
             $projectRootServices,
             $serviceActuals,
             $departmentActuals,
+            $employeeActuals,
         );
         $this->applyCosts(
             $costs,
@@ -168,12 +174,14 @@ class KpiService extends BaseService
             $projectRootServices,
             $serviceActuals,
             $departmentActuals,
+            $employeeActuals,
         );
         $this->applyAcquisitionCredits(
             $periodKey,
             $firstSuccessfulByProject,
             $projectMap,
             $departmentActuals,
+            $employeeActuals,
         );
         $this->applyRefunds(
             $refunds,
@@ -183,6 +191,7 @@ class KpiService extends BaseService
             $firstSuccessfulByProject,
             $serviceActuals,
             $departmentActuals,
+            $employeeActuals,
         );
 
         $serviceRows = $services
@@ -240,10 +249,39 @@ class KpiService extends BaseService
             })
             ->values();
 
+        $employeeRows = $users
+            ->map(function (User $user) use ($employeeActuals): array {
+                $actual = $employeeActuals[(int) $user->id];
+                $implementationAmount = $actual['implementationReceivedBeforeVatAmount']
+                    - $actual['implementationCostBeforeVatAmount']
+                    - $actual['implementationRefundBeforeVatAmount'];
+                $acquisitionAmount = $actual['acquisitionCreditBeforeVatAmount']
+                    - $actual['acquisitionRefundBeforeVatAmount'];
+
+                return [
+                    'id' => (int) $user->id,
+                    'code' => $user->code,
+                    'name' => $user->name,
+                    'departmentId' => $user->department_id ? (int) $user->department_id : null,
+                    'departmentName' => $user->department?->name,
+                    'isActive' => (bool) $user->is_active && ! $user->trashed(),
+                    'implementationReceivedAmount' => $this->money($actual['implementationReceivedAmount']),
+                    'implementationCostAmount' => $this->money($actual['implementationCostAmount']),
+                    'implementationRefundAmount' => $this->money($actual['implementationRefundAmount']),
+                    'implementationAmount' => $this->money($implementationAmount),
+                    'acquisitionCreditAmount' => $this->money($actual['acquisitionCreditAmount']),
+                    'acquisitionRefundAmount' => $this->money($actual['acquisitionRefundAmount']),
+                    'acquisitionAmount' => $this->money($acquisitionAmount),
+                    'actualAmount' => $this->money($implementationAmount + $acquisitionAmount),
+                ];
+            })
+            ->values();
+
         return [
             'period' => $periodKey,
             'services' => $serviceRows,
             'departments' => $departmentRows,
+            'employees' => $employeeRows,
             'summary' => [
                 'services' => $this->summary($serviceRows),
                 'departments' => $this->summary($departmentRows),
@@ -259,6 +297,7 @@ class KpiService extends BaseService
         Collection $projectRootServices,
         array &$serviceActuals,
         array &$departmentActuals,
+        array &$employeeActuals,
     ): void {
         foreach ($allocations->groupBy('quotation_id') as $quotationId => $quotationAllocations) {
             /** @var Quotation|null $quotation */
@@ -306,6 +345,14 @@ class KpiService extends BaseService
                     $departmentActuals[$departmentId]['implementationReceivedBeforeVatAmount'] +=
                         $receivedBeforeVatAmount;
                 }
+
+                $managerUserId = $project?->manager_user_id;
+
+                if ($managerUserId && isset($employeeActuals[$managerUserId])) {
+                    $employeeActuals[$managerUserId]['implementationReceivedAmount'] += $receivedAmount;
+                    $employeeActuals[$managerUserId]['implementationReceivedBeforeVatAmount'] +=
+                        $receivedBeforeVatAmount;
+                }
             }
         }
     }
@@ -316,6 +363,7 @@ class KpiService extends BaseService
         Collection $projectRootServices,
         array &$serviceActuals,
         array &$departmentActuals,
+        array &$employeeActuals,
     ): void {
         foreach ($costs as $cost) {
             /** @var ProjectCost $cost */
@@ -334,6 +382,14 @@ class KpiService extends BaseService
                 $departmentActuals[$departmentId]['implementationCostBeforeVatAmount'] +=
                     $amounts['beforeVat'];
             }
+
+            $managerUserId = $project?->manager_user_id;
+
+            if ($managerUserId && isset($employeeActuals[$managerUserId])) {
+                $employeeActuals[$managerUserId]['implementationCostAmount'] += $amounts['gross'];
+                $employeeActuals[$managerUserId]['implementationCostBeforeVatAmount'] +=
+                    $amounts['beforeVat'];
+            }
         }
     }
 
@@ -342,6 +398,7 @@ class KpiService extends BaseService
         Collection $firstSuccessfulByProject,
         Collection $projectMap,
         array &$departmentActuals,
+        array &$employeeActuals,
     ): void {
         foreach ($firstSuccessfulByProject as $projectId => $success) {
             if ($success['paidAt']->format('Y-m') !== $periodKey) {
@@ -350,16 +407,22 @@ class KpiService extends BaseService
 
             $project = $projectMap->get($projectId);
             $departmentId = $project?->customer?->salesUser?->department_id;
-
-            if (! $departmentId || ! isset($departmentActuals[$departmentId])) {
-                continue;
-            }
-
             /** @var Quotation $quotation */
             $quotation = $success['quotation'];
-            $departmentActuals[$departmentId]['acquisitionCreditAmount'] += (float) $quotation->total_amount;
-            $departmentActuals[$departmentId]['acquisitionCreditBeforeVatAmount'] +=
-                (float) $quotation->subtotal_amount + (float) $quotation->deposit_amount;
+
+            if ($departmentId && isset($departmentActuals[$departmentId])) {
+                $departmentActuals[$departmentId]['acquisitionCreditAmount'] += (float) $quotation->total_amount;
+                $departmentActuals[$departmentId]['acquisitionCreditBeforeVatAmount'] +=
+                    (float) $quotation->subtotal_amount + (float) $quotation->deposit_amount;
+            }
+
+            $salesUserId = $project?->customer?->sales_user_id;
+
+            if ($salesUserId && isset($employeeActuals[$salesUserId])) {
+                $employeeActuals[$salesUserId]['acquisitionCreditAmount'] += (float) $quotation->total_amount;
+                $employeeActuals[$salesUserId]['acquisitionCreditBeforeVatAmount'] +=
+                    (float) $quotation->subtotal_amount + (float) $quotation->deposit_amount;
+            }
         }
     }
 
@@ -371,6 +434,7 @@ class KpiService extends BaseService
         Collection $firstSuccessfulByProject,
         array &$serviceActuals,
         array &$departmentActuals,
+        array &$employeeActuals,
     ): void {
         foreach ($refunds as $refund) {
             /** @var PaymentRefund $refund */
@@ -399,6 +463,14 @@ class KpiService extends BaseService
                     $serviceRefundBeforeVatAmount;
             }
 
+            $managerUserId = $project?->manager_user_id;
+
+            if ($managerUserId && isset($employeeActuals[$managerUserId])) {
+                $employeeActuals[$managerUserId]['implementationRefundAmount'] += $refundAmount;
+                $employeeActuals[$managerUserId]['implementationRefundBeforeVatAmount'] +=
+                    $serviceRefundBeforeVatAmount;
+            }
+
             $firstSuccess = $firstSuccessfulByProject->get($projectId);
 
             if (! $firstSuccess || (int) $firstSuccess['quotation']->id !== (int) $refund->quotation_id) {
@@ -414,6 +486,18 @@ class KpiService extends BaseService
                         : $this->refundBeforeVat($refund, $quotation);
                 $departmentActuals[$acquisitionDepartmentId]['acquisitionRefundAmount'] += $refundAmount;
                 $departmentActuals[$acquisitionDepartmentId]['acquisitionRefundBeforeVatAmount'] +=
+                    $acquisitionRefundBeforeVatAmount;
+            }
+
+            $salesUserId = $project?->customer?->sales_user_id;
+
+            if ($salesUserId && isset($employeeActuals[$salesUserId])) {
+                $acquisitionRefundBeforeVatAmount =
+                    $refund->refund_type === PaymentRefund::TYPE_OVERPAYMENT
+                        ? 0.0
+                        : $this->refundBeforeVat($refund, $quotation);
+                $employeeActuals[$salesUserId]['acquisitionRefundAmount'] += $refundAmount;
+                $employeeActuals[$salesUserId]['acquisitionRefundBeforeVatAmount'] +=
                     $acquisitionRefundBeforeVatAmount;
             }
         }
@@ -573,6 +657,24 @@ class KpiService extends BaseService
     private function emptyDepartmentActuals(Collection $departmentIds): array
     {
         return $departmentIds->mapWithKeys(fn ($id): array => [
+            (int) $id => [
+                'implementationReceivedAmount' => 0.0,
+                'implementationCostAmount' => 0.0,
+                'implementationRefundAmount' => 0.0,
+                'acquisitionCreditAmount' => 0.0,
+                'acquisitionRefundAmount' => 0.0,
+                'implementationReceivedBeforeVatAmount' => 0.0,
+                'implementationCostBeforeVatAmount' => 0.0,
+                'implementationRefundBeforeVatAmount' => 0.0,
+                'acquisitionCreditBeforeVatAmount' => 0.0,
+                'acquisitionRefundBeforeVatAmount' => 0.0,
+            ],
+        ])->all();
+    }
+
+    private function emptyEmployeeActuals(Collection $userIds): array
+    {
+        return $userIds->mapWithKeys(fn ($id): array => [
             (int) $id => [
                 'implementationReceivedAmount' => 0.0,
                 'implementationCostAmount' => 0.0,

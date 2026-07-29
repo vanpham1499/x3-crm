@@ -17,6 +17,13 @@ class UpdateRoleRequest extends BaseRequest
                 Rule::unique('roles', 'name')->ignore($this->route('id'))->whereNull('deleted_at'),
             ],
             'description' => ['sometimes', 'nullable', 'string'],
+            'permission_ids' => ['sometimes', 'array'],
+            'permission_ids.*' => [
+                'required',
+                'integer',
+                'distinct',
+                Rule::exists('permissions', 'id')->whereNull('deleted_at'),
+            ],
         ];
     }
 }

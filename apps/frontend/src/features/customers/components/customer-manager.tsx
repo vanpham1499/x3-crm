@@ -19,6 +19,7 @@ import { ExternalLinkButton } from '@/components/actions/external-link-button';
 import { AppDetailDialog } from '@/components/dialog/app-detail-dialog';
 import { CompactSearchField } from '@/components/form/compact-search-field';
 import { CompactSelectField } from '@/components/form/compact-select-field';
+import { ListFilterBar } from '@/components/form/list-filter-bar';
 import { ImageLightbox } from '@/components/media/image-lightbox';
 import { IconTabs } from '@/components/navigation/icon-tabs';
 import { PageHeader } from '@/components/shell/page-header';
@@ -28,6 +29,7 @@ import { TablePaginationBar } from '@/components/table/table-pagination-bar';
 import { UserDateTimeCell } from '@/components/table/user-date-time-cell';
 import { canCreateProjectForCustomer, canDeleteCustomer, canEditCustomer } from '@/lib/ownership';
 import { getMediaPreviewUrl } from '@/lib/media-url';
+import { getOptionColor } from '@/lib/option-utils';
 import api from '@/services/api/client';
 import type { Customer, CustomerFilters } from '@/types/customer';
 import type { AppOption } from '@/types/option';
@@ -53,10 +55,57 @@ type CustomerManagerProps = {
   onDelete: (customer: Customer) => void;
 };
 
-function InfoPill({ value, className }: { value?: string | null; className: string }) {
+function hexToRgb(hex: string) {
+  const normalized = hex.replace('#', '').trim();
+  const value =
+    normalized.length === 3
+      ? normalized
+          .split('')
+          .map((character) => character + character)
+          .join('')
+      : normalized;
+
+  if (!/^[0-9a-f]{6}$/i.test(value)) return null;
+
+  const numberValue = Number.parseInt(value, 16);
+
+  return {
+    r: (numberValue >> 16) & 255,
+    g: (numberValue >> 8) & 255,
+    b: numberValue & 255,
+  };
+}
+
+function optionPillStyle(option?: AppOption | null) {
+  if (!option) return undefined;
+
+  const color = getOptionColor(option);
+  const rgb = hexToRgb(color);
+
+  if (!rgb) return undefined;
+
+  return {
+    backgroundColor: `rgba(${rgb.r}, ${rgb.g}, ${rgb.b}, 0.12)`,
+    borderColor: `rgba(${rgb.r}, ${rgb.g}, ${rgb.b}, 0.28)`,
+    color,
+  };
+}
+
+function InfoPill({
+  value,
+  className,
+  option,
+}: {
+  value?: string | null;
+  className: string;
+  option?: AppOption | null;
+}) {
+  const style = optionPillStyle(option);
+
   return (
     <span
-      className={`inline-flex max-w-full items-center rounded-full px-2 py-0.5 text-[11px] font-bold ring-1 ${className}`}
+      className={`inline-flex max-w-full items-center rounded-full px-2 py-0.5 text-[11px] font-bold ${style ? 'border' : `ring-1 ${className}`}`}
+      style={style}
       title={value || undefined}
     >
       <span className="truncate">{value || '-'}</span>
@@ -364,7 +413,7 @@ export function CustomerManager({
       <PageHeader title="Khách hàng" />
 
       <section className="w-full overflow-hidden rounded-2xl border border-slate-200 bg-white shadow-sm">
-        <div className="grid gap-3  border-slate-200 p-4 lg:grid-cols-[minmax(260px,1fr)_repeat(4,176px)]">
+        <ListFilterBar className="border-slate-200 p-4">
           <CompactSearchField
             label="Từ khóa"
             placeholder="Tìm mã, khách hàng, công ty, điện thoại, email..."
@@ -411,7 +460,7 @@ export function CustomerManager({
             }))}
             onChange={(value) => updateFilters({ sales_user_id: Number(value) || 0 })}
           />
-        </div>
+        </ListFilterBar>
 
         <AppDataTable
           columns={[
@@ -446,6 +495,7 @@ export function CustomerManager({
                 <td className="px-3 py-4">
                   <InfoPill
                     value={customer.customerTypeOption?.label || customer.customerType}
+                    option={customer.customerTypeOption}
                     className="bg-emerald-50 text-emerald-700 ring-emerald-100"
                   />
                 </td>

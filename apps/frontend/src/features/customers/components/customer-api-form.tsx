@@ -82,6 +82,7 @@ export function CustomerApiForm({
     formState: { errors },
   } = useForm<CustomerFormValues>({ values: defaultValues });
   const websiteValue = watch('website');
+  const industryValue = watch('industry');
 
   const submitForm = handleSubmit(async (values) => {
     try {
@@ -206,19 +207,27 @@ export function CustomerApiForm({
               <FormInputField
                 label="Website"
                 disabled={readOnly}
+                helperText="Có thể nhập link Website, Google Map hoặc Fanpage."
                 slotProps={{
                   input: {
                     endAdornment: (
                       <ExternalLinkAdornment
                         value={websiteValue}
-                        ariaLabel="Mở Website trong tab mới"
+                        ariaLabel="Mở Website, Google Map hoặc Fanpage trong tab mới"
                       />
                     ),
                   },
                 }}
                 {...register('website')}
               />
-              <FormInputField label="Ngành" disabled={readOnly} {...register('industry')} />
+              <input type="hidden" {...register('industry')} />
+              <input type="hidden" {...register('industryOptionId')} />
+              <FormInputField
+                label="Ngành"
+                value={industryValue}
+                disabled
+                helperText="Kế thừa từ Lead. Muốn thay đổi, hãy cập nhật tại Lead."
+              />
             </div>
 
             <div className="grid gap-4 md:grid-cols-2">

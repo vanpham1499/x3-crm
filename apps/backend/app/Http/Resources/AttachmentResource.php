@@ -27,9 +27,12 @@ class AttachmentResource extends JsonResource
             'uploader' => $this->whenLoaded('uploadedBy', fn () => $this->uploadedBy ? [
                 'id' => $this->uploadedBy->id,
                 'name' => $this->uploadedBy->name,
+                'departmentId' => $this->uploadedBy->department_id,
             ] : null),
             'usages' => $usages,
             'usageCount' => count($usages),
+            'canUpdate' => (bool) ($request->user()?->can('update', $this->resource) ?? false),
+            'canDelete' => (bool) ($request->user()?->can('delete', $this->resource) ?? false),
             'createdAt' => $this->created_at?->toISOString(),
             'updatedAt' => $this->updated_at?->toISOString(),
         ];

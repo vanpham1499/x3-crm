@@ -48,7 +48,7 @@ export default function ProjectsPage() {
 
   const { data: users = [] } = useQuery<User[]>({
     queryKey: ['users', 'project-options'],
-    queryFn: () => api.get('/users').then((response) => response.data),
+    queryFn: () => api.get('/users/lookup?context=project').then((response) => response.data),
   });
 
   const { data: statuses = [] } = useQuery<AppOption[]>({

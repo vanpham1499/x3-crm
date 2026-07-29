@@ -12,12 +12,18 @@ class ProjectWeeklySettingsService extends BaseService
 
     public function findAll(array $filters = [])
     {
-        return $this->apiCollection($this->settings->findAll($this->normalizeKeys($filters)), ProjectWeeklySettingResource::class);
+        return $this->apiCollection(
+            $this->settings->findAll($this->normalizeKeys($filters), $this->currentUser()),
+            ProjectWeeklySettingResource::class,
+        );
     }
 
     public function findOne(string $id): array
     {
-        return $this->apiResource($this->settings->findWithRelationsOrFail($id), ProjectWeeklySettingResource::class);
+        return $this->apiResource(
+            $this->settings->findVisibleWithRelationsOrFail($this->currentUser(), $id),
+            ProjectWeeklySettingResource::class,
+        );
     }
 
     public function assignmentSummary(

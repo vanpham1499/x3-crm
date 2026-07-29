@@ -4,6 +4,7 @@ namespace App\Repositories;
 
 use App\Models\Lead;
 use App\Models\Option;
+use App\Models\User;
 use Illuminate\Contracts\Pagination\LengthAwarePaginator;
 use Illuminate\Database\Eloquent\Builder;
 use Illuminate\Database\Eloquent\Collection;
@@ -18,18 +19,18 @@ class LeadRepository extends BaseRepository
         return Lead::class;
     }
 
-    public function findAll(array $filters = []): Collection
+    public function findAll(array $filters = [], ?User $user = null): Collection
     {
-        return $this->filteredQuery($filters)->get();
+        return $this->filteredQuery($filters, $user)->get();
     }
 
-    public function findPaginated(array $filters, int $perPage, int $page): LengthAwarePaginator
+    public function findPaginated(array $filters, int $perPage, int $page, ?User $user = null): LengthAwarePaginator
     {
-        return $this->filteredQuery($filters)
+        return $this->filteredQuery($filters, $user)
             ->paginate($perPage, ['*'], 'page', $page);
     }
 
-    private function filteredQuery(array $filters): Builder
+    private function filteredQuery(array $filters, ?User $user = null): Builder
     {
         $keyword = trim((string) ($filters['keyword'] ?? $filters['search'] ?? ''));
         $statusOptionId = $filters['status_option_id'] ?? null;
@@ -46,8 +47,12 @@ class LeadRepository extends BaseRepository
         $closedFrom = $filters['closed_from'] ?? null;
         $closedTo = $filters['closed_to'] ?? null;
 
-        return $this->query()
-            ->with(['statusOption', 'assignedUser', 'createdBy', 'sourceOption', 'industryOption', 'interestedServiceOption', 'interestedServiceOptions', 'interestedService', 'convertedCustomer'])
+        $query = $this->query()
+            ->with(['statusOption', 'assignedUser', 'createdBy', 'sourceOption', 'industryOption', 'interestedServiceOption', 'interestedServiceOptions', 'interestedService', 'convertedCustomer']);
+
+        $this->applyViewScope($query, $user);
+
+        return $query
             ->when($keyword !== '', function ($query) use ($keyword): void {
                 $query->where(function ($query) use ($keyword): void {
                     $query
@@ -78,6 +83,28 @@ class LeadRepository extends BaseRepository
             ->when($closedTo, fn ($query) => $query->whereDate('closed_date', '<=', $closedTo))
             ->orderByDesc('occurred_date')
             ->orderByDesc('created_at');
+    }
+
+    private function applyViewScope(Builder $query, ?User $user): void
+    {
+        if (! $user || $user->hasPermission('lead.view_all')) {
+            return;
+        }
+
+        if ($user->hasPermission('lead.view_department') && $user->department_id) {
+            $query->whereHas('assignedUser', fn (Builder $assignedUser) => $assignedUser
+                ->where('department_id', $user->department_id));
+
+            return;
+        }
+
+        if ($user->hasPermission('lead.view')) {
+            $query->where('assigned_user_id', $user->id);
+
+            return;
+        }
+
+        $query->whereRaw('1 = 0');
     }
 
     public function findWithRelationsOrFail(string $id): Lead

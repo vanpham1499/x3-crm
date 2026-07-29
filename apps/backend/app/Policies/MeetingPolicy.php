@@ -2,9 +2,9 @@
 
 namespace App\Policies;
 
-use App\Models\Department;
 use App\Models\Meeting;
 use App\Models\User;
+use Illuminate\Database\Eloquent\Builder;
 
 class MeetingPolicy
 {
@@ -15,12 +15,7 @@ class MeetingPolicy
 
     public function view(User $user, Meeting $meeting): bool
     {
-        return $user->hasPermission('meeting.view')
-            && (
-                $user->hasPermission('meeting.update_all')
-                || $user->hasPermission('meeting.delete_all')
-                || $this->belongsToScope($user, $meeting)
-            );
+        return $this->allows($user, $meeting, 'view');
     }
 
     public function create(User $user): bool
@@ -30,23 +25,32 @@ class MeetingPolicy
 
     public function update(User $user, Meeting $meeting): bool
     {
-        if ($user->hasPermission('meeting.update_all')) {
-            return true;
-        }
-
-        return $user->hasPermission('meeting.update') && $this->belongsToScope($user, $meeting);
+        return $this->allows($user, $meeting, 'update');
     }
 
     public function delete(User $user, Meeting $meeting): bool
     {
-        if ($user->hasPermission('meeting.delete_all')) {
+        return $this->allows($user, $meeting, 'delete');
+    }
+
+    private function allows(User $user, Meeting $meeting, string $action): bool
+    {
+        if ($user->hasPermission("meeting.{$action}_all")) {
             return true;
         }
 
-        return $user->hasPermission('meeting.delete') && $this->belongsToScope($user, $meeting);
+        if (
+            $user->hasPermission("meeting.{$action}_department")
+            && $this->belongsToDepartmentScope($user, $meeting)
+        ) {
+            return true;
+        }
+
+        return $user->hasPermission("meeting.{$action}")
+            && $this->belongsToOwnScope($user, $meeting);
     }
 
-    private function belongsToScope(User $user, Meeting $meeting): bool
+    private function belongsToOwnScope(User $user, Meeting $meeting): bool
     {
         if ($meeting->organizer_user_id === $user->id) {
             return true;
@@ -75,12 +79,29 @@ class MeetingPolicy
             return true;
         }
 
-        $organizerDepartmentId = $meeting->organizer?->department_id;
+        return false;
+    }
 
-        return $organizerDepartmentId
-            && Department::query()
-                ->whereKey($organizerDepartmentId)
-                ->where('leader_user_id', $user->id)
-                ->exists();
+    private function belongsToDepartmentScope(User $user, Meeting $meeting): bool
+    {
+        if (! $user->department_id) {
+            return false;
+        }
+
+        $departmentId = $user->department_id;
+
+        return Meeting::query()
+            ->whereKey($meeting->id)
+            ->where(function (Builder $query) use ($departmentId): void {
+                $query
+                    ->whereHas('organizer', fn (Builder $organizer) => $organizer->where('department_id', $departmentId))
+                    ->orWhereHas('participants', fn (Builder $participants) => $participants->where('users.department_id', $departmentId))
+                    ->orWhereHas('lead.assignedUser', fn (Builder $assigned) => $assigned->where('department_id', $departmentId))
+                    ->orWhereHas('customer.salesUser', fn (Builder $sales) => $sales->where('department_id', $departmentId))
+                    ->orWhereHas('project.managerUser', fn (Builder $manager) => $manager->where('department_id', $departmentId))
+                    ->orWhereHas('project.salesUser', fn (Builder $sales) => $sales->where('department_id', $departmentId))
+                    ->orWhereHas('createdBy', fn (Builder $creator) => $creator->where('department_id', $departmentId));
+            })
+            ->exists();
     }
 }

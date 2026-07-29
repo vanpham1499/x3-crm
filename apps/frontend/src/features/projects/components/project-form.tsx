@@ -18,9 +18,8 @@ import { generateProjectCode, getProjectDefaults, getRootServiceCode } from '@/l
 import { flattenServices } from '@/lib/service-utils';
 import { getReportWeekdayLabel } from '@/lib/weekly-report-schedule';
 import api from '@/services/api/client';
-import type { Customer } from '@/types/customer';
 import type { AppOption } from '@/types/option';
-import type { ProjectFormValues, ProjectItem } from '@/types/project';
+import type { ProjectCustomerSummary, ProjectFormValues, ProjectItem } from '@/types/project';
 import type { ServiceItem } from '@/types/service';
 import type { User } from '@/types/user';
 import type { WeeklyAssignmentSummary } from '@/types/weekly-report';
@@ -28,7 +27,7 @@ import type { WeeklyAssignmentSummary } from '@/types/weekly-report';
 type ProjectFormProps = {
   mode: 'create' | 'edit';
   project?: ProjectItem | null;
-  initialCustomer?: CustomerOption | null;
+  initialCustomer?: ProjectCustomerSummary | null;
   services: ServiceItem[];
   users: User[];
   statuses: AppOption[];
@@ -40,12 +39,7 @@ type ProjectFormProps = {
   onSubmit: (values: ProjectFormValues) => Promise<unknown>;
 };
 
-type CustomerOption = Pick<
-  Customer,
-  'id' | 'customerCode' | 'customerName' | 'companyName' | 'phone' | 'email' | 'leadId'
->;
-
-function customerLabel(customer: CustomerOption) {
+function customerLabel(customer: ProjectCustomerSummary) {
   return [customer.customerCode, customer.customerName || customer.companyName]
     .filter(Boolean)
     .join(' - ');
@@ -73,7 +67,7 @@ export function ProjectForm({
   onSubmit,
 }: ProjectFormProps) {
   const serviceOptions = useMemo(() => flattenServices(services), [services]);
-  const [selectedCustomer, setSelectedCustomer] = useState<CustomerOption | null>(
+  const [selectedCustomer, setSelectedCustomer] = useState<ProjectCustomerSummary | null>(
     initialCustomer || project?.customer || null,
   );
   const {
@@ -89,7 +83,6 @@ export function ProjectForm({
   const projectName = useWatch({ control, name: 'projectName' }) || '';
   const projectType = useWatch({ control, name: 'projectType' }) || 'K';
   const planLinkValue = useWatch({ control, name: 'planLink' }) || '';
-  const weeklyReportLinkValue = useWatch({ control, name: 'weeklyReportLink' }) || '';
   const customerTrackingReportLinkValue =
     useWatch({ control, name: 'customerTrackingReportLink' }) || '';
   const selectedManagerUserId = useWatch({ control, name: 'managerUserId' }) || '';
@@ -163,9 +156,9 @@ export function ProjectForm({
                 control={control}
                 rules={{ required: 'Vui lòng chọn khách hàng' }}
                 render={({ field }) => (
-                  <ServerPaginatedAutocomplete<CustomerOption>
-                    endpoint="/customers"
-                    queryKey={['customers', 'project-form-autocomplete']}
+                  <ServerPaginatedAutocomplete<ProjectCustomerSummary>
+                    endpoint="/customers/lookup"
+                    queryKey={['customers', 'lookup', 'project-form-autocomplete']}
                     label="Mã khách hàng "
                     value={selectedCustomer}
                     disabled={readOnly}
@@ -227,7 +220,7 @@ export function ProjectForm({
               />
             </div>
 
-            <div className="grid grid-cols-[minmax(0,1fr)_72px_minmax(0,1.25fr)] gap-2 md:grid-cols-[minmax(0,1fr)_80px_minmax(0,1.25fr)] md:gap-3">
+            <div className="grid grid-cols-[minmax(0,1fr)_140px_minmax(0,1.25fr)] gap-2 md:grid-cols-[minmax(0,1fr)_140px_minmax(0,1.25fr)] md:gap-3">
               <Controller
                 name="projectName"
                 control={control}
@@ -257,7 +250,7 @@ export function ProjectForm({
                   >
                     <MenuItem value="K">K</MenuItem>
                     <MenuItem value="M">M</MenuItem>
-                    <MenuItem value="N">O</MenuItem>
+                    <MenuItem value="O">Không chọn</MenuItem>
                   </FormSelectField>
                 )}
               />
@@ -299,23 +292,6 @@ export function ProjectForm({
 
             <div className="grid gap-4 md:grid-cols-2">
               <FormInputField
-                label="Link báo cáo tuần"
-                placeholder="https://docs.google.com/..."
-                disabled={readOnly}
-                slotProps={{
-                  input: {
-                    endAdornment: (
-                      <ExternalLinkAdornment
-                        value={weeklyReportLinkValue}
-                        ariaLabel="Mở link báo cáo tuần trong tab mới"
-                      />
-                    ),
-                  },
-                }}
-                {...register('weeklyReportLink')}
-              />
-
-              <FormInputField
                 label="Link báo cáo tổng khách hàng theo dõi"
                 placeholder="https://docs.google.com/..."
                 disabled={readOnly}
@@ -331,14 +307,14 @@ export function ProjectForm({
                 }}
                 {...register('customerTrackingReportLink')}
               />
-            </div>
 
-            <FormInputField
-              label="Tài khoản Admin Web"
-              placeholder="Tài khoản hoặc thông tin đăng nhập"
-              disabled={readOnly}
-              {...register('adminWebAccount')}
-            />
+              <FormInputField
+                label="Tài khoản Admin Web"
+                placeholder="Tài khoản hoặc thông tin đăng nhập"
+                disabled={readOnly}
+                {...register('adminWebAccount')}
+              />
+            </div>
 
             <div className="grid gap-4 md:grid-cols-2">
               <Controller

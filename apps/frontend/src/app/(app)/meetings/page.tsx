@@ -17,6 +17,7 @@ import { CompactAutocompleteField } from '@/components/form/compact-autocomplete
 import { CompactSearchField } from '@/components/form/compact-search-field';
 import { CompactSelectField } from '@/components/form/compact-select-field';
 import { FormDatePicker } from '@/components/form/form-date-picker';
+import { ListFilterBar } from '@/components/form/list-filter-bar';
 import { IconTabs } from '@/components/navigation/icon-tabs';
 import { PageHeader } from '@/components/shell/page-header';
 import { MeetingCalendar } from '@/features/meetings/components/meeting-calendar';
@@ -128,13 +129,16 @@ export default function MeetingsPage() {
 
   const { data: users = [] } = useQuery<User[]>({
     queryKey: ['users', 'meeting-options'],
-    queryFn: () => api.get<User[]>('/users').then((response) => response.data),
+    queryFn: () =>
+      api.get<User[]>('/users/lookup?context=meeting').then((response) => response.data),
   });
 
   const { data: departments = [] } = useQuery<Department[]>({
     queryKey: ['departments', 'meeting-options'],
-    queryFn: () => api.get<Department[]>('/departments').then((response) => response.data),
-    enabled: hasPermission(currentUser, 'user.view'),
+    queryFn: () => api.get<Department[]>('/departments/lookup').then((response) => response.data),
+    enabled:
+      hasPermission(currentUser, 'department.lookup') ||
+      hasPermission(currentUser, 'department.view'),
   });
 
   const { data: summary = EMPTY_SUMMARY } = useQuery<MeetingSummary>({
@@ -390,15 +394,13 @@ export default function MeetingsPage() {
           />
         </div>
 
-        <div className="flex flex-wrap items-center gap-3 border-b border-slate-200  p-4">
-          <div className="w-full min-w-[240px] flex-1">
-            <CompactSearchField
-              label="Tìm kiếm"
-              placeholder="Mã, tiêu đề, khách hàng, dự án"
-              value={filters.keyword}
-              onChange={(value) => updateFilter('keyword', value)}
-            />
-          </div>
+        <ListFilterBar className="border-b border-slate-200 p-4">
+          <CompactSearchField
+            label="Tìm kiếm"
+            placeholder="Mã, tiêu đề, khách hàng, dự án"
+            value={filters.keyword}
+            onChange={(value) => updateFilter('keyword', value)}
+          />
           <div className="w-full md:w-44">
             <CompactAutocompleteField
               label="Người phụ trách"
@@ -463,7 +465,7 @@ export default function MeetingsPage() {
               />
             </div>
           ) : null}
-        </div>
+        </ListFilterBar>
 
         {activeTab === 0 ? (
           <MeetingCalendar

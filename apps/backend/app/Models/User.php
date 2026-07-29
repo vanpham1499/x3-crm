@@ -98,6 +98,13 @@ class User extends Authenticatable
         return $this->belongsTo(Department::class);
     }
 
+    public function sharesDepartmentWith(?User $other): bool
+    {
+        return $this->department_id !== null
+            && $other?->department_id !== null
+            && (string) $this->department_id === (string) $other->department_id;
+    }
+
     public function createdBy(): BelongsTo
     {
         return $this->belongsTo(self::class, 'created_by');

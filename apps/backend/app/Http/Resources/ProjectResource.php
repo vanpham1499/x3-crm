@@ -49,12 +49,14 @@ class ProjectResource extends JsonResource
                 'code' => $this->managerUser->code,
                 'name' => $this->managerUser->name,
                 'email' => $this->managerUser->email,
+                'departmentId' => $this->managerUser->department_id,
             ] : null),
             'salesUser' => $this->whenLoaded('salesUser', fn () => $this->salesUser ? [
                 'id' => $this->salesUser->id,
                 'code' => $this->salesUser->code,
                 'name' => $this->salesUser->name,
                 'email' => $this->salesUser->email,
+                'departmentId' => $this->salesUser->department_id,
             ] : null),
             'createdBy' => $this->whenLoaded('createdBy', fn () => $this->createdBy ? [
                 'id' => $this->createdBy->id,
@@ -71,6 +73,8 @@ class ProjectResource extends JsonResource
             'contracts' => ContractResource::collection($this->whenLoaded('contracts')),
             'payments' => PaymentResource::collection($this->whenLoaded('payments')),
             'timelines' => CustomerTimelineResource::collection($this->whenLoaded('timelines')),
+            'canUpdate' => (bool) ($request->user()?->can('update', $this->resource) ?? false),
+            'canDelete' => (bool) ($request->user()?->can('delete', $this->resource) ?? false),
             'createdAt' => $this->created_at?->toISOString(),
             'updatedAt' => $this->updated_at?->toISOString(),
         ];

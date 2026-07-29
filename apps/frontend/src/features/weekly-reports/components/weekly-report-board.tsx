@@ -20,10 +20,16 @@ import { SummaryMetricCard } from '@/components/data-display/summary-metric-card
 import { ConfirmDialog } from '@/components/feedback/confirm-dialog';
 import { CompactSearchField } from '@/components/form/compact-search-field';
 import { CompactSelectField } from '@/components/form/compact-select-field';
+import { ListFilterBar } from '@/components/form/list-filter-bar';
 import { AppDataTable } from '@/components/table/app-data-table';
 import { EntityTableLink } from '@/components/table/entity-table-link';
 import { TablePaginationBar } from '@/components/table/table-pagination-bar';
-import { canApproveWeeklyReport } from '@/lib/ownership';
+import {
+  canApproveWeeklyReport,
+  canAuthorWeeklyReport,
+  canDeleteWeeklyReport,
+  canUpdateWeeklyReport,
+} from '@/lib/ownership';
 import { getReportWeekdayLabel } from '@/lib/weekly-report-schedule';
 import { formatDate } from '@/lib/utils';
 import { WeeklyReportCustomerPreviewDialog } from './weekly-report-customer-preview-dialog';
@@ -218,6 +224,7 @@ export function WeeklyReportBoard({
   const [deleteTarget, setDeleteTarget] = useState<WeeklyReport | null>(null);
   const [returnTarget, setReturnTarget] = useState<WeeklyReport | null>(null);
   const [customerPreviewTarget, setCustomerPreviewTarget] = useState<WeeklyReport | null>(null);
+  const canAuthor = canAuthorWeeklyReport(currentUser);
 
   const updateFilters = (values: Partial<WeeklyReportBoardFilters>) => {
     onFiltersChange({ ...filters, ...values });
@@ -240,7 +247,7 @@ export function WeeklyReportBoard({
           embedded ? '' : 'rounded-2xl border border-slate-200 shadow-sm'
         }`}
       >
-        <div className="p-4 grid gap-3 md:grid-cols-2 xl:grid-cols-[minmax(240px,1fr)_repeat(5,176px)]">
+        <ListFilterBar className="p-4">
           <CompactSearchField
             label="Từ khóa"
             placeholder="Mã dự án, tên dự án, khách hàng..."
@@ -288,7 +295,7 @@ export function WeeklyReportBoard({
               .map((option) => ({ value: option.label, label: option.label }))}
             onChange={(weeklyCondition) => updateFilters({ weeklyCondition })}
           />
-        </div>
+        </ListFilterBar>
 
         <AppDataTable
           columns={[
@@ -356,7 +363,7 @@ export function WeeklyReportBoard({
                 </td>
                 <td className="px-3 py-3.5">
                   <div className="flex items-center justify-end gap-1">
-                    {!report ? (
+                    {!report && canAuthor ? (
                       <Tooltip
                         title={row.dueStatus === 'overdue' ? 'Tạo báo cáo bù' : 'Tạo báo cáo'}
                       >
@@ -383,17 +390,19 @@ export function WeeklyReportBoard({
                             <VisibilityOutlinedIcon fontSize="small" />
                           </IconButton>
                         </Tooltip>
-                        <Tooltip title="Chỉnh sửa báo cáo">
-                          <IconButton
-                            component={Link}
-                            href={editHref}
-                            size="small"
-                            color={report.status === 'draft' ? 'primary' : 'default'}
-                            aria-label={`Chỉnh sửa báo cáo ${projectLabel}`}
-                          >
-                            <EditRoundedIcon fontSize="small" />
-                          </IconButton>
-                        </Tooltip>
+                        {canUpdateWeeklyReport(currentUser, report) ? (
+                          <Tooltip title="Chỉnh sửa báo cáo">
+                            <IconButton
+                              component={Link}
+                              href={editHref}
+                              size="small"
+                              color={report.status === 'draft' ? 'primary' : 'default'}
+                              aria-label={`Chỉnh sửa báo cáo ${projectLabel}`}
+                            >
+                              <EditRoundedIcon fontSize="small" />
+                            </IconButton>
+                          </Tooltip>
+                        ) : null}
                       </>
                     )}
                     {report ? (
@@ -433,7 +442,8 @@ export function WeeklyReportBoard({
           <VisibilityOutlinedIcon fontSize="small" className="mr-2 text-slate-500" />
           Xem báo cáo
         </MenuItem>
-        {activeRow?.report?.status === 'draft' ? (
+        {activeRow?.report?.status === 'draft' &&
+        canUpdateWeeklyReport(currentUser, activeRow.report) ? (
           <MenuItem
             disabled={isSubmitting}
             onClick={() => {
@@ -473,7 +483,8 @@ export function WeeklyReportBoard({
             Trả về nháp
           </MenuItem>
         ) : null}
-        {activeRow?.report?.status === 'draft' ? (
+        {activeRow?.report?.status === 'draft' &&
+        canDeleteWeeklyReport(currentUser, activeRow.report) ? (
           <MenuItem
             className="text-rose-600"
             disabled={isDeleting}

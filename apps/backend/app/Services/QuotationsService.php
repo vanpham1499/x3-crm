@@ -3,6 +3,9 @@
 namespace App\Services;
 
 use App\Http\Resources\QuotationResource;
+use App\Models\Customer;
+use App\Models\Lead;
+use App\Models\Project;
 use App\Models\Quotation;
 use App\Repositories\PaymentRepository;
 use App\Repositories\QuotationRepository;
@@ -21,20 +24,23 @@ class QuotationsService extends BaseService
 
     public function findAll(array $filters = [])
     {
-        return $this->apiCollection($this->quotations->findAll($this->normalizeKeys($filters)), QuotationResource::class);
+        return $this->apiCollection($this->quotations->findAll($this->normalizeKeys($filters), $this->currentUser()), QuotationResource::class);
     }
 
     public function findPaginated(array $filters, int $perPage, int $page): array
     {
         return $this->apiPaginatedCollection(
-            $this->quotations->findPaginated($this->normalizeKeys($filters), $perPage, $page),
+            $this->quotations->findPaginated($this->normalizeKeys($filters), $perPage, $page, $this->currentUser()),
             QuotationResource::class,
         );
     }
 
     public function findOne(string $id): array
     {
-        return $this->apiResource($this->quotations->findWithRelationsOrFail($id), QuotationResource::class);
+        $quotation = $this->quotations->findWithRelationsOrFail($id);
+        $this->authorize('view', $quotation);
+
+        return $this->apiResource($quotation, QuotationResource::class);
     }
 
     public function create(array $data): array
@@ -47,6 +53,7 @@ class QuotationsService extends BaseService
             unset($data['quotation_code']);
             $this->authorize('create', Quotation::class);
             $data = $this->applyProjectDefaults($data);
+            $this->authorizeParentView($data);
 
             $quotationVatRate = array_key_exists('vat_rate', $data)
                 ? (float) $data['vat_rate']
@@ -104,6 +111,7 @@ class QuotationsService extends BaseService
             unset($data['status']);
             $data['project_id'] = $data['project_id'] ?? $currentQuotation->project_id;
             $data = $this->applyProjectDefaults($data);
+            $this->authorizeParentView($data);
             $quotationVatRate = array_key_exists('vat_rate', $data)
                 ? (float) $data['vat_rate']
                 : null;
@@ -349,6 +357,34 @@ class QuotationsService extends BaseService
         $data['metadata'] = $metadata;
 
         return $data;
+    }
+
+    private function authorizeParentView(array $data): void
+    {
+        if (! empty($data['project_id'])) {
+            $project = Project::query()
+                ->with(['managerUser', 'salesUser'])
+                ->findOrFail($data['project_id']);
+            $this->authorize('view', $project);
+
+            return;
+        }
+
+        if (! empty($data['customer_id'])) {
+            $customer = Customer::query()
+                ->with('salesUser')
+                ->findOrFail($data['customer_id']);
+            $this->authorize('view', $customer);
+
+            return;
+        }
+
+        if (! empty($data['lead_id'])) {
+            $lead = Lead::query()
+                ->with('assignedUser')
+                ->findOrFail($data['lead_id']);
+            $this->authorize('view', $lead);
+        }
     }
 
     private function normalizeItems(

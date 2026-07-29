@@ -76,7 +76,8 @@ function normalizeProjectType(
   value: string | null | undefined,
   fallback: ProjectType = 'K',
 ): ProjectType {
-  return value === 'K' || value === 'M' || value === 'N' ? value : fallback;
+  if (value === 'N' || value === 'O') return 'O';
+  return value === 'K' || value === 'M' ? value : fallback;
 }
 
 function findRootService(services: ServiceItem[], serviceId: string): ServiceItem | null {
@@ -121,7 +122,7 @@ export function QuotationForm({
   const [note, setNote] = useState('');
   const [selectedServiceId, setSelectedServiceId] = useState('');
   const [selectedBankAccountId, setSelectedBankAccountId] = useState('');
-  const [setupPackageKey, setSetupPackageKey] = useState('basic');
+  const [setupPackageKey, setSetupPackageKey] = useState(NO_SETUP_PACKAGE_KEY);
   const [budget, setBudget] = useState('0');
   const [accountReconciliationImageUrls, setAccountReconciliationImageUrls] = useState<string[]>(
     [],
@@ -269,7 +270,7 @@ export function QuotationForm({
     setNote(quotation.note || '');
     setSelectedServiceId(idToString(quotation.serviceId));
     setBudget(getMetadataValue(metadata, 'budget') || '0');
-    setSetupPackageKey(getMetadataValue(metadata, 'setupPackageKey') || 'basic');
+    setSetupPackageKey(getMetadataValue(metadata, 'setupPackageKey') || NO_SETUP_PACKAGE_KEY);
     setSelectedBankAccountId(getMetadataValue(metadata, 'bankAccountOptionId'));
     setAccountReconciliationImageUrls(quotation.accountReconciliationImageUrls || []);
 
@@ -523,7 +524,7 @@ export function QuotationForm({
                     Loại
                   </dt>
                   <dd className="mt-1 text-sm font-bold text-slate-800">
-                    {projectType === 'N' ? 'O' : projectType}
+                    {projectType === 'O' ? 'Không chọn' : projectType}
                   </dd>
                 </div>
               </dl>

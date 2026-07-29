@@ -71,6 +71,8 @@ export type Quotation = {
   } | null;
   service?: ServiceItem | null;
   items?: QuotationItem[];
+  canUpdate?: boolean;
+  canDelete?: boolean;
   createdBy?: Pick<User, 'id' | 'code' | 'name' | 'email'> | null;
   createdAt?: string;
   updatedAt?: string;

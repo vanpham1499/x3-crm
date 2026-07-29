@@ -45,6 +45,7 @@ class CustomerResource extends JsonResource
                 'code' => $this->salesUser->code,
                 'name' => $this->salesUser->name,
                 'email' => $this->salesUser->email,
+                'departmentId' => $this->salesUser->department_id,
             ] : null),
             'createdBy' => $this->whenLoaded('createdBy', fn () => $this->createdBy ? [
                 'id' => $this->createdBy->id,
@@ -54,6 +55,8 @@ class CustomerResource extends JsonResource
             ] : null),
             'projectsCount' => $this->whenLoaded('projects', fn () => $this->projects->count()),
             'timelines' => CustomerTimelineResource::collection($this->whenLoaded('timelines')),
+            'canUpdate' => (bool) ($request->user()?->can('update', $this->resource) ?? false),
+            'canDelete' => (bool) ($request->user()?->can('delete', $this->resource) ?? false),
             'createdAt' => $this->created_at?->toISOString(),
             'updatedAt' => $this->updated_at?->toISOString(),
         ];

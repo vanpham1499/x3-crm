@@ -119,6 +119,7 @@ export type ProjectCost = {
   bankAccountOption?: AppOption | null;
   partnerOption?: AppOption | null;
   adjustments?: ProjectCostAdjustment[];
+  canApprove?: boolean;
   createdAt?: string;
   updatedAt?: string;
 };

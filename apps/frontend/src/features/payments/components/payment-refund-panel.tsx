@@ -19,6 +19,7 @@ import { FormDatePicker } from '@/components/form/form-date-picker';
 import { compactFormFieldClassName } from '@/components/form/form-field-styles';
 import { FormInputField } from '@/components/form/form-input-field';
 import { FormSelectField } from '@/components/form/form-select-field';
+import { ListFilterBar } from '@/components/form/list-filter-bar';
 import { MoneyInput } from '@/components/form/money-input';
 import { AppDataTable } from '@/components/table/app-data-table';
 import { EntityTableLink } from '@/components/table/entity-table-link';
@@ -38,6 +39,7 @@ type PaymentRefundPanelProps = {
   pageSize: number;
   isFetching: boolean;
   isMutating: boolean;
+  canManage: boolean;
   onPageChange: (page: number) => void;
   onPageSizeChange: (pageSize: number) => void;
   onFiltersChange: (filters: PaymentRefundFilters) => void;
@@ -390,6 +392,7 @@ export function PaymentRefundPanel({
   pageSize,
   isFetching,
   isMutating,
+  canManage,
   onPageChange,
   onPageSizeChange,
   onFiltersChange,
@@ -418,7 +421,7 @@ export function PaymentRefundPanel({
   return (
     <>
       <div className="border-slate-200 p-4">
-        <div className="grid gap-3 md:grid-cols-2 xl:grid-cols-[minmax(260px,1fr)_180px_180px_176px_176px]">
+        <ListFilterBar>
           <CompactSearchField
             label="Từ khóa"
             placeholder="Khách hàng, báo phí, dự án, tài khoản nhận..."
@@ -449,7 +452,7 @@ export function PaymentRefundPanel({
             min={filters.date_from || undefined}
             onChange={(date_to) => updateFilters({ date_to })}
           />
-        </div>
+        </ListFilterBar>
       </div>
 
       <AppDataTable
@@ -547,13 +550,15 @@ export function PaymentRefundPanel({
                 <IconButton size="small" title="Xem chi tiết" onClick={() => setViewTarget(refund)}>
                   <VisibilityRoundedIcon fontSize="small" />
                 </IconButton>
-                <IconButton
-                  size="small"
-                  title="Tác vụ"
-                  onClick={(event) => openMenu(event, refund)}
-                >
-                  <MoreVertRoundedIcon fontSize="small" />
-                </IconButton>
+                {canManage ? (
+                  <IconButton
+                    size="small"
+                    title="Tác vụ"
+                    onClick={(event) => openMenu(event, refund)}
+                  >
+                    <MoreVertRoundedIcon fontSize="small" />
+                  </IconButton>
+                ) : null}
               </div>
             </td>
           </tr>

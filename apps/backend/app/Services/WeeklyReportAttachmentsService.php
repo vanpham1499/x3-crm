@@ -23,7 +23,8 @@ class WeeklyReportAttachmentsService extends BaseService
         ?string $mediaUrl = null,
     ): array {
         return $this->transaction(function () use ($weeklyReportId, $file, $user, $mediaUrl): array {
-            $report = $this->reports->findOrFail($weeklyReportId);
+            $report = $this->reports->findWithRelationsOrFail($weeklyReportId);
+            $this->authorize('update', $report);
             $this->assertDraft($report);
             $stored = $file
                 ? FileUploadStorage::store($file, 'weekly-reports')
@@ -46,8 +47,8 @@ class WeeklyReportAttachmentsService extends BaseService
     {
         /** @var Attachment|null $media */
         $media = Attachment::query()
+            ->with('uploadedBy:id,name,department_id')
             ->where('entity_type', 'media_library')
-            ->where('uploaded_by', $user->id)
             ->where('file_url', trim((string) $mediaUrl))
             ->where('file_type', 'like', 'image/%')
             ->first();
@@ -57,6 +58,8 @@ class WeeklyReportAttachmentsService extends BaseService
                 'media_url' => ['Ảnh không tồn tại trong thư viện của bạn.'],
             ]);
         }
+
+        $this->authorize('view', $media);
 
         return [
             'fileName' => $media->original_name ?: $media->file_name,
@@ -70,6 +73,7 @@ class WeeklyReportAttachmentsService extends BaseService
         return $this->transaction(function () use ($id): array {
             /** @var WeeklyReportAttachment $attachment */
             $attachment = WeeklyReportAttachment::query()->with('weeklyReport')->findOrFail($id);
+            $this->authorize('update', $attachment->weeklyReport);
             $this->assertDraft($attachment->weeklyReport);
             $attachment->delete();
 

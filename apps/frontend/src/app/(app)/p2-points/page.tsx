@@ -74,7 +74,7 @@ export default function P2PointsPage() {
 
   const { data: users = [], isLoading: isUsersLoading } = useQuery<User[]>({
     queryKey: ['users', 'p2-options'],
-    queryFn: () => api.get('/users').then((response) => response.data),
+    queryFn: () => api.get('/users/lookup?context=p2point').then((response) => response.data),
   });
 
   const { data: categoryOptions = [], isLoading: isCategoriesLoading } = useQuery<AppOption[]>({

@@ -9,7 +9,6 @@ use App\Models\Quotation;
 use App\Models\User;
 use App\Models\WeeklyReportAttachment;
 use App\Support\FileUploadStorage;
-use Illuminate\Auth\Access\AuthorizationException;
 use Illuminate\Database\Eloquent\Builder;
 use Illuminate\Http\UploadedFile;
 use Illuminate\Support\Collection;
@@ -48,11 +47,23 @@ class MediaService extends BaseService
     {
         $keyword = trim((string) $keyword);
 
-        return Attachment::query()
-            ->with('uploadedBy:id,name')
+        $query = Attachment::query()
+            ->with('uploadedBy:id,name,department_id')
             ->where('entity_type', 'media_library')
-            ->where('file_type', 'like', 'image/%')
-            ->when($scope !== 'all' || $user->role !== User::ROLE_ADMIN, fn ($query) => $query->where('uploaded_by', $user->id))
+            ->where('file_type', 'like', 'image/%');
+
+        if (! $user->hasPermission('media.view_all')) {
+            if ($user->hasPermission('media.view_department') && $user->department_id) {
+                $query->whereHas(
+                    'uploadedBy',
+                    fn (Builder $uploader) => $uploader->where('department_id', $user->department_id),
+                );
+            } else {
+                $query->where('uploaded_by', $user->id);
+            }
+        }
+
+        return $query
             ->when($keyword !== '', function ($query) use ($keyword): void {
                 $query->where(function ($query) use ($keyword): void {
                     $query->where('file_name', 'ilike', "%{$keyword}%");
@@ -98,7 +109,7 @@ class MediaService extends BaseService
 
             /** @var Attachment $attachment */
             $attachment = Attachment::query()->create($payload);
-            $attachment->load('uploadedBy:id,name');
+            $attachment->load('uploadedBy:id,name,department_id');
             $attachment->setRelation('mediaUsages', collect());
 
             return $this->apiResource($attachment, AttachmentResource::class);
@@ -108,10 +119,10 @@ class MediaService extends BaseService
     public function update(string $id, array $data, User $user): array
     {
         return $this->transaction(function () use ($id, $data, $user): array {
-            $attachment = $this->findAccessibleImage($id, $user);
+            $attachment = $this->findAccessibleImage($id, $user, 'update');
             $attachment->original_name = trim((string) $data['name']);
             $attachment->save();
-            $attachment->load('uploadedBy:id,name');
+            $attachment->load('uploadedBy:id,name,department_id');
             $this->attachUsageMetadata(collect([$attachment]));
 
             return $this->apiResource($attachment, AttachmentResource::class);
@@ -121,7 +132,7 @@ class MediaService extends BaseService
     public function remove(string $id, User $user, bool $detachUsage = false): array
     {
         return $this->transaction(function () use ($id, $user, $detachUsage): array {
-            $attachment = $this->findAccessibleImage($id, $user);
+            $attachment = $this->findAccessibleImage($id, $user, 'delete');
             $this->attachUsageMetadata(collect([$attachment]));
             $usages = $attachment->getRelation('mediaUsages')?->all() ?? [];
 
@@ -196,17 +207,16 @@ class MediaService extends BaseService
             });
     }
 
-    private function findAccessibleImage(string $id, User $user): Attachment
+    private function findAccessibleImage(string $id, User $user, string $ability): Attachment
     {
         /** @var Attachment $attachment */
         $attachment = Attachment::query()
+            ->with('uploadedBy:id,name,department_id')
             ->where('entity_type', 'media_library')
             ->where('file_type', 'like', 'image/%')
             ->findOrFail($id);
 
-        if ($user->role !== User::ROLE_ADMIN && (int) $attachment->uploaded_by !== (int) $user->id) {
-            throw new AuthorizationException('Bạn không có quyền quản lý ảnh này.');
-        }
+        $this->authorize($ability, $attachment);
 
         return $attachment;
     }

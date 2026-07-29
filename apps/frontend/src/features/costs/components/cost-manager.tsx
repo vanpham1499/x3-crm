@@ -21,6 +21,7 @@ import { CompactSelectField } from '@/components/form/compact-select-field';
 import { FormDatePicker } from '@/components/form/form-date-picker';
 import { FormInputField } from '@/components/form/form-input-field';
 import { FormSelectField } from '@/components/form/form-select-field';
+import { ListFilterBar } from '@/components/form/list-filter-bar';
 import { PageHeader } from '@/components/shell/page-header';
 import { AppDataTable } from '@/components/table/app-data-table';
 import { EntityTableLink } from '@/components/table/entity-table-link';
@@ -248,7 +249,7 @@ function CostDetailDialog({
       onClose={onClose}
       actions={
         <>
-          {cost.cidIncident?.status === 'pending' ? (
+          {cost.cidIncident?.status === 'pending' && cost.canApprove ? (
             <DialogActionButton
               tone="primary"
               startIcon={<CheckCircleRoundedIcon />}
@@ -769,7 +770,7 @@ export function CostManager({
 
       <section className="w-full overflow-hidden rounded-2xl border border-slate-200 bg-white shadow-sm">
         <div className="border-slate-200 p-4">
-          <div className="grid gap-3 md:grid-cols-2 xl:grid-cols-[minmax(240px,1fr)_repeat(6,160px)]">
+          <ListFilterBar>
             <CompactSearchField
               label="Từ khóa"
               placeholder="Dự án, CID, đối tác, số hóa đơn, ghi chú..."
@@ -838,7 +839,7 @@ export function CostManager({
               min={filters.date_from || undefined}
               onChange={(date_to) => updateFilters({ date_to })}
             />
-          </div>
+          </ListFilterBar>
         </div>
 
         <AppDataTable
@@ -939,7 +940,7 @@ export function CostManager({
                     </td>
                   ) : null}
                   <td className="px-3 py-3.5 text-center">
-                    {cost.cidIncident?.status === 'pending' ? (
+                    {cost.cidIncident?.status === 'pending' && cost.canApprove ? (
                       <button
                         type="button"
                         className="inline-flex items-center gap-1 whitespace-nowrap rounded-md bg-amber-50 px-2 py-1 text-xs font-bold text-amber-700 ring-1 ring-amber-200 transition hover:bg-amber-100"
@@ -949,6 +950,11 @@ export function CostManager({
                         <WarningAmberRoundedIcon className="!text-[15px]" />
                         CID chờ xác nhận
                       </button>
+                    ) : cost.cidIncident?.status === 'pending' ? (
+                      <span className="inline-flex items-center gap-1 whitespace-nowrap rounded-md bg-amber-50 px-2 py-1 text-xs font-bold text-amber-700 ring-1 ring-amber-200">
+                        <WarningAmberRoundedIcon className="!text-[15px]" />
+                        CID chờ xác nhận
+                      </span>
                     ) : cost.reconciledAt ? (
                       <span
                         className="inline-flex items-center gap-1 whitespace-nowrap rounded-md bg-emerald-50 px-2 py-1 text-xs font-bold text-emerald-700 ring-1 ring-emerald-200"
@@ -963,7 +969,7 @@ export function CostManager({
                       >
                         {costStatusLabel(cost)}
                       </span>
-                    ) : (
+                    ) : cost.canApprove ? (
                       <button
                         type="button"
                         disabled={isReconciling}
@@ -973,6 +979,11 @@ export function CostManager({
                         <CheckCircleOutlineRoundedIcon className="!text-[16px]" />
                         Chờ đối soát
                       </button>
+                    ) : (
+                      <span className="inline-flex items-center gap-1 whitespace-nowrap rounded-md bg-slate-50 px-2 py-1 text-xs font-bold text-slate-600 ring-1 ring-slate-200">
+                        <CheckCircleOutlineRoundedIcon className="!text-[16px]" />
+                        Chờ đối soát
+                      </span>
                     )}
                   </td>
                   <td className="py-3.5">
@@ -1025,7 +1036,7 @@ export function CostManager({
         </MenuItem>
         {activeCost ? (
           <>
-            {activeCost.cidIncident?.status === 'pending' ? (
+            {activeCost.cidIncident?.status === 'pending' && activeCost.canApprove ? (
               <MenuItem
                 className="!text-amber-700"
                 onClick={() => {

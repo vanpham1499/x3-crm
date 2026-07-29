@@ -23,6 +23,7 @@ import { ConfirmDialog } from '@/components/feedback/confirm-dialog';
 import { CompactSearchField } from '@/components/form/compact-search-field';
 import { compactFormFieldClassName } from '@/components/form/form-field-styles';
 import { FormInputField } from '@/components/form/form-input-field';
+import { ListFilterBar } from '@/components/form/list-filter-bar';
 import { PageHeader } from '@/components/shell/page-header';
 import { AppDataTable } from '@/components/table/app-data-table';
 import { TablePaginationBar } from '@/components/table/table-pagination-bar';
@@ -339,14 +340,14 @@ export function DepartmentManager({
       />
 
       <section className="w-full overflow-hidden rounded-2xl border border-slate-200 bg-white shadow-sm">
-        <div className="p-4">
+        <ListFilterBar className="p-4">
           <CompactSearchField
             label="Từ khóa"
             placeholder="Tìm phòng ban, Lead hoặc nhân viên..."
             value={keyword}
             onChange={setKeyword}
           />
-        </div>
+        </ListFilterBar>
 
         <AppDataTable
           columns={[

@@ -12,6 +12,7 @@ import { Checkbox, IconButton, Menu, MenuItem } from '@mui/material';
 import { DialogActionButton } from '@/components/actions/dialog-action-button';
 import { AppDetailDialog } from '@/components/dialog/app-detail-dialog';
 import { CompactSearchField } from '@/components/form/compact-search-field';
+import { ListFilterBar } from '@/components/form/list-filter-bar';
 import { PageHeader } from '@/components/shell/page-header';
 import { AppDataTable } from '@/components/table/app-data-table';
 import { TablePaginationBar } from '@/components/table/table-pagination-bar';
@@ -128,7 +129,8 @@ export function RoleList({
   const visibleRoleIds = useMemo(() => pageItems.map((role) => role.id), [pageItems]);
   const selectedVisibleCount = visibleRoleIds.filter((id) => selectedRoleIds.includes(id)).length;
   const hasSelectedRows = selectedRoleIds.length > 0;
-  const isAllVisibleSelected = visibleRoleIds.length > 0 && selectedVisibleCount === visibleRoleIds.length;
+  const isAllVisibleSelected =
+    visibleRoleIds.length > 0 && selectedVisibleCount === visibleRoleIds.length;
   const isSomeVisibleSelected = selectedVisibleCount > 0 && !isAllVisibleSelected;
 
   const toggleAllVisibleRows = (checked: boolean) => {
@@ -175,14 +177,14 @@ export function RoleList({
       />
 
       <section className="w-full overflow-hidden rounded-2xl border border-slate-200 bg-white shadow-sm">
-        <div className="p-4">
+        <ListFilterBar className="p-4">
           <CompactSearchField
             label="Từ khóa"
             placeholder="Tìm tên vai trò hoặc mô tả..."
             value={filters.keyword}
             onChange={(keyword) => updateFilters({ keyword })}
           />
-        </div>
+        </ListFilterBar>
 
         {hasSelectedRows && (
           <div className="flex h-14 items-center justify-between bg-emerald-100 px-5 text-sm font-bold text-emerald-700">

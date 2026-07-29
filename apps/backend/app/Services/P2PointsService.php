@@ -14,18 +14,21 @@ class P2PointsService extends BaseService
 
     public function findAll(array $filters = [])
     {
-        return $this->apiCollection($this->points->findAll($this->normalizeFilters($filters)), P2PointResource::class);
+        return $this->apiCollection(
+            $this->points->findAll($this->currentUser(), $this->normalizeFilters($filters)),
+            P2PointResource::class,
+        );
     }
 
     public function findPaginated(array $filters, int $perPage, int $page): array
     {
         $filters = $this->normalizeFilters($filters);
         $result = $this->apiPaginatedCollection(
-            $this->points->findPaginated($filters, $perPage, $page),
+            $this->points->findPaginated($this->currentUser(), $filters, $perPage, $page),
             P2PointResource::class,
         );
         $summary = $this->points
-            ->summarizeByUser($filters)
+            ->summarizeByUser($this->currentUser(), $filters)
             ->map(fn (P2Point $point): array => [
                 'userId' => (int) $point->user_id,
                 'code' => $point->user?->code,
@@ -51,14 +54,21 @@ class P2PointsService extends BaseService
 
     public function findOne(string $id): array
     {
-        return $this->apiResource($this->points->findWithRelationsOrFail($id), P2PointResource::class);
+        $point = $this->points->findVisibleWithRelationsOrFail($this->currentUser(), $id);
+        $this->authorize('view', $point);
+
+        return $this->apiResource($point, P2PointResource::class);
     }
 
     public function create(array $data): array
     {
         return $this->transaction(function () use ($data): array {
             $data = $this->preparePayload($data);
-            $this->authorize('create', [P2Point::class, $data['project_id'] ?? null]);
+            $this->authorize('create', [
+                P2Point::class,
+                $data['project_id'] ?? null,
+                $data['user_id'] ?? null,
+            ]);
             $data['created_by'] = $this->currentUser()?->id;
 
             /** @var P2Point $point */
@@ -71,6 +81,8 @@ class P2PointsService extends BaseService
     public function update(string $id, array $data): array
     {
         return $this->transaction(function () use ($id, $data): array {
+            $existing = $this->points->findWithRelationsOrFail($id);
+            $this->authorize('update', $existing);
             $data = $this->preparePayload($data);
             $data['updated_by'] = $this->currentUser()?->id;
 
@@ -84,6 +96,8 @@ class P2PointsService extends BaseService
     public function remove(string $id): array
     {
         return $this->transaction(function () use ($id): array {
+            $point = $this->points->findWithRelationsOrFail($id);
+            $this->authorize('delete', $point);
             $this->points->delete($id);
 
             return ['message' => 'Xóa điểm P2 thành công'];

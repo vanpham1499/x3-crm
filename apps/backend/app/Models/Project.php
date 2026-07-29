@@ -85,6 +85,12 @@ class Project extends BaseModel
         return $this->sales_user_id === $user->id;
     }
 
+    public function isInDepartmentOf(User $user): bool
+    {
+        return $user->sharesDepartmentWith($this->managerUser)
+            || $user->sharesDepartmentWith($this->salesUser);
+    }
+
     public function contracts(): HasMany
     {
         return $this->hasMany(Contract::class);

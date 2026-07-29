@@ -31,6 +31,7 @@ import { FormDatePicker } from '@/components/form/form-date-picker';
 import { FormInputField } from '@/components/form/form-input-field';
 import { FormSelectField } from '@/components/form/form-select-field';
 import { MoneyInput } from '@/components/form/money-input';
+import { TablePaginationBar } from '@/components/table/table-pagination-bar';
 import { getAdTopupCardLabel } from '@/lib/ad-topup-card-options';
 import { applyApiErrorsToForm, getApiErrorMessage } from '@/lib/api-error';
 import { canEditProject } from '@/lib/ownership';
@@ -46,8 +47,10 @@ import type {
   ProjectCostFormValues,
   ProjectCostStatus,
 } from '@/types/project-cost';
-import type { ProjectItem, ProjectType } from '@/types/project';
+import type { ProjectItem, StoredProjectType } from '@/types/project';
 import type { Quotation } from '@/types/quotation';
+
+const PROJECT_COST_PAGE_SIZE = 7;
 
 function costStatusLabel(status: string, entryType: ProjectCostEntryType) {
   if (status === 'completed') return entryType === 'ad_spend' ? 'Đã nạp' : 'Đã chi';
@@ -450,7 +453,7 @@ function CostDialog({
   open: boolean;
   entryType: ProjectCostEntryType;
   cost?: ProjectCost | null;
-  projectType?: ProjectType | null;
+  projectType?: StoredProjectType | null;
   projectCode?: string | null;
   costs: ProjectCost[];
   quotations: Quotation[];
@@ -756,7 +759,7 @@ export function ProjectCostPanel({
 }: {
   project: ProjectItem;
   projectId: number;
-  projectType?: ProjectType | null;
+  projectType?: StoredProjectType | null;
   projectCode?: string | null;
   revenueGroup: '2.1' | '2.2';
   costs: ProjectCost[];
@@ -770,11 +773,18 @@ export function ProjectCostPanel({
   const notify = useAppNotification();
   const currentUser = useAuthStore((state) => state.user);
   const canManage = canEditProject(currentUser, project);
+  const [page, setPage] = useState(1);
   const [dialogOpen, setDialogOpen] = useState(false);
   const [editingCost, setEditingCost] = useState<ProjectCost | null>(null);
   const [deleteTarget, setDeleteTarget] = useState<ProjectCost | null>(null);
   const [cidIncidentTarget, setCidIncidentTarget] = useState<ProjectCost | null>(null);
   const [cancelCidIncidentTarget, setCancelCidIncidentTarget] = useState<ProjectCost | null>(null);
+  const totalPages = Math.max(1, Math.ceil(visibleCosts.length / PROJECT_COST_PAGE_SIZE));
+  const currentPage = Math.min(page, totalPages);
+  const paginatedCosts = visibleCosts.slice(
+    (currentPage - 1) * PROJECT_COST_PAGE_SIZE,
+    currentPage * PROJECT_COST_PAGE_SIZE,
+  );
 
   const saveMutation = useMutation({
     mutationFn: ({
@@ -939,7 +949,7 @@ export function ProjectCostPanel({
                   </td>
                 </tr>
               ) : (
-                visibleCosts.map((cost) => (
+                paginatedCosts.map((cost) => (
                   <tr key={cost.id} className="hover:bg-slate-50/70">
                     <td className="px-4 py-3">
                       <p className="font-semibold tabular-nums text-slate-800">
@@ -1080,7 +1090,7 @@ export function ProjectCostPanel({
                   </td>
                 </tr>
               ) : (
-                visibleCosts.map((cost) => (
+                paginatedCosts.map((cost) => (
                   <tr key={cost.id} className="hover:bg-slate-50/70">
                     <td className="px-4 py-3 font-semibold text-slate-800">
                       {formatDate(cost.transactionDate)}
@@ -1148,6 +1158,14 @@ export function ProjectCostPanel({
           </table>
         )}
       </div>
+      <TablePaginationBar
+        page={currentPage}
+        totalPages={totalPages}
+        totalItems={visibleCosts.length}
+        pageSize={PROJECT_COST_PAGE_SIZE}
+        rangeLabel={entryType === 'ad_spend' ? 'Lần nạp' : 'Chi phí'}
+        onPageChange={setPage}
+      />
       <CostDialog
         open={dialogOpen}
         entryType={entryType}

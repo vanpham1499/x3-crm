@@ -11,9 +11,12 @@ export type MediaItem = {
   uploader?: {
     id: number;
     name: string;
+    departmentId?: number | null;
   } | null;
   usages: MediaUsage[];
   usageCount: number;
+  canUpdate?: boolean;
+  canDelete?: boolean;
   createdAt?: string;
   updatedAt?: string;
 };

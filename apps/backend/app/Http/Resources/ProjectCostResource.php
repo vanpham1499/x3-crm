@@ -101,6 +101,7 @@ class ProjectCostResource extends JsonResource
                     'name' => $cidIncident->confirmedBy->name,
                 ] : null,
             ] : null),
+            'canApprove' => (bool) ($request->user()?->can('approve', $this->resource) ?? false),
             'createdAt' => $this->created_at?->toISOString(),
             'updatedAt' => $this->updated_at?->toISOString(),
         ];

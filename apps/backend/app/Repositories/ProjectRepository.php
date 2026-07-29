@@ -4,6 +4,7 @@ namespace App\Repositories;
 
 use App\Models\Option;
 use App\Models\Project;
+use App\Models\User;
 use Illuminate\Contracts\Pagination\LengthAwarePaginator;
 use Illuminate\Database\Eloquent\Builder;
 use Illuminate\Database\Eloquent\Collection;
@@ -18,18 +19,18 @@ class ProjectRepository extends BaseRepository
         return Project::class;
     }
 
-    public function findAll(array $filters = []): Collection
+    public function findAll(array $filters = [], ?User $user = null): Collection
     {
-        return $this->filteredQuery($filters)->get();
+        return $this->filteredQuery($filters, $user)->get();
     }
 
-    public function findPaginated(array $filters, int $perPage, int $page): LengthAwarePaginator
+    public function findPaginated(array $filters, int $perPage, int $page, ?User $user = null): LengthAwarePaginator
     {
-        return $this->filteredQuery($filters)
+        return $this->filteredQuery($filters, $user)
             ->paginate($perPage, ['*'], 'page', $page);
     }
 
-    private function filteredQuery(array $filters): Builder
+    private function filteredQuery(array $filters, ?User $user = null): Builder
     {
         $keyword = trim((string) ($filters['keyword'] ?? $filters['search'] ?? ''));
         $customerId = $filters['customer_id'] ?? null;
@@ -39,8 +40,12 @@ class ProjectRepository extends BaseRepository
         $managerUserId = $filters['manager_user_id'] ?? null;
         $salesUserId = $filters['sales_user_id'] ?? null;
 
-        return $this->query()
-            ->with(['customer', 'quotation', 'service', 'statusOption', 'managerUser', 'salesUser', 'createdBy'])
+        $query = $this->query()
+            ->with(['customer', 'quotation', 'service', 'statusOption', 'managerUser', 'salesUser', 'createdBy']);
+
+        $this->applyViewScope($query, $user);
+
+        return $query
             ->when($keyword !== '', function ($query) use ($keyword): void {
                 $query->where(function ($query) use ($keyword): void {
                     $query
@@ -64,6 +69,35 @@ class ProjectRepository extends BaseRepository
             ->when($managerUserId, fn ($query) => $query->where('manager_user_id', $managerUserId))
             ->when($salesUserId, fn ($query) => $query->where('sales_user_id', $salesUserId))
             ->orderByDesc('created_at');
+    }
+
+    private function applyViewScope(Builder $query, ?User $user): void
+    {
+        if (! $user || $user->hasPermission('project.view_all')) {
+            return;
+        }
+
+        if ($user->hasPermission('project.view_department') && $user->department_id) {
+            $query->where(function (Builder $scope) use ($user): void {
+                $scope
+                    ->whereHas('managerUser', fn (Builder $manager) => $manager->where('department_id', $user->department_id))
+                    ->orWhereHas('salesUser', fn (Builder $sales) => $sales->where('department_id', $user->department_id));
+            });
+
+            return;
+        }
+
+        if ($user->hasPermission('project.view')) {
+            $query->where(function (Builder $scope) use ($user): void {
+                $scope
+                    ->where('manager_user_id', $user->id)
+                    ->orWhere('sales_user_id', $user->id);
+            });
+
+            return;
+        }
+
+        $query->whereRaw('1 = 0');
     }
 
     public function findWithRelationsOrFail(string $id): Project

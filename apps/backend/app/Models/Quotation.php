@@ -97,4 +97,30 @@ class Quotation extends BaseModel
     {
         return $this->hasMany(QuotationItem::class)->orderBy('sort_order')->orderBy('created_at');
     }
+
+    public function isOwnedBy(User $user): bool
+    {
+        if ($this->project) {
+            return $this->project->isManagedBy($user) || $this->project->isAssignedTo($user);
+        }
+
+        if ($this->customer) {
+            return $this->customer->isAssignedTo($user);
+        }
+
+        return $this->lead?->isAssignedTo($user) ?? false;
+    }
+
+    public function isInDepartmentOf(User $user): bool
+    {
+        if ($this->project) {
+            return $this->project->isInDepartmentOf($user);
+        }
+
+        if ($this->customer) {
+            return $this->customer->isInDepartmentOf($user);
+        }
+
+        return $this->lead?->isInDepartmentOf($user) ?? false;
+    }
 }

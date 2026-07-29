@@ -42,9 +42,11 @@ export type Customer = {
   customerTypeOption?: AppOption | null;
   sourceOption?: AppOption | null;
   industryOption?: AppOption | null;
-  salesUser?: Pick<User, 'id' | 'code' | 'name' | 'email'> | null;
+  salesUser?: Pick<User, 'id' | 'code' | 'name' | 'email' | 'departmentId'> | null;
   createdBy?: Pick<User, 'id' | 'code' | 'name' | 'email'> | null;
   projectsCount?: number;
+  canUpdate?: boolean;
+  canDelete?: boolean;
   createdAt?: string;
   updatedAt?: string;
 };

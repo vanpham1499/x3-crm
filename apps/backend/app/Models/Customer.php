@@ -78,6 +78,11 @@ class Customer extends BaseModel
         return $this->sales_user_id === $user->id;
     }
 
+    public function isInDepartmentOf(User $user): bool
+    {
+        return $user->sharesDepartmentWith($this->salesUser);
+    }
+
     public function projects(): HasMany
     {
         return $this->hasMany(Project::class);

@@ -3,6 +3,7 @@
 namespace App\Repositories;
 
 use App\Models\Quotation;
+use App\Models\User;
 use Illuminate\Contracts\Pagination\LengthAwarePaginator;
 use Illuminate\Database\Eloquent\Builder;
 use Illuminate\Database\Eloquent\Collection;
@@ -17,23 +18,27 @@ class QuotationRepository extends BaseRepository
         return Quotation::class;
     }
 
-    public function findAll(array $filters = []): Collection
+    public function findAll(array $filters = [], ?User $user = null): Collection
     {
-        return $this->filteredQuery($filters)->get();
+        return $this->filteredQuery($filters, $user)->get();
     }
 
-    public function findPaginated(array $filters, int $perPage, int $page): LengthAwarePaginator
+    public function findPaginated(array $filters, int $perPage, int $page, ?User $user = null): LengthAwarePaginator
     {
-        return $this->filteredQuery($filters)
+        return $this->filteredQuery($filters, $user)
             ->paginate($perPage, ['*'], 'page', $page);
     }
 
-    private function filteredQuery(array $filters): Builder
+    private function filteredQuery(array $filters, ?User $user = null): Builder
     {
         $keyword = trim((string) ($filters['keyword'] ?? $filters['search'] ?? ''));
 
-        return $this->query()
-            ->with(['lead', 'customer', 'project', 'contract', 'service', 'items.service', 'paymentAllocations', 'paymentRefunds', 'createdBy'])
+        $query = $this->query()
+            ->with($this->relations());
+
+        $this->applyViewScope($query, $user);
+
+        return $query
             ->when($keyword !== '', fn ($query) => $query->where(function ($query) use ($keyword): void {
                 $query
                     ->where('quotation_code', 'ilike', "%{$keyword}%")
@@ -63,11 +68,96 @@ class QuotationRepository extends BaseRepository
             ->orderByDesc('created_at');
     }
 
+    private function applyViewScope(Builder $query, ?User $user): void
+    {
+        if (! $user || $user->hasPermission('quotation.view_all')) {
+            return;
+        }
+
+        $departmentId = $user->hasPermission('quotation.view_department')
+            ? $user->department_id
+            : null;
+
+        if ($departmentId) {
+            $query->where(function (Builder $scope) use ($departmentId): void {
+                $scope
+                    ->where(function (Builder $projectScope) use ($departmentId): void {
+                        $projectScope
+                            ->whereNotNull('project_id')
+                            ->whereHas('project', fn (Builder $project) => $project
+                                ->where(fn (Builder $owners) => $owners
+                                    ->whereHas('managerUser', fn (Builder $manager) => $manager->where('department_id', $departmentId))
+                                    ->orWhereHas('salesUser', fn (Builder $sales) => $sales->where('department_id', $departmentId))));
+                    })
+                    ->orWhere(function (Builder $customerScope) use ($departmentId): void {
+                        $customerScope
+                            ->whereNull('project_id')
+                            ->whereNotNull('customer_id')
+                            ->whereHas('customer.salesUser', fn (Builder $sales) => $sales->where('department_id', $departmentId));
+                    })
+                    ->orWhere(function (Builder $leadScope) use ($departmentId): void {
+                        $leadScope
+                            ->whereNull('project_id')
+                            ->whereNull('customer_id')
+                            ->whereHas('lead.assignedUser', fn (Builder $assigned) => $assigned->where('department_id', $departmentId));
+                    });
+            });
+
+            return;
+        }
+
+        if ($user->hasPermission('quotation.view')) {
+            $query->where(function (Builder $scope) use ($user): void {
+                $scope
+                    ->where(function (Builder $projectScope) use ($user): void {
+                        $projectScope
+                            ->whereNotNull('project_id')
+                            ->whereHas('project', fn (Builder $project) => $project
+                                ->where(fn (Builder $owners) => $owners
+                                    ->where('manager_user_id', $user->id)
+                                    ->orWhere('sales_user_id', $user->id)));
+                    })
+                    ->orWhere(function (Builder $customerScope) use ($user): void {
+                        $customerScope
+                            ->whereNull('project_id')
+                            ->whereNotNull('customer_id')
+                            ->whereHas('customer', fn (Builder $customer) => $customer->where('sales_user_id', $user->id));
+                    })
+                    ->orWhere(function (Builder $leadScope) use ($user): void {
+                        $leadScope
+                            ->whereNull('project_id')
+                            ->whereNull('customer_id')
+                            ->whereHas('lead', fn (Builder $lead) => $lead->where('assigned_user_id', $user->id));
+                    });
+            });
+
+            return;
+        }
+
+        $query->whereRaw('1 = 0');
+    }
+
+    private function relations(): array
+    {
+        return [
+            'lead.assignedUser',
+            'customer.salesUser',
+            'project.managerUser',
+            'project.salesUser',
+            'contract',
+            'service',
+            'items.service',
+            'paymentAllocations',
+            'paymentRefunds',
+            'createdBy',
+        ];
+    }
+
     public function findWithRelationsOrFail(string $id): Quotation
     {
         /** @var Quotation|null $quotation */
         $quotation = $this->query()
-            ->with(['lead', 'customer', 'project', 'contract', 'service', 'items.service', 'paymentAllocations', 'paymentRefunds', 'createdBy'])
+            ->with($this->relations())
             ->whereKey($id)
             ->first();
 

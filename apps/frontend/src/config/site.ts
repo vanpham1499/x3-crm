@@ -6,6 +6,7 @@ export const siteConfig = {
   brand: {
     primary: '#00a878',
     secondary: '#16a34a',
+    blue: '#0b7db3',
     accent: '#f97316',
   },
 } as const;

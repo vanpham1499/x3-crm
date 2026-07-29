@@ -6,21 +6,41 @@
  * `permissions` is an OR list — the user needs at least one of the codes.
  */
 const ROUTE_PERMISSIONS: Array<{ prefix: string; permissions: string[] }> = [
+  { prefix: '/dashboard', permissions: ['dashboard.view'] },
   { prefix: '/leads', permissions: ['lead.view'] },
   { prefix: '/customers', permissions: ['customer.view'] },
-  { prefix: '/projects/services', permissions: ['project.view'] },
-  { prefix: '/projects/partners', permissions: ['project.view'] },
+  { prefix: '/settings/services', permissions: ['service.view'] },
+  { prefix: '/settings/partners', permissions: ['partner.view'] },
+  { prefix: '/projects/services', permissions: ['service.view'] },
+  { prefix: '/projects/partners', permissions: ['partner.view'] },
   { prefix: '/projects', permissions: ['project.view'] },
   { prefix: '/meetings', permissions: ['meeting.view'] },
   { prefix: '/quotations', permissions: ['quotation.view'] },
-  { prefix: '/costs', permissions: ['project.view'] },
+  { prefix: '/payments', permissions: ['payment.view'] },
+  { prefix: '/costs', permissions: ['cost.view'] },
   { prefix: '/weekly-reports', permissions: ['weeklyreport.view'] },
   { prefix: '/p2-points', permissions: ['p2point.view'] },
   { prefix: '/kpi', permissions: ['kpi.view'] },
+  { prefix: '/media-library', permissions: ['media.view'] },
+  { prefix: '/users/departments', permissions: ['department.view'] },
   { prefix: '/users/roles', permissions: ['role.view'] },
-  { prefix: '/users/permissions', permissions: ['role.view'] },
+  { prefix: '/users/permissions', permissions: ['permission.view'] },
   { prefix: '/users', permissions: ['user.view'] },
-  { prefix: '/settings', permissions: ['option.manage'] },
+  { prefix: '/settings/bank-accounts', permissions: ['bankaccount.view'] },
+  { prefix: '/settings/ad-topup-cards', permissions: ['adtopupcard.view'] },
+  { prefix: '/settings/p2-categories', permissions: ['p2category.view'] },
+  { prefix: '/settings/options', permissions: ['option.view'] },
+  {
+    prefix: '/settings',
+    permissions: [
+      'service.view',
+      'partner.view',
+      'bankaccount.view',
+      'adtopupcard.view',
+      'p2category.view',
+      'option.view',
+    ],
+  },
 ];
 
 export function getRequiredPermissionsForPath(pathname: string): string[] | null {

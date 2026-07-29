@@ -14,6 +14,7 @@ import { AppFormDialog } from '@/components/dialog/app-form-dialog';
 import { ConfirmDialog } from '@/components/feedback/confirm-dialog';
 import { CompactSearchField } from '@/components/form/compact-search-field';
 import { FormInputField } from '@/components/form/form-input-field';
+import { ListFilterBar } from '@/components/form/list-filter-bar';
 import { PageHeader } from '@/components/shell/page-header';
 import { AppDataTable } from '@/components/table/app-data-table';
 import { TablePaginationBar } from '@/components/table/table-pagination-bar';
@@ -173,14 +174,14 @@ export function AdTopupCardManager({
       />
 
       <section className="w-full overflow-hidden rounded-2xl border border-slate-200 bg-white shadow-sm">
-        <div className="p-4">
+        <ListFilterBar className="p-4">
           <CompactSearchField
             label="Từ khóa"
             placeholder="Tìm mã thẻ, tên thẻ hoặc thông tin thẻ..."
             value={keyword}
             onChange={onKeywordChange}
           />
-        </div>
+        </ListFilterBar>
 
         <AppDataTable
           columns={[

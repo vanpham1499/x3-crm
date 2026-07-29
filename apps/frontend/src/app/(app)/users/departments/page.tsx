@@ -24,7 +24,7 @@ export default function DepartmentsPage() {
 
   const { data: users = [], isLoading: isUsersLoading } = useQuery<User[]>({
     queryKey: ['users', 'department-options'],
-    queryFn: () => api.get<User[]>('/users').then((response) => response.data),
+    queryFn: () => api.get<User[]>('/users/lookup').then((response) => response.data),
   });
 
   const saveMutation = useMutation({

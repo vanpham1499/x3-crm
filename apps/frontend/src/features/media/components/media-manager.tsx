@@ -26,6 +26,7 @@ import { DialogActionButton } from '@/components/actions/dialog-action-button';
 import { AppFormDialog } from '@/components/dialog/app-form-dialog';
 import { ConfirmDialog } from '@/components/feedback/confirm-dialog';
 import { CompactSearchField } from '@/components/form/compact-search-field';
+import { ListFilterBar } from '@/components/form/list-filter-bar';
 import { ImageLightbox } from '@/components/media/image-lightbox';
 import { PageHeader } from '@/components/shell/page-header';
 import { AppDataTable } from '@/components/table/app-data-table';
@@ -45,6 +46,7 @@ type MediaManagerProps = {
   isFetching: boolean;
   isSubmitting: boolean;
   isDeleting: boolean;
+  canCreate: boolean;
   onKeywordChange: (keyword: string) => void;
   onPageChange: (page: number) => void;
   onPageSizeChange: (pageSize: number) => void;
@@ -146,6 +148,8 @@ function MediaActions({
 }) {
   const [anchorEl, setAnchorEl] = useState<HTMLElement | null>(null);
 
+  if (!image.canUpdate && !image.canDelete) return null;
+
   return (
     <>
       <IconButton
@@ -163,25 +167,29 @@ function MediaActions({
         onClose={() => setAnchorEl(null)}
         slotProps={{ list: { dense: true } }}
       >
-        <MenuItem
-          onClick={() => {
-            setAnchorEl(null);
-            onEdit(image);
-          }}
-        >
-          <EditRoundedIcon className="mr-2 !text-[18px] text-slate-500" />
-          Sửa tên ảnh
-        </MenuItem>
-        <MenuItem
-          className="!text-red-600"
-          onClick={() => {
-            setAnchorEl(null);
-            onDelete(image);
-          }}
-        >
-          <DeleteRoundedIcon className="mr-2 !text-[18px]" />
-          Xóa ảnh
-        </MenuItem>
+        {image.canUpdate ? (
+          <MenuItem
+            onClick={() => {
+              setAnchorEl(null);
+              onEdit(image);
+            }}
+          >
+            <EditRoundedIcon className="mr-2 !text-[18px] text-slate-500" />
+            Sửa tên ảnh
+          </MenuItem>
+        ) : null}
+        {image.canDelete ? (
+          <MenuItem
+            className="!text-red-600"
+            onClick={() => {
+              setAnchorEl(null);
+              onDelete(image);
+            }}
+          >
+            <DeleteRoundedIcon className="mr-2 !text-[18px]" />
+            Xóa ảnh
+          </MenuItem>
+        ) : null}
       </Menu>
     </>
   );
@@ -495,25 +503,29 @@ function MediaPreviewDialog({
       onClose={onClose}
       actions={
         <>
-          <DialogActionButton
-            startIcon={<EditRoundedIcon />}
-            onClick={() => {
-              onClose();
-              onEdit(image);
-            }}
-          >
-            Sửa tên
-          </DialogActionButton>
-          <Button
-            color="error"
-            variant="outlined"
-            size="small"
-            startIcon={<DeleteRoundedIcon />}
-            className="!h-9 !rounded-lg !px-3 !text-[13px] !font-bold"
-            onClick={() => onDelete(image)}
-          >
-            Xóa
-          </Button>
+          {image.canUpdate ? (
+            <DialogActionButton
+              startIcon={<EditRoundedIcon />}
+              onClick={() => {
+                onClose();
+                onEdit(image);
+              }}
+            >
+              Sửa tên
+            </DialogActionButton>
+          ) : null}
+          {image.canDelete ? (
+            <Button
+              color="error"
+              variant="outlined"
+              size="small"
+              startIcon={<DeleteRoundedIcon />}
+              className="!h-9 !rounded-lg !px-3 !text-[13px] !font-bold"
+              onClick={() => onDelete(image)}
+            >
+              Xóa
+            </Button>
+          ) : null}
         </>
       }
       footer={
@@ -538,6 +550,7 @@ export function MediaManager({
   isFetching,
   isSubmitting,
   isDeleting,
+  canCreate,
   onKeywordChange,
   onPageChange,
   onPageSizeChange,
@@ -557,23 +570,27 @@ export function MediaManager({
     <div className="min-h-[calc(100vh-72px)] w-full bg-slate-50/60 p-6">
       <PageHeader
         title="Thư viện ảnh"
-        action={{
-          label: 'Thêm ảnh',
-          icon: <AddRoundedIcon />,
-          onClick: () => setCreateOpen(true),
-        }}
+        action={
+          canCreate
+            ? {
+                label: 'Thêm ảnh',
+                icon: <AddRoundedIcon />,
+                onClick: () => setCreateOpen(true),
+              }
+            : undefined
+        }
       />
 
       <section className="overflow-hidden rounded-xl border border-slate-200 bg-white shadow-sm">
         <div className="flex flex-col gap-3 border-b border-slate-200 p-4 sm:flex-row sm:items-center sm:justify-between">
-          <div className="w-full sm:max-w-xl">
+          <ListFilterBar className="w-full flex-1">
             <CompactSearchField
               label="Từ khóa"
               placeholder="Tìm theo tên ảnh..."
               value={keyword}
               onChange={onKeywordChange}
             />
-          </div>
+          </ListFilterBar>
 
           <ToggleButtonGroup
             exclusive

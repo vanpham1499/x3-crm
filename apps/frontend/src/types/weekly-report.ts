@@ -54,10 +54,13 @@ export type WeeklyReport = {
   approvedAt?: string | null;
   project?: Pick<ProjectItem, 'id' | 'projectCode' | 'projectName' | 'managerUserId'> | null;
   customer?: Pick<Customer, 'id' | 'customerCode' | 'customerName'> | null;
-  reporter?: Pick<User, 'id' | 'name'> | null;
+  reporter?: Pick<User, 'id' | 'name' | 'departmentId'> | null;
   approver?: Pick<User, 'id' | 'name'> | null;
   items?: WeeklyReportItem[];
   attachments?: WeeklyReportAttachment[];
+  canUpdate?: boolean;
+  canDelete?: boolean;
+  canApprove?: boolean;
   createdAt?: string;
   updatedAt?: string;
 };

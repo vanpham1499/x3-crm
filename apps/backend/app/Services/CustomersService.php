@@ -2,6 +2,7 @@
 
 namespace App\Services;
 
+use App\Http\Resources\CustomerLookupResource;
 use App\Http\Resources\CustomerResource;
 use App\Models\Customer;
 use App\Models\CustomerTimeline;
@@ -19,26 +20,46 @@ class CustomersService extends BaseService
 
     public function findAll(array $filters = [])
     {
-        return $this->apiCollection($this->customers->findAll($this->normalizeKeys($filters)), CustomerResource::class);
+        return $this->apiCollection($this->customers->findAll($this->normalizeKeys($filters), $this->currentUser()), CustomerResource::class);
     }
 
     public function findPaginated(array $filters, int $perPage, int $page): array
     {
         return $this->apiPaginatedCollection(
-            $this->customers->findPaginated($this->normalizeKeys($filters), $perPage, $page),
+            $this->customers->findPaginated($this->normalizeKeys($filters), $perPage, $page, $this->currentUser()),
             CustomerResource::class,
+        );
+    }
+
+    public function findLookupPaginated(array $filters, int $perPage, int $page): array
+    {
+        return $this->apiPaginatedCollection(
+            $this->customers->findLookupPaginated($filters, $perPage, $page, $this->currentUser()),
+            CustomerLookupResource::class,
+        );
+    }
+
+    public function findLookupOne(string $id): array
+    {
+        return $this->apiResource(
+            $this->customers->findLookupOrFail($id, $this->currentUser()),
+            CustomerLookupResource::class,
         );
     }
 
     public function findOne(string $id): array
     {
-        return $this->apiResource($this->customers->findWithRelationsOrFail($id), CustomerResource::class);
+        $customer = $this->customers->findWithRelationsOrFail($id);
+        $this->authorize('view', $customer);
+
+        return $this->apiResource($customer, CustomerResource::class);
     }
 
     public function create(array $data, bool $linkLead = true, bool $checkAuthorization = true): array
     {
         return $this->transaction(function () use ($data, $linkLead, $checkAuthorization): array {
             $data = $this->normalizePayload($data);
+            $this->validateAssigneeScope('customer', $data['sales_user_id'] ?? null, 'salesUserId');
             if (! array_key_exists('customer_code', $data)) {
                 $data['customer_code'] = $this->generateCustomerCode();
             }
@@ -52,6 +73,8 @@ class CustomersService extends BaseService
                 }
 
                 $data['source_option_id'] = $lead->source_option_id;
+                $data['industry'] = $lead->industry;
+                $data['industry_option_id'] = $lead->industry_option_id;
                 $this->authorize('update', $lead);
             } elseif ($checkAuthorization) {
                 $this->authorize('create', Customer::class);
@@ -74,11 +97,21 @@ class CustomersService extends BaseService
     {
         return $this->transaction(function () use ($id, $data): array {
             $data = $this->normalizePayload($data);
+
             $before = $this->loadCustomerRelations($this->customers->findWithRelationsOrFail($id));
             $this->authorize('update', $before);
 
+            if (array_key_exists('sales_user_id', $data)) {
+                $this->validateAssigneeScope('customer', $data['sales_user_id'], 'salesUserId');
+            }
+
             if ($before->lead_id && $before->lead?->source_option_id) {
                 $data['source_option_id'] = $before->lead->source_option_id;
+            }
+
+            if ($before->lead_id && $before->lead) {
+                $data['industry'] = $before->lead->industry;
+                $data['industry_option_id'] = $before->lead->industry_option_id;
             }
 
             /** @var Customer $customer */

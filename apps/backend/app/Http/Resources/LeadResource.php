@@ -36,6 +36,7 @@ class LeadResource extends JsonResource
                 'code' => $this->assignedUser->code,
                 'name' => $this->assignedUser->name,
                 'email' => $this->assignedUser->email,
+                'departmentId' => $this->assignedUser->department_id,
             ] : null),
             'createdBy' => $this->whenLoaded('createdBy', fn () => $this->createdBy ? [
                 'id' => $this->createdBy->id,
@@ -59,6 +60,8 @@ class LeadResource extends JsonResource
                 'customerName' => $this->convertedCustomer->customer_name,
             ] : null),
             'timelines' => CustomerTimelineResource::collection($this->whenLoaded('timelines')),
+            'canUpdate' => (bool) ($request->user()?->can('update', $this->resource) ?? false),
+            'canDelete' => (bool) ($request->user()?->can('delete', $this->resource) ?? false),
             'createdAt' => $this->created_at?->toISOString(),
             'updatedAt' => $this->updated_at?->toISOString(),
         ];

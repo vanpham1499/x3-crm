@@ -12,6 +12,7 @@ import OpenInNewRoundedIcon from '@mui/icons-material/OpenInNewRounded';
 import PhoneRoundedIcon from '@mui/icons-material/PhoneRounded';
 import SearchRoundedIcon from '@mui/icons-material/SearchRounded';
 import { Checkbox, IconButton, InputAdornment, Menu, MenuItem, TextField } from '@mui/material';
+import { ListFilterBar } from '@/components/form/list-filter-bar';
 import { PageHeader } from '@/components/shell/page-header';
 import {
   CUSTOMER_ALL_STATUS,
@@ -169,8 +170,9 @@ export function CustomerList({
       />
 
       <section className="w-full overflow-hidden rounded-2xl border border-slate-200 bg-white shadow-sm">
-        <div className="flex flex-col gap-3 border-b border-slate-200 p-5 lg:flex-row lg:items-center">
+        <ListFilterBar className="border-b border-slate-200 p-5">
           <TextField
+            data-list-filter-search
             fullWidth
             label="Từ khóa"
             placeholder={searchPlaceholder}
@@ -187,7 +189,7 @@ export function CustomerList({
             }}
           />
 
-          <div className="grid gap-3 sm:grid-cols-2 lg:w-[520px]">
+          <>
             <TextField
               select
               label="Trạng thái"
@@ -213,8 +215,8 @@ export function CustomerList({
                 </MenuItem>
               ))}
             </TextField>
-          </div>
-        </div>
+          </>
+        </ListFilterBar>
 
         {hasSelectedRows && (
           <div className="flex h-14 items-center justify-between bg-emerald-100 px-5 text-sm font-bold text-emerald-700">

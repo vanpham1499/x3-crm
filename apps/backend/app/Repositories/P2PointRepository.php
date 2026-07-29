@@ -3,6 +3,7 @@
 namespace App\Repositories;
 
 use App\Models\P2Point;
+use App\Models\User;
 use Illuminate\Contracts\Pagination\LengthAwarePaginator;
 use Illuminate\Database\Eloquent\Builder;
 use Illuminate\Database\Eloquent\Collection;
@@ -17,27 +18,27 @@ class P2PointRepository extends BaseRepository
         return P2Point::class;
     }
 
-    public function findAll(array $filters = []): Collection
+    public function findAll(User $user, array $filters = []): Collection
     {
-        return $this->filteredQuery($filters)
+        return $this->filteredQuery($user, $filters)
             ->with(['user', 'project', 'approver', 'categoryOption'])
             ->orderByDesc('entry_date')
             ->orderByDesc('created_at')
             ->get();
     }
 
-    public function findPaginated(array $filters, int $perPage, int $page): LengthAwarePaginator
+    public function findPaginated(User $user, array $filters, int $perPage, int $page): LengthAwarePaginator
     {
-        return $this->filteredQuery($filters)
+        return $this->filteredQuery($user, $filters)
             ->with(['user', 'project', 'approver', 'categoryOption'])
             ->orderByDesc('entry_date')
             ->orderByDesc('created_at')
             ->paginate($perPage, ['*'], 'page', $page);
     }
 
-    public function summarizeByUser(array $filters): Collection
+    public function summarizeByUser(User $user, array $filters): Collection
     {
-        return $this->filteredQuery($filters)
+        return $this->filteredQuery($user, $filters)
             ->selectRaw(
                 'user_id,
                 SUM(CASE WHEN type = ? THEN score ELSE 0 END) as bonus_score,
@@ -53,11 +54,11 @@ class P2PointRepository extends BaseRepository
             ->get();
     }
 
-    private function filteredQuery(array $filters): Builder
+    private function filteredQuery(User $user, array $filters): Builder
     {
         $keyword = trim((string) ($filters['keyword'] ?? $filters['search'] ?? ''));
 
-        return $this->query()
+        $query = $this->query()
             ->when($keyword !== '', fn ($query) => $query->where(function ($query) use ($keyword): void {
                 $query
                     ->where('customer_ref', 'ilike', "%{$keyword}%")
@@ -72,6 +73,28 @@ class P2PointRepository extends BaseRepository
             ->when(array_key_exists('is_approved', $filters) && $filters['is_approved'] !== null, fn ($query) => $query->where('is_approved', (bool) $filters['is_approved']))
             ->when($filters['date_from'] ?? null, fn ($query, $value) => $query->whereDate('entry_date', '>=', $value))
             ->when($filters['date_to'] ?? null, fn ($query, $value) => $query->whereDate('entry_date', '<=', $value));
+
+        return $this->applyViewScope($query, $user);
+    }
+
+    private function applyViewScope(Builder $query, User $user): Builder
+    {
+        if ($user->hasPermission('p2point.view_all')) {
+            return $query;
+        }
+
+        if ($user->hasPermission('p2point.view_department') && $user->department_id) {
+            return $query->whereHas(
+                'user',
+                fn (Builder $pointUser) => $pointUser->where('department_id', $user->department_id),
+            );
+        }
+
+        if ($user->hasPermission('p2point.view')) {
+            return $query->where('user_id', $user->id);
+        }
+
+        return $query->whereRaw('1 = 0');
     }
 
     public function findWithRelationsOrFail(string $id): P2Point
@@ -81,6 +104,21 @@ class P2PointRepository extends BaseRepository
             ->with(['user', 'project', 'approver', 'categoryOption'])
             ->whereKey($id)
             ->first();
+
+        if (! $point) {
+            throw new NotFoundHttpException($this->notFoundMessage);
+        }
+
+        return $point;
+    }
+
+    public function findVisibleWithRelationsOrFail(User $user, string $id): P2Point
+    {
+        /** @var P2Point|null $point */
+        $point = $this->applyViewScope(
+            $this->query()->with(['user', 'project', 'approver', 'categoryOption']),
+            $user,
+        )->whereKey($id)->first();
 
         if (! $point) {
             throw new NotFoundHttpException($this->notFoundMessage);

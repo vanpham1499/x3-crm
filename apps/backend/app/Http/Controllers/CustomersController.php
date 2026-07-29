@@ -38,6 +38,23 @@ class CustomersController extends Controller
         return $this->success($this->customers->findAll($filters));
     }
 
+    public function lookup(Request $request): JsonResponse
+    {
+        $page = max(1, (int) $request->query('page', 1));
+        $perPage = min(100, max(1, (int) $request->query('per_page', 10)));
+        $result = $this->customers->findLookupPaginated([
+            'keyword' => $request->query('keyword'),
+            'search' => $request->query('search'),
+        ], $perPage, $page);
+
+        return $this->success($result['data'], 200, $result['meta']);
+    }
+
+    public function lookupShow(string $id): JsonResponse
+    {
+        return $this->success($this->customers->findLookupOne($id));
+    }
+
     public function show(string $id): JsonResponse
     {
         return $this->success($this->customers->findOne($id));

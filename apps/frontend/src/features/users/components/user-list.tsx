@@ -12,6 +12,7 @@ import { DialogActionButton } from '@/components/actions/dialog-action-button';
 import { AppDetailDialog } from '@/components/dialog/app-detail-dialog';
 import { CompactSearchField } from '@/components/form/compact-search-field';
 import { CompactSelectField } from '@/components/form/compact-select-field';
+import { ListFilterBar } from '@/components/form/list-filter-bar';
 import { PageHeader } from '@/components/shell/page-header';
 import { AppDataTable } from '@/components/table/app-data-table';
 import { TablePaginationBar } from '@/components/table/table-pagination-bar';
@@ -166,7 +167,7 @@ export function UserList({
       />
 
       <section className="w-full overflow-hidden rounded-2xl border border-slate-200 bg-white shadow-sm">
-        <div className="grid gap-3 p-4 lg:grid-cols-[minmax(280px,1fr)_176px_176px]">
+        <ListFilterBar className="p-4">
           <CompactSearchField
             label="Từ khóa"
             placeholder="Tìm mã, tên, email, số điện thoại..."
@@ -191,7 +192,7 @@ export function UserList({
             ]}
             onChange={(is_active) => updateFilters({ is_active })}
           />
-        </div>
+        </ListFilterBar>
 
         <AppDataTable
           columns={[

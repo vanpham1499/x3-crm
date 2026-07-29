@@ -6,12 +6,10 @@ import Link from 'next/link';
 import { useRouter } from 'next/navigation';
 import { useQuery } from '@tanstack/react-query';
 import AddRoundedIcon from '@mui/icons-material/AddRounded';
-import CheckRoundedIcon from '@mui/icons-material/CheckRounded';
 import DeleteRoundedIcon from '@mui/icons-material/DeleteRounded';
 import EditRoundedIcon from '@mui/icons-material/EditRounded';
 import HistoryRoundedIcon from '@mui/icons-material/HistoryRounded';
 import InfoRoundedIcon from '@mui/icons-material/InfoRounded';
-import KeyboardArrowDownRoundedIcon from '@mui/icons-material/KeyboardArrowDownRounded';
 import LanguageRoundedIcon from '@mui/icons-material/LanguageRounded';
 import MoreVertRoundedIcon from '@mui/icons-material/MoreVertRounded';
 import OpenInNewRoundedIcon from '@mui/icons-material/OpenInNewRounded';
@@ -19,7 +17,7 @@ import PersonAddAlt1RoundedIcon from '@mui/icons-material/PersonAddAlt1Rounded';
 import RequestQuoteRoundedIcon from '@mui/icons-material/RequestQuoteRounded';
 import VisibilityRoundedIcon from '@mui/icons-material/VisibilityRounded';
 import WorkRoundedIcon from '@mui/icons-material/WorkRounded';
-import { ButtonBase, IconButton, Menu, MenuItem, Tooltip } from '@mui/material';
+import { IconButton, Menu, MenuItem, Tooltip } from '@mui/material';
 import { DialogActionButton } from '@/components/actions/dialog-action-button';
 import { ExternalLinkButton } from '@/components/actions/external-link-button';
 import { AppDetailDialog } from '@/components/dialog/app-detail-dialog';
@@ -27,6 +25,8 @@ import { ConfirmDialog } from '@/components/feedback/confirm-dialog';
 import { CompactSearchField } from '@/components/form/compact-search-field';
 import { CompactMonthPicker } from '@/components/form/compact-month-picker';
 import { CompactSelectField } from '@/components/form/compact-select-field';
+import { InlineStatusSelect } from '@/components/form/inline-status-select';
+import { ListFilterBar } from '@/components/form/list-filter-bar';
 import { IconTabs } from '@/components/navigation/icon-tabs';
 import { PageHeader } from '@/components/shell/page-header';
 import { AppDataTable } from '@/components/table/app-data-table';
@@ -152,59 +152,31 @@ function InlineLeadStatusSelect({
   disabled: boolean;
   onChange: (statusOptionId: number) => void;
 }) {
-  const [anchorEl, setAnchorEl] = useState<HTMLElement | null>(null);
   const currentStatusId = String(
     lead.statusOptionId || lead.statusOption?.id || lead.status?.id || '',
   );
   const selectedOption = statuses.find((status) => String(status.id) === currentStatusId);
+  const displayOption = selectedOption || lead.statusOption;
   const fallbackStatus = statusOptions.find((status) => String(status.id) === currentStatusId);
-  const selectedStyle = optionChipStyle(selectedOption);
 
   return (
-    <>
-      <ButtonBase
-        disabled={disabled}
-        aria-label={`Cập nhật trạng thái ${getLeadIdentity(lead)}`}
-        aria-haspopup="menu"
-        aria-expanded={Boolean(anchorEl)}
-        onClick={(event) => setAnchorEl(event.currentTarget)}
-        style={selectedStyle}
-        className={`!inline-flex !h-8 !max-w-[142px] !rounded-full !border !px-2.5 !text-xs !font-bold ${
-          selectedStyle ? '' : '!border-amber-200 !bg-amber-50 !text-amber-700'
-        }`}
-      >
-        <span className="min-w-0 truncate">
-          {selectedOption?.label || fallbackStatus?.name || 'Mới'}
-        </span>
-        <KeyboardArrowDownRoundedIcon className="!-mr-1 !ml-1 !text-[16px]" />
-      </ButtonBase>
+    <InlineStatusSelect
+      value={currentStatusId}
+      label={displayOption?.label || fallbackStatus?.name || 'Mới'}
+      color={displayOption ? getOptionColor(displayOption) : '#f59e0b'}
+      options={statusOptions.map((status) => {
+        const option = statuses.find((item) => item.id === status.id);
 
-      <Menu anchorEl={anchorEl} open={Boolean(anchorEl)} onClose={() => setAnchorEl(null)}>
-        {statusOptions.map((status) => {
-          const option = statuses.find((item) => item.id === status.id);
-          const isSelected = String(status.id) === currentStatusId;
-
-          return (
-            <MenuItem
-              key={status.id}
-              selected={isSelected}
-              className="!min-w-[220px] !gap-2"
-              onClick={() => {
-                setAnchorEl(null);
-                if (!isSelected) onChange(status.id);
-              }}
-            >
-              <span
-                className={`size-2.5 shrink-0 rounded-full ${option ? '' : 'bg-slate-500'}`}
-                style={option ? { backgroundColor: getOptionColor(option) } : undefined}
-              />
-              <span className="min-w-0 flex-1 truncate text-sm font-semibold">{status.name}</span>
-              {isSelected && <CheckRoundedIcon className="!text-[18px] text-primary" />}
-            </MenuItem>
-          );
-        })}
-      </Menu>
-    </>
+        return {
+          value: String(status.id),
+          label: status.name,
+          color: option ? getOptionColor(option) : '#64748b',
+        };
+      })}
+      ariaLabel={`Cập nhật trạng thái ${getLeadIdentity(lead)}`}
+      disabled={disabled}
+      onChange={(statusOptionId) => onChange(Number(statusOptionId))}
+    />
   );
 }
 
@@ -781,7 +753,7 @@ export function LeadManager({
 
       <section className="w-full overflow-hidden rounded-2xl border border-slate-200 bg-white shadow-sm">
         <div className="border-slate-200 p-4">
-          <div className="grid gap-3 md:grid-cols-2 xl:grid-cols-[minmax(240px,1fr)_repeat(5,176px)]">
+          <ListFilterBar>
             <CompactSearchField
               label="Từ khóa"
               placeholder="Tìm lead, số điện thoại, website, ngành..."
@@ -865,7 +837,7 @@ export function LeadManager({
                 })
               }
             />
-          </div>
+          </ListFilterBar>
         </div>
 
         <AppDataTable

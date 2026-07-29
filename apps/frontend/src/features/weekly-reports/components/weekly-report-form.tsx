@@ -307,8 +307,8 @@ export function WeeklyReportForm({
                   </strong>
                   <span className="whitespace-nowrap rounded-md bg-sky-50 px-1.5 py-0.5 text-[11px] font-bold text-sky-700 ring-1 ring-sky-200">
                     Loại{' '}
-                    {selectedProject?.projectType === 'N'
-                      ? 'O'
+                    {selectedProject?.projectType === 'N' || selectedProject?.projectType === 'O'
+                      ? 'Không chọn'
                       : selectedProject?.projectType || '-'}
                   </span>
                   <span className="whitespace-nowrap rounded-md bg-white px-1.5 py-0.5 text-[11px] font-bold text-slate-600 ring-1 ring-slate-200">

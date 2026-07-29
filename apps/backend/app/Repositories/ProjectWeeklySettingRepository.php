@@ -3,6 +3,8 @@
 namespace App\Repositories;
 
 use App\Models\ProjectWeeklySetting;
+use App\Models\User;
+use Illuminate\Database\Eloquent\Builder;
 use Illuminate\Database\Eloquent\Collection;
 use Symfony\Component\HttpKernel\Exception\NotFoundHttpException;
 
@@ -15,15 +17,17 @@ class ProjectWeeklySettingRepository extends BaseRepository
         return ProjectWeeklySetting::class;
     }
 
-    public function findAll(array $filters = []): Collection
+    public function findAll(array $filters = [], ?User $user = null): Collection
     {
-        return $this->query()
+        $query = $this->query()
             ->with(['project', 'reportOwner'])
             ->when($filters['project_id'] ?? null, fn ($query, $value) => $query->where('project_id', $value))
             ->when($filters['report_owner_user_id'] ?? null, fn ($query, $value) => $query->where('report_owner_user_id', $value))
-            ->when(array_key_exists('is_active', $filters) && $filters['is_active'] !== null, fn ($query) => $query->where('is_active', (bool) $filters['is_active']))
-            ->orderBy('report_weekday')
-            ->get();
+            ->when(array_key_exists('is_active', $filters) && $filters['is_active'] !== null, fn ($query) => $query->where('is_active', (bool) $filters['is_active']));
+
+        $this->applyViewScope($query, $user);
+
+        return $query->orderBy('report_weekday')->get();
     }
 
     public function findByProject(string $projectId): ?ProjectWeeklySetting
@@ -34,9 +38,9 @@ class ProjectWeeklySettingRepository extends BaseRepository
             ->first();
     }
 
-    public function findActiveForBoard(array $filters = []): Collection
+    public function findActiveForBoard(array $filters = [], ?User $user = null): Collection
     {
-        return $this->query()
+        $query = $this->query()
             ->with(['project.customer', 'project.statusOption', 'reportOwner'])
             ->where('is_active', true)
             ->whereHas('project')
@@ -61,8 +65,11 @@ class ProjectWeeklySettingRepository extends BaseRepository
             ->when(
                 $filters['report_weekday'] ?? null,
                 fn ($query, $value) => $query->where('report_weekday', $value),
-            )
-            ->orderBy('report_weekday')
+            );
+
+        $this->applyViewScope($query, $user);
+
+        return $query->orderBy('report_weekday')
             ->orderBy('project_id')
             ->get();
     }
@@ -93,5 +100,53 @@ class ProjectWeeklySettingRepository extends BaseRepository
         }
 
         return $setting;
+    }
+
+    public function findVisibleWithRelationsOrFail(User $user, string $id): ProjectWeeklySetting
+    {
+        $query = $this->query()->with(['project', 'reportOwner']);
+        $this->applyViewScope($query, $user);
+
+        /** @var ProjectWeeklySetting|null $setting */
+        $setting = $query->whereKey($id)->first();
+
+        if (! $setting) {
+            throw new NotFoundHttpException($this->notFoundMessage);
+        }
+
+        return $setting;
+    }
+
+    private function applyViewScope(Builder $query, ?User $user): void
+    {
+        if (! $user || $user->hasPermission('weeklyreport.view_all')) {
+            return;
+        }
+
+        if ($user->hasPermission('weeklyreport.view_department') && $user->department_id) {
+            $departmentId = $user->department_id;
+            $query->where(function (Builder $scope) use ($departmentId): void {
+                $scope
+                    ->whereHas('reportOwner', fn (Builder $owner) => $owner->where('department_id', $departmentId))
+                    ->orWhereHas('project.managerUser', fn (Builder $manager) => $manager->where('department_id', $departmentId))
+                    ->orWhereHas('project.salesUser', fn (Builder $sales) => $sales->where('department_id', $departmentId));
+            });
+
+            return;
+        }
+
+        if ($user->hasPermission('weeklyreport.view')) {
+            $query->where(function (Builder $scope) use ($user): void {
+                $scope
+                    ->where('report_owner_user_id', $user->id)
+                    ->orWhereHas('project', fn (Builder $project) => $project
+                        ->where('manager_user_id', $user->id)
+                        ->orWhere('sales_user_id', $user->id));
+            });
+
+            return;
+        }
+
+        $query->whereRaw('1 = 0');
     }
 }

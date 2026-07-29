@@ -56,6 +56,11 @@ class Lead extends BaseModel
         return $this->assigned_user_id === $user->id;
     }
 
+    public function isInDepartmentOf(User $user): bool
+    {
+        return $user->sharesDepartmentWith($this->assignedUser);
+    }
+
     public function sourceOption(): BelongsTo
     {
         return $this->belongsTo(Option::class, 'source_option_id');

@@ -12,12 +12,48 @@ use Symfony\Component\HttpKernel\Exception\UnprocessableEntityHttpException;
 
 class UsersService extends BaseService
 {
-    public function __construct(private readonly UserRepository $users)
-    {
-    }
+    private const DATA_SCOPE_MODULES = [
+        'lead',
+        'customer',
+        'project',
+        'meeting',
+        'weeklyreport',
+        'p2point',
+    ];
+
+    private const DATA_SCOPE_ACTIONS = ['view', 'create', 'update', 'delete', 'approve'];
+
+    public function __construct(private readonly UserRepository $users) {}
 
     public function findAll(array $filters = [])
     {
+        return $this->apiCollection($this->users->findAll($filters), UserResource::class);
+    }
+
+    public function findLookup(array $filters = [], ?string $context = null)
+    {
+        $module = in_array($context, self::DATA_SCOPE_MODULES, true) ? $context : null;
+        $currentUser = $this->currentUser();
+
+        if ($module && $currentUser) {
+            $hasAllScope = collect(self::DATA_SCOPE_ACTIONS)
+                ->contains(fn (string $action): bool => $currentUser->hasPermission("{$module}.{$action}_all"));
+
+            if (! $hasAllScope) {
+                $hasDepartmentScope = collect(self::DATA_SCOPE_ACTIONS)
+                    ->contains(fn (string $action): bool => $currentUser->hasPermission("{$module}.{$action}_department"));
+
+                if (
+                    $currentUser->department_id
+                    && $hasDepartmentScope
+                ) {
+                    $filters['department_id'] = $currentUser->department_id;
+                } else {
+                    $filters['id'] = $currentUser->id;
+                }
+            }
+        }
+
         return $this->apiCollection($this->users->findAll($filters), UserResource::class);
     }
 

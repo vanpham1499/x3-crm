@@ -23,14 +23,30 @@ export function canCreateLead(user: User | null | undefined): boolean {
 
 export function canEditLead(user: User | null | undefined, lead: Lead): boolean {
   if (!user) return false;
+  if (typeof lead.canUpdate === 'boolean') return lead.canUpdate;
   if (hasPermission(user, 'lead.update_all')) return true;
+  if (
+    hasPermission(user, 'lead.update_department') &&
+    user.departmentId &&
+    lead.assignedUser?.departmentId === user.departmentId
+  ) {
+    return true;
+  }
 
   return hasPermission(user, 'lead.update') && lead.assignedUserId === user.id;
 }
 
 export function canDeleteLead(user: User | null | undefined, lead: Lead): boolean {
   if (!user) return false;
+  if (typeof lead.canDelete === 'boolean') return lead.canDelete;
   if (hasPermission(user, 'lead.delete_all')) return true;
+  if (
+    hasPermission(user, 'lead.delete_department') &&
+    user.departmentId &&
+    lead.assignedUser?.departmentId === user.departmentId
+  ) {
+    return true;
+  }
 
   return hasPermission(user, 'lead.delete') && lead.assignedUserId === user.id;
 }
@@ -43,14 +59,30 @@ export function canCreateCustomer(user: User | null | undefined): boolean {
 
 export function canEditCustomer(user: User | null | undefined, customer: Customer): boolean {
   if (!user) return false;
+  if (typeof customer.canUpdate === 'boolean') return customer.canUpdate;
   if (hasPermission(user, 'customer.update_all')) return true;
+  if (
+    hasPermission(user, 'customer.update_department') &&
+    user.departmentId &&
+    customer.salesUser?.departmentId === user.departmentId
+  ) {
+    return true;
+  }
 
   return hasPermission(user, 'customer.update') && customer.salesUserId === user.id;
 }
 
 export function canDeleteCustomer(user: User | null | undefined, customer: Customer): boolean {
   if (!user) return false;
+  if (typeof customer.canDelete === 'boolean') return customer.canDelete;
   if (hasPermission(user, 'customer.delete_all')) return true;
+  if (
+    hasPermission(user, 'customer.delete_department') &&
+    user.departmentId &&
+    customer.salesUser?.departmentId === user.departmentId
+  ) {
+    return true;
+  }
 
   return hasPermission(user, 'customer.delete') && customer.salesUserId === user.id;
 }
@@ -63,7 +95,16 @@ export function canCreateProject(user: User | null | undefined): boolean {
 
 export function canEditProject(user: User | null | undefined, project: ProjectItem): boolean {
   if (!user) return false;
+  if (typeof project.canUpdate === 'boolean') return project.canUpdate;
   if (hasPermission(user, 'project.update_all')) return true;
+  if (
+    hasPermission(user, 'project.update_department') &&
+    user.departmentId &&
+    (project.managerUser?.departmentId === user.departmentId ||
+      project.salesUser?.departmentId === user.departmentId)
+  ) {
+    return true;
+  }
 
   return (
     hasPermission(user, 'project.update') &&
@@ -73,7 +114,16 @@ export function canEditProject(user: User | null | undefined, project: ProjectIt
 
 export function canDeleteProject(user: User | null | undefined, project: ProjectItem): boolean {
   if (!user) return false;
+  if (typeof project.canDelete === 'boolean') return project.canDelete;
   if (hasPermission(user, 'project.delete_all')) return true;
+  if (
+    hasPermission(user, 'project.delete_department') &&
+    user.departmentId &&
+    (project.managerUser?.departmentId === user.departmentId ||
+      project.salesUser?.departmentId === user.departmentId)
+  ) {
+    return true;
+  }
 
   return (
     hasPermission(user, 'project.delete') &&
@@ -91,6 +141,13 @@ export function canCreateProjectForCustomer(
 ): boolean {
   if (!user || !hasPermission(user, 'project.create')) return false;
   if (hasPermission(user, 'customer.update_all')) return true;
+  if (
+    hasPermission(user, 'customer.update_department') &&
+    user.departmentId &&
+    customer.salesUser?.departmentId === user.departmentId
+  ) {
+    return true;
+  }
 
   return customer.salesUserId === user.id;
 }
@@ -119,6 +176,7 @@ function quotationOwnershipHolds(user: User, quotation: Quotation): boolean {
 
 export function canEditQuotation(user: User | null | undefined, quotation: Quotation): boolean {
   if (!user) return false;
+  if (typeof quotation.canUpdate === 'boolean') return quotation.canUpdate;
   if (hasPermission(user, 'quotation.update_all')) return true;
 
   return hasPermission(user, 'quotation.update') && quotationOwnershipHolds(user, quotation);
@@ -126,6 +184,7 @@ export function canEditQuotation(user: User | null | undefined, quotation: Quota
 
 export function canDeleteQuotation(user: User | null | undefined, quotation: Quotation): boolean {
   if (!user) return false;
+  if (typeof quotation.canDelete === 'boolean') return quotation.canDelete;
   if (hasPermission(user, 'quotation.delete_all')) return true;
 
   return hasPermission(user, 'quotation.delete') && quotationOwnershipHolds(user, quotation);
@@ -133,12 +192,41 @@ export function canDeleteQuotation(user: User | null | undefined, quotation: Quo
 
 // ---- Weekly report — mirrors WeeklyReportPolicy ----
 
+export function canAuthorWeeklyReport(user: User | null | undefined): boolean {
+  return hasPermission(user, 'weeklyreport.create');
+}
+
+export function canUpdateWeeklyReport(
+  user: User | null | undefined,
+  report: WeeklyReport,
+): boolean {
+  if (!user) return false;
+  return Boolean(report.canUpdate);
+}
+
+export function canDeleteWeeklyReport(
+  user: User | null | undefined,
+  report: WeeklyReport,
+): boolean {
+  if (!user) return false;
+  return Boolean(report.canDelete);
+}
+
 export function canApproveWeeklyReport(
   user: User | null | undefined,
   report: WeeklyReport,
 ): boolean {
   if (!user) return false;
+  if (typeof report.canApprove === 'boolean') return report.canApprove;
   if (hasPermission(user, 'weeklyreport.approve_all')) return true;
+  if (
+    hasPermission(user, 'weeklyreport.approve_department') &&
+    user.departmentId &&
+    report.reporter?.departmentId === user.departmentId &&
+    report.reporterUserId !== user.id
+  ) {
+    return true;
+  }
   if (!hasPermission(user, 'weeklyreport.approve')) return false;
 
   const managerUserId = report.project?.managerUserId;
@@ -158,12 +246,24 @@ export function canApproveWeeklyReport(
  * project a user manages up front.
  */
 export function canOpenP2CreateDialog(user: User | null | undefined): boolean {
-  return hasPermission(user, 'p2point.create_all') || hasPermission(user, 'p2point.create');
+  return (
+    hasPermission(user, 'p2point.create_all') ||
+    hasPermission(user, 'p2point.create_department') ||
+    hasPermission(user, 'p2point.create')
+  );
 }
 
 export function canApproveP2Point(user: User | null | undefined, point: P2Point): boolean {
   if (!user) return false;
+  if (typeof point.canApprove === 'boolean') return point.canApprove;
   if (hasPermission(user, 'p2point.approve_all')) return true;
+  if (
+    hasPermission(user, 'p2point.approve_department') &&
+    user.departmentId &&
+    point.user?.departmentId === user.departmentId
+  ) {
+    return true;
+  }
   if (!hasPermission(user, 'p2point.approve')) return false;
 
   return Boolean(point.project?.managerUserId && point.project.managerUserId === user.id);
@@ -200,11 +300,11 @@ export function canDeleteUsers(user: User | null | undefined): boolean {
 }
 
 export function canCreateRoles(user: User | null | undefined): boolean {
-  return hasPermission(user, 'role.create');
+  return hasPermission(user, 'role.create') && hasPermission(user, 'role.permission.update');
 }
 
 export function canEditRoles(user: User | null | undefined): boolean {
-  return hasPermission(user, 'role.update');
+  return hasPermission(user, 'role.update') && hasPermission(user, 'role.permission.update');
 }
 
 export function canDeleteRoles(user: User | null | undefined): boolean {

@@ -38,6 +38,7 @@ import { CompactSearchField } from '@/components/form/compact-search-field';
 import { compactFormFieldClassName } from '@/components/form/form-field-styles';
 import { FormInputField } from '@/components/form/form-input-field';
 import { FormSelectField } from '@/components/form/form-select-field';
+import { ListFilterBar } from '@/components/form/list-filter-bar';
 import { MoneyInput } from '@/components/form/money-input';
 import { PageHeader } from '@/components/shell/page-header';
 import { AppDataTable } from '@/components/table/app-data-table';
@@ -665,14 +666,14 @@ export function ServiceManager({
 
       <section className="w-full overflow-hidden rounded-2xl border border-slate-200 bg-white shadow-sm">
         <div className="flex items-end justify-between gap-4 border-slate-200 p-4">
-          <div className="min-w-0 flex-1">
+          <ListFilterBar className="min-w-0 flex-1">
             <CompactSearchField
               label="Từ khóa"
               placeholder="Tìm mã, tên, nội dung dịch vụ..."
               value={filters.keyword}
               onChange={(value) => updateFilters({ keyword: value })}
             />
-          </div>
+          </ListFilterBar>
           <p className="hidden shrink-0 pb-2 text-xs font-semibold text-slate-500 lg:block">
             {dragParentId !== undefined
               ? 'Đang chỉ hiển thị các dịch vụ cùng cấp'

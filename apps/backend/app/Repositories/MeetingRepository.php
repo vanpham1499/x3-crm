@@ -2,7 +2,6 @@
 
 namespace App\Repositories;
 
-use App\Models\Department;
 use App\Models\Meeting;
 use App\Models\User;
 use Illuminate\Contracts\Pagination\LengthAwarePaginator;
@@ -149,29 +148,40 @@ class MeetingRepository extends BaseRepository
     {
         $query = $this->query();
 
-        if ($user->hasPermission('meeting.update_all') || $user->hasPermission('meeting.delete_all')) {
+        if ($user->hasPermission('meeting.view_all')) {
             return $query;
         }
 
-        $ledDepartmentIds = Department::query()
-            ->where('leader_user_id', $user->id)
-            ->pluck('id');
+        if ($user->hasPermission('meeting.view_department') && $user->department_id) {
+            $departmentId = $user->department_id;
 
-        return $query->where(function (Builder $visible) use ($user, $ledDepartmentIds): void {
-            $visible
-                ->where('organizer_user_id', $user->id)
-                ->orWhere('created_by', $user->id)
-                ->orWhereHas('participants', fn (Builder $participants) => $participants->where('users.id', $user->id))
-                ->orWhereHas('lead', fn (Builder $lead) => $lead->where('assigned_user_id', $user->id))
-                ->orWhereHas('customer', fn (Builder $customer) => $customer->where('sales_user_id', $user->id))
-                ->orWhereHas('project', fn (Builder $project) => $project
-                    ->where('manager_user_id', $user->id)
-                    ->orWhere('sales_user_id', $user->id));
+            return $query->where(function (Builder $visible) use ($departmentId): void {
+                $visible
+                    ->whereHas('organizer', fn (Builder $organizer) => $organizer->where('department_id', $departmentId))
+                    ->orWhereHas('participants', fn (Builder $participants) => $participants->where('users.department_id', $departmentId))
+                    ->orWhereHas('lead.assignedUser', fn (Builder $assigned) => $assigned->where('department_id', $departmentId))
+                    ->orWhereHas('customer.salesUser', fn (Builder $sales) => $sales->where('department_id', $departmentId))
+                    ->orWhereHas('project.managerUser', fn (Builder $manager) => $manager->where('department_id', $departmentId))
+                    ->orWhereHas('project.salesUser', fn (Builder $sales) => $sales->where('department_id', $departmentId))
+                    ->orWhereHas('createdBy', fn (Builder $creator) => $creator->where('department_id', $departmentId));
+            });
+        }
 
-            if ($ledDepartmentIds->isNotEmpty()) {
-                $visible->orWhereHas('organizer', fn (Builder $organizer) => $organizer->whereIn('department_id', $ledDepartmentIds));
-            }
-        });
+        if ($user->hasPermission('meeting.view')) {
+            return $query->where(function (Builder $visible) use ($user): void {
+                $visible
+                    ->where('organizer_user_id', $user->id)
+                    ->orWhere('created_by', $user->id)
+                    ->orWhereHas('participants', fn (Builder $participants) => $participants->where('users.id', $user->id))
+                    ->orWhereHas('lead', fn (Builder $lead) => $lead->where('assigned_user_id', $user->id))
+                    ->orWhereHas('customer', fn (Builder $customer) => $customer->where('sales_user_id', $user->id))
+                    ->orWhereHas('project', fn (Builder $project) => $project
+                        ->where('manager_user_id', $user->id)
+                        ->orWhere('sales_user_id', $user->id));
+            });
+        }
+
+        return $query->whereRaw('1 = 0');
     }
 
     private function relations(): array

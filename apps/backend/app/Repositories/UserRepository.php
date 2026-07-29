@@ -20,6 +20,8 @@ class UserRepository extends BaseRepository
         $keyword = trim((string) ($filters['keyword'] ?? $filters['search'] ?? ''));
         $roleId = $filters['role_id'] ?? null;
         $isActive = $filters['is_active'] ?? null;
+        $id = $filters['id'] ?? null;
+        $departmentId = $filters['department_id'] ?? null;
 
         return $this->query()
             ->when($keyword !== '', function ($query) use ($keyword): void {
@@ -31,6 +33,8 @@ class UserRepository extends BaseRepository
                 });
             })
             ->when($roleId, fn ($query) => $query->where('role_id', $roleId))
+            ->when($id, fn ($query) => $query->whereKey($id))
+            ->when($departmentId, fn ($query) => $query->where('department_id', $departmentId))
             ->when($isActive !== null && $isActive !== '', function ($query) use ($isActive): void {
                 $query->where('is_active', filter_var($isActive, FILTER_VALIDATE_BOOLEAN));
             })

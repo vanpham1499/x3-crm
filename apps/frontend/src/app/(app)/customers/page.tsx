@@ -50,7 +50,7 @@ export default function CustomersPage() {
 
   const { data: users = [] } = useQuery<User[]>({
     queryKey: ['users', 'customer-options'],
-    queryFn: () => api.get('/users').then((response) => response.data),
+    queryFn: () => api.get('/users/lookup?context=customer').then((response) => response.data),
   });
 
   const { data: options = [] } = useQuery<AppOption[]>({

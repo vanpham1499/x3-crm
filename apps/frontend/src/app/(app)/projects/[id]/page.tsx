@@ -20,11 +20,7 @@ import { ProjectForm } from '@/features/projects/components/project-form';
 import { AD_TOPUP_CARD_OPTION_GROUP } from '@/lib/ad-topup-card-options';
 import { getApiErrorMessage } from '@/lib/api-error';
 import { canEditProject } from '@/lib/ownership';
-import {
-  calculateAvailableTopupBudget,
-  calculateRealizedProjectCost,
-  isManagedBudgetProject,
-} from '@/lib/project-topup-budget';
+import { calculateAvailableTopupBudget } from '@/lib/project-topup-budget';
 import { getRootServiceItem, getProjectStatusColor, toProjectPayload } from '@/lib/project-utils';
 import {
   getConfigForRoot,
@@ -65,7 +61,7 @@ export default function EditProjectPage() {
 
   const { data: users = [] } = useQuery<User[]>({
     queryKey: ['users', 'project-form-options'],
-    queryFn: () => api.get('/users').then((response) => response.data),
+    queryFn: () => api.get('/users/lookup?context=project').then((response) => response.data),
   });
 
   const { data: projectOptions = [] } = useQuery<AppOption[]>({
@@ -102,9 +98,11 @@ export default function EditProjectPage() {
   });
 
   const { data: projectCustomer } = useQuery<Customer>({
-    queryKey: ['customers', 'project-profile', project?.customerId],
+    queryKey: ['customers', 'lookup', 'project-profile', project?.customerId],
     queryFn: () =>
-      api.get<Customer>(`/customers/${project?.customerId}`).then((response) => response.data),
+      api
+        .get<Customer>(`/customers/lookup/${project?.customerId}`)
+        .then((response) => response.data),
     enabled: Boolean(project?.customerId),
   });
 
@@ -200,17 +198,6 @@ export default function EditProjectPage() {
   const config = configOption ? getServiceQuoteConfigMeta(configOption, rootService) : null;
   const revenueGroup = getProjectRevenueGroupInfo(Boolean(config?.enabled)).group;
   const billableQuotations = quotations;
-  const totalQuoted = billableQuotations.reduce(
-    (sum, quotation) => sum + (Number(quotation.totalAmount) || 0),
-    0,
-  );
-  const totalGrossReceived = billableQuotations.reduce(
-    (sum, quotation) =>
-      sum +
-      (Number(quotation.grossPaidAmount) ||
-        (Number(quotation.paidAmount) || 0) + (Number(quotation.refundedAmount) || 0)),
-    0,
-  );
   const totalDeposit = billableQuotations.reduce(
     (sum, quotation) => sum + (Number(quotation.depositAmount) || 0),
     0,
@@ -229,26 +216,10 @@ export default function EditProjectPage() {
   );
   const heldDeposit = Math.max(0, totalDepositReceived - totalDepositRefunded);
   const pendingDeposit = Math.max(0, totalDeposit - totalDepositReceived);
-  const totalRefunded = billableQuotations.reduce(
-    (sum, quotation) => sum + (Number(quotation.refundedAmount) || 0),
-    0,
-  );
-  const totalCompensation = billableQuotations.reduce(
-    (sum, quotation) => sum + (Number(quotation.compensationAmount) || 0),
-    0,
-  );
-  const netCashRetained = totalGrossReceived - totalRefunded - totalCompensation;
   const outstanding = billableQuotations.reduce(
     (sum, quotation) => sum + (Number(quotation.outstandingAmount) || 0),
     0,
   );
-  const totalCost = calculateRealizedProjectCost(projectCosts);
-  const profit = netCashRetained - heldDeposit - totalCost;
-  const managedBudgetProject = isManagedBudgetProject({
-    projectType: project.projectType,
-    projectCode: project.projectCode,
-    quotations,
-  });
   const { availableBudget: availableTopupBudget } = calculateAvailableTopupBudget({
     quotations,
     costs: projectCosts,
@@ -260,32 +231,24 @@ export default function EditProjectPage() {
   ].filter(Boolean);
 
   const metrics = [
-    { label: 'Tổng báo phí', value: totalQuoted, className: 'text-slate-950' },
-    { label: 'Đã nhận', value: totalGrossReceived, className: 'text-emerald-700' },
     {
       label: 'Tiền cọc',
       value: totalDeposit,
       className: 'text-blue-700',
       note: totalDeposit > 0 ? depositNotes.join(' · ') : undefined,
     },
-    { label: 'Đã hoàn', value: totalRefunded, className: 'text-rose-700' },
-    { label: 'Bù thêm', value: totalCompensation, className: 'text-fuchsia-700' },
-    { label: 'Còn phải thu', value: outstanding, className: 'text-amber-700' },
-    { label: 'Chi phí đã chi', value: totalCost, className: 'text-rose-700' },
     {
-      label: 'Lợi nhuận thực nhận',
-      value: profit,
-      className: profit >= 0 ? 'text-emerald-700' : 'text-rose-700',
+      label: 'Còn phải thu',
+      value: outstanding,
+      className: 'text-amber-700',
+      note: 'Nhân sự lưu ý để thu',
     },
-    ...(managedBudgetProject
-      ? [
-          {
-            label: 'Số tiền có thể nạp',
-            value: availableTopupBudget,
-            className: availableTopupBudget < 0 ? 'text-rose-700' : 'text-blue-700',
-          },
-        ]
-      : []),
+    {
+      label: 'Số tiền có thể nạp',
+      value: availableTopupBudget,
+      className: availableTopupBudget < 0 ? 'text-rose-700' : 'text-blue-700',
+      note: 'Lead kiểm tra trước khi nạp',
+    },
   ];
   const activeTabIndex = PROJECT_TABS.indexOf(activeTab);
 
@@ -319,11 +282,7 @@ export default function EditProjectPage() {
             </span>
           </div>
 
-          <div
-            className={`mt-4 grid gap-px overflow-hidden rounded-lg bg-slate-200 ring-1 ring-slate-200 sm:grid-cols-2 lg:grid-cols-4 ${
-              managedBudgetProject ? '2xl:grid-cols-9' : '2xl:grid-cols-8'
-            }`}
-          >
+          <div className="mt-4 grid gap-px overflow-hidden rounded-lg bg-slate-200 ring-1 ring-slate-200 sm:grid-cols-3">
             {metrics.map((metric) => (
               <div key={metric.label} className="bg-white px-4 py-3">
                 <p className="text-[11px] font-bold uppercase tracking-wide text-slate-400">

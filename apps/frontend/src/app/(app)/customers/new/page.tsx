@@ -25,14 +25,14 @@ export default function NewCustomerPage() {
 
   const { data: users = [] } = useQuery<User[]>({
     queryKey: ['users', 'customer-form-options'],
-    queryFn: () => api.get('/users').then((response) => response.data),
+    queryFn: () => api.get('/users/lookup?context=customer').then((response) => response.data),
   });
 
   const { data: options = [] } = useQuery<AppOption[]>({
     queryKey: ['options', 'customer-form'],
     queryFn: () =>
       api
-        .get('/options', { params: { groups: 'customer_type,lead_source,industry' } })
+        .get('/options', { params: { groups: 'customer_type,lead_source' } })
         .then((response) => response.data),
   });
 

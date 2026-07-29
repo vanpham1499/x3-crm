@@ -6,6 +6,7 @@ import AddRoundedIcon from '@mui/icons-material/AddRounded';
 import VisibilityRoundedIcon from '@mui/icons-material/VisibilityRounded';
 import { IconButton } from '@mui/material';
 import { TabActionButton } from '@/components/actions/tab-action-button';
+import { TablePaginationBar } from '@/components/table/table-pagination-bar';
 import { QuotationPreviewDialog } from '@/features/quotations/components/quotation-preview-dialog';
 import { getPaymentDisplayStatus } from '@/lib/payment-display-status';
 import { getQuotationPaymentContent, getQuotationPaymentStatusLabel } from '@/lib/quotation-utils';
@@ -13,6 +14,8 @@ import { formatCurrency } from '@/lib/utils';
 import type { Payment } from '@/types/payment';
 import type { ProjectItem } from '@/types/project';
 import type { Quotation } from '@/types/quotation';
+
+const FINANCE_TABLE_PAGE_SIZE = 3;
 
 function formatDate(value?: string | null) {
   if (!value) return '-';
@@ -108,13 +111,27 @@ export function ProjectFinancePanel({
     String(b.transactionDate || '').localeCompare(String(a.transactionDate || '')),
   );
   const [previewTarget, setPreviewTarget] = useState<Quotation | null>(null);
+  const [quotationPage, setQuotationPage] = useState(1);
+  const [paymentPage, setPaymentPage] = useState(1);
+  const quotationTotalPages = Math.max(1, Math.ceil(quotations.length / FINANCE_TABLE_PAGE_SIZE));
+  const paymentTotalPages = Math.max(1, Math.ceil(sortedPayments.length / FINANCE_TABLE_PAGE_SIZE));
+  const currentQuotationPage = Math.min(quotationPage, quotationTotalPages);
+  const currentPaymentPage = Math.min(paymentPage, paymentTotalPages);
+  const visibleQuotations = quotations.slice(
+    (currentQuotationPage - 1) * FINANCE_TABLE_PAGE_SIZE,
+    currentQuotationPage * FINANCE_TABLE_PAGE_SIZE,
+  );
+  const visiblePayments = sortedPayments.slice(
+    (currentPaymentPage - 1) * FINANCE_TABLE_PAGE_SIZE,
+    currentPaymentPage * FINANCE_TABLE_PAGE_SIZE,
+  );
 
   return (
     <div className="mb-6 grid items-start gap-4 xl:grid-cols-12">
       <section className="order-1 overflow-hidden rounded-2xl border border-slate-200 bg-white shadow-sm xl:col-span-5 xl:col-start-1 xl:row-start-1">
         <div className="flex flex-wrap items-center justify-between gap-3 border-b border-slate-200 px-4 py-3">
           <div className="flex items-center gap-2">
-            <h2 className="text-sm font-bold text-slate-950">Báo phí & tiền thu</h2>
+            <h2 className="text-sm font-bold text-slate-950">Báo phí</h2>
             <span className="rounded-full bg-slate-100 px-2 py-1 text-xs font-bold text-slate-600">
               {quotations.length}
             </span>
@@ -140,13 +157,13 @@ export function ProjectFinancePanel({
                   <th className="w-[19%] px-3 py-3 text-right">Tổng báo</th>
                   <th className="w-[19%] px-3 py-3 text-right">Đã thu / trả</th>
                   <th className="w-[15%] px-3 py-3 text-right">Còn thu</th>
-                  <th className="w-[5%] px-2 py-3">
+                  <th className="w-[8%] px-2 py-3">
                     <span className="sr-only">Tác vụ</span>
                   </th>
                 </tr>
               </thead>
               <tbody className="divide-y divide-slate-100">
-                {quotations.map((quotation) => {
+                {visibleQuotations.map((quotation) => {
                   const total = Number(quotation.totalAmount) || 0;
                   const received =
                     Number(quotation.grossPaidAmount) ||
@@ -227,6 +244,15 @@ export function ProjectFinancePanel({
           </div>
         )}
 
+        <TablePaginationBar
+          page={currentQuotationPage}
+          totalPages={quotationTotalPages}
+          totalItems={quotations.length}
+          pageSize={FINANCE_TABLE_PAGE_SIZE}
+          rangeLabel="Báo phí"
+          onPageChange={setQuotationPage}
+        />
+
         {unallocatedAmount > 0 ? (
           <div className="border-t border-amber-100 bg-amber-50 px-4 py-2.5 text-sm font-semibold text-amber-800">
             {formatCurrency(unallocatedAmount)} chưa gắn với báo phí cụ thể.
@@ -241,7 +267,7 @@ export function ProjectFinancePanel({
       <section className="order-2 overflow-hidden rounded-2xl border border-slate-200 bg-white shadow-sm xl:order-none xl:col-span-5 xl:col-start-1 xl:row-start-2">
         <div className="flex items-center justify-between border-b border-slate-200 px-4 py-3">
           <div className="flex items-center gap-2">
-            <h2 className="text-sm font-bold text-slate-950">Tiền vào</h2>
+            <h2 className="text-sm font-bold text-slate-950">Giao dịch</h2>
             <span className="rounded-full bg-slate-100 px-2 py-1 text-xs font-bold text-slate-600">
               {sortedPayments.length}
             </span>
@@ -266,7 +292,7 @@ export function ProjectFinancePanel({
                 </tr>
               </thead>
               <tbody className="divide-y divide-slate-100">
-                {sortedPayments.map((payment) => {
+                {visiblePayments.map((payment) => {
                   const linkedQuotations = paymentQuotations(payment, quotations);
                   const primaryQuotation = linkedQuotations[0];
                   const displayStatus = getPaymentDisplayStatus(payment);
@@ -334,6 +360,15 @@ export function ProjectFinancePanel({
             </table>
           </div>
         )}
+
+        <TablePaginationBar
+          page={currentPaymentPage}
+          totalPages={paymentTotalPages}
+          totalItems={sortedPayments.length}
+          pageSize={FINANCE_TABLE_PAGE_SIZE}
+          rangeLabel="Giao dịch"
+          onPageChange={setPaymentPage}
+        />
       </section>
 
       <QuotationPreviewDialog quotation={previewTarget} onClose={() => setPreviewTarget(null)} />

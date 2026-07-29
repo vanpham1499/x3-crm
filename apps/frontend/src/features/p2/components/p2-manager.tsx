@@ -21,6 +21,7 @@ import { CompactAutocompleteField } from '@/components/form/compact-autocomplete
 import { CompactSelectField } from '@/components/form/compact-select-field';
 import { FormDatePicker } from '@/components/form/form-date-picker';
 import { FormInputField } from '@/components/form/form-input-field';
+import { ListFilterBar } from '@/components/form/list-filter-bar';
 import { ServerPaginatedAutocomplete } from '@/components/form/server-paginated-autocomplete';
 import { IconTabs } from '@/components/navigation/icon-tabs';
 import { PageHeader } from '@/components/shell/page-header';
@@ -370,7 +371,7 @@ export function P2Manager({
           ]}
         />
 
-        <div className="grid items-center gap-3 p-4 xl:grid-cols-[repeat(6,minmax(0,1fr))]">
+        <ListFilterBar className="p-4">
           <FormDatePicker
             label="Ngày bắt đầu"
             value={filters.dateFrom}
@@ -418,7 +419,7 @@ export function P2Manager({
             ]}
             onChange={(approvalStatus) => updateFilters({ approvalStatus })}
           />
-        </div>
+        </ListFilterBar>
 
         {activeTab === 0 ? (
           <AppDataTable
@@ -606,17 +607,19 @@ export function P2Manager({
             Duyệt điểm P2
           </MenuItem>
         )}
-        <MenuItem
-          className="text-rose-600"
-          disabled={isDeleting}
-          onClick={() => {
-            setDeleteTarget(activePoint);
-            closeActionMenu();
-          }}
-        >
-          <DeleteOutlineRoundedIcon fontSize="small" className="mr-2" />
-          Xóa
-        </MenuItem>
+        {activePoint?.canDelete ? (
+          <MenuItem
+            className="text-rose-600"
+            disabled={isDeleting}
+            onClick={() => {
+              setDeleteTarget(activePoint);
+              closeActionMenu();
+            }}
+          >
+            <DeleteOutlineRoundedIcon fontSize="small" className="mr-2" />
+            Xóa
+          </MenuItem>
+        ) : null}
       </Menu>
 
       <P2Dialog

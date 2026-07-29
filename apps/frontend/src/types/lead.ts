@@ -12,6 +12,7 @@ export type LeadRelationOption = {
   name: string;
   code?: string;
   email?: string;
+  departmentId?: number | null;
 };
 
 export type LeadTimelineChange = {
@@ -127,6 +128,8 @@ export type Lead = {
   audits?: LeadTimelineEntry[];
   attachments?: LeadAttachment[];
   files?: LeadAttachment[];
+  canUpdate?: boolean;
+  canDelete?: boolean;
   createdAt?: string;
   updatedAt?: string;
 };

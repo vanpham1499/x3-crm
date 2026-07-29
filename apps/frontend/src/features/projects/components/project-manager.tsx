@@ -5,21 +5,21 @@ import type { MouseEvent } from 'react';
 import Link from 'next/link';
 import { useQuery } from '@tanstack/react-query';
 import AddRoundedIcon from '@mui/icons-material/AddRounded';
-import CheckRoundedIcon from '@mui/icons-material/CheckRounded';
 import DeleteRoundedIcon from '@mui/icons-material/DeleteRounded';
 import EditRoundedIcon from '@mui/icons-material/EditRounded';
 import InfoRoundedIcon from '@mui/icons-material/InfoRounded';
-import KeyboardArrowDownRoundedIcon from '@mui/icons-material/KeyboardArrowDownRounded';
 import LinkRoundedIcon from '@mui/icons-material/LinkRounded';
 import MoreVertRoundedIcon from '@mui/icons-material/MoreVertRounded';
 import VisibilityRoundedIcon from '@mui/icons-material/VisibilityRounded';
-import { ButtonBase, IconButton, Menu, MenuItem } from '@mui/material';
+import { IconButton, Menu, MenuItem } from '@mui/material';
 import { DialogActionButton } from '@/components/actions/dialog-action-button';
 import { AppDetailDialog } from '@/components/dialog/app-detail-dialog';
 import { ConfirmDialog } from '@/components/feedback/confirm-dialog';
 import { CompactAutocompleteField } from '@/components/form/compact-autocomplete-field';
 import { CompactSearchField } from '@/components/form/compact-search-field';
 import { CompactSelectField } from '@/components/form/compact-select-field';
+import { InlineStatusSelect } from '@/components/form/inline-status-select';
+import { ListFilterBar } from '@/components/form/list-filter-bar';
 import { IconTabs } from '@/components/navigation/icon-tabs';
 import { PageHeader } from '@/components/shell/page-header';
 import { AppDataTable } from '@/components/table/app-data-table';
@@ -63,42 +63,6 @@ function userLabel(user?: User | null) {
   return [user.code, user.name].filter(Boolean).join(' - ');
 }
 
-function hexToRgb(hex: string) {
-  const normalized = hex.replace('#', '').trim();
-  const value =
-    normalized.length === 3
-      ? normalized
-          .split('')
-          .map((character) => character + character)
-          .join('')
-      : normalized;
-
-  if (!/^[0-9a-f]{6}$/i.test(value)) return null;
-
-  const numberValue = Number.parseInt(value, 16);
-
-  return {
-    r: (numberValue >> 16) & 255,
-    g: (numberValue >> 8) & 255,
-    b: numberValue & 255,
-  };
-}
-
-function projectStatusChipStyle(option?: AppOption | null) {
-  if (!option) return undefined;
-
-  const color = getOptionColor(option);
-  const rgb = hexToRgb(color);
-
-  if (!rgb) return undefined;
-
-  return {
-    backgroundColor: `rgba(${rgb.r}, ${rgb.g}, ${rgb.b}, 0.12)`,
-    borderColor: `rgba(${rgb.r}, ${rgb.g}, ${rgb.b}, 0.28)`,
-    color,
-  };
-}
-
 function InlineProjectStatusSelect({
   project,
   statuses,
@@ -110,54 +74,24 @@ function InlineProjectStatusSelect({
   disabled: boolean;
   onChange: (statusOptionId: number) => void;
 }) {
-  const [anchorEl, setAnchorEl] = useState<HTMLElement | null>(null);
   const currentStatusId = String(project.statusOptionId || project.statusOption?.id || '');
   const selectedOption = statuses.find((status) => String(status.id) === currentStatusId);
   const displayOption = selectedOption || project.statusOption;
-  const selectedStyle = projectStatusChipStyle(displayOption);
 
   return (
-    <>
-      <ButtonBase
-        disabled={disabled}
-        aria-label={`Cập nhật trạng thái dự án ${project.projectCode || project.projectName}`}
-        aria-haspopup="menu"
-        aria-expanded={Boolean(anchorEl)}
-        onClick={(event) => setAnchorEl(event.currentTarget)}
-        style={selectedStyle}
-        className={`!inline-flex !h-8 !max-w-[150px] !rounded-full !border !px-2.5 !text-xs !font-bold ${
-          selectedStyle ? '' : '!border-slate-200 !bg-slate-100 !text-slate-600'
-        }`}
-      >
-        <span className="min-w-0 truncate">{displayOption?.label || 'Chưa chọn'}</span>
-        <KeyboardArrowDownRoundedIcon className="!-mr-1 !ml-1 !text-[16px]" />
-      </ButtonBase>
-
-      <Menu anchorEl={anchorEl} open={Boolean(anchorEl)} onClose={() => setAnchorEl(null)}>
-        {statuses.map((status) => {
-          const isSelected = String(status.id) === currentStatusId;
-
-          return (
-            <MenuItem
-              key={status.id}
-              selected={isSelected}
-              className="!min-w-[220px] !gap-2"
-              onClick={() => {
-                setAnchorEl(null);
-                if (!isSelected) onChange(status.id);
-              }}
-            >
-              <span
-                className="size-2.5 shrink-0 rounded-full"
-                style={{ backgroundColor: getOptionColor(status) }}
-              />
-              <span className="min-w-0 flex-1 truncate text-sm font-semibold">{status.label}</span>
-              {isSelected && <CheckRoundedIcon className="!text-[18px] text-primary" />}
-            </MenuItem>
-          );
-        })}
-      </Menu>
-    </>
+    <InlineStatusSelect
+      value={currentStatusId}
+      label={displayOption?.label || 'Chưa chọn'}
+      color={displayOption ? getOptionColor(displayOption) : '#64748b'}
+      options={statuses.map((status) => ({
+        value: String(status.id),
+        label: status.label,
+        color: getOptionColor(status),
+      }))}
+      ariaLabel={`Cập nhật trạng thái dự án ${project.projectCode || project.projectName}`}
+      disabled={disabled}
+      onChange={(statusOptionId) => onChange(Number(statusOptionId))}
+    />
   );
 }
 
@@ -381,7 +315,7 @@ export function ProjectManager({
 
       <section className="w-full overflow-hidden rounded-2xl border border-slate-200 bg-white shadow-sm">
         <div className="border-slate-200 p-4">
-          <div className="grid gap-3 md:grid-cols-2 xl:grid-cols-[minmax(240px,1fr)_repeat(3,176px)]">
+          <ListFilterBar>
             <CompactSearchField
               label="Từ khóa"
               placeholder="Tìm mã, tên dự án, ghi chú..."
@@ -419,7 +353,7 @@ export function ProjectManager({
               }))}
               onChange={(value) => updateFilters({ manager_user_id: value })}
             />
-          </div>
+          </ListFilterBar>
         </div>
 
         <AppDataTable
@@ -431,7 +365,7 @@ export function ProjectManager({
             },
             { key: 'customer', label: 'Khách hàng', className: 'w-[220px]' },
             { key: 'service', label: 'Dịch vụ', className: 'w-[230px]' },
-            { key: 'status', label: 'Trạng thái', className: 'w-40' },
+            { key: 'status', label: 'Trạng thái', className: 'w-48 text-center' },
             { key: 'manager', label: 'Nhân sự triển khai', className: 'w-[180px]' },
             { key: 'startDate', label: 'Bắt đầu', className: 'w-32' },
             { key: 'endDate', label: 'Kết thúc', className: 'w-32' },
@@ -472,7 +406,7 @@ export function ProjectManager({
                 <td className="px-3 py-4">
                   <ServiceTableCell code={project.service?.code} name={project.service?.name} />
                 </td>
-                <td className="px-3 py-4">
+                <td className="px-3 py-4 text-center align-middle">
                   <InlineProjectStatusSelect
                     project={project}
                     statuses={statuses}

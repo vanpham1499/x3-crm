@@ -8,6 +8,7 @@ use Illuminate\Contracts\Pagination\LengthAwarePaginator;
 use Illuminate\Http\Resources\Json\JsonResource;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Gate;
+use Illuminate\Validation\ValidationException;
 
 abstract class BaseService
 {
@@ -58,6 +59,37 @@ abstract class BaseService
         if (! $user || ! $user->hasPermission('payment.manage')) {
             throw new \Illuminate\Auth\Access\AuthorizationException('Chỉ kế toán mới có quyền thực hiện thao tác này.');
         }
+    }
+
+    protected function validateAssigneeScope(string $module, mixed $userId, string $field): void
+    {
+        if ($userId === null || $userId === '') {
+            return;
+        }
+
+        $currentUser = $this->currentUser();
+
+        if (! $currentUser || $currentUser->hasPermission($module.'.update_all')) {
+            return;
+        }
+
+        $assignee = User::query()->find($userId);
+
+        if ($assignee && (string) $assignee->id === (string) $currentUser->id) {
+            return;
+        }
+
+        if (
+            $assignee
+            && $currentUser->hasPermission($module.'.update_department')
+            && $currentUser->sharesDepartmentWith($assignee)
+        ) {
+            return;
+        }
+
+        throw ValidationException::withMessages([
+            $field => ['Bạn chỉ có thể chọn nhân sự thuộc phạm vi dữ liệu được cấp.'],
+        ]);
     }
 
     protected function apiResource($record, ?string $resourceClass = null): array

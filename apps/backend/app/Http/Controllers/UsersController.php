@@ -24,6 +24,18 @@ class UsersController extends Controller
         ]));
     }
 
+    public function lookup(Request $request): JsonResponse
+    {
+        $context = $request->query('context');
+
+        return $this->success($this->users->findLookup([
+            'keyword' => $request->query('keyword'),
+            'search' => $request->query('search'),
+            'role_id' => $request->query('role_id'),
+            'is_active' => $request->query('is_active', true),
+        ], is_string($context) ? $context : null));
+    }
+
     public function stats(): JsonResponse
     {
         return $this->success($this->users->getStats());

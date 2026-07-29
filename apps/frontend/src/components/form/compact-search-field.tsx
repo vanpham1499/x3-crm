@@ -18,6 +18,7 @@ export function CompactSearchField({
 }: CompactSearchFieldProps) {
   return (
     <TextField
+      data-list-filter-search
       fullWidth
       size="small"
       label={label}

@@ -131,6 +131,8 @@ class QuotationResource extends JsonResource
                 'name' => $this->createdBy->name,
                 'email' => $this->createdBy->email,
             ] : null),
+            'canUpdate' => (bool) ($request->user()?->can('update', $this->resource) ?? false),
+            'canDelete' => (bool) ($request->user()?->can('delete', $this->resource) ?? false),
             'createdAt' => $this->created_at?->toISOString(),
             'updatedAt' => $this->updated_at?->toISOString(),
         ];

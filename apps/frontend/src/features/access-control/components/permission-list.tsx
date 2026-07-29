@@ -4,6 +4,7 @@ import { useMemo } from 'react';
 import SecurityRoundedIcon from '@mui/icons-material/SecurityRounded';
 import { CompactSearchField } from '@/components/form/compact-search-field';
 import { CompactSelectField } from '@/components/form/compact-select-field';
+import { ListFilterBar } from '@/components/form/list-filter-bar';
 import { PageHeader } from '@/components/shell/page-header';
 import { AppDataTable } from '@/components/table/app-data-table';
 import { TablePaginationBar } from '@/components/table/table-pagination-bar';
@@ -28,9 +29,12 @@ export function PermissionList({
   onFiltersChange,
 }: PermissionListProps) {
   const modules = useMemo(() => getPermissionModules(moduleOptions), [moduleOptions]);
-  const { pageItems, page, setPage, totalPages, totalItems, pageSize } = usePagination(permissions, {
-    resetKey: filters,
-  });
+  const { pageItems, page, setPage, totalPages, totalItems, pageSize } = usePagination(
+    permissions,
+    {
+      resetKey: filters,
+    },
+  );
 
   const updateFilters = (nextFilters: Partial<PermissionFilters>) => {
     onFiltersChange({ ...filters, ...nextFilters });
@@ -41,7 +45,7 @@ export function PermissionList({
       <PageHeader title="Phân quyền" />
 
       <section className="w-full overflow-hidden rounded-2xl border border-slate-200 bg-white shadow-sm">
-        <div className="grid gap-3 p-4 lg:grid-cols-[minmax(280px,1fr)_220px]">
+        <ListFilterBar className="p-4">
           <CompactSearchField
             label="Từ khóa"
             placeholder="Tìm mã quyền, tên quyền hoặc mô tả..."
@@ -57,7 +61,7 @@ export function PermissionList({
             }))}
             onChange={(module) => updateFilters({ module })}
           />
-        </div>
+        </ListFilterBar>
 
         <AppDataTable
           columns={[

@@ -26,6 +26,7 @@ import { FormDatePicker } from '@/components/form/form-date-picker';
 import { compactFormFieldClassName } from '@/components/form/form-field-styles';
 import { FormInputField } from '@/components/form/form-input-field';
 import { FormSelectField } from '@/components/form/form-select-field';
+import { ListFilterBar } from '@/components/form/list-filter-bar';
 import { MoneyInput } from '@/components/form/money-input';
 import { ServerPaginatedAutocomplete } from '@/components/form/server-paginated-autocomplete';
 import { getPaymentDisplayStatus } from '@/lib/payment-display-status';
@@ -1324,7 +1325,7 @@ export function PaymentManager({
         {activeTab === 'incoming' ? (
           <>
             <div className="border-slate-200 p-4">
-              <div className="grid gap-3 md:grid-cols-2 xl:grid-cols-[minmax(240px,1fr)_repeat(4,176px)]">
+              <ListFilterBar>
                 <CompactSearchField
                   label="Từ khóa"
                   placeholder="Nội dung, số hóa đơn, mã báo phí, dự án..."
@@ -1368,7 +1369,7 @@ export function PaymentManager({
                   min={filters.date_from || undefined}
                   onChange={(date_to) => updateFilters({ date_to })}
                 />
-              </div>
+              </ListFilterBar>
             </div>
 
             <AppDataTable
@@ -1594,6 +1595,7 @@ export function PaymentManager({
             pageSize={refundPageSize}
             isFetching={isRefundsFetching}
             isMutating={isMutating}
+            canManage={canManagePayments(currentUser)}
             onPageChange={onRefundPageChange}
             onPageSizeChange={onRefundPageSizeChange}
             onFiltersChange={onRefundFiltersChange}

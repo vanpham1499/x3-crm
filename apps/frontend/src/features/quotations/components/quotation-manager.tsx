@@ -13,10 +13,10 @@ import { PrimaryActionButton } from '@/components/actions/primary-action-button'
 import { ConfirmDialog } from '@/components/feedback/confirm-dialog';
 import { CompactSearchField } from '@/components/form/compact-search-field';
 import { CompactSelectField } from '@/components/form/compact-select-field';
+import { ListFilterBar } from '@/components/form/list-filter-bar';
 import { PageHeader } from '@/components/shell/page-header';
 import { AppDataTable } from '@/components/table/app-data-table';
 import { EntityTableLink } from '@/components/table/entity-table-link';
-import { ServiceTableCell } from '@/components/table/service-table-cell';
 import { TablePaginationBar } from '@/components/table/table-pagination-bar';
 import { UserDateTimeCell } from '@/components/table/user-date-time-cell';
 import { canCreateQuotation, canDeleteQuotation, canEditQuotation } from '@/lib/ownership';
@@ -56,18 +56,6 @@ function quotationStatusClass(status?: string | null) {
   if (status === 'won') return 'bg-emerald-50 text-emerald-700 ring-emerald-100';
   if (status === 'refunded') return 'bg-rose-50 text-rose-700 ring-rose-100';
   return 'bg-sky-50 text-sky-700 ring-sky-100';
-}
-
-function getPartyIdentity(code?: string | null, name?: string | null) {
-  const normalizedCode = code?.trim() || '';
-  const normalizedName = name?.trim() || '';
-
-  if (!normalizedCode) return normalizedName || '-';
-  if (!normalizedName || normalizedCode.toLowerCase().includes(normalizedName.toLowerCase())) {
-    return normalizedCode;
-  }
-
-  return `${normalizedCode}.${normalizedName}`;
 }
 
 function paymentStatusClass(status?: string | null) {
@@ -141,7 +129,7 @@ export function QuotationManager({
       />
 
       <section className="w-full overflow-hidden rounded-2xl border border-slate-200 bg-white shadow-sm">
-        <div className="grid gap-3 p-4 lg:grid-cols-[minmax(280px,1fr)_176px]">
+        <ListFilterBar className="p-4">
           <CompactSearchField
             label="Từ khóa"
             placeholder="Tìm mã báo phí, dự án, khách hàng, dịch vụ..."
@@ -159,7 +147,7 @@ export function QuotationManager({
             ]}
             onChange={(value) => updateFilters({ status: value })}
           />
-        </div>
+        </ListFilterBar>
 
         <AppDataTable
           columns={[
@@ -168,31 +156,20 @@ export function QuotationManager({
               label: 'Báo phí',
               className: 'sticky left-0 z-20 w-48 bg-slate-100',
             },
-            { key: 'customer', label: 'Khách hàng', className: 'w-[250px]' },
-            { key: 'project', label: 'Dự án', className: 'w-[230px]' },
-            { key: 'service', label: 'Dịch vụ', className: 'w-[230px]' },
+            { key: 'project', label: 'Dự án', className: 'w-[200px]' },
+            { key: 'service', label: 'Dịch vụ', className: 'w-28' },
             { key: 'total', label: 'Tổng báo', className: 'w-40 text-right' },
-            { key: 'paid', label: 'Thực thu / hoàn', className: 'w-72 text-right' },
-            { key: 'status', label: 'Trạng thái', className: 'w-36' },
-            { key: 'paymentStatus', label: 'Thanh toán', className: 'w-40' },
+            { key: 'paid', label: 'Thực thu / hoàn', className: 'w-60 text-right' },
+            { key: 'status', label: 'Trạng thái / Thanh toán', className: 'w-56' },
             { key: 'created', label: 'Người tạo', className: 'w-[150px]' },
-            { key: 'actions', className: 'w-36' },
+            { key: 'actions', className: 'w-32' },
           ]}
           isLoading={isFetching}
           isEmpty={quotations.length === 0}
           emptyText="Chưa có báo phí"
-          minWidthClassName="min-w-[1730px]"
+          minWidthClassName="min-w-[1380px]"
         >
           {quotations.map((quotation) => {
-            const partyCode = quotation.customer?.customerCode || quotation.lead?.leadCode || '';
-            const partyName =
-              quotation.customer?.customerName || quotation.lead?.customerName || '-';
-            const partyIdentity = getPartyIdentity(partyCode, partyName);
-            const partyHref = quotation.customer
-              ? `/customers/${quotation.customer.id}`
-              : quotation.lead
-                ? `/leads/${quotation.lead.id}`
-                : '';
             const totalAmount = Number(quotation.totalAmount) || 0;
             const paidAmount = Number(quotation.paidAmount) || 0;
             const refundedAmount = Number(quotation.refundedAmount) || 0;
@@ -209,24 +186,6 @@ export function QuotationManager({
                   </EntityTableLink>
                 </td>
                 <td className="px-3 py-4">
-                  {partyHref ? (
-                    <Link
-                      href={partyHref}
-                      className="block truncate font-semibold text-slate-800 transition-colors hover:text-primary"
-                      title={partyIdentity}
-                    >
-                      {partyIdentity}
-                    </Link>
-                  ) : (
-                    <span
-                      className="block truncate font-semibold text-slate-800"
-                      title={partyIdentity}
-                    >
-                      {partyIdentity}
-                    </span>
-                  )}
-                </td>
-                <td className="px-3 py-4">
                   {quotation.project ? (
                     <EntityTableLink
                       href={`/projects/${quotation.project.id}`}
@@ -240,7 +199,13 @@ export function QuotationManager({
                   )}
                 </td>
                 <td className="px-3 py-4">
-                  <ServiceTableCell code={quotation.serviceCode} name={quotation.serviceName} />
+                  {quotation.serviceCode ? (
+                    <span className="inline-flex rounded-md bg-sky-50 px-2 py-1 text-xs font-bold text-sky-700 ring-1 ring-sky-100">
+                      {quotation.serviceCode}
+                    </span>
+                  ) : (
+                    <span className="text-slate-400">-</span>
+                  )}
                 </td>
                 <td className="px-3 py-4 text-right font-extrabold tabular-nums text-slate-950">
                   {formatCurrency(totalAmount)}
@@ -263,22 +228,22 @@ export function QuotationManager({
                   </div>
                 </td>
                 <td className="px-3 py-4">
-                  <span
-                    className={`inline-flex whitespace-nowrap rounded-md px-2 py-1 text-xs font-bold ring-1 ${quotationStatusClass(quotation.status)}`}
-                  >
-                    {statusLabels[quotation.status || ''] || 'Báo phí'}
-                  </span>
-                </td>
-                <td className="px-3 py-4">
-                  <span
-                    className={`inline-flex whitespace-nowrap rounded-md px-2 py-1 text-xs font-bold ring-1 ${
-                      compensationAmount > 0
-                        ? 'bg-fuchsia-50 text-fuchsia-700 ring-fuchsia-100'
-                        : paymentStatusClass(quotation.paymentStatus)
-                    }`}
-                  >
-                    {getQuotationPaymentStatusLabel(quotation)}
-                  </span>
+                  <div className="flex flex-wrap items-center gap-1.5">
+                    <span
+                      className={`inline-flex whitespace-nowrap rounded-md px-2 py-1 text-xs font-bold ring-1 ${quotationStatusClass(quotation.status)}`}
+                    >
+                      {statusLabels[quotation.status || ''] || 'Báo phí'}
+                    </span>
+                    <span
+                      className={`inline-flex whitespace-nowrap rounded-md px-2 py-1 text-xs font-bold ring-1 ${
+                        compensationAmount > 0
+                          ? 'bg-fuchsia-50 text-fuchsia-700 ring-fuchsia-100'
+                          : paymentStatusClass(quotation.paymentStatus)
+                      }`}
+                    >
+                      {getQuotationPaymentStatusLabel(quotation)}
+                    </span>
+                  </div>
                 </td>
                 <td className="px-3 py-4">
                   <UserDateTimeCell
