@@ -3,6 +3,7 @@
 namespace App\Services;
 
 use App\Http\Resources\ProjectCostResource;
+use App\Models\Project;
 use App\Models\ProjectCost;
 use App\Models\ProjectCostAdjustment;
 use App\Models\ProjectCostCidIncident;
@@ -36,7 +37,8 @@ class ProjectCostsService extends BaseService
     {
         return $this->transaction(function () use ($data): array {
             $data = $this->preparePayload($data);
-            $this->authorizeProjectOwnership($data['project_id'] ?? null);
+            $project = Project::query()->findOrFail($data['project_id']);
+            $this->authorize('manageProject', [ProjectCost::class, $project]);
             /** @var ProjectCost $cost */
             $cost = $this->costs->create($data);
 
@@ -49,9 +51,16 @@ class ProjectCostsService extends BaseService
         return $this->transaction(function () use ($id, $data): array {
             /** @var ProjectCost $existing */
             $existing = $this->costs->findForUpdateOrFail($id);
-            $this->authorizeProjectOwnership($existing->project_id);
+            $existing->load('project.managerUser', 'project.salesUser');
+            $this->authorize('manage', $existing);
             $this->ensureNotReconciled($existing);
             $data = $this->preparePayload($data, $existing);
+
+            if ((string) $data['project_id'] !== (string) $existing->project_id) {
+                $project = Project::query()->findOrFail($data['project_id']);
+                $this->authorize('manageProject', [ProjectCost::class, $project]);
+            }
+
             $this->costs->update($id, $data);
 
             return $this->apiResource($this->costs->findWithRelationsOrFail($id), ProjectCostResource::class);
@@ -62,7 +71,8 @@ class ProjectCostsService extends BaseService
     {
         return $this->transaction(function () use ($id): array {
             $cost = $this->costs->findForUpdateOrFail($id);
-            $this->authorizeProjectOwnership($cost->project_id);
+            $cost->load('project.managerUser', 'project.salesUser');
+            $this->authorize('manage', $cost);
             $this->ensureNotReconciled($cost);
             $this->costs->delete($id);
 
@@ -82,34 +92,23 @@ class ProjectCostsService extends BaseService
 
             $this->validateAdjustmentBalance($cost, $adjustments);
 
-            $result = $data['reconciliation_result'] ?? ProjectCost::RECONCILIATION_MATCHED;
-            $isFinalReconciliation = in_array($result, [
-                ProjectCost::RECONCILIATION_MATCHED,
-                ProjectCost::RECONCILIATION_MATCHED_WITH_NOTE,
-                ProjectCost::RECONCILIATION_DIFFERENCE,
-            ], true);
+            $result = $data['reconciliation_result'] ?? ProjectCost::RECONCILIATION_UNMATCHED;
+            $isMatched = $result === ProjectCost::RECONCILIATION_MATCHED;
+            $invoiceNumber = trim((string) ($data['invoice_number'] ?? '')) ?: null;
 
             $updates = [
-                'status' => $result === ProjectCost::RECONCILIATION_CANCELLED
-                    ? ProjectCost::STATUS_CANCELLED
-                    : ProjectCost::STATUS_COMPLETED,
-                'invoice_number' => trim((string) ($data['invoice_number'] ?? '')) ?: null,
+                'status' => $isMatched ? ProjectCost::STATUS_COMPLETED : ProjectCost::STATUS_PENDING,
+                'invoice_number' => $invoiceNumber,
                 'reconciliation_result' => $result,
-                'invoice_status' => $data['invoice_status'] ?? ProjectCost::INVOICE_STATUS_PENDING,
-                'invoice_recipient_type' => $data['invoice_recipient_type'] ?? ProjectCost::INVOICE_RECIPIENT_CUSTOMER,
-                'invoice_recipient_name' => trim((string) ($data['invoice_recipient_name'] ?? '')) ?: null,
+                'invoice_status' => $invoiceNumber
+                    ? ProjectCost::INVOICE_STATUS_RECEIVED
+                    : ProjectCost::INVOICE_STATUS_PENDING,
+                'invoice_recipient_type' => ProjectCost::INVOICE_RECIPIENT_COMPANY,
+                'invoice_recipient_name' => null,
                 'reconciliation_note' => trim((string) ($data['reconciliation_note'] ?? '')) ?: null,
+                'reconciled_at' => $isMatched ? now() : null,
+                'reconciled_by' => $isMatched ? auth()->id() : null,
             ];
-
-            if ($isFinalReconciliation) {
-                $updates = array_merge($updates, [
-                    'reconciled_at' => $cost->reconciled_at ?: now(),
-                    'reconciled_by' => $cost->reconciled_by ?: auth()->id(),
-                ]);
-            } else {
-                $updates['reconciled_at'] = null;
-                $updates['reconciled_by'] = null;
-            }
 
             $this->costs->update($id, $updates);
             $this->syncAdjustments($cost, $adjustments);
@@ -125,7 +124,8 @@ class ProjectCostsService extends BaseService
     {
         return $this->transaction(function () use ($id, $data): array {
             $cost = $this->costs->findForUpdateOrFail($id);
-            $this->authorizeProjectOwnership($cost->project_id);
+            $cost->load('project.managerUser', 'project.salesUser');
+            $this->authorize('manage', $cost);
             $this->ensureCidIncidentEligible($cost);
 
             $incident = ProjectCostCidIncident::query()
@@ -227,7 +227,8 @@ class ProjectCostsService extends BaseService
     {
         return $this->transaction(function () use ($id): array {
             $cost = $this->costs->findForUpdateOrFail($id);
-            $this->authorizeProjectOwnership($cost->project_id);
+            $cost->load('project.managerUser', 'project.salesUser');
+            $this->authorize('manage', $cost);
             $incident = ProjectCostCidIncident::query()
                 ->where('project_cost_id', $cost->id)
                 ->where('status', ProjectCostCidIncident::STATUS_PENDING)
@@ -349,6 +350,7 @@ class ProjectCostsService extends BaseService
             'groupByProject' => 'group_by_project',
             'reconciledStatus' => 'reconciled_status',
             'reconciliationResult' => 'reconciliation_result',
+            'invoiceNumber' => 'invoice_number',
             'invoiceStatus' => 'invoice_status',
             'invoiceRecipientType' => 'invoice_recipient_type',
             'invoiceRecipientName' => 'invoice_recipient_name',

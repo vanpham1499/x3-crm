@@ -22,16 +22,18 @@ import AssessmentRoundedIcon from '@mui/icons-material/AssessmentRounded';
 import DeleteRoundedIcon from '@mui/icons-material/DeleteRounded';
 import DragIndicatorRoundedIcon from '@mui/icons-material/DragIndicatorRounded';
 import EditRoundedIcon from '@mui/icons-material/EditRounded';
+import EventBusyRoundedIcon from '@mui/icons-material/EventBusyRounded';
 import GroupsRoundedIcon from '@mui/icons-material/GroupsRounded';
 import MoreVertRoundedIcon from '@mui/icons-material/MoreVertRounded';
 import PersonSearchRoundedIcon from '@mui/icons-material/PersonSearchRounded';
 import WorkRoundedIcon from '@mui/icons-material/WorkRounded';
-import { IconButton, Menu, MenuItem, Switch } from '@mui/material';
+import { IconButton, Menu, MenuItem, Switch, Tooltip } from '@mui/material';
 import { Controller, useForm } from 'react-hook-form';
 import { DialogActionButton } from '@/components/actions/dialog-action-button';
 import { AppFormDialog } from '@/components/dialog/app-form-dialog';
 import { ConfirmDialog } from '@/components/feedback/confirm-dialog';
 import { FormInputField } from '@/components/form/form-input-field';
+import { StatusColorPicker } from '@/components/form/status-color-picker';
 import { IconTabs } from '@/components/navigation/icon-tabs';
 import { PageHeader } from '@/components/shell/page-header';
 import { applyApiErrorsToForm } from '@/lib/api-error';
@@ -39,9 +41,11 @@ import { canManageCatalog } from '@/lib/ownership';
 import { useAuthStore } from '@/stores/auth-store';
 import {
   OPTION_SECTIONS,
+  PROJECT_STATUS_OPTION_GROUP,
   getOptionColor,
   getOptionDefaults,
   groupOptions,
+  projectStatusRequiresWeeklyReport,
 } from '@/lib/option-utils';
 import type { AppOption, OptionFormValues, OptionGroupConfig } from '@/types/option';
 
@@ -119,15 +123,35 @@ function OptionDialog({
     >
       <input type="hidden" {...register('group')} />
       <input type="hidden" {...register('sortOrder', { valueAsNumber: true })} />
-      <div className="grid gap-4 sm:grid-cols-[minmax(0,1fr)_104px]">
-        <FormInputField
-          label="Tên hiển thị *"
-          error={Boolean(errors.label)}
-          helperText={errors.label?.message}
-          {...register('label', { required: 'Vui lòng nhập tên hiển thị' })}
-        />
-        <FormInputField type="color" label="Màu" {...register('color')} />
-      </div>
+      <FormInputField
+        label="Tên hiển thị *"
+        error={Boolean(errors.label)}
+        helperText={errors.label?.message}
+        {...register('label', { required: 'Vui lòng nhập tên hiển thị' })}
+      />
+
+      <Controller
+        name="color"
+        control={control}
+        rules={{
+          required: 'Vui lòng chọn màu',
+          pattern: {
+            value: /^#[0-9a-fA-F]{6}$/,
+            message: 'Mã màu phải có dạng #RRGGBB',
+          },
+        }}
+        render={({ field }) => (
+          <StatusColorPicker
+            name={field.name}
+            value={field.value}
+            inputRef={field.ref}
+            error={Boolean(errors.color)}
+            helperText={errors.color?.message}
+            onBlur={field.onBlur}
+            onChange={field.onChange}
+          />
+        )}
+      />
 
       <Controller
         name="isActive"
@@ -143,6 +167,31 @@ function OptionDialog({
           </div>
         )}
       />
+
+      {group?.group === PROJECT_STATUS_OPTION_GROUP ? (
+        <Controller
+          name="requiresWeeklyReport"
+          control={control}
+          render={({ field }) => (
+            <div className="rounded-lg border border-slate-200 px-3 py-2.5">
+              <div className="flex min-h-8 items-center justify-between gap-3">
+                <p className="text-sm font-bold text-slate-800">Yêu cầu báo cáo tuần</p>
+                <Switch
+                  size="small"
+                  checked={field.value}
+                  onChange={(event) => field.onChange(event.target.checked)}
+                  slotProps={{
+                    input: { 'aria-describedby': 'weekly-report-status-help' },
+                  }}
+                />
+              </div>
+              <p id="weekly-report-status-help" className="mt-1 text-xs leading-5 text-slate-500">
+                Tắt với trạng thái Dừng hoặc trạng thái không còn cần theo dõi báo cáo định kỳ.
+              </p>
+            </div>
+          )}
+        />
+      ) : null}
     </AppFormDialog>
   );
 }
@@ -203,21 +252,23 @@ function SortableOptionCard({
             >
               {option.isActive ? 'Hoạt động' : 'Tạm tắt'}
             </span>
+
+            {group.group === PROJECT_STATUS_OPTION_GROUP &&
+            !projectStatusRequiresWeeklyReport(option) ? (
+              <Tooltip title="Không cần báo cáo tuần" arrow>
+                <span
+                  role="img"
+                  aria-label="Không cần báo cáo tuần"
+                  className="inline-flex h-6 w-6 shrink-0 items-center justify-center rounded-full bg-amber-50 text-amber-700 ring-1 ring-amber-200"
+                >
+                  <EventBusyRoundedIcon className="!text-[16px]" />
+                </span>
+              </Tooltip>
+            ) : null}
           </div>
         </div>
 
         <div className="flex shrink-0 items-center">
-          <IconButton
-            size="small"
-            aria-label={`Chỉnh sửa ${option.label}`}
-            title="Chỉnh sửa"
-            className="!h-8 !w-8"
-            disabled={isReordering || !canManage}
-            onClick={() => onEdit(group, option)}
-          >
-            <EditRoundedIcon fontSize="small" />
-          </IconButton>
-
           <IconButton
             size="small"
             aria-label={`Mở tác vụ ${option.label}`}

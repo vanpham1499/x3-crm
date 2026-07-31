@@ -30,7 +30,7 @@ export function MultiImageUpload({
   onUploadingChange,
   maxFiles = 3,
   disabled = false,
-  imageLabel = 'Ảnh CCCD',
+  imageLabel = 'Ảnh CCCD/GPKD',
   captionLabel = 'Ảnh',
   collectionLabel = 'hồ sơ CCCD',
   helperText,

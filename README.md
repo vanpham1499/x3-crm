@@ -3,7 +3,7 @@
 Tài liệu tổng duy nhất của dự án X3Sales CRM. File này là nguồn chuẩn cho cách cài đặt, lệnh chạy,
 kiến trúc, luồng nghiệp vụ, API, quy ước frontend/backend và vận hành VPS.
 
-> Cập nhật gần nhất: 29/07/2026. Khi thay đổi luồng, API, cấu trúc hoặc cách triển khai, cập nhật
+> Cập nhật gần nhất: 01/08/2026. Khi thay đổi luồng, API, cấu trúc hoặc cách triển khai, cập nhật
 > trực tiếp file này; không tạo thêm README hoặc thư mục `docs` rời.
 
 ## Quy tắc xử lý yêu cầu
@@ -436,11 +436,11 @@ Seeder tạo năm Role:
 
 | Role         | Mô tả             | Số quyền seed | Phạm vi mặc định                                               |
 | ------------ | ----------------- | ------------: | -------------------------------------------------------------- |
-| `ADMIN`      | Quản trị hệ thống |           118 | Tất cả permission hiện có                                      |
-| `LEADER`     | Trưởng nhóm       |            70 | Bộ quyền cơ sở, quản lý dữ liệu trong phòng ban và xem nhân sự |
+| `ADMIN`      | Quản trị hệ thống |           123 | Tất cả permission hiện có                                      |
+| `LEADER`     | Trưởng nhóm       |            72 | Bộ quyền cơ sở, quản lý dữ liệu trong phòng ban và xem nhân sự |
 | `EMPLOYEE`   | Nhân sự           |            41 | Bộ quyền cơ sở, thao tác dữ liệu trong phạm vi sở hữu          |
 | `SALES`      | Sales             |            41 | Hiện giống hoàn toàn `EMPLOYEE`                                |
-| `ACCOUNTANT` | Kế toán           |            44 | Bộ quyền cơ sở, `payment.manage` và duyệt mọi chi phí          |
+| `ACCOUNTANT` | Kế toán           |            46 | Bộ quyền cơ sở, quyền Payment và duyệt mọi chi phí             |
 
 Bộ quyền cơ sở gồm:
 
@@ -458,10 +458,11 @@ Bộ quyền cơ sở gồm:
 `LEADER` được cộng thêm quyền phạm vi phòng ban của Lead, Customer, Project, Báo phí, Lịch hẹn, Báo
 cáo tuần, Điểm P2 và Thư viện, cùng `user.view`, `department.view`. Leader không được seed quyền
 `_all`; phạm vi luôn xác định bằng `users.department_id`, không bằng tên Role. Quyền duyệt Báo cáo
-tuần và P2 của Leader cũng chỉ áp dụng trong phòng ban. `ACCOUNTANT` được seed `cost.approve_all` để
-duyệt đối soát/xác nhận CID trên mọi dự án.
+tuần và P2 của Leader cũng chỉ áp dụng trong phòng ban. `LEADER` được seed `cost.manage_department`
+để nạp/cập nhật/hủy khoản chi trong phòng ban; `ACCOUNTANT` được seed `cost.approve_all` để đối
+soát/xác nhận CID trên mọi dự án nhưng không được sửa dữ liệu gốc của khoản chi.
 
-### Danh mục 118 permission hiện tại
+### Danh mục 123 permission hiện tại
 
 Ký hiệu Role: `A` = ADMIN, `L` = LEADER, `E` = EMPLOYEE, `S` = SALES,
 `K` = ACCOUNTANT. Cột “Kiểm tra backend” mô tả code đang chạy, không phải thiết kế mong muốn.
@@ -471,9 +472,12 @@ Ký hiệu Role: `A` = ADMIN, `L` = LEADER, `E` = EMPLOYEE, `S` = SALES,
 | `dashboard.view`                   | Mở Dashboard                                | A, L, E, S, K | API Dashboard và route/menu frontend                                        |
 | `payment.view`                     | Mở trang Thanh toán                         | A, L, E, S, K | API đọc Payment/Refund và route/menu frontend                               |
 | `cost.view`                        | Mở trang Chi phí                            | A, L, E, S, K | API đọc Project Cost và route/menu frontend                                 |
-| `cost.approve`                     | Duyệt chi phí Project mình phụ trách        | A, K          | Đối soát chi phí và xác nhận CID; Policy kiểm tra Project cha               |
-| `cost.approve_department`          | Duyệt chi phí trong phòng ban               | -             | Theo phòng ban của manager/sales Project                                    |
-| `cost.approve_all`                 | Duyệt mọi chi phí                           | A, K          | Bỏ qua scope Project                                                        |
+| `cost.manage`                      | Nạp, cập nhật chi phí                       | A, L          | Gồm cả hủy/xóa; Policy kiểm tra manager/sales của Project cha               |
+| `cost.manage_department`           | Nạp/cập nhật/hủy chi phí trong phòng ban    | A, L          | Theo phòng ban của manager/sales Project                                    |
+| `cost.manage_all`                  | Nạp/cập nhật/hủy mọi chi phí                | A             | Bỏ qua scope Project                                                        |
+| `cost.approve`                     | Đối soát chi phí                            | A, K          | Policy kiểm tra manager/sales của Project cha                               |
+| `cost.approve_department`          | Đối soát chi phí trong phòng ban            | -             | Theo phòng ban của manager/sales Project                                    |
+| `cost.approve_all`                 | Đối soát mọi chi phí                        | A, K          | Bỏ qua scope Project                                                        |
 | `media.view`                       | Xem ảnh mình tải lên                        | A, L, E, S, K | Query Media, route guard/menu frontend                                      |
 | `media.view_department`            | Xem ảnh do phòng ban tải lên                | L             | Theo phòng ban của `uploaded_by`                                            |
 | `media.view_all`                   | Xem toàn bộ Thư viện                        | A             | Bỏ qua scope người tải                                                      |
@@ -581,7 +585,9 @@ Ký hiệu Role: `A` = ADMIN, `L` = LEADER, `E` = EMPLOYEE, `S` = SALES,
 | `p2point.approve_all`              | Duyệt mọi điểm P2                           | A             | Bỏ qua giới hạn Project                                                     |
 | `kpi.view`                         | Xem báo cáo KPI                             | A, L, E, S, K | Route middleware cho API và route/menu KPI frontend                         |
 | `kpi.manage`                       | Nhập kế hoạch tháng theo dịch vụ/phòng ban  | A             | Route middleware cho API cập nhật kế hoạch                                  |
-| `payment.manage`                   | Phân bổ, hoàn, phân loại, hóa đơn, đối soát | A, K          | Mọi API mutation Payment/Refund và helper action frontend                   |
+| `payment.allocate`                 | Phân bổ/hủy phân bổ Payment vào Báo phí     | A, K          | Quyền hành động độc lập; Project/Customer suy ra từ Báo phí                 |
+| `payment.refund.create`            | Tạo khoản trả khách                         | A, K          | Chỉ tạo mới; cập nhật/hoàn tất/hủy khoản trả vẫn dùng `payment.manage`      |
+| `payment.manage`                   | Quản trị nghiệp vụ kế toán Payment          | A, K          | Phân loại, hóa đơn, sửa giao dịch và quản lý khoản trả đã tạo               |
 | `option.manage`                    | Quản lý Options và Services                 | A             | Route middleware cho create/update/delete/reorder                           |
 
 ### Phạm vi sở hữu bản ghi
@@ -600,10 +606,16 @@ Ký hiệu Role: `A` = ADMIN, `L` = LEADER, `E` = EMPLOYEE, `S` = SALES,
   hẹn, Báo cáo tuần và P2. Có quyền `_all` của bất kỳ action nào trong module thì được tra toàn bộ;
   có quyền `_department` thì tra trong phòng ban; chỉ có quyền cơ sở thì tra chính user hiện tại.
   Backend còn từ chối đổi người phụ trách Lead/Customer sang user ngoài scope, kể cả khi bỏ qua FE.
-- Hợp đồng, chi phí Project và cấu hình báo cáo tuần dùng quyền cập nhật của Project cha qua
+- `payment.allocate` và `payment.refund.create` là hai quyền hành động độc lập với
+  `payment.manage`. Khi chọn một trong hai ở form Role, backend tự giữ `payment.view` để user vẫn mở
+  được trang Thanh toán. Role có `payment.manage` luôn được phép thực hiện cả hai hành động.
+- Hợp đồng và cấu hình báo cáo tuần dùng quyền cập nhật của Project cha qua
   `authorizeProjectOwnership()`.
-- Đối soát chi phí và xác nhận CID dùng `cost.approve`, `cost.approve_department` hoặc
-  `cost.approve_all`; báo/hủy CID vẫn dùng quyền cập nhật Project.
+- Tạo, cập nhật, chuyển trạng thái, hủy/xóa khoản chi và báo/hủy CID dùng `cost.manage`,
+  `cost.manage_department` hoặc `cost.manage_all`. Policy luôn kiểm tra scope trên Project cha;
+  quyền sửa/xóa Project không còn tự cấp quyền thao tác chi phí.
+- Đối soát chi phí và xác nhận CID dùng riêng `cost.approve`, `cost.approve_department` hoặc
+  `cost.approve_all`. `cost.view` chỉ cấp quyền xem, không cấp bất kỳ action ghi dữ liệu nào.
 - Tạo Customer từ Lead không dùng `customer.create`; backend yêu cầu quyền sửa chính Lead đó để bảo
   toàn luồng chuyển đổi.
 - Báo cáo tuần có đủ scope xem/sửa/xóa/duyệt. Scope phòng ban xét người báo cáo và manager/sales của
@@ -705,24 +717,24 @@ Không cần logout/login lại, nhưng UI đang mở có thể chưa đổi cho
 
 Route guard frontend hiện tại:
 
-| Route                                      | Permission                                         |
-| ------------------------------------------ | -------------------------------------------------- |
-| `/dashboard`                               | `dashboard.view`                                   |
-| `/leads`                                   | `lead.view`                                        |
-| `/customers`                               | `customer.view`                                    |
-| `/projects`                                | `project.view`                                     |
-| `/settings/services`, `/settings/partners` | `service.view` / `partner.view`                    |
-| `/meetings`                                | `meeting.view`; nút tạo cần thêm `meeting.create`  |
-| `/quotations`                              | `quotation.view`                                   |
-| `/payments`                                | `payment.view`; action cần thêm `payment.manage`   |
-| `/costs`                                   | `cost.view`                                        |
-| `/weekly-reports`                          | `weeklyreport.view`                                |
-| `/p2-points`                               | `p2point.view`                                     |
-| `/kpi`                                     | `kpi.view`; nút sửa kế hoạch cần thêm `kpi.manage` |
-| `/media-library`                           | `media.view`                                       |
-| `/users`, `/users/departments`             | `user.view` / `department.view`                    |
-| `/users/roles`, `/users/permissions`       | `role.view` / `permission.view`                    |
-| Các page con `/settings`                   | Quyền `.view` riêng của từng page                  |
+| Route                                      | Permission                                          |
+| ------------------------------------------ | --------------------------------------------------- |
+| `/dashboard`                               | `dashboard.view`                                    |
+| `/leads`                                   | `lead.view`                                         |
+| `/customers`                               | `customer.view`                                     |
+| `/projects`                                | `project.view`                                      |
+| `/settings/services`, `/settings/partners` | `service.view` / `partner.view`                     |
+| `/meetings`                                | `meeting.view`; nút tạo cần thêm `meeting.create`   |
+| `/quotations`                              | `quotation.view`                                    |
+| `/payments`                                | `payment.view`; action dùng quyền Payment tương ứng |
+| `/costs`                                   | `cost.view`                                         |
+| `/weekly-reports`                          | `weeklyreport.view`                                 |
+| `/p2-points`                               | `p2point.view`                                      |
+| `/kpi`                                     | `kpi.view`; nút sửa kế hoạch cần thêm `kpi.manage`  |
+| `/media-library`                           | `media.view`                                        |
+| `/users`, `/users/departments`             | `user.view` / `department.view`                     |
+| `/users/roles`, `/users/permissions`       | `role.view` / `permission.view`                     |
+| Các page con `/settings`                   | Quyền `.view` riêng của từng page                   |
 
 ### Giới hạn phân quyền còn lại
 
@@ -734,11 +746,13 @@ quy tắc bảo mật mong muốn:
 2. `option.manage` vẫn là quyền mutation chung cho Options, Services và các page danh mục. Các API
    GET Options/Services được mở cho user đã đăng nhập vì đồng thời là nguồn lookup của nhiều form;
    quyền `.view` riêng chỉ quyết định có được mở page quản trị tương ứng hay không.
-3. Xóa Role chưa kiểm tra Role hệ thống hoặc user đang sử dụng. Vì là soft delete, foreign key không
-   chặn; user trỏ đến Role đã xóa sẽ không còn lấy được permission ở request sau.
+3. Role `ADMIN` đã bị chặn đổi tên/xóa. Các Role khác vẫn chưa kiểm tra user đang sử dụng trước khi
+   xóa; vì là soft delete, foreign key không chặn và user trỏ đến Role đã xóa sẽ không còn lấy được
+   permission ở request sau.
 4. Đổi tên Role không đồng bộ `users.role` của user hiện có. `role_id` và permission vẫn hoạt động,
    nhưng chuỗi role cũ có thể làm sai thống kê hoặc logic cũ.
-5. Role hệ thống `ADMIN`, `LEADER`, `EMPLOYEE`, `SALES`, `ACCOUNTANT` chưa được khóa đổi tên/xóa.
+5. Các Role hệ thống ngoài `ADMIN` (`LEADER`, `EMPLOYEE`, `SALES`, `ACCOUNTANT`) chưa được khóa
+   đổi tên/xóa.
 6. Form Request chỉ kiểm tra trùng tên với Role chưa bị xóa, nhưng unique index database áp dụng cả
    bản ghi soft-delete. Vì vậy chưa thể tạo lại sạch một tên Role đã từng bị xóa.
 
@@ -765,7 +779,9 @@ Khi bổ sung một quyền mới, phải làm đủ:
   thái và timeline chăm sóc.
 - Status/source/industry lấy từ option groups `lead_status`, `lead_source`, `industry`.
 - Trường nguồn cho phép chọn option có sẵn hoặc nhập mới; frontend tạo option trước rồi lưu Lead.
-- Quick view Lead tải `GET /leads/{id}` để có timeline đầy đủ và giữ nguyên filter/list state.
+- Quick view Lead tải `GET /leads/{id}` để có timeline đầy đủ và giữ nguyên filter/list state; popup
+  chỉ gồm `Thông tin` và `Lịch sử chăm sóc`. Báo phí đã gắn theo Project nên được tra cứu tại hồ sơ
+  Project, không hiển thị lịch sử Báo phí trong popup Lead.
 - Lead chưa chuyển đổi có CTA `Chuyển thành khách hàng`; Lead đã chuyển đổi hiển thị `Mở khách
 hàng`.
 
@@ -799,8 +815,8 @@ hàng`.
 #### Project
 
 - Từ hồ sơ Customer, CTA `Tạo dự án` mở `/projects/new?customerId=<id>`.
-- Project bắt buộc có Customer, service, tên, type, ngày bắt đầu, trạng thái, manager, sales phụ
-  trách và thứ báo cáo theo yêu cầu giao diện hiện tại.
+- Project bắt buộc có Customer, service, tên, type, ngày bắt đầu, trạng thái, manager và sales phụ
+  trách. `Thứ báo cáo` là tùy chọn; `Chưa chọn` nghĩa là Project không cần báo cáo tuần.
 - Project type dùng value `K`, `M` hoặc `O`; `O` hiển thị là `Không chọn` và không tạo segment loại
   trong mã Project. Dữ liệu cũ dùng `N` được migration đổi sang `O`; API vẫn nhận `N` để tương thích
   client cũ nhưng Service luôn chuẩn hóa thành `O` trước khi lưu.
@@ -819,14 +835,25 @@ Ví dụ:
 - Service con dùng mã của root service trong project code.
 - Form Project không còn trường `Link báo cáo tuần`. `Link báo cáo tổng khách hàng theo dõi` và
   `Tài khoản Admin Web` nằm cùng một hàng trên tablet/desktop.
+- Form Project có `Ngân sách/tháng` dùng `MoneyInput`, nằm cùng hàng với `Link plan` theo tỷ lệ
+  `8/4`. Giá trị lưu tại `project_weekly_settings.monthly_budget` để Project và Báo cáo tuần dùng
+  chung một nguồn; setting vẫn được tạo ở trạng thái inactive khi Project chưa chọn thứ báo cáo.
 - Form Project không tạo Hợp đồng hoặc Báo phí ngầm. Hai nghiệp vụ này chỉ bắt đầu sau khi Project
   tồn tại.
 - Hồ sơ `/projects/[id]` có bốn tab: `Thông tin dự án`, `Hợp đồng`, `Tài chính`, `Khách hàng`.
-- Summary hồ sơ Project chỉ tập trung ba số liệu: `Tiền cọc`, `Còn phải thu` để nhân sự lưu ý thu và
-  `Số tiền có thể nạp` để Lead kiểm tra trước khi nạp.
+- Summary hồ sơ Project hiển thị năm số liệu: `Tiền cọc`, `Còn phải thu` để nhân sự lưu ý thu,
+  `Số tiền có thể nạp` để Lead kiểm tra trước khi nạp, `Chi phí đã chi` từ các khoản chi completed
+  thực tế và `Lợi nhuận thực nhận` theo công thức dòng tiền của Project.
+- Mọi form frontend dùng `noValidate` ở thẻ form cha. Thuộc tính `required` trên MUI chỉ đánh dấu
+  trường bắt buộc; validation và thông báo lỗi phải đi qua React Hook Form/MUI để lỗi hiển thị ngay
+  dưới field, không dùng tooltip validation mặc định của trình duyệt.
 - Trong tab `Tài chính`, bảng Báo phí và Giao dịch hiển thị tối đa 3 dòng mỗi trang; bảng chi phí
   Project hiển thị tối đa 7 dòng mỗi trang. Cả ba dùng thanh phân trang chung của hệ thống và phân
   trang client-side trên tập dữ liệu đầy đủ để không làm sai các số tổng.
+- Khi tạo hoặc sửa Project, backend ghi timeline trong `customer_timelines` với người thao tác,
+  trạng thái và danh sách giá trị cũ/mới của từng trường thay đổi, bao gồm `Thứ báo cáo tuần`.
+  `GET /projects/{id}` trả timeline này; popup chi tiết Project hiển thị ba tab `Thông tin`,
+  `Liên kết` và `Lịch sử chỉnh sửa` theo cùng format timeline của Lead.
 - Thanh luồng `Lead → Customer → Dự án` xuất hiện trên các hồ sơ liên quan.
 
 ### 2. Nhóm doanh thu 2.1 và 2.2
@@ -919,6 +946,10 @@ Tiền chưa phân bổ = Tiền nhận
 - Hủy phân bổ là soft delete và trả tiền về số dư chưa xử lý. Không được hủy nếu dòng phân bổ đã có
   khoản trả khách `pending` hoặc `completed`.
 - Danh sách `/payments` có thể group theo Báo phí để không cắt một nhóm giao dịch qua hai trang.
+- Bộ lọc `Xử lý dòng tiền` gom đúng theo kết quả cần thao tác: chờ xử lý, chưa phân bổ, đã phân bổ
+  hết, còn tiền thừa, có khoản trả khách hoặc không phải khoản thu. Bộ lọc `Đối soát nguồn thu` chỉ
+  phản ánh các mốc nhận diện nguồn: chưa nhận diện, đã nhận diện, đã phân bổ hoặc không phải khoản
+  thu; không lặp lại chi tiết vòng đời hoàn tiền.
 - `Chênh lệch = Tổng phân bổ ròng của nhóm - Tổng Báo phí`: âm là thiếu, dương là thừa, 0 là khớp.
 - Số hóa đơn đầu ra lưu riêng tại `payments.output_invoice_number`, chỉnh qua
   `PATCH /payments/{id}/invoice`.
@@ -962,10 +993,17 @@ Lợi nhuận thực nhận của Project = Đã nhận
 - Hoàn toàn bộ giữ lại tổng Báo phí và tổng tiền nhận ban đầu để truy vết, nhưng các chỉ số cần thu,
   thực thu, còn phải thu và chênh lệch về 0.
 - `compensation` hiển thị riêng, không tạo công nợ âm và không thay đổi số phải thu.
+- Tab `Tiền hoàn ra` hiển thị `Số hóa đơn` của Payment nguồn (`payments.output_invoice_number`),
+  không tạo thêm một số hóa đơn riêng trên `payment_refunds`.
 
 ### 6. Chi phí Project và CID
 
 - `project_costs` là dòng tiền công ty chi ra.
+- Nhân viên không có quyền `cost.manage*` chỉ xem dữ liệu; yêu cầu nạp được trao đổi ngoài CRM.
+- Lead dùng `cost.manage`/`cost.manage_department` để tạo khoản nạp, cập nhật trạng thái và hủy khoản
+  chi ở tab Tài chính của Project. Các nút và API tại đây dùng cùng một Policy.
+- Kế toán dùng `cost.approve*` tại `/costs` để đối soát và xác nhận CID; quyền này không cho phép
+  tạo, sửa, chuyển trạng thái hay xóa dữ liệu gốc của khoản chi.
 - `entryType=ad_spend` cho nhóm 2.1; `entryType=partner_cost` cho nhóm 2.2.
 - Backend tính tổng, không tin tổng do frontend gửi:
   - 2.1: tiền trước VAT + VAT;
@@ -974,8 +1012,20 @@ Lợi nhuận thực nhận của Project = Đã nhận
 - Một khoản chi có thể gắn Báo phí để đối chiếu theo kỳ nhưng không bắt buộc.
 - `/costs` là sổ đối soát tập trung, group theo Project và hỗ trợ keyword, loại, trạng thái, đã
   khớp/chưa khớp và khoảng ngày.
-- `POST /project-costs/{id}/reconcile` khóa khoản chi sau khi xác nhận; khoản đã khớp không được sửa
-  hoặc xóa.
+- Popup đối soát chỉ có hai kết quả: `Khớp chuẩn` và `Chưa khớp`. `Khớp chuẩn` chuyển khoản chi sang
+  `completed` và ghi người/thời điểm đối soát; `Chưa khớp` đưa khoản chi về `pending` và bỏ dấu đã
+  khớp.
+- Người có quyền duyệt có thể nhấn lại trạng thái `Đã khớp` để mở popup, sửa thông tin hoặc chuyển
+  về `Chưa khớp` khi thao tác nhầm. Khoản chi chỉ bị khóa sửa/xóa dữ liệu gốc trong thời gian đang
+  `Khớp chuẩn`; sau khi chuyển về `Chưa khớp`, luồng sửa khoản chi hoạt động lại.
+- Đối soát không yêu cầu chọn trạng thái hoặc chủ thể nhận hóa đơn. Backend tự suy ra trạng thái từ
+  số hóa đơn và luôn lưu chủ thể nhận hóa đơn là Công ty X3Sales, không tin giá trị khác từ client.
+- Payload đối soát hỗ trợ camelCase từ frontend và chuẩn hóa `invoiceNumber` thành
+  `project_costs.invoice_number`, `reconciliationNote` thành `project_costs.reconciliation_note`
+  trước khi lưu.
+- Sau khi lưu đối soát, frontend cập nhật ngay record API trả về vào cache danh sách trước khi
+  refetch để không mở lại dữ liệu cũ. Cột `Chi tiết` hiển thị thêm số hóa đơn và ghi chú đối soát;
+  nội dung dài được rút gọn trên bảng và vẫn xem đầy đủ qua tooltip/popup chi tiết.
 
 Với chi phí nạp quảng cáo:
 
@@ -1104,7 +1154,23 @@ rỗng hoặc giả lập gửi thông báo trong module meeting.
 ### 8. Báo cáo tuần
 
 - Cấu hình nằm tại `project_weekly_settings`, được đồng bộ cùng transaction tạo/sửa Project.
-- `report_weekday` dùng ISO weekday: Thứ 2 = 1, Chủ nhật = 7.
+- Project chỉ cần báo cáo tuần khi đồng thời thỏa hai điều kiện:
+  `project_status.meta.requiresWeeklyReport` không phải `false` và `project_weekly_settings` đang
+  active với `report_weekday` hợp lệ. Không so sánh tên, key hoặc ID trạng thái. Admin cấu hình cổng
+  theo trạng thái bằng công tắc `Yêu cầu báo cáo tuần` tại `/settings/options`; từng Project quyết
+  định có lịch thực tế bằng trường `Thứ báo cáo`.
+- `Thứ báo cáo` là trường không bắt buộc và chỉ nhận ISO weekday từ `1` đến `5`, tương ứng Thứ 2
+  đến Thứ 6. Chọn `Chưa chọn` lưu `report_weekday = null`, tắt weekly setting và Project không xuất
+  hiện trên bảng `Theo dõi tuần`, không được tính vào số lịch đã phân công, đồng thời API từ chối
+  tạo báo cáo mới. Thứ 7 và Chủ nhật không còn là lựa chọn hợp lệ ở frontend lẫn backend.
+- Khi cờ trạng thái là `false` hoặc thứ báo cáo đang `Chưa chọn`, lịch sử báo cáo đã có vẫn được giữ
+  để tra cứu; chỉ lịch tương lai và việc tạo báo cáo mới bị dừng.
+- Migration `2026_07_31_000100_configure_project_status_weekly_reporting.php` khởi tạo cờ cho dữ
+  liệu cũ; các trạng thái Dừng/Stopped/Cancelled hiện có được nhận diện một lần khi migrate, còn từ
+  sau migration hành vi chỉ phụ thuộc cờ cấu hình.
+- Migration `2026_07_31_000300_limit_project_report_weekdays.php` cho phép
+  `project_weekly_settings.report_weekday` nullable, chuyển lịch cũ ngoài Thứ 2–Thứ 6 về
+  `Chưa chọn`/inactive và thêm database check constraint `NULL hoặc 1..5`.
 - Sales phụ trách đồng thời là `report_owner_user_id`.
 - API assignment summary giúp form Project cảnh báo một Sales có bao nhiêu Project cùng ngày báo
   cáo.
@@ -1125,32 +1191,49 @@ rỗng hoặc giả lập gửi thông báo trong module meeting.
   quan bằng hình ảnh cùng đánh giá/phương án triển khai.
 - Bốn chỉ tiêu tiền do người lập báo cáo nhập bằng `MoneyInput`:
   - `weeklySpendAmount` / `weekly_spend_amount`: Chi phí;
-  - `averageWeeklyBudget` / `average_weekly_budget`: Ngân sách trung bình/tuần;
+  - `averageWeeklyBudget` / `average_weekly_budget`: Ngân sách trung bình/tuần, khi tạo mới mặc định
+    bằng `project_weekly_settings.monthly_budget / 4`;
   - `remainingAccountBudget` / `remaining_account_budget`: Ngân sách tài khoản còn lại;
   - `totalBudget` / `total_budget`: Tổng ngân sách, khi tạo mới mặc định theo ngân sách tháng trong
     cấu hình báo cáo của Project.
-- Nút `Bản gửi khách` trên danh sách mở preview cùng kích thước `lg` và cùng header cố định với Báo
-  phí: logo, tên công ty, MST, điện thoại/website, địa chỉ và văn phòng. Tên Project cùng khoảng ngày
-  báo cáo nằm bên dưới header; nhãn `Báo cáo tuần` và tên Project căn giữa, còn khoảng ngày căn phải
-  trong khung rộng theo nội dung, có icon lịch và border giống DatePicker. Nút `Lấy ảnh` kết xuất
-  toàn bộ preview thành PNG vào clipboard để người dùng tự dán gửi khách; không tạo public link và
-  không gửi trực tiếp từ backend.
+- Nút `Bản gửi khách` trên danh sách mở preview kích thước `lg`. Header báo cáo chỉ gồm logo bên
+  trái, nhãn `Báo cáo tuần` cùng tên Project căn giữa và khoảng ngày căn phải trong khung rộng theo
+  nội dung, có icon lịch và border giống DatePicker; không hiển thị khối thông tin công ty. Mục
+  `3. Đánh giá & phương án triển khai` trong bản gửi khách chỉ lấy `summary` (Ghi chú gửi khách),
+  tuyệt đối không đưa hội thoại nội bộ vào ảnh. Nút `Lấy ảnh` kết xuất toàn bộ preview thành PNG vào
+  clipboard để người dùng tự dán gửi khách; không tạo public link và không gửi trực tiếp từ backend.
+- Phần Vấn đề/Giải pháp trong form được thay bằng `Trao đổi vấn đề & phản hồi` dạng hội thoại:
+  - người tạo có thể thêm nhiều tin nhắn nháp khi lập báo cáo; các tin này được tạo cùng báo cáo;
+  - người có quyền xem báo cáo được gửi tin nhắn mới hoặc phản hồi một luồng bằng
+    `POST /weekly-reports/{id}/messages`, kể cả khi báo cáo đã `submitted` hoặc `approved`;
+  - tin nhắn người báo cáo và phản hồi của quản lý/phụ trách có vị trí, màu sắc, tên người gửi và
+    thời gian khác nhau để dễ phân biệt;
+  - người gửi được sửa hoặc xóa tin nhắn của chính mình qua menu ba chấm. Tin đã có phản hồi vẫn
+    sửa được nhưng không được xóa để giữ nguyên ngữ cảnh của luồng trao đổi; thao tác xóa luôn có
+    hộp xác nhận;
+  - hội thoại lưu trong `weekly_report_items`; `reply_to_item_id` nối phản hồi với tin gốc. Cập nhật
+    nội dung báo cáo không xóa hoặc đồng bộ lại hội thoại đã gửi.
 - Mỗi Project chỉ có một báo cáo cho một kỳ.
 - Vòng đời:
 
 ```text
 draft → submitted → approved
-          └──────→ return-to-draft
+          └──────→ rejected → chỉnh sửa → submitted
 ```
 
-- `draft` được sửa/xóa/gắn ảnh và submit; `submitted` khóa nội dung, chờ approve hoặc trả về draft;
-  `approved` chỉ xem.
+- `draft` được sửa/xóa/gắn ảnh và submit; `submitted` khóa nội dung và chờ xử lý; `approved` chỉ
+  xem. Người có quyền duyệt (`weeklyreport.approve`, `_department` hoặc `_all`) được từ chối báo cáo
+  đang submitted nhưng bắt buộc nhập lý do. Báo cáo `rejected` hiển thị lý do/người từ chối, cho
+  phép người lập sửa nội dung, thay ảnh rồi gửi duyệt lại. API dùng
+  `POST /weekly-reports/{id}/reject` với payload `{ reason }`.
 - Báo cáo chỉ dùng ảnh từ media library. Ảnh thư viện được liên kết metadata/URL, không nhân đôi file.
 - Danh sách, bảng theo dõi, detail, sửa, xóa và duyệt đều dùng scope `own/department/all`; Resource
   trả `canUpdate`, `canDelete`, `canApprove` để action frontend khớp Policy backend.
 - Migration `2026_07_28_000300_add_customer_metrics_to_weekly_reports.php` phải được chạy trước khi
   tạo/chỉnh sửa báo cáo có bốn chỉ tiêu mới; nếu chưa chạy, PostgreSQL sẽ trả lỗi thiếu cột và API
   thành HTTP 500.
+- Migration `2026_07_31_000400_add_rejection_to_weekly_reports.php` bổ sung lý do, người từ chối và
+  thời điểm từ chối; phải chạy trước khi dùng action từ chối.
 
 ### 9. Điểm P2
 
@@ -1169,17 +1252,17 @@ draft → submitted → approved
 
 KPI là module tài chính riêng, không liên quan đến điểm P2. Trang `/kpi` có hai phạm vi:
 
-- `Theo dịch vụ`: mỗi dòng là một dịch vụ gốc của cây dịch vụ;
+- `Theo dịch vụ`: mỗi dòng là một dịch vụ gốc chưa được nhóm hoặc một nhóm KPI của nhiều dịch vụ gốc;
 - `Theo phòng ban`: mỗi dòng là một phòng ban và cộng hai nhánh đóng góp độc lập.
 
 Ba chỉ số dùng chung:
 
-- `Kế hoạch`: Admin nhập tay lợi nhuận trước VAT cho từng tháng, từng dịch vụ gốc hoặc từng phòng ban;
+- `Kế hoạch`: Admin nhập tay lợi nhuận trước VAT cho từng tháng, từng dịch vụ gốc/nhóm KPI dịch vụ hoặc từng phòng ban;
 - `Lợi nhuận trước VAT`: lợi nhuận thực nhận đã loại VAT của đúng tháng đang xem;
 - `Hoàn thành`: `Lợi nhuận / Kế hoạch × 100%`; nếu Kế hoạch bằng 0 thì để trống thay vì chia cho 0.
 
 Kế hoạch lưu tại `kpi_targets` với khóa duy nhất `(scope_type, scope_id, period_month)`.
-`scope_type` chỉ nhận `service` hoặc `department`; kế hoạch không được âm. `kpi.view` cho phép xem
+`scope_type` nhận `service`, `service_group` hoặc `department`; kế hoạch không được âm. `kpi.view` cho phép xem
 báo cáo, còn `kpi.manage` cho phép cập nhật kế hoạch và mặc định chỉ cấp cho Admin.
 
 Màn hình mặc định mở tháng hiện tại. Bộ lọc hỗ trợ `Theo tháng`, `Theo quý`, `Theo năm` và
@@ -1223,6 +1306,19 @@ Lợi nhuận trước VAT tháng M = Tiền dịch vụ đã thu trước VAT t
                               - Chi phí thực tế trước VAT trong M
                               - Hoàn/bù thêm tác động lợi nhuận trong M
 ```
+
+Admin cấu hình nhóm tại `/projects/services` → `Nhóm KPI`. Nhóm là option động thuộc group
+`service_kpi_group`; `meta.serviceRootIds` chứa ID các dịch vụ gốc thành viên. Mỗi nhóm phải có ít nhất hai
+dịch vụ gốc và một dịch vụ chỉ được nằm trong tối đa một nhóm. Việc nhóm chỉ phục vụ báo cáo, không làm thay đổi
+cây dịch vụ, Project hoặc Báo phí.
+
+- Dịch vụ chưa thuộc nhóm vẫn hiển thị và tính KPI riêng như trước.
+- Một dòng nhóm cộng `Đã thu`, `Chi phí thực tế`, `Hoàn tiền` và `Lợi nhuận trước VAT` của toàn bộ thành viên.
+- Kế hoạch tháng của nhóm lưu tại `kpi_targets` với `scope_type=service_group` và `scope_id` là ID option nhóm.
+- Nếu tháng cũ chưa có kế hoạch riêng cho nhóm, backend cộng kế hoạch cũ của các dịch vụ thành viên để không mất
+  dữ liệu lịch sử. Sau khi Admin nhập kế hoạch nhóm cho tháng đó, giá trị nhóm được ưu tiên.
+- Dashboard dùng trực tiếp các dòng dịch vụ đã nhóm từ KPI, vì vậy KPI và Dashboard luôn có cùng phạm vi và số liệu.
+- Khi thay đổi thành viên, cấu hình mới được áp dụng cho mọi kỳ đang xem; dữ liệu giao dịch gốc không bị sửa.
 
 - Ngày ghi nhận tiền thu ưu tiên `payments.transaction_at`, sau đó `transaction_date`,
   `payment_allocations.allocated_at`.
@@ -1461,7 +1557,7 @@ Các route authenticated nằm trong `apps/frontend/src/app/(app)`.
 | Dashboard      | `/dashboard`                                                     | Trung tâm điều hành Lead, Customer, Project, công việc, tài chính và KPI                |
 | Lead           | `/leads`, `/leads/new`, `/leads/[id]`                            | CRUD, quick view, timeline, chuyển Customer                                             |
 | Customer       | `/customers`, `/customers/new`, `/customers/[id]`                | Hồ sơ khách hàng từ Lead, mở Project                                                    |
-| Project        | `/projects`, `/projects/new`, `/projects/[id]`                   | Hồ sơ trung tâm và bốn tab nghiệp vụ                                                    |
+| Project        | `/projects`, `/projects/new`, `/projects/[id]`                   | Hồ sơ trung tâm, quick view có lịch sử và bốn tab nghiệp vụ                             |
 | Lịch hẹn       | `/meetings`                                                      | Lịch tháng, danh sách, người tham gia, kết quả và hành động tiếp                        |
 | Báo phí        | `/quotations`, `/quotations/new`, `/quotations/[id]`             | Báo phí, VietQR, công nợ                                                                |
 | Redirect cũ    | `/projects/quotes`                                               | Chuyển sang `/quotations`                                                               |
@@ -1545,7 +1641,11 @@ route hiện có.
 | `GET`    | `/weekly-reports/board`                            | Bảng điều phối tuần từ backend                             |
 | `POST`   | `/weekly-reports/{id}/submit`                      | Gửi duyệt                                                  |
 | `POST`   | `/weekly-reports/{id}/approve`                     | Duyệt                                                      |
+| `POST`   | `/weekly-reports/{id}/reject`                      | Từ chối kèm lý do                                          |
 | `POST`   | `/weekly-reports/{id}/return-to-draft`             | Trả về nháp                                                |
+| `POST`   | `/weekly-reports/{id}/messages`                    | Gửi nội dung trao đổi/phản hồi nội bộ                      |
+| `PATCH`  | `/weekly-reports/{id}/messages/{messageId}`        | Sửa tin nhắn do chính user gửi                             |
+| `DELETE` | `/weekly-reports/{id}/messages/{messageId}`        | Xóa tin nhắn của mình nếu chưa có phản hồi                 |
 | `POST`   | `/weekly-reports/{id}/attachments`                 | Gắn ảnh báo cáo                                            |
 | `GET`    | `/meetings/summary`                                | Tổng hợp lịch hôm nay, 7 ngày tới, chờ xác nhận và quá giờ |
 | `POST`   | `/meetings/{id}/confirm`                           | Xác nhận lịch                                              |
@@ -1686,6 +1786,20 @@ Một số group quan trọng:
 
 Trang `/settings/options` chỉ hiển thị tên, màu và trạng thái cho option thông thường. Thứ tự được
 kéo thả trong từng group; mutation chỉ cập nhật/refetch group bị ảnh hưởng.
+
+Bộ chọn màu của option dùng mã HEX `#RRGGBB` làm input chính. Cùng hàng là dải compact gồm 15 màu
+trạng thái dùng chung cho toàn CRM; mỗi swatch có tooltip tên/mã màu và điền ngay khi bấm. Nút ống
+hút màu mở popover nâng cao gồm vùng độ sáng/độ bão hòa, thanh sắc độ, input HEX và hai action
+`Hủy`/`Chọn`, nên popup form không bị kéo dài khi chưa cần pha màu. Màu mặc định cho option mới là
+`#059669`.
+
+Riêng option `project_status` có thêm công tắc `Yêu cầu báo cáo tuần`. Đây là metadata nghiệp vụ
+ổn định nối Project với module Báo cáo tuần, vì vậy đổi tên/màu/thứ tự option không làm thay đổi
+luồng báo cáo. Trạng thái không yêu cầu báo cáo chỉ hiển thị icon lịch tắt kèm tooltip để không
+chiếm chiều rộng tên option. Chỉnh sửa và xóa đều nằm trong menu ba chấm; cạnh ngoài chỉ giữ menu
+và tay nắm kéo thả. Backend validate riêng `meta.color` cùng `meta.requiresWeeklyReport` để khi sửa
+một thuộc tính không làm mất màu đã cấu hình; service đồng thời merge metadata mới vào metadata
+hiện có thay vì ghi đè toàn bộ object.
 
 Mapping đặc biệt:
 
@@ -1895,7 +2009,7 @@ docker run --rm \
 
 Sau restore, kiểm tra login, danh sách, URL ảnh, log, migration và trạng thái container.
 
-### Reset dữ liệu nghiệp vụ, giữ tài khoản/dịch vụ
+### Reset dữ liệu nghiệp vụ, giữ tài khoản/Cài đặt
 
 > CẢNH BÁO: Đây là thao tác phá hủy dữ liệu thật, không thể undo nếu không có backup đọc được.
 > Chỉ chạy sau khi xác nhận đúng VPS/database và đã kiểm tra backup.
@@ -1904,9 +2018,33 @@ Script giữ:
 
 - `migrations`;
 - `users`, `roles`, `permissions`, `role_permissions`, `departments`;
-- `services`, `service_packages`.
+- `services`, `service_packages`;
+- `options`: toàn bộ cấu hình tại `/settings`, gồm thông tin website, đối tác, tài khoản nhận tiền,
+  thẻ nạp quảng cáo, hạng mục P2 và danh mục chung.
 
 Mọi bảng public khác bị `TRUNCATE ... RESTART IDENTITY CASCADE`.
+
+Nếu admin production bị xóa, sau deploy có thể tạo mới hoặc khôi phục đúng một tài khoản admin mà
+không chạy seeder mẫu. Mật khẩu không truyền trên command line; command đọc từ biến môi trường tạm
+và yêu cầu tối thiểu 12 ký tự:
+
+```bash
+cd /opt/x3crm
+read -rsp 'Mật khẩu admin mới: ' X3_ADMIN_PASSWORD
+echo
+export X3_ADMIN_PASSWORD
+docker compose exec -T \
+  -e X3_ADMIN_PASSWORD="$X3_ADMIN_PASSWORD" \
+  backend php artisan admin:ensure \
+  --email=admin@x3crm.com \
+  --code=NV000 \
+  --name="Admin X3"
+unset X3_ADMIN_PASSWORD
+```
+
+`admin:ensure` khôi phục cả record đã soft delete, bật lại đăng nhập, gán role `ADMIN` và bổ sung
+toàn bộ permission hiện có cho role. API đồng thời không cho xóa, vô hiệu hóa hoặc hạ vai trò admin
+cuối cùng; muốn thực hiện phải tạo thêm một admin hoạt động trước.
 
 Trước khi chạy, bảo đảm file nguồn
 `tooling/deployment/production/reset-keep-accounts-services.sql` đã được copy thành
@@ -1915,19 +2053,19 @@ Trước khi chạy, bảo đảm file nguồn
 ```bash
 cd /opt/x3crm
 
-# Bắt buộc backup database và uploads trước.
+# Bắt buộc backup và kiểm tra database dump trước.
 docker compose exec -T db psql \
   -U x3crm -d x3crm \
   < reset-keep-accounts-services.sql
-
-docker run --rm -v x3crm_uploads_data:/target alpine:3.22 \
-  sh -c 'find /target -mindepth 1 -delete'
 
 docker compose exec -T backend php artisan config:clear
 docker compose exec -T backend php artisan route:clear
 docker compose exec -T backend php artisan view:clear
 docker compose restart backend
 ```
+
+Reset database không xóa volume `x3crm_uploads_data`. Chỉ xóa uploads khi yêu cầu vận hành nêu rõ
+phạm vi này, đã tạo và kiểm tra archive uploads riêng, đồng thời đã xác nhận chính xác volume đích.
 
 Không dùng `php artisan optimize:clear` nếu production đang dùng database cache mà chưa có bảng
 `cache`; dùng ba lệnh clear riêng như trên.
@@ -1966,6 +2104,21 @@ Rollback image không tự rollback migration/database. Nếu migration không t
 | Webhook bị từ chối                   | `PAYMENT_WEBHOOK_SECRET` và header Authorization                          |
 
 ### Lịch sử vận hành cần biết
+
+Ngày 30/07/2026 đã deploy safeguard admin và reset riêng database production:
+
+- release đã deploy: `20260730-154943-d8980eb`;
+- khôi phục user `NV000` và role `ADMIN`, giữ trạng thái hoạt động và gán đủ `118/118` permission;
+- giữ nguyên `10 users`, `8 roles`, `118 permissions`, `274 role_permissions`, `1 department`,
+  `57 services`, `0 service_packages` và `58 options`;
+- toàn bộ bảng nghiệp vụ ngoài whitelist đã về `0` dòng; uploads không bị xóa vì phạm vi thao tác
+  chỉ là database;
+- backup ngay trước reset:
+  `/opt/x3crm/backups/pre-reset-final-20260730-155813.dump`;
+- SHA-256:
+  `15cb6ba03d6b59f9c06e9b2715c4b240b79576a106361af4e43cf89e695032af`;
+- sau reset đã kiểm tra frontend/API HTTP `200`, đăng nhập ADMIN theo đúng luồng SPA
+  (CSRF/cookie) và profile đều thành công.
 
 Ngày 18/07/2026 đã có một lần backup/reset môi trường chạy thử:
 

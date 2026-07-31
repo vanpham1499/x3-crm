@@ -1,5 +1,6 @@
 <?php
 
+use App\Console\Commands\EnsureAdminUser;
 use App\Http\Middleware\EnsureActiveUser;
 use App\Http\Middleware\EnsurePermission;
 use App\Http\Middleware\EnsureUserRole;
@@ -14,6 +15,9 @@ use Symfony\Component\HttpFoundation\Response;
 use Symfony\Component\HttpKernel\Exception\HttpExceptionInterface;
 
 return Application::configure(basePath: dirname(__DIR__))
+    ->withCommands([
+        EnsureAdminUser::class,
+    ])
     ->withRouting(
         api: __DIR__.'/../routes/api.php',
         apiPrefix: 'api',

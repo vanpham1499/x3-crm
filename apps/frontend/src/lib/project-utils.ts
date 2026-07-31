@@ -52,6 +52,8 @@ export function getProjectDefaults(
     weeklyReportWeekday:
       idToString(project?.weeklySetting?.reportWeekday) || defaults?.weeklyReportWeekday || '',
     planLink: project?.planLink || defaults?.planLink || '',
+    monthlyBudget:
+      idToString(project?.weeklySetting?.monthlyBudget) || defaults?.monthlyBudget || '0',
     customerTrackingReportLink:
       project?.customerTrackingReportLink || defaults?.customerTrackingReportLink || '',
     adminWebAccount: project?.adminWebAccount || defaults?.adminWebAccount || '',
@@ -75,6 +77,7 @@ export function toProjectPayload(values: ProjectFormValues) {
     managerUserId: values.managerUserId || null,
     reportWeekday: values.weeklyReportWeekday ? Number(values.weeklyReportWeekday) : null,
     planLink: values.planLink.trim() || null,
+    monthlyBudget: Number(values.monthlyBudget) || 0,
     customerTrackingReportLink: values.customerTrackingReportLink.trim() || null,
     adminWebAccount: values.adminWebAccount.trim() || null,
     startDate: values.startDate || null,

@@ -1,4 +1,8 @@
+import { DEFAULT_STATUS_COLOR } from '@/lib/status-colors';
 import type { AppOption, OptionFormValues, OptionGroupConfig } from '@/types/option';
+
+export const PROJECT_STATUS_OPTION_GROUP = 'project_status';
+export const PROJECT_STATUS_REQUIRES_WEEKLY_REPORT_META = 'requiresWeeklyReport';
 
 export const LEAD_OPTION_GROUPS: OptionGroupConfig[] = [
   {
@@ -28,7 +32,7 @@ export const CUSTOMER_OPTION_GROUPS: OptionGroupConfig[] = [
 
 export const PROJECT_OPTION_GROUPS: OptionGroupConfig[] = [
   {
-    group: 'project_status',
+    group: PROJECT_STATUS_OPTION_GROUP,
     title: 'Trạng thái dự án',
   },
   {
@@ -72,7 +76,7 @@ export const SYSTEM_OPTION_GROUPS = OPTION_SECTIONS.flatMap((section) =>
 export function getOptionColor(option?: AppOption | null) {
   const color = option?.meta?.color;
 
-  return typeof color === 'string' && color ? color : '#00a878';
+  return typeof color === 'string' && color ? color : DEFAULT_STATUS_COLOR;
 }
 
 export function getOptionDefaults(group: string, option?: AppOption | null): OptionFormValues {
@@ -80,21 +84,36 @@ export function getOptionDefaults(group: string, option?: AppOption | null): Opt
     group,
     label: option?.label || '',
     color: getOptionColor(option),
+    requiresWeeklyReport: projectStatusRequiresWeeklyReport(option),
     sortOrder: option?.sortOrder ?? 0,
     isActive: option?.isActive ?? true,
   };
 }
 
 export function toOptionPayload(values: OptionFormValues) {
+  const projectStatusMeta =
+    values.group === PROJECT_STATUS_OPTION_GROUP
+      ? {
+          [PROJECT_STATUS_REQUIRES_WEEKLY_REPORT_META]: values.requiresWeeklyReport,
+        }
+      : {};
+
   return {
     group: values.group,
     label: values.label.trim(),
     meta: {
-      color: values.color || '#00a878',
+      color: values.color || DEFAULT_STATUS_COLOR,
+      ...projectStatusMeta,
     },
     sortOrder: Number(values.sortOrder) || 0,
     isActive: values.isActive,
   };
+}
+
+export function projectStatusRequiresWeeklyReport(option?: AppOption | null) {
+  const value = option?.meta?.[PROJECT_STATUS_REQUIRES_WEEKLY_REPORT_META];
+
+  return value !== false && value !== 'false' && value !== 0 && value !== '0';
 }
 
 export function groupOptions(options: AppOption[]) {

@@ -286,7 +286,7 @@ export function CustomerApiForm({
                 control={control}
                 render={({ field }) => (
                   <div>
-                    <p className="mb-2 text-sm font-bold text-slate-700">Ảnh CCCD</p>
+                    <p className="mb-2 text-sm font-bold text-slate-700">Ảnh CCCD/GPKD</p>
                     <MultiImageUpload
                       value={field.value || []}
                       disabled={readOnly}

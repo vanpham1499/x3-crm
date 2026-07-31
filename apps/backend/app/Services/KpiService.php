@@ -5,6 +5,7 @@ namespace App\Services;
 use App\Http\Resources\KpiTargetResource;
 use App\Models\Department;
 use App\Models\KpiTarget;
+use App\Models\Option;
 use App\Models\PaymentAllocation;
 use App\Models\PaymentRefund;
 use App\Models\Project;
@@ -39,6 +40,12 @@ class KpiService extends BaseService
         }
 
         $services = $this->reports->services();
+        $serviceGroups = Option::query()
+            ->where('group', Option::GROUP_SERVICE_KPI)
+            ->where('is_active', true)
+            ->orderBy('sort_order')
+            ->orderBy('id')
+            ->get();
         $departments = $this->reports->departments();
         $users = $this->reports->users();
         $projects = $this->reports->activeProjects();
@@ -89,6 +96,7 @@ class KpiService extends BaseService
         $periods = $periodStarts->map(fn (CarbonImmutable $periodStart): array => $this->buildMonthlyReport(
             $periodStart->format('Y-m'),
             $services,
+            $serviceGroups,
             $departments,
             $users,
             $allocations,
@@ -140,6 +148,7 @@ class KpiService extends BaseService
     private function buildMonthlyReport(
         string $periodKey,
         Collection $services,
+        Collection $serviceGroups,
         Collection $departments,
         Collection $users,
         Collection $allocations,
@@ -194,31 +203,13 @@ class KpiService extends BaseService
             $employeeActuals,
         );
 
-        $serviceRows = $services
-            ->filter(fn (Service $service): bool => in_array((int) $service->id, $rootServiceIds, true))
-            ->map(function (Service $service) use ($serviceActuals, $targetMap): array {
-                $actual = $serviceActuals[(int) $service->id];
-                $target = (float) ($targetMap->get(KpiTarget::SCOPE_SERVICE.':'.$service->id)?->target_amount ?? 0);
-                $actualAmount = $actual['receivedBeforeVatAmount']
-                    - $actual['costBeforeVatAmount']
-                    - $actual['refundBeforeVatAmount'];
-
-                return [
-                    'id' => (int) $service->id,
-                    'scopeType' => KpiTarget::SCOPE_SERVICE,
-                    'code' => $service->code,
-                    'name' => $service->name,
-                    'isActive' => (bool) $service->is_active && ! $service->trashed(),
-                    'isDeleted' => $service->trashed(),
-                    'targetAmount' => $this->money($target),
-                    'receivedAmount' => $this->money($actual['receivedAmount']),
-                    'costAmount' => $this->money($actual['costAmount']),
-                    'refundAmount' => $this->money($actual['refundAmount']),
-                    'actualAmount' => $this->money($actualAmount),
-                    'completionRate' => $this->completionRate($actualAmount, $target),
-                ];
-            })
-            ->values();
+        $serviceRows = $this->buildServiceRows(
+            $services,
+            $serviceGroups,
+            $rootServiceIds,
+            $serviceActuals,
+            $targetMap,
+        );
 
         $departmentRows = $departments
             ->map(function (Department $department) use ($departmentActuals, $targetMap): array {
@@ -654,6 +645,151 @@ class KpiService extends BaseService
         ])->all();
     }
 
+    private function buildServiceRows(
+        Collection $services,
+        Collection $serviceGroups,
+        array $rootServiceIds,
+        array $serviceActuals,
+        Collection $targetMap,
+    ): Collection {
+        $rootServices = $services
+            ->filter(fn (Service $service): bool => in_array((int) $service->id, $rootServiceIds, true))
+            ->keyBy('id');
+        $assignedRootIds = [];
+
+        $groupRows = $serviceGroups
+            ->map(function (Option $group) use (
+                $rootServices,
+                $serviceActuals,
+                $targetMap,
+                &$assignedRootIds,
+            ): ?array {
+                $memberIds = collect(($group->meta ?? [])['serviceRootIds'] ?? [])
+                    ->map(fn ($id): int => (int) $id)
+                    ->filter(fn (int $id): bool => $rootServices->has($id)
+                        && ! in_array($id, $assignedRootIds, true))
+                    ->unique()
+                    ->values();
+
+                if ($memberIds->isEmpty()) {
+                    return null;
+                }
+
+                $assignedRootIds = array_merge($assignedRootIds, $memberIds->all());
+                $members = $memberIds
+                    ->map(fn (int $id): Service => $rootServices->get($id))
+                    ->values();
+                $actual = $this->sumServiceActuals($memberIds, $serviceActuals);
+                $groupTarget = $targetMap->get(KpiTarget::SCOPE_SERVICE_GROUP.':'.$group->id);
+                $target = $groupTarget
+                    ? (float) $groupTarget->target_amount
+                    : (float) $memberIds->sum(fn (int $id): float => (float) (
+                        $targetMap->get(KpiTarget::SCOPE_SERVICE.':'.$id)?->target_amount ?? 0
+                    ));
+
+                return $this->serviceRow(
+                    (int) $group->id,
+                    KpiTarget::SCOPE_SERVICE_GROUP,
+                    $members->pluck('code')->implode(' + '),
+                    $group->label,
+                    $members->contains(fn (Service $service): bool => $service->is_active && ! $service->trashed()),
+                    false,
+                    $target,
+                    $actual,
+                    $members,
+                    (int) ($members->min('sort_order') ?? 0),
+                );
+            })
+            ->filter();
+
+        $serviceRows = $rootServices
+            ->reject(fn (Service $service): bool => in_array((int) $service->id, $assignedRootIds, true))
+            ->map(function (Service $service) use ($serviceActuals, $targetMap): array {
+                $target = (float) (
+                    $targetMap->get(KpiTarget::SCOPE_SERVICE.':'.$service->id)?->target_amount ?? 0
+                );
+
+                return $this->serviceRow(
+                    (int) $service->id,
+                    KpiTarget::SCOPE_SERVICE,
+                    $service->code,
+                    $service->name,
+                    (bool) $service->is_active && ! $service->trashed(),
+                    $service->trashed(),
+                    $target,
+                    $serviceActuals[(int) $service->id],
+                    collect([$service]),
+                    (int) $service->sort_order,
+                );
+            });
+
+        return $groupRows
+            ->concat($serviceRows)
+            ->sortBy('sortOrder')
+            ->values()
+            ->map(function (array $row): array {
+                unset($row['sortOrder']);
+
+                return $row;
+            });
+    }
+
+    private function sumServiceActuals(Collection $serviceIds, array $serviceActuals): array
+    {
+        $fields = [
+            'receivedAmount',
+            'costAmount',
+            'refundAmount',
+            'receivedBeforeVatAmount',
+            'costBeforeVatAmount',
+            'refundBeforeVatAmount',
+        ];
+
+        return collect($fields)->mapWithKeys(fn (string $field): array => [
+            $field => (float) $serviceIds->sum(fn (int $id): float => (float) (
+                $serviceActuals[$id][$field] ?? 0
+            )),
+        ])->all();
+    }
+
+    private function serviceRow(
+        int $id,
+        string $scopeType,
+        string $code,
+        string $name,
+        bool $isActive,
+        bool $isDeleted,
+        float $target,
+        array $actual,
+        Collection $members,
+        int $sortOrder,
+    ): array {
+        $actualAmount = $actual['receivedBeforeVatAmount']
+            - $actual['costBeforeVatAmount']
+            - $actual['refundBeforeVatAmount'];
+
+        return [
+            'id' => $id,
+            'scopeType' => $scopeType,
+            'code' => $code,
+            'name' => $name,
+            'isActive' => $isActive,
+            'isDeleted' => $isDeleted,
+            'memberServices' => $members->map(fn (Service $service): array => [
+                'id' => (int) $service->id,
+                'code' => $service->code,
+                'name' => $service->name,
+            ])->values()->all(),
+            'targetAmount' => $this->money($target),
+            'receivedAmount' => $this->money($actual['receivedAmount']),
+            'costAmount' => $this->money($actual['costAmount']),
+            'refundAmount' => $this->money($actual['refundAmount']),
+            'actualAmount' => $this->money($actualAmount),
+            'completionRate' => $this->completionRate($actualAmount, $target),
+            'sortOrder' => $sortOrder,
+        ];
+    }
+
     private function emptyDepartmentActuals(Collection $departmentIds): array
     {
         return $departmentIds->mapWithKeys(fn ($id): array => [
@@ -742,6 +878,11 @@ class KpiService extends BaseService
             KpiTarget::SCOPE_SERVICE => Service::query()
                 ->whereKey($scopeId)
                 ->whereNull('parent_id')
+                ->exists(),
+            KpiTarget::SCOPE_SERVICE_GROUP => Option::query()
+                ->whereKey($scopeId)
+                ->where('group', Option::GROUP_SERVICE_KPI)
+                ->where('is_active', true)
                 ->exists(),
             KpiTarget::SCOPE_DEPARTMENT => Department::query()->whereKey($scopeId)->exists(),
             default => false,

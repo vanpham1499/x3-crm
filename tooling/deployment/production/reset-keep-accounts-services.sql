@@ -1,4 +1,5 @@
 -- Destructive maintenance script. Back up and verify the target database first.
+-- Keeps access-control data and every catalog managed from /settings.
 \set ON_ERROR_STOP on
 
 BEGIN;
@@ -21,7 +22,8 @@ BEGIN
           'role_permissions',
           'departments',
           'services',
-          'service_packages'
+          'service_packages',
+          'options'
       );
 
     IF truncate_statement IS NOT NULL THEN

@@ -3,7 +3,7 @@ import type { Customer } from '@/types/customer';
 import type { User } from '@/types/user';
 import type { PaginationMeta } from '@/types/pagination';
 
-export type WeeklyReportStatus = 'draft' | 'submitted' | 'approved';
+export type WeeklyReportStatus = 'draft' | 'submitted' | 'approved' | 'rejected';
 
 export type WeeklyReportAttachment = {
   id: number;
@@ -18,6 +18,7 @@ export type WeeklyReportAttachment = {
 export type WeeklyReportItem = {
   id?: number;
   weeklyReportId?: number;
+  replyToMessageId?: number | null;
   itemType?: string | null;
   title?: string | null;
   content: string;
@@ -26,6 +27,11 @@ export type WeeklyReportItem = {
   dueDate?: string | null;
   assigneeUserId?: number | null;
   assignee?: Pick<User, 'id' | 'name'> | null;
+  author?: Pick<User, 'id' | 'code' | 'name'> | null;
+  canUpdate?: boolean;
+  canDelete?: boolean;
+  createdAt?: string;
+  updatedAt?: string;
 };
 
 export type WeeklyReport = {
@@ -52,15 +58,20 @@ export type WeeklyReport = {
   submittedAt?: string | null;
   approvedBy?: number | null;
   approvedAt?: string | null;
+  rejectionReason?: string | null;
+  rejectedBy?: number | null;
+  rejectedAt?: string | null;
   project?: Pick<ProjectItem, 'id' | 'projectCode' | 'projectName' | 'managerUserId'> | null;
   customer?: Pick<Customer, 'id' | 'customerCode' | 'customerName'> | null;
   reporter?: Pick<User, 'id' | 'name' | 'departmentId'> | null;
   approver?: Pick<User, 'id' | 'name'> | null;
+  rejecter?: Pick<User, 'id' | 'name'> | null;
   items?: WeeklyReportItem[];
   attachments?: WeeklyReportAttachment[];
   canUpdate?: boolean;
   canDelete?: boolean;
   canApprove?: boolean;
+  canComment?: boolean;
   createdAt?: string;
   updatedAt?: string;
 };
@@ -128,11 +139,9 @@ export type WeeklyReportBoardResponse = {
   meta: WeeklyReportBoardMeta;
 };
 
-export type WeeklyReportItemFormValue = {
+export type WeeklyReportMessageDraft = {
   id: number;
-  itemType: string;
   content: string;
-  status: string;
 };
 
 export type ProjectWeeklySetting = {

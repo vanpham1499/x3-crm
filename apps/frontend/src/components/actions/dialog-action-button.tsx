@@ -7,7 +7,7 @@ import { Button } from '@mui/material';
 type DialogActionButtonProps = {
   children: ReactNode;
   href?: string;
-  tone?: 'primary' | 'secondary';
+  tone?: 'primary' | 'secondary' | 'danger';
   startIcon?: ReactNode;
   endIcon?: ReactNode;
   disabled?: boolean;
@@ -27,11 +27,13 @@ export function DialogActionButton({
   type = 'button',
   onClick,
 }: DialogActionButtonProps) {
-  const variant = tone === 'primary' ? 'contained' : 'outlined';
+  const variant = tone === 'secondary' ? 'outlined' : 'contained';
   const className = `${baseClassName} ${
-    tone === 'primary'
-      ? ''
-      : '!border-slate-200 !bg-white !text-slate-700 hover:!border-primary hover:!bg-emerald-50 hover:!text-emerald-700 !leading-[1]'
+    tone === 'secondary'
+      ? '!border-slate-200 !bg-white !text-slate-700 hover:!border-primary hover:!bg-emerald-50 hover:!text-emerald-700 !leading-[1]'
+      : tone === 'danger'
+        ? '!bg-rose-600 !text-white hover:!bg-rose-700'
+        : ''
   }`;
 
   if (href) {
@@ -41,6 +43,7 @@ export function DialogActionButton({
         href={href}
         size="small"
         variant={variant}
+        color={tone === 'danger' ? 'error' : 'primary'}
         startIcon={startIcon}
         endIcon={endIcon}
         disabled={disabled}
@@ -56,6 +59,7 @@ export function DialogActionButton({
       type={type}
       size="small"
       variant={variant}
+      color={tone === 'danger' ? 'error' : 'primary'}
       startIcon={startIcon}
       endIcon={endIcon}
       disabled={disabled}

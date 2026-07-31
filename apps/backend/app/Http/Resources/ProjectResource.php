@@ -68,6 +68,7 @@ class ProjectResource extends JsonResource
                 'id' => $this->weeklySetting->id,
                 'reportOwnerUserId' => $this->weeklySetting->report_owner_user_id,
                 'reportWeekday' => $this->weeklySetting->report_weekday,
+                'monthlyBudget' => $this->weeklySetting->monthly_budget,
                 'isActive' => (bool) $this->weeklySetting->is_active,
             ] : null),
             'contracts' => ContractResource::collection($this->whenLoaded('contracts')),

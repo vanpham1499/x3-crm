@@ -97,9 +97,24 @@ export default function CostsPage() {
       api
         .post<ProjectCost>(`/project-costs/${costId}/reconcile`, payload)
         .then((response) => response.data),
-    onSuccess: () => {
+    onSuccess: (updatedCost) => {
+      queryClient.setQueriesData<PaginatedResponse<ProjectCost>>(
+        { queryKey: COSTS_LIST_QUERY_KEY },
+        (currentPage) =>
+          currentPage
+            ? {
+                ...currentPage,
+                data: currentPage.data.map((cost) =>
+                  cost.id === updatedCost.id ? updatedCost : cost,
+                ),
+              }
+            : currentPage,
+      );
       void queryClient.invalidateQueries({ queryKey: ['project-costs'] });
-      notify.success('Đã xác nhận khớp khoản chi');
+      void queryClient.invalidateQueries({ queryKey: ['projects'] });
+      notify.success(
+        updatedCost.reconciledAt ? 'Đã lưu kết quả Khớp chuẩn' : 'Đã chuyển khoản chi về Chưa khớp',
+      );
     },
     onError: (error) =>
       notify.error(getApiErrorMessage(error, 'Không thể xác nhận đối soát khoản chi')),

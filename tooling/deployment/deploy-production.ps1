@@ -29,7 +29,6 @@ $PublicUri = $null
 if (-not [Uri]::TryCreate($PublicUrl, [UriKind]::Absolute, [ref]$PublicUri) -or $PublicUri.Scheme -ne 'https') {
     throw "PublicUrl must be an absolute HTTPS URL. [$PublicUrl] given."
 }
-
 function Write-Step([string]$Message) {
     Write-Host "`n==> $Message" -ForegroundColor Cyan
 }
@@ -187,6 +186,8 @@ ls -lh "`$backup_path"
     Assert-LastExitCode 'Upload compose.yml'
     & $ScpExe @SshOptions (Join-Path $DeployRoot 'nginx.conf') "${Target}:${RemoteDir}/nginx.conf"
     Assert-LastExitCode 'Upload nginx.conf'
+    & $ScpExe @SshOptions (Join-Path $DeployRoot 'reset-keep-accounts-services.sql') "${Target}:${RemoteDir}/reset-keep-accounts-services.sql"
+    Assert-LastExitCode 'Upload reset database script'
 
     Write-Step 'Loading images and restarting application'
     Invoke-Remote @"

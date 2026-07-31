@@ -100,11 +100,12 @@ export type DashboardProfitTrendPoint = {
 
 export type DashboardServiceRow = {
   id: number;
-  scopeType: 'service';
+  scopeType: 'service' | 'service_group';
   code?: string | null;
   name: string;
   isActive: boolean;
   isDeleted: boolean;
+  memberServices?: Array<{ id: number; code: string; name: string }>;
   targetAmount: number;
   receivedAmount: number;
   costAmount: number;

@@ -5,8 +5,10 @@ namespace App\Services;
 use App\Http\Resources\PermissionResource;
 use App\Http\Resources\RoleResource;
 use App\Models\Role;
+use App\Models\User;
 use App\Repositories\RoleRepository;
 use Illuminate\Support\Facades\DB;
+use Symfony\Component\HttpKernel\Exception\ConflictHttpException;
 
 class RolesService extends BaseService
 {
@@ -78,6 +80,16 @@ class RolesService extends BaseService
     public function update(string $id, array $data): array
     {
         return $this->transaction(function () use ($id, $data): array {
+            $existingRole = $this->roles->findOrFail($id);
+
+            if (
+                $existingRole->name === User::ROLE_ADMIN
+                && isset($data['name'])
+                && $data['name'] !== User::ROLE_ADMIN
+            ) {
+                throw new ConflictHttpException('Không thể đổi tên vai trò hệ thống ADMIN');
+            }
+
             $permissionIds = array_key_exists('permission_ids', $data)
                 ? $data['permission_ids']
                 : null;
@@ -97,6 +109,12 @@ class RolesService extends BaseService
     public function remove(string $id): array
     {
         return $this->transaction(function () use ($id): array {
+            $role = $this->roles->findOrFail($id);
+
+            if ($role->name === User::ROLE_ADMIN) {
+                throw new ConflictHttpException('Không thể xóa vai trò hệ thống ADMIN');
+            }
+
             $this->roles->delete($id);
 
             return ['message' => 'Xóa vai trò thành công'];

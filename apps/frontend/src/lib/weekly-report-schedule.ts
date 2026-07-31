@@ -8,11 +8,17 @@ const WEEKDAY_LABELS: Record<number, string> = {
   7: 'Chủ nhật',
 };
 
+export const REPORT_WEEKDAYS = [1, 2, 3, 4, 5] as const;
+
+export function isReportWeekday(weekday?: number | null): weekday is 1 | 2 | 3 | 4 | 5 {
+  return REPORT_WEEKDAYS.includes(weekday as 1 | 2 | 3 | 4 | 5);
+}
+
 export function getReportWeekdayLabel(weekday?: number | null) {
   return weekday ? WEEKDAY_LABELS[weekday] || '' : '';
 }
 
-/** ISO weekday: 1 (Monday) .. 7 (Sunday). */
+/** ISO weekday used for calendar calculations: 1 (Monday) .. 7 (Sunday). */
 export function getIsoWeekday(date: Date): number {
   const day = date.getDay();
   return day === 0 ? 7 : day;

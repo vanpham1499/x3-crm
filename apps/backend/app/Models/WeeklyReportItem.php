@@ -3,11 +3,13 @@
 namespace App\Models;
 
 use Illuminate\Database\Eloquent\Relations\BelongsTo;
+use Illuminate\Database\Eloquent\Relations\HasMany;
 
 class WeeklyReportItem extends BaseModel
 {
     protected $fillable = [
         'weekly_report_id',
+        'reply_to_item_id',
         'item_type',
         'title',
         'content',
@@ -30,6 +32,16 @@ class WeeklyReportItem extends BaseModel
     public function weeklyReport(): BelongsTo
     {
         return $this->belongsTo(WeeklyReport::class);
+    }
+
+    public function replyTo(): BelongsTo
+    {
+        return $this->belongsTo(self::class, 'reply_to_item_id');
+    }
+
+    public function replies(): HasMany
+    {
+        return $this->hasMany(self::class, 'reply_to_item_id');
     }
 
     public function assignee(): BelongsTo

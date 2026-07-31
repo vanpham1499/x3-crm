@@ -27,6 +27,7 @@ class PaymentRefundResource extends JsonResource
             'recipientBank' => $this->recipient_bank,
             'reason' => $this->reason,
             'reference' => $this->reference,
+            'invoiceNumber' => $this->payment?->output_invoice_number,
             'note' => $this->note,
             'payment' => $this->whenLoaded('payment', fn () => $this->payment ? [
                 'id' => $this->payment->id,
@@ -35,6 +36,7 @@ class PaymentRefundResource extends JsonResource
                     ?? $this->payment->transaction_date?->toDateString(),
                 'transactionContent' => $this->payment->transaction_content,
                 'reference' => $this->payment->reference,
+                'invoiceNumber' => $this->payment->output_invoice_number,
             ] : null),
             'allocation' => $this->whenLoaded('allocation', fn () => $this->allocation ? [
                 'id' => $this->allocation->id,

@@ -94,7 +94,7 @@ export default function LoginPage() {
         </p>
       </div>
 
-      <form className="space-y-6" onSubmit={handleSubmit(onSubmit)}>
+      <form noValidate className="space-y-6" onSubmit={handleSubmit(onSubmit)}>
         <FormControl error={Boolean(errors.email)} fullWidth>
           <TextField
             label="Địa chỉ email"

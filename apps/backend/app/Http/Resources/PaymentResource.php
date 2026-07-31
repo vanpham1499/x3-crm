@@ -128,6 +128,7 @@ class PaymentResource extends JsonResource
                     'recipientBank' => $refund->recipient_bank,
                     'reason' => $refund->reason,
                     'reference' => $refund->reference,
+                    'invoiceNumber' => $this->output_invoice_number,
                     'note' => $refund->note,
                 ],
             )->values()),

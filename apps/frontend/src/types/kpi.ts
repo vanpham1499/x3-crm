@@ -1,4 +1,4 @@
-export type KpiScopeType = 'service' | 'department';
+export type KpiScopeType = 'service' | 'service_group' | 'department';
 export type KpiPeriodMode = 'month' | 'quarter' | 'year' | 'range';
 
 export type KpiSummary = {
@@ -9,11 +9,12 @@ export type KpiSummary = {
 
 export type ServiceKpiRow = {
   id: number;
-  scopeType: 'service';
+  scopeType: 'service' | 'service_group';
   code?: string | null;
   name: string;
   isActive: boolean;
   isDeleted: boolean;
+  memberServices?: Array<{ id: number; code: string; name: string }>;
   targetAmount: number;
   receivedAmount: number;
   costAmount: number;

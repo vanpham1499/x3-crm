@@ -91,6 +91,10 @@ class UsersService extends BaseService
     public function update(string $id, array $data): array
     {
         return $this->transaction(function () use ($id, $data): array {
+            $adminRoleId = $this->lockAdminRoleId();
+            /** @var User $user */
+            $user = User::query()->lockForUpdate()->findOrFail($id);
+
             if (array_key_exists('isActive', $data)) {
                 $data['is_active'] = $data['isActive'];
                 unset($data['isActive']);
@@ -108,7 +112,8 @@ class UsersService extends BaseService
                 }
             }
 
-            /** @var User $user */
+            $this->ensureAdminContinuity($user, $data, $adminRoleId);
+
             $user = $this->users->update($id, $data);
 
             return $this->apiResource($user, UserResource::class);
@@ -118,6 +123,10 @@ class UsersService extends BaseService
     public function remove(string $id): array
     {
         return $this->transaction(function () use ($id): array {
+            $adminRoleId = $this->lockAdminRoleId();
+            /** @var User $user */
+            $user = User::query()->lockForUpdate()->findOrFail($id);
+            $this->ensureAdminContinuity($user, [], $adminRoleId, true);
             $this->users->delete($id);
 
             return ['message' => 'Xóa nhân viên thành công'];
@@ -154,5 +163,67 @@ class UsersService extends BaseService
         }
 
         return $roleId;
+    }
+
+    private function lockAdminRoleId(): int|string|null
+    {
+        return DB::table('roles')
+            ->where('name', User::ROLE_ADMIN)
+            ->whereNull('deleted_at')
+            ->lockForUpdate()
+            ->value('id');
+    }
+
+    private function ensureAdminContinuity(
+        User $user,
+        array $nextData,
+        int|string|null $adminRoleId,
+        bool $deleting = false,
+    ): void {
+        if (! $adminRoleId) {
+            return;
+        }
+
+        $isAdmin = (string) $user->role_id === (string) $adminRoleId
+            || $user->role === User::ROLE_ADMIN;
+
+        if (! $isAdmin) {
+            return;
+        }
+
+        $adminQuery = User::query()->where(function ($query) use ($adminRoleId): void {
+            $query
+                ->where('role_id', $adminRoleId)
+                ->orWhere('role', User::ROLE_ADMIN);
+        });
+        $adminCount = (clone $adminQuery)->count();
+        $activeAdminCount = (clone $adminQuery)->where('is_active', true)->count();
+        $willRemainAdmin = ! $deleting
+            && (! array_key_exists('role_id', $nextData)
+                || (string) $nextData['role_id'] === (string) $adminRoleId);
+        $willRemainActive = ! $deleting
+            && (bool) ($nextData['is_active'] ?? $user->is_active);
+
+        if (! $willRemainAdmin && $adminCount <= 1) {
+            throw new ConflictHttpException(
+                'Không thể đổi vai trò của admin duy nhất. Hãy tạo thêm một admin trước.',
+            );
+        }
+
+        if (
+            $user->is_active
+            && (! $willRemainAdmin || ! $willRemainActive)
+            && $activeAdminCount <= 1
+        ) {
+            throw new ConflictHttpException(
+                'Không thể vô hiệu hóa hoặc xóa admin đang hoạt động cuối cùng.',
+            );
+        }
+
+        if ($deleting && $adminCount <= 1) {
+            throw new ConflictHttpException(
+                'Không thể xóa admin duy nhất. Hãy tạo thêm một admin trước.',
+            );
+        }
     }
 }

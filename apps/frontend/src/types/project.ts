@@ -1,5 +1,6 @@
 import type { Customer } from '@/types/customer';
 import type { Contract } from '@/types/contract';
+import type { LeadTimelineEntry } from '@/types/lead';
 import type { AppOption } from '@/types/option';
 import type { Quotation } from '@/types/quotation';
 import type { ServiceItem } from '@/types/service';
@@ -46,10 +47,12 @@ export type ProjectItem = {
     id: number;
     reportOwnerUserId?: number | null;
     reportWeekday?: number | null;
+    monthlyBudget?: string | number | null;
     isActive?: boolean;
   } | null;
   contracts?: Contract[];
   payments?: ProjectPaymentSummary[];
+  timelines?: LeadTimelineEntry[];
   canUpdate?: boolean;
   canDelete?: boolean;
   createdAt?: string;
@@ -88,6 +91,7 @@ export type ProjectFormValues = {
   managerUserId: string;
   weeklyReportWeekday: string;
   planLink: string;
+  monthlyBudget: string;
   customerTrackingReportLink: string;
   adminWebAccount: string;
   startDate: string;

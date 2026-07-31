@@ -40,7 +40,7 @@ class WeeklyReportRepository extends BaseRepository
         }
 
         return $this->query()
-            ->with(['project.managerUser:id,department_id', 'project.salesUser:id,department_id', 'customer', 'reporter', 'approver'])
+            ->with(['project.managerUser:id,department_id', 'project.salesUser:id,department_id', 'customer', 'reporter', 'approver', 'rejecter'])
             ->whereIn('project_id', $projectIds)
             ->whereBetween('week_start_date', [$minimumPeriodStart, $maximumPeriodStart])
             ->orderByDesc('created_at')
@@ -73,7 +73,7 @@ class WeeklyReportRepository extends BaseRepository
     private function filteredQuery(User $user, array $filters): Builder
     {
         $query = $this->query()
-            ->with(['project.managerUser:id,department_id', 'project.salesUser:id,department_id', 'customer', 'reporter', 'approver'])
+            ->with(['project.managerUser:id,department_id', 'project.salesUser:id,department_id', 'customer', 'reporter', 'approver', 'rejecter'])
             ->when($filters['project_id'] ?? null, fn ($query, $value) => $query->where('project_id', $value))
             ->when($filters['reporter_user_id'] ?? null, fn ($query, $value) => $query->where('reporter_user_id', $value))
             ->when($filters['status'] ?? null, fn ($query, $value) => $query->where('status', $value))
@@ -126,7 +126,9 @@ class WeeklyReportRepository extends BaseRepository
                 'customer',
                 'reporter',
                 'approver',
+                'rejecter',
                 'items.assignee',
+                'items.createdBy:id,code,name',
                 'attachments.uploadedBy',
             ]),
             $user,
@@ -143,7 +145,7 @@ class WeeklyReportRepository extends BaseRepository
     {
         /** @var WeeklyReport|null $report */
         $report = $this->query()
-            ->with(['project.managerUser:id,department_id', 'project.salesUser:id,department_id', 'customer', 'reporter', 'approver', 'items.assignee', 'attachments.uploadedBy'])
+            ->with(['project.managerUser:id,department_id', 'project.salesUser:id,department_id', 'customer', 'reporter', 'approver', 'rejecter', 'items.assignee', 'items.createdBy:id,code,name', 'attachments.uploadedBy'])
             ->whereKey($id)
             ->first();
 

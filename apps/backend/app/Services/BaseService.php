@@ -32,7 +32,7 @@ abstract class BaseService
     }
 
     /**
-     * Shared helper for project sub-resources (contracts, project costs, weekly settings, ...):
+     * Shared helper for project sub-resources (contracts, weekly settings, ...):
      * only the project's manager/sales owner (or admin/leader) may write to records under it.
      */
     protected function authorizeProjectOwnership(?int $projectId): void

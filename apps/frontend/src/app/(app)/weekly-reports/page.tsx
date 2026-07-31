@@ -198,25 +198,27 @@ export default function WeeklyReportsPage() {
     onError: (error) => notify.error(getApiErrorMessage(error, 'Duyệt báo cáo thất bại')),
   });
 
-  const returnMutation = useMutation({
-    mutationFn: (report: WeeklyReport) => api.post(`/weekly-reports/${report.id}/return-to-draft`),
+  const rejectMutation = useMutation({
+    mutationFn: ({ report, reason }: { report: WeeklyReport; reason: string }) =>
+      api.post(`/weekly-reports/${report.id}/reject`, { reason }),
     onSuccess: () => {
       refreshReports();
-      notify.success('Đã trả báo cáo về nháp');
+      notify.success('Đã từ chối báo cáo tuần');
     },
-    onError: (error) => notify.error(getApiErrorMessage(error, 'Trả báo cáo về nháp thất bại')),
+    onError: (error) => notify.error(getApiErrorMessage(error, 'Từ chối báo cáo thất bại')),
   });
 
   const commonActionProps = {
     isDeleting: deleteMutation.isPending,
     isSubmitting: submitMutation.isPending,
     isApproving: approveMutation.isPending,
-    isReturning: returnMutation.isPending,
+    isRejecting: rejectMutation.isPending,
     currentUser,
     onDelete: (report: WeeklyReport) => deleteMutation.mutate(report),
     onSubmit: (report: WeeklyReport) => submitMutation.mutate(report),
     onApprove: (report: WeeklyReport) => approveMutation.mutate(report),
-    onReturnToDraft: (report: WeeklyReport) => returnMutation.mutate(report),
+    onReject: (report: WeeklyReport, reason: string) =>
+      rejectMutation.mutateAsync({ report, reason }),
   };
 
   return (

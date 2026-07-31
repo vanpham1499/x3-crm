@@ -33,6 +33,9 @@ class WeeklyReportResource extends JsonResource
             'submittedAt' => $this->submitted_at?->toISOString(),
             'approvedBy' => $this->approved_by,
             'approvedAt' => $this->approved_at?->toISOString(),
+            'rejectionReason' => $this->rejection_reason,
+            'rejectedBy' => $this->rejected_by,
+            'rejectedAt' => $this->rejected_at?->toISOString(),
             'project' => $this->whenLoaded('project', fn () => $this->project ? [
                 'id' => $this->project->id,
                 'projectCode' => $this->project->project_code,
@@ -54,11 +57,16 @@ class WeeklyReportResource extends JsonResource
                 'id' => $this->approver->id,
                 'name' => $this->approver->name,
             ] : null),
+            'rejecter' => $this->whenLoaded('rejecter', fn () => $this->rejecter ? [
+                'id' => $this->rejecter->id,
+                'name' => $this->rejecter->name,
+            ] : null),
             'items' => WeeklyReportItemResource::collection($this->whenLoaded('items')),
             'attachments' => WeeklyReportAttachmentResource::collection($this->whenLoaded('attachments')),
             'canUpdate' => (bool) ($request->user()?->can('update', $this->resource) ?? false),
             'canDelete' => (bool) ($request->user()?->can('delete', $this->resource) ?? false),
             'canApprove' => (bool) ($request->user()?->can('approve', $this->resource) ?? false),
+            'canComment' => (bool) ($request->user()?->can('comment', $this->resource) ?? false),
             'createdAt' => $this->created_at?->toISOString(),
             'updatedAt' => $this->updated_at?->toISOString(),
         ];

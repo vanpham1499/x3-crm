@@ -2,7 +2,10 @@
 
 namespace App\Http\Controllers;
 
+use App\Http\Requests\WeeklyReports\CreateWeeklyReportMessageRequest;
 use App\Http\Requests\WeeklyReports\CreateWeeklyReportRequest;
+use App\Http\Requests\WeeklyReports\RejectWeeklyReportRequest;
+use App\Http\Requests\WeeklyReports\UpdateWeeklyReportMessageRequest;
 use App\Http\Requests\WeeklyReports\UpdateWeeklyReportRequest;
 use App\Services\WeeklyReportsService;
 use Illuminate\Http\JsonResponse;
@@ -67,6 +70,26 @@ class WeeklyReportsController extends Controller
         return $this->success($this->reports->update($id, $request->validatedData()));
     }
 
+    public function addMessage(CreateWeeklyReportMessageRequest $request, string $id): JsonResponse
+    {
+        return $this->success($this->reports->addMessage($id, $request->validatedData()), 201);
+    }
+
+    public function updateMessage(
+        UpdateWeeklyReportMessageRequest $request,
+        string $id,
+        string $messageId,
+    ): JsonResponse {
+        return $this->success(
+            $this->reports->updateMessage($id, $messageId, $request->validatedData()),
+        );
+    }
+
+    public function deleteMessage(string $id, string $messageId): JsonResponse
+    {
+        return $this->success($this->reports->deleteMessage($id, $messageId));
+    }
+
     public function destroy(string $id): JsonResponse
     {
         return $this->success($this->reports->remove($id));
@@ -80,6 +103,11 @@ class WeeklyReportsController extends Controller
     public function approve(string $id): JsonResponse
     {
         return $this->success($this->reports->approve($id));
+    }
+
+    public function reject(RejectWeeklyReportRequest $request, string $id): JsonResponse
+    {
+        return $this->success($this->reports->reject($id, $request->validatedData()));
     }
 
     public function returnToDraft(string $id): JsonResponse

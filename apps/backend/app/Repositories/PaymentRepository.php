@@ -141,8 +141,32 @@ class PaymentRepository extends BaseRepository
                     ->where('contract_id', $value)
                     ->orWhereHas('allocations.quotation', fn ($relation) => $relation->where('contract_id', $value));
             }))
-            ->when($filters['status'] ?? null, fn ($query, $value) => $query->where('status', $value))
-            ->when($filters['reconciled_status'] ?? null, fn ($query, $value) => $query->where('reconciled_status', $value))
+            ->when($filters['status'] ?? null, function ($query, $value): void {
+                match ($value) {
+                    'unallocated' => $query->whereIn('status', [
+                        'matched_customer',
+                        'matched_quotation',
+                        'matched_project',
+                    ]),
+                    'has_excess' => $query->where('excess_amount', '>', 0),
+                    'has_refund' => $query->whereHas('refunds', fn ($relation) => $relation
+                        ->whereIn('status', ['pending', 'completed'])),
+                    default => $query->where('status', $value),
+                };
+            })
+            ->when($filters['reconciled_status'] ?? null, function ($query, $value): void {
+                if ($value === 'matched') {
+                    $query->whereIn('reconciled_status', [
+                        'matched_customer',
+                        'matched_quotation',
+                        'matched_project',
+                    ]);
+
+                    return;
+                }
+
+                $query->where('reconciled_status', $value);
+            })
             ->when($dateFrom, fn ($query) => $query->where(function ($query) use ($dateFrom): void {
                 $query
                     ->whereDate('transaction_at', '>=', $dateFrom)

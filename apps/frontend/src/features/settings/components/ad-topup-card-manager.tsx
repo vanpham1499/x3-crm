@@ -114,7 +114,7 @@ function AdTopupCardDialog({
       />
       <FormInputField
         label="Thông tin thẻ"
-        className="sm:col-span-2"
+        className="sm:col-span-2  !hidden"
         placeholder="Ví dụ: Visa **** 1234"
         error={Boolean(errors.cardInfo)}
         helperText={errors.cardInfo?.message}

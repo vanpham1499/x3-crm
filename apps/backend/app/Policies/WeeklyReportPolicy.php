@@ -19,8 +19,12 @@ class WeeklyReportPolicy
             return false;
         }
 
-        if (! $project || $user->hasPermission('weeklyreport.view_all')) {
-            return $project !== null;
+        if (! $project || ! $project->requiresWeeklyReport()) {
+            return false;
+        }
+
+        if ($user->hasPermission('weeklyreport.view_all')) {
+            return true;
         }
 
         if (
@@ -41,6 +45,11 @@ class WeeklyReportPolicy
     public function delete(User $user, WeeklyReport $report): bool
     {
         return $this->allows($user, $report, 'delete');
+    }
+
+    public function comment(User $user, WeeklyReport $report): bool
+    {
+        return $this->view($user, $report);
     }
 
     public function approve(User $user, WeeklyReport $report): bool

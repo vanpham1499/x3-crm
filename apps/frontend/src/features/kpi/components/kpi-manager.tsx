@@ -446,7 +446,7 @@ function ServiceMonthTable({
       minWidthClassName="min-w-[1336px]"
     >
       {report.services.map((row) => (
-        <tr key={row.id} className="hover:bg-slate-50/80">
+        <tr key={`${row.scopeType}-${row.id}`} className="hover:bg-slate-50/80">
           <td className="px-3 py-4">
             <ServiceTableCell
               code={row.code}
@@ -454,6 +454,11 @@ function ServiceMonthTable({
                 row.isDeleted ? ' (Đã xóa)' : row.isActive ? '' : ' (Ngừng hoạt động)'
               }`}
             />
+            {row.scopeType === 'service_group' ? (
+              <p className="mt-1 truncate text-xs font-semibold text-slate-500">
+                Gồm: {row.memberServices?.map((service) => service.code).join(', ') || '-'}
+              </p>
+            ) : null}
           </td>
           <td className="whitespace-nowrap px-3 py-4 text-right font-bold tabular-nums text-slate-800">
             {formatCurrency(row.targetAmount)}

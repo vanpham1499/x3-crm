@@ -50,7 +50,7 @@ export function AppFormDialog({
         </IconButton>
       </DialogTitle>
 
-      <form onSubmit={onSubmit} className="flex min-h-0 flex-1 flex-col">
+      <form noValidate onSubmit={onSubmit} className="flex min-h-0 flex-1 flex-col">
         <DialogContent className={`!px-5 !py-4 ${contentClassName}`}>{children}</DialogContent>
         <DialogActions className="gap-2 border-t border-slate-200 !px-5 !py-3">
           {actions}

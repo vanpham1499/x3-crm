@@ -30,7 +30,7 @@ import { ListFilterBar } from '@/components/form/list-filter-bar';
 import { MoneyInput } from '@/components/form/money-input';
 import { ServerPaginatedAutocomplete } from '@/components/form/server-paginated-autocomplete';
 import { getPaymentDisplayStatus } from '@/lib/payment-display-status';
-import { canManagePayments } from '@/lib/ownership';
+import { canAllocatePayments, canCreatePaymentRefund, canManagePayments } from '@/lib/ownership';
 import { PageHeader } from '@/components/shell/page-header';
 import { IconTabs } from '@/components/navigation/icon-tabs';
 import { AppDataTable } from '@/components/table/app-data-table';
@@ -88,13 +88,20 @@ type PaymentManagerProps = {
 };
 
 const reconciledStatusLabels: Record<string, string> = {
-  unmatched: 'Chưa đối soát',
-  matched_customer: 'Đã nhận diện khách hàng',
-  matched_quotation: 'Đã nhận diện báo phí',
-  matched_project: 'Đã nhận diện dự án',
+  unmatched: 'Chưa nhận diện',
+  matched: 'Đã nhận diện nguồn thu',
   allocated: 'Đã phân bổ',
   non_customer: 'Không phải khoản thu',
 };
+
+const processingStatusOptions = [
+  { value: 'unmatched', label: 'Chờ xử lý' },
+  { value: 'unallocated', label: 'Chưa phân bổ' },
+  { value: 'allocated', label: 'Đã phân bổ hết' },
+  { value: 'has_excess', label: 'Còn tiền thừa' },
+  { value: 'has_refund', label: 'Có khoản trả khách' },
+  { value: 'non_customer', label: 'Không phải khoản thu' },
+];
 
 const refundTypeLabels: Record<string, string> = {
   deposit: 'Hoàn cọc',
@@ -387,6 +394,8 @@ function PaymentDetailDialog({
   if (!payment) return null;
 
   const canManage = canManagePayments(currentUser);
+  const canAllocate = canAllocatePayments(currentUser);
+  const canCreateRefund = canCreatePaymentRefund(currentUser);
   const transferMoment = getTransferMoment(payment);
   const allocations = payment.allocations || [];
   const refunds = payment.refunds || [];
@@ -421,7 +430,7 @@ function PaymentDetailDialog({
           {canCreateCustomerReturn(payment) ? (
             <DialogActionButton
               startIcon={<ReplyRoundedIcon />}
-              disabled={isMutating || !canManage}
+              disabled={isMutating || !canCreateRefund}
               onClick={onRefund}
             >
               Trả khách
@@ -431,7 +440,7 @@ function PaymentDetailDialog({
             <DialogActionButton
               tone="primary"
               startIcon={<CallSplitRoundedIcon />}
-              disabled={isMutating || !canManage}
+              disabled={isMutating || !canAllocate}
               onClick={onAllocate}
             >
               Phân bổ
@@ -494,7 +503,7 @@ function PaymentDetailDialog({
                     size="small"
                     title="Hủy phân bổ"
                     aria-label={`Hủy phân bổ ${allocation.quotation?.quotationCode || allocation.id}`}
-                    disabled={isMutating || !canManage}
+                    disabled={isMutating || !canAllocate}
                     onClick={() => onRemoveAllocation(allocation)}
                   >
                     <DeleteOutlineRoundedIcon fontSize="small" />
@@ -1333,23 +1342,13 @@ export function PaymentManager({
                   onChange={(keyword) => updateFilters({ keyword })}
                 />
                 <CompactSelectField
-                  label="Trạng thái xử lý"
+                  label="Xử lý dòng tiền"
                   value={filters.status}
-                  options={[
-                    { value: 'unmatched', label: 'Chờ đối soát' },
-                    { value: 'matched_project', label: 'Đã nhận diện dự án' },
-                    { value: 'paid_with_excess', label: 'Đã phân bổ + chuyển thừa' },
-                    { value: 'overpaid', label: 'Chuyển thừa' },
-                    { value: 'allocated', label: 'Đã phân bổ giao dịch' },
-                    { value: 'partially_refunded', label: 'Đã trả khách một phần' },
-                    { value: 'allocated_and_refunded', label: 'Đã phân bổ & trả khách' },
-                    { value: 'refunded', label: 'Đã trả lại toàn bộ' },
-                    { value: 'non_customer', label: 'Không phải khoản thu' },
-                  ]}
+                  options={processingStatusOptions}
                   onChange={(status) => updateFilters({ status })}
                 />
                 <CompactSelectField
-                  label="Đối soát"
+                  label="Đối soát nguồn thu"
                   value={filters.reconciled_status}
                   options={Object.entries(reconciledStatusLabels).map(([value, label]) => ({
                     value,
@@ -1629,7 +1628,7 @@ export function PaymentManager({
         activePayment?.receiptType !== 'other' &&
         Number(activePayment?.availableAmount ?? activePayment?.unallocatedAmount) > 0 ? (
           <MenuItem
-            disabled={!canManagePayments(currentUser)}
+            disabled={!canAllocatePayments(currentUser)}
             onClick={() => {
               setAllocationTarget(activePayment);
               closeActionMenu();
@@ -1651,7 +1650,7 @@ export function PaymentManager({
         </MenuItem>
         {activePayment && canCreateCustomerReturn(activePayment) ? (
           <MenuItem
-            disabled={!canManagePayments(currentUser)}
+            disabled={!canCreatePaymentRefund(currentUser)}
             onClick={() => {
               setRefundTarget(activePayment);
               closeActionMenu();

@@ -75,6 +75,7 @@ export type PaymentRefund = {
   recipientBank?: string | null;
   reason?: string | null;
   reference?: string | null;
+  invoiceNumber?: string | null;
   note?: string | null;
   payment?: {
     id: number;
@@ -82,6 +83,7 @@ export type PaymentRefund = {
     transactionAt?: string | null;
     transactionContent?: string | null;
     reference?: string | null;
+    invoiceNumber?: string | null;
   } | null;
   allocation?: { id: number; amount?: string | number | null } | null;
   quotation?: {

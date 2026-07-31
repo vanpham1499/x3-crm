@@ -41,8 +41,9 @@ class ProjectWeeklySettingRepository extends BaseRepository
     public function findActiveForBoard(array $filters = [], ?User $user = null): Collection
     {
         $query = $this->query()
-            ->with(['project.customer', 'project.statusOption', 'reportOwner'])
+            ->with(['project.customer', 'project.statusOption', 'project.weeklySetting', 'reportOwner'])
             ->where('is_active', true)
+            ->whereBetween('report_weekday', [1, 5])
             ->whereHas('project')
             ->when($filters['keyword'] ?? null, function ($query, string $keyword): void {
                 $keyword = trim($keyword);
@@ -80,10 +81,14 @@ class ProjectWeeklySettingRepository extends BaseRepository
         ?int $excludeProjectId = null,
     ): int {
         return $this->query()
+            ->with(['project.statusOption', 'project.weeklySetting'])
             ->where('report_weekday', $reportWeekday)
             ->where('is_active', true)
+            ->whereBetween('report_weekday', [1, 5])
             ->when($excludeProjectId, fn ($query) => $query->where('project_id', '!=', $excludeProjectId))
             ->whereHas('project', fn ($query) => $query->where('manager_user_id', $deploymentUserId))
+            ->get()
+            ->filter(fn (ProjectWeeklySetting $setting): bool => $setting->project?->requiresWeeklyReport() ?? false)
             ->count();
     }
 

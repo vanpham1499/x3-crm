@@ -204,7 +204,7 @@ class PaymentsService extends BaseService
 
     public function allocate(string $id, array $data): array
     {
-        $this->authorize('manage', Payment::class);
+        $this->authorize('allocate', Payment::class);
         $this->paymentAllocations->allocate($id, $data['allocations'] ?? [], auth()->id());
 
         return $this->paymentResource($this->payments->findWithRelationsOrFail($id));
@@ -212,7 +212,7 @@ class PaymentsService extends BaseService
 
     public function removeAllocation(string $paymentId, string $allocationId): array
     {
-        $this->authorize('manage', Payment::class);
+        $this->authorize('allocate', Payment::class);
         $this->paymentAllocations->removeAllocation($paymentId, $allocationId, auth()->id());
 
         return $this->paymentResource($this->payments->findWithRelationsOrFail($paymentId));
@@ -220,7 +220,7 @@ class PaymentsService extends BaseService
 
     public function refund(string $id, array $data): array
     {
-        $this->authorize('manage', Payment::class);
+        $this->authorize('createRefund', Payment::class);
         $this->paymentAllocations->refund($id, $data, auth()->id());
 
         return $this->paymentResource($this->payments->findWithRelationsOrFail($id));

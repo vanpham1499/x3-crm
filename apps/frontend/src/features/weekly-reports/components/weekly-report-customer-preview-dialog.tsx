@@ -1,7 +1,7 @@
 'use client';
 
 import Image from 'next/image';
-import { useMemo, useRef, useState, type ReactNode } from 'react';
+import { useRef, useState, type ReactNode } from 'react';
 import AccountBalanceWalletOutlinedIcon from '@mui/icons-material/AccountBalanceWalletOutlined';
 import CalendarMonthOutlinedIcon from '@mui/icons-material/CalendarMonthOutlined';
 import CalendarViewWeekOutlinedIcon from '@mui/icons-material/CalendarViewWeekOutlined';
@@ -15,32 +15,13 @@ import { DialogActionButton } from '@/components/actions/dialog-action-button';
 import { AppDetailDialog } from '@/components/dialog/app-detail-dialog';
 import { useAppNotification } from '@/components/feedback/notification-provider';
 import { getMediaPreviewUrl } from '@/lib/media-url';
-import {
-  DEFAULT_SITE_PROFILE,
-  SITE_PROFILE_OPTION_GROUP,
-  siteProfileFromOptions,
-} from '@/lib/site-profile-options';
 import { formatDate } from '@/lib/utils';
 import api from '@/services/api/client';
-import type { AppOption } from '@/types/option';
 import type { WeeklyReport } from '@/types/weekly-report';
 
 type WeeklyReportCustomerPreviewDialogProps = {
   report: WeeklyReport | null;
   onClose: () => void;
-};
-
-const ITEM_TYPE_LABELS: Record<string, string> = {
-  problem: 'Vấn đề',
-  solution: 'Giải pháp',
-  action: 'Hành động',
-  note: 'Ghi chú',
-};
-
-const ITEM_STATUS_LABELS: Record<string, string> = {
-  open: 'Đang mở',
-  in_progress: 'Đang xử lý',
-  done: 'Hoàn thành',
 };
 
 function formatCurrency(value?: string | number | null) {
@@ -88,23 +69,6 @@ export function WeeklyReportCustomerPreviewDialog({
     enabled: Boolean(report),
   });
 
-  const { data: siteProfileOptions = [] } = useQuery<AppOption[]>({
-    queryKey: ['options', SITE_PROFILE_OPTION_GROUP],
-    queryFn: () =>
-      api
-        .get<AppOption[]>('/options', { params: { groups: SITE_PROFILE_OPTION_GROUP } })
-        .then((response) => response.data),
-    enabled: Boolean(report),
-  });
-
-  const companyInfo = useMemo(
-    () =>
-      siteProfileOptions.length > 0
-        ? siteProfileFromOptions(siteProfileOptions)
-        : DEFAULT_SITE_PROFILE,
-    [siteProfileOptions],
-  );
-
   if (!report) return null;
 
   const currentReport = detailedReport || report;
@@ -115,8 +79,6 @@ export function WeeklyReportCustomerPreviewDialog({
   const imageAttachments = (currentReport.attachments || []).filter(
     (attachment) => !attachment.mimeType || attachment.mimeType.startsWith('image/'),
   );
-  const items = currentReport.items || [];
-
   const copyCustomerImage = async () => {
     if (!customerSheetRef.current || isCopyingImage) return;
 
@@ -198,21 +160,11 @@ export function WeeklyReportCustomerPreviewDialog({
           ref={customerSheetRef}
           className="mx-auto max-w-[1040px] overflow-hidden rounded-xl border border-slate-200 bg-white text-slate-900"
         >
-          <header className="grid gap-5 border-b-4 border-primary px-6 py-5 md:grid-cols-[220px,minmax(0,1fr)] md:items-center">
-            <div className="flex items-center">
-              <Image src={x3salesLogo} alt="X3Sales" className="h-auto w-[160px]" priority />
-            </div>
-            <div className="space-y-1 text-sm leading-5 text-slate-600 md:text-right">
-              <p className="font-extrabold text-slate-950">{companyInfo.companyName}</p>
-              {companyInfo.taxCode ? <p>MST: {companyInfo.taxCode}</p> : null}
-              <p>{[companyInfo.phone, companyInfo.website].filter(Boolean).join(' · ')}</p>
-              {companyInfo.address ? <p>{companyInfo.address}</p> : null}
-              {companyInfo.office ? <p>Văn phòng: {companyInfo.office}</p> : null}
-            </div>
-          </header>
-
           <div className="space-y-5 px-6 py-6">
-            <div className="grid gap-4 md:grid-cols-[minmax(0,1fr)_auto_minmax(0,1fr)] md:items-center">
+            <header className="grid gap-4 border-b-4 border-primary pb-5 md:grid-cols-[minmax(160px,1fr)_auto_minmax(160px,1fr)] md:items-center">
+              <div className="flex justify-center md:justify-start">
+                <Image src={x3salesLogo} alt="X3Sales" className="h-auto w-[150px]" priority />
+              </div>
               <div className="text-center md:col-start-2">
                 <h2 className="text-2xl font-black uppercase tracking-tight text-slate-950">
                   Báo cáo tuần
@@ -228,7 +180,7 @@ export function WeeklyReportCustomerPreviewDialog({
                   {formatDate(currentReport.weekEndDate)}
                 </span>
               </div>
-            </div>
+            </header>
 
             <section className="overflow-hidden rounded-xl border border-slate-200">
               <h3 className="border-b border-slate-200 bg-slate-100 px-5 py-3 text-base font-black uppercase text-slate-950">
@@ -291,37 +243,16 @@ export function WeeklyReportCustomerPreviewDialog({
               <h3 className="border-b border-slate-200 bg-slate-100 px-5 py-3 text-base font-black uppercase text-slate-950">
                 3. Đánh giá & phương án triển khai
               </h3>
-              <div className="space-y-4 p-5">
+              <div className="p-5">
                 {currentReport.summary ? (
                   <p className="whitespace-pre-wrap text-sm font-medium leading-6 text-slate-700">
                     {currentReport.summary}
                   </p>
-                ) : null}
-
-                {items.length > 0 ? (
-                  <div className="space-y-2">
-                    {items.map((item, index) => (
-                      <div
-                        key={item.id || `${item.content}-${index}`}
-                        className="grid grid-cols-[110px_minmax(0,1fr)_110px] items-start gap-3 rounded-lg border border-slate-200 bg-slate-50 px-3 py-2.5"
-                      >
-                        <span className="text-xs font-extrabold text-blue-700">
-                          {ITEM_TYPE_LABELS[item.itemType || ''] || item.itemType || 'Nội dung'}
-                        </span>
-                        <p className="whitespace-pre-wrap text-sm font-semibold leading-5 text-slate-700">
-                          {item.title || item.content}
-                        </p>
-                        <span className="text-right text-xs font-bold text-slate-500">
-                          {ITEM_STATUS_LABELS[item.status || ''] || item.status || ''}
-                        </span>
-                      </div>
-                    ))}
-                  </div>
-                ) : !currentReport.summary ? (
+                ) : (
                   <p className="text-sm font-semibold text-slate-500">
-                    Chưa có đánh giá hoặc phương án triển khai.
+                    Chưa có ghi chú cho kỳ báo cáo này.
                   </p>
-                ) : null}
+                )}
               </div>
             </section>
 

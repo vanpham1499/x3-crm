@@ -424,7 +424,7 @@ export function PaymentRefundPanel({
         <ListFilterBar>
           <CompactSearchField
             label="Từ khóa"
-            placeholder="Khách hàng, báo phí, dự án, tài khoản nhận..."
+            placeholder="Khách hàng, báo phí, dự án, số hóa đơn..."
             value={filters.keyword}
             onChange={(keyword) => updateFilters({ keyword })}
           />
@@ -459,6 +459,7 @@ export function PaymentRefundPanel({
         columns={[
           { key: 'date', label: 'Ngày trả', className: 'w-32' },
           { key: 'type', label: 'Loại', className: 'w-40' },
+          { key: 'invoice', label: 'Số hóa đơn', className: 'w-40' },
           { key: 'customer', label: 'Khách hàng', className: 'w-56' },
           { key: 'quotation', label: 'Báo phí', className: 'w-56' },
           { key: 'project', label: 'Dự án', className: 'w-56' },
@@ -470,7 +471,7 @@ export function PaymentRefundPanel({
         isLoading={isFetching}
         isEmpty={refunds.length === 0}
         emptyText="Chưa có khoản trả khách. Hãy tạo từ một giao dịch trong tab Tiền nhận vào."
-        minWidthClassName="min-w-[1420px]"
+        minWidthClassName="min-w-[1580px]"
       >
         {refunds.map((refund) => (
           <tr key={refund.id} className="hover:bg-slate-50/80">
@@ -484,6 +485,11 @@ export function PaymentRefundPanel({
             <td className="px-3 py-3.5">
               <span className="whitespace-nowrap font-bold text-slate-800">
                 {TYPE_LABELS[refund.refundType] || refund.refundType}
+              </span>
+            </td>
+            <td className="px-3 py-3.5">
+              <span className="block max-w-40 truncate font-mono text-xs font-bold text-sky-700">
+                {refund.invoiceNumber || refund.payment?.invoiceNumber || '-'}
               </span>
             </td>
             <td className="px-3 py-3.5">
@@ -686,6 +692,7 @@ export function PaymentRefundPanel({
                     .join(' · '),
                 ],
                 ['Mã tham chiếu', viewTarget.reference],
+                ['Số hóa đơn', viewTarget.invoiceNumber || viewTarget.payment?.invoiceNumber],
                 ['Ghi chú', viewTarget.note],
               ].map(([label, value]) => (
                 <div

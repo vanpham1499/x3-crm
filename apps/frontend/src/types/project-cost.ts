@@ -4,8 +4,7 @@ export type ProjectCostEntryType = 'ad_spend' | 'partner_cost';
 export type ProjectCostStatus = 'pending' | 'completed' | 'cancelled';
 export type ProjectAcceptanceStatus = 'pending' | 'accepted' | 'not_required';
 export type ProjectInputInvoiceStatus = 'pending' | 'received' | 'not_required';
-export type ProjectCostReconciliationResult =
-  'matched' | 'matched_with_note' | 'difference' | 'pending_documents' | 'cancelled';
+export type ProjectCostReconciliationResult = 'matched' | 'unmatched';
 export type ProjectCostInvoiceStatus = 'pending' | 'waiting' | 'received' | 'not_required';
 export type ProjectCostInvoiceRecipientType = 'customer' | 'company' | 'other';
 export type ProjectCostBalanceStatus = 'none' | 'pending' | 'resolved';
@@ -119,6 +118,7 @@ export type ProjectCost = {
   bankAccountOption?: AppOption | null;
   partnerOption?: AppOption | null;
   adjustments?: ProjectCostAdjustment[];
+  canManage?: boolean;
   canApprove?: boolean;
   createdAt?: string;
   updatedAt?: string;
@@ -137,10 +137,7 @@ export type ProjectCostFilters = {
 
 export type ProjectCostReconciliationInput = {
   reconciliationResult: ProjectCostReconciliationResult;
-  invoiceStatus: ProjectCostInvoiceStatus;
   invoiceNumber?: string | null;
-  invoiceRecipientType: ProjectCostInvoiceRecipientType;
-  invoiceRecipientName?: string | null;
   reconciliationNote?: string | null;
   adjustments: ProjectCostAdjustment[];
 };

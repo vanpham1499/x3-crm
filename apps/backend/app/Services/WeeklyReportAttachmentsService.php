@@ -25,7 +25,7 @@ class WeeklyReportAttachmentsService extends BaseService
         return $this->transaction(function () use ($weeklyReportId, $file, $user, $mediaUrl): array {
             $report = $this->reports->findWithRelationsOrFail($weeklyReportId);
             $this->authorize('update', $report);
-            $this->assertDraft($report);
+            $this->assertEditable($report);
             $stored = $file
                 ? FileUploadStorage::store($file, 'weekly-reports')
                 : $this->resolveMediaLibraryImage($mediaUrl, $user);
@@ -74,18 +74,18 @@ class WeeklyReportAttachmentsService extends BaseService
             /** @var WeeklyReportAttachment $attachment */
             $attachment = WeeklyReportAttachment::query()->with('weeklyReport')->findOrFail($id);
             $this->authorize('update', $attachment->weeklyReport);
-            $this->assertDraft($attachment->weeklyReport);
+            $this->assertEditable($attachment->weeklyReport);
             $attachment->delete();
 
             return ['message' => 'Xóa tệp đính kèm thành công'];
         });
     }
 
-    private function assertDraft(WeeklyReport $report): void
+    private function assertEditable(WeeklyReport $report): void
     {
-        if ($report->status !== WeeklyReport::STATUS_DRAFT) {
+        if (! in_array($report->status, [WeeklyReport::STATUS_DRAFT, WeeklyReport::STATUS_REJECTED], true)) {
             throw ValidationException::withMessages([
-                'status' => ['Chỉ báo cáo nháp mới được thay đổi tệp đính kèm.'],
+                'status' => ['Chỉ báo cáo nháp hoặc đã bị từ chối mới được thay đổi tệp đính kèm.'],
             ]);
         }
     }

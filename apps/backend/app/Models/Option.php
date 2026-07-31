@@ -6,6 +6,8 @@ use Illuminate\Database\Eloquent\Relations\HasMany;
 
 class Option extends BaseModel
 {
+    public const META_REQUIRES_WEEKLY_REPORT = 'requiresWeeklyReport';
+
     public const GROUP_LEAD_STATUS = 'lead_status';
 
     public const GROUP_LEAD_SOURCE = 'lead_source';
@@ -21,6 +23,8 @@ class Option extends BaseModel
     public const GROUP_P2_CATEGORY = 'p2_category';
 
     public const GROUP_AD_TOPUP_CARD = 'ad_topup_card';
+
+    public const GROUP_SERVICE_KPI = 'service_kpi_group';
 
     protected $fillable = [
         'group',
@@ -77,6 +81,17 @@ class Option extends BaseModel
     public function statusProjects(): HasMany
     {
         return $this->hasMany(Project::class, 'status_option_id');
+    }
+
+    public function requiresWeeklyReport(): bool
+    {
+        $value = ($this->meta ?? [])[self::META_REQUIRES_WEEKLY_REPORT] ?? true;
+
+        if (is_string($value)) {
+            return ! in_array(strtolower($value), ['false', '0', 'no', 'off'], true);
+        }
+
+        return (bool) $value;
     }
 
     public function projectCostsByBankAccount(): HasMany

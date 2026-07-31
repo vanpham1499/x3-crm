@@ -142,7 +142,7 @@ export function RoleForm({
         currentLabel={mode === 'edit' ? 'Chỉnh sửa' : undefined}
       />
 
-      <form className="flex w-full flex-1 flex-col" onSubmit={submitForm}>
+      <form noValidate className="flex w-full flex-1 flex-col" onSubmit={submitForm}>
         <div className="grid w-full items-start gap-6 xl:grid-cols-12">
           <div className="xl:col-span-12">
             <FormSection title="Thông tin vai trò">

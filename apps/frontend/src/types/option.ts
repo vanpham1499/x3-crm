@@ -15,6 +15,7 @@ export type OptionFormValues = {
   group: string;
   label: string;
   color: string;
+  requiresWeeklyReport: boolean;
   sortOrder: number;
   isActive: boolean;
 };

@@ -100,7 +100,7 @@ export function UserForm({
         currentLabel={mode === 'edit' ? 'Chỉnh sửa' : undefined}
       />
 
-      <form className="flex w-full flex-1 flex-col" onSubmit={submitForm}>
+      <form noValidate className="flex w-full flex-1 flex-col" onSubmit={submitForm}>
         <div className="grid w-full items-start gap-6 xl:grid-cols-12">
           <div className="xl:col-span-8">
             <FormSection title="Thông tin nhân viên">

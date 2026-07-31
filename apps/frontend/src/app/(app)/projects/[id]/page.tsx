@@ -20,7 +20,10 @@ import { ProjectForm } from '@/features/projects/components/project-form';
 import { AD_TOPUP_CARD_OPTION_GROUP } from '@/lib/ad-topup-card-options';
 import { getApiErrorMessage } from '@/lib/api-error';
 import { canEditProject } from '@/lib/ownership';
-import { calculateAvailableTopupBudget } from '@/lib/project-topup-budget';
+import {
+  calculateAvailableTopupBudget,
+  calculateRealizedProjectCost,
+} from '@/lib/project-topup-budget';
 import { getRootServiceItem, getProjectStatusColor, toProjectPayload } from '@/lib/project-utils';
 import {
   getConfigForRoot,
@@ -216,6 +219,24 @@ export default function EditProjectPage() {
   );
   const heldDeposit = Math.max(0, totalDepositReceived - totalDepositRefunded);
   const pendingDeposit = Math.max(0, totalDeposit - totalDepositReceived);
+  const grossReceived = billableQuotations.reduce(
+    (sum, quotation) =>
+      sum +
+      (Number(quotation.grossPaidAmount) ||
+        (Number(quotation.paidAmount) || 0) + (Number(quotation.refundedAmount) || 0)),
+    0,
+  );
+  const refundedAmount = billableQuotations.reduce(
+    (sum, quotation) => sum + (Number(quotation.refundedAmount) || 0),
+    0,
+  );
+  const compensationAmount = billableQuotations.reduce(
+    (sum, quotation) => sum + (Number(quotation.compensationAmount) || 0),
+    0,
+  );
+  const realizedCost = calculateRealizedProjectCost(projectCosts);
+  const realizedProfit =
+    grossReceived - refundedAmount - compensationAmount - heldDeposit - realizedCost;
   const outstanding = billableQuotations.reduce(
     (sum, quotation) => sum + (Number(quotation.outstandingAmount) || 0),
     0,
@@ -248,6 +269,18 @@ export default function EditProjectPage() {
       value: availableTopupBudget,
       className: availableTopupBudget < 0 ? 'text-rose-700' : 'text-blue-700',
       note: 'Lead kiểm tra trước khi nạp',
+    },
+    {
+      label: 'Chi phí đã chi',
+      value: realizedCost,
+      className: 'text-rose-700',
+      note: 'Chỉ tính khoản chi đã hoàn tất',
+    },
+    {
+      label: 'Lợi nhuận thực nhận',
+      value: realizedProfit,
+      className: realizedProfit < 0 ? 'text-rose-700' : 'text-emerald-700',
+      note: 'Sau hoàn tiền, cọc giữ và chi phí',
     },
   ];
   const activeTabIndex = PROJECT_TABS.indexOf(activeTab);
@@ -282,7 +315,7 @@ export default function EditProjectPage() {
             </span>
           </div>
 
-          <div className="mt-4 grid gap-px overflow-hidden rounded-lg bg-slate-200 ring-1 ring-slate-200 sm:grid-cols-3">
+          <div className="mt-4 grid gap-px overflow-hidden rounded-lg bg-slate-200 ring-1 ring-slate-200 sm:grid-cols-2 lg:grid-cols-5">
             {metrics.map((metric) => (
               <div key={metric.label} className="bg-white px-4 py-3">
                 <p className="text-[11px] font-bold uppercase tracking-wide text-slate-400">

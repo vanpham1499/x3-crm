@@ -35,6 +35,9 @@ class DatabaseSeeder extends Seeder
         }
 
         $permissions = [
+            ['module' => 'cost', 'code' => 'cost.manage', 'name' => 'Nạp, cập nhật chi phí'],
+            ['module' => 'cost', 'code' => 'cost.manage_department', 'name' => 'Nạp, cập nhật chi phí trong phòng ban'],
+            ['module' => 'cost', 'code' => 'cost.manage_all', 'name' => 'Nạp, cập nhật mọi chi phí'],
             ['module' => 'user', 'code' => 'user.view', 'name' => 'Xem nhân sự'],
             ['module' => 'user', 'code' => 'user.create', 'name' => 'Tạo nhân sự'],
             ['module' => 'user', 'code' => 'user.update', 'name' => 'Cập nhật nhân sự'],
@@ -49,9 +52,9 @@ class DatabaseSeeder extends Seeder
             ['module' => 'dashboard', 'code' => 'dashboard.view', 'name' => 'Xem Dashboard'],
             ['module' => 'payment', 'code' => 'payment.view', 'name' => 'Xem trang Thanh toán'],
             ['module' => 'cost', 'code' => 'cost.view', 'name' => 'Xem trang Chi phí'],
-            ['module' => 'cost', 'code' => 'cost.approve', 'name' => 'Duyệt chi phí thuộc dự án mình phụ trách'],
-            ['module' => 'cost', 'code' => 'cost.approve_department', 'name' => 'Duyệt chi phí trong phòng ban'],
-            ['module' => 'cost', 'code' => 'cost.approve_all', 'name' => 'Duyệt mọi chi phí'],
+            ['module' => 'cost', 'code' => 'cost.approve', 'name' => 'Đối soát chi phí'],
+            ['module' => 'cost', 'code' => 'cost.approve_department', 'name' => 'Đối soát chi phí trong phòng ban'],
+            ['module' => 'cost', 'code' => 'cost.approve_all', 'name' => 'Đối soát mọi chi phí'],
             ['module' => 'media', 'code' => 'media.view', 'name' => 'Xem trang Thư viện'],
             ['module' => 'media', 'code' => 'media.view_department', 'name' => 'Xem thư viện trong phòng ban'],
             ['module' => 'media', 'code' => 'media.view_all', 'name' => 'Xem toàn bộ thư viện'],
@@ -162,6 +165,8 @@ class DatabaseSeeder extends Seeder
             ['module' => 'kpi', 'code' => 'kpi.manage', 'name' => 'Quản lý kế hoạch KPI'],
 
             ['module' => 'payment', 'code' => 'payment.manage', 'name' => 'Đối soát / chốt thanh toán'],
+            ['module' => 'payment', 'code' => 'payment.allocate', 'name' => 'Phân bổ / hủy phân bổ báo phí'],
+            ['module' => 'payment', 'code' => 'payment.refund.create', 'name' => 'Tạo khoản trả khách'],
 
             ['module' => 'option', 'code' => 'option.manage', 'name' => 'Quản lý danh mục hệ thống'],
         ];
@@ -203,6 +208,7 @@ class DatabaseSeeder extends Seeder
         $rolePermissionCodes = [
             User::ROLE_ADMIN => array_column($permissions, 'code'),
             User::ROLE_LEADER => array_merge($baseCodes, [
+                'cost.manage', 'cost.manage_department',
                 'lead.view_department', 'lead.update_department', 'lead.delete_department',
                 'customer.view_department', 'customer.update_department', 'customer.delete_department',
                 'project.view_department', 'project.update_department', 'project.delete_department',
@@ -215,7 +221,13 @@ class DatabaseSeeder extends Seeder
             ]),
             User::ROLE_EMPLOYEE => $baseCodes,
             User::ROLE_SALES => $baseCodes,
-            User::ROLE_ACCOUNTANT => array_merge($baseCodes, ['payment.manage', 'cost.approve', 'cost.approve_all']),
+            User::ROLE_ACCOUNTANT => array_merge($baseCodes, [
+                'payment.manage',
+                'payment.allocate',
+                'payment.refund.create',
+                'cost.approve',
+                'cost.approve_all',
+            ]),
         ];
 
         $leaderGlobalPermissionIds = collect([

@@ -131,6 +131,27 @@ export function canDeleteProject(user: User | null | undefined, project: Project
   );
 }
 
+export function canManageProjectCosts(
+  user: User | null | undefined,
+  project: ProjectItem,
+): boolean {
+  if (!user) return false;
+  if (hasPermission(user, 'cost.manage_all')) return true;
+  if (
+    hasPermission(user, 'cost.manage_department') &&
+    user.departmentId &&
+    (project.managerUser?.departmentId === user.departmentId ||
+      project.salesUser?.departmentId === user.departmentId)
+  ) {
+    return true;
+  }
+
+  return (
+    hasPermission(user, 'cost.manage') &&
+    (project.managerUserId === user.id || project.salesUserId === user.id)
+  );
+}
+
 /**
  * A project always belongs to a customer; only that customer's owner (or whoever can
  * manage any customer) may create a project under it — mirrors ProjectPolicy::create.
@@ -277,6 +298,14 @@ export function canApproveP2Point(user: User | null | undefined, point: P2Point)
  */
 export function canManagePayments(user: User | null | undefined): boolean {
   return hasPermission(user, 'payment.manage');
+}
+
+export function canAllocatePayments(user: User | null | undefined): boolean {
+  return canManagePayments(user) || hasPermission(user, 'payment.allocate');
+}
+
+export function canCreatePaymentRefund(user: User | null | undefined): boolean {
+  return canManagePayments(user) || hasPermission(user, 'payment.refund.create');
 }
 
 // ---- Catalogs (options/services/partners/bank-accounts/P2 categories) ----

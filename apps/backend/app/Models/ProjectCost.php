@@ -20,6 +20,8 @@ class ProjectCost extends BaseModel
 
     public const RECONCILIATION_MATCHED = 'matched';
 
+    public const RECONCILIATION_UNMATCHED = 'unmatched';
+
     public const RECONCILIATION_MATCHED_WITH_NOTE = 'matched_with_note';
 
     public const RECONCILIATION_DIFFERENCE = 'difference';

@@ -584,7 +584,7 @@ class DashboardService extends BaseService
 
         return collect($periods)
             ->flatMap(fn (array $period): array => collect($period['services'])->all())
-            ->groupBy('id')
+            ->groupBy(fn (array $row): string => $row['scopeType'].':'.$row['id'])
             ->map(function (Collection $rows) use ($amountFields): array {
                 $result = $rows->first();
 

@@ -7,6 +7,7 @@ import { useQuery } from '@tanstack/react-query';
 import AddRoundedIcon from '@mui/icons-material/AddRounded';
 import DeleteRoundedIcon from '@mui/icons-material/DeleteRounded';
 import EditRoundedIcon from '@mui/icons-material/EditRounded';
+import HistoryRoundedIcon from '@mui/icons-material/HistoryRounded';
 import InfoRoundedIcon from '@mui/icons-material/InfoRounded';
 import LinkRoundedIcon from '@mui/icons-material/LinkRounded';
 import MoreVertRoundedIcon from '@mui/icons-material/MoreVertRounded';
@@ -27,6 +28,7 @@ import { EntityTableLink } from '@/components/table/entity-table-link';
 import { ServiceTableCell } from '@/components/table/service-table-cell';
 import { TablePaginationBar } from '@/components/table/table-pagination-bar';
 import { UserDateTimeCell } from '@/components/table/user-date-time-cell';
+import { EntityTimelineList } from '@/components/timeline/entity-timeline-list';
 import { formatProjectDate, getProjectExternalUrl } from '@/lib/project-utils';
 import { getOptionColor } from '@/lib/option-utils';
 import { flattenServices } from '@/lib/service-utils';
@@ -121,8 +123,45 @@ function ProjectDetailRow({ label, value }: { label: string; value?: string | nu
   );
 }
 
+function getProjectTimelineEntries(project: ProjectItem) {
+  if (project.timelines?.length) return project.timelines;
+
+  const fallbackEntries: NonNullable<ProjectItem['timelines']> = [];
+
+  if (project.updatedAt) {
+    fallbackEntries.push({
+      id: `${project.id}-updated`,
+      title: 'Cập nhật dự án',
+      description:
+        project.note ||
+        (project.statusOption?.label
+          ? `Trạng thái hiện tại: ${project.statusOption.label}`
+          : 'Thông tin dự án đã được cập nhật'),
+      occurredAt: project.updatedAt,
+      actor: project.createdBy,
+      statusOption: project.statusOption,
+    });
+  }
+
+  if (project.createdAt) {
+    fallbackEntries.push({
+      id: `${project.id}-created`,
+      title: 'Tạo dự án',
+      description: project.managerUser?.name
+        ? `Nhân sự triển khai: ${project.managerUser.name}`
+        : '',
+      occurredAt: project.createdAt,
+      actor: project.createdBy,
+      statusOption: project.statusOption,
+    });
+  }
+
+  return fallbackEntries;
+}
+
 function ProjectViewDialog({
   project,
+  statuses,
   tab,
   isLoading,
   currentUser,
@@ -130,6 +169,7 @@ function ProjectViewDialog({
   onClose,
 }: {
   project: ProjectItem | null;
+  statuses: AppOption[];
   tab: number;
   isLoading: boolean;
   currentUser: User | null;
@@ -137,6 +177,8 @@ function ProjectViewDialog({
   onClose: () => void;
 }) {
   if (!project) return null;
+
+  const timelineEntries = getProjectTimelineEntries(project);
 
   return (
     <AppDetailDialog
@@ -170,6 +212,10 @@ function ProjectViewDialog({
         items={[
           { label: 'Thông tin', icon: <InfoRoundedIcon className="!text-[18px]" /> },
           { label: 'Liên kết', icon: <LinkRoundedIcon className="!text-[18px]" /> },
+          {
+            label: 'Lịch sử chỉnh sửa',
+            icon: <HistoryRoundedIcon className="!text-[18px]" />,
+          },
         ]}
       />
 
@@ -230,6 +276,23 @@ function ProjectViewDialog({
                   </DialogActionButton>
                 </div>
               )}
+            </section>
+          </div>
+        )}
+
+        {tab === 2 && (
+          <div role="tabpanel" aria-label="Lịch sử chỉnh sửa dự án" className="p-4">
+            <section className="rounded-xl border border-slate-200 bg-white p-5">
+              <h3 className="mb-5 flex items-center gap-2 text-sm font-bold text-slate-950">
+                <HistoryRoundedIcon className="!text-[18px] text-slate-500" />
+                Lịch sử chỉnh sửa
+              </h3>
+              <EntityTimelineList
+                entries={timelineEntries}
+                statusOptions={statuses}
+                fallbackStatusOption={project.statusOption}
+                emptyText="Chưa có lịch sử chỉnh sửa."
+              />
             </section>
           </div>
         )}
@@ -501,6 +564,7 @@ export function ProjectManager({
 
       <ProjectViewDialog
         project={viewProjectDetail || viewTarget}
+        statuses={statuses}
         tab={viewTab}
         isLoading={isFetchingViewProject}
         currentUser={currentUser}

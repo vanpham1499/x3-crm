@@ -2,11 +2,11 @@
 
 import Link from 'next/link';
 import { useState, type MouseEvent } from 'react';
+import BlockRoundedIcon from '@mui/icons-material/BlockRounded';
 import CheckCircleOutlineRoundedIcon from '@mui/icons-material/CheckCircleOutlineRounded';
 import DeleteRoundedIcon from '@mui/icons-material/DeleteRounded';
 import EditRoundedIcon from '@mui/icons-material/EditRounded';
 import MoreVertRoundedIcon from '@mui/icons-material/MoreVertRounded';
-import ReplayRoundedIcon from '@mui/icons-material/ReplayRounded';
 import SendRoundedIcon from '@mui/icons-material/SendRounded';
 import VisibilityOutlinedIcon from '@mui/icons-material/VisibilityOutlined';
 import { IconButton, Menu, MenuItem, Tooltip } from '@mui/material';
@@ -28,6 +28,7 @@ import type { ProjectItem } from '@/types/project';
 import type { User } from '@/types/user';
 import type { WeeklyReport, WeeklyReportFilters } from '@/types/weekly-report';
 import { WeeklyReportCustomerPreviewDialog } from './weekly-report-customer-preview-dialog';
+import { WeeklyReportRejectDialog } from './weekly-report-reject-dialog';
 
 type WeeklyReportManagerProps = {
   embedded?: boolean;
@@ -38,7 +39,7 @@ type WeeklyReportManagerProps = {
   isDeleting: boolean;
   isSubmitting: boolean;
   isApproving: boolean;
-  isReturning: boolean;
+  isRejecting: boolean;
   currentUser: User | null;
   page: number;
   totalPages: number;
@@ -50,18 +51,20 @@ type WeeklyReportManagerProps = {
   onDelete: (report: WeeklyReport) => void;
   onSubmit: (report: WeeklyReport) => void;
   onApprove: (report: WeeklyReport) => void;
-  onReturnToDraft: (report: WeeklyReport) => void;
+  onReject: (report: WeeklyReport, reason: string) => Promise<unknown>;
 };
 
 const STATUS_LABELS: Record<string, string> = {
   draft: 'Nháp',
   submitted: 'Chờ duyệt',
   approved: 'Đã duyệt',
+  rejected: 'Đã từ chối',
 };
 
 function statusClass(status?: string | null) {
   if (status === 'approved') return 'bg-emerald-50 text-emerald-700 ring-emerald-200';
   if (status === 'submitted') return 'bg-sky-50 text-sky-700 ring-sky-200';
+  if (status === 'rejected') return 'bg-rose-50 text-rose-700 ring-rose-200';
   return 'bg-amber-50 text-amber-700 ring-amber-200';
 }
 
@@ -81,7 +84,7 @@ export function WeeklyReportManager({
   isDeleting,
   isSubmitting,
   isApproving,
-  isReturning,
+  isRejecting,
   currentUser,
   page,
   totalPages,
@@ -93,12 +96,12 @@ export function WeeklyReportManager({
   onDelete,
   onSubmit,
   onApprove,
-  onReturnToDraft,
+  onReject,
 }: WeeklyReportManagerProps) {
   const [menuAnchorEl, setMenuAnchorEl] = useState<HTMLElement | null>(null);
   const [activeReport, setActiveReport] = useState<WeeklyReport | null>(null);
   const [deleteTarget, setDeleteTarget] = useState<WeeklyReport | null>(null);
-  const [returnTarget, setReturnTarget] = useState<WeeklyReport | null>(null);
+  const [rejectTarget, setRejectTarget] = useState<WeeklyReport | null>(null);
   const [customerPreviewTarget, setCustomerPreviewTarget] = useState<WeeklyReport | null>(null);
   const canAuthor = canAuthorWeeklyReport(currentUser);
 
@@ -140,6 +143,7 @@ export function WeeklyReportManager({
             { value: 'draft', label: 'Nháp' },
             { value: 'submitted', label: 'Chờ duyệt' },
             { value: 'approved', label: 'Đã duyệt' },
+            { value: 'rejected', label: 'Đã từ chối' },
           ]}
           onChange={(status) => updateFilters({ status })}
         />
@@ -211,7 +215,7 @@ export function WeeklyReportManager({
                       component={Link}
                       href={`/weekly-reports/${report.id}`}
                       size="small"
-                      color={report.status === 'draft' ? 'primary' : 'default'}
+                      color={['draft', 'rejected'].includes(report.status) ? 'primary' : 'default'}
                       aria-label={`Chỉnh sửa báo cáo ${report.project?.projectCode || report.id}`}
                     >
                       <EditRoundedIcon fontSize="small" />
@@ -251,7 +255,9 @@ export function WeeklyReportManager({
           <VisibilityOutlinedIcon fontSize="small" className="mr-2 text-slate-500" />
           Xem báo cáo
         </MenuItem>
-        {activeReport?.status === 'draft' && canUpdateWeeklyReport(currentUser, activeReport) ? (
+        {activeReport &&
+        ['draft', 'rejected'].includes(activeReport.status) &&
+        canUpdateWeeklyReport(currentUser, activeReport) ? (
           <MenuItem
             disabled={isSubmitting}
             onClick={() => {
@@ -279,14 +285,14 @@ export function WeeklyReportManager({
         {activeReport?.status === 'submitted' &&
         canApproveWeeklyReport(currentUser, activeReport) ? (
           <MenuItem
-            disabled={isReturning}
+            disabled={isRejecting}
             onClick={() => {
-              setReturnTarget(activeReport);
+              setRejectTarget(activeReport);
               closeActionMenu();
             }}
           >
-            <ReplayRoundedIcon fontSize="small" className="mr-2 text-amber-600" />
-            Trả về nháp
+            <BlockRoundedIcon fontSize="small" className="mr-2 text-rose-600" />
+            Từ chối báo cáo
           </MenuItem>
         ) : null}
         {activeReport?.status === 'draft' && canDeleteWeeklyReport(currentUser, activeReport) ? (
@@ -322,17 +328,11 @@ export function WeeklyReportManager({
         }}
       />
 
-      <ConfirmDialog
-        open={Boolean(returnTarget)}
-        title="Trả báo cáo về nháp?"
-        description="Sales có thể tiếp tục chỉnh sửa và gửi lại báo cáo."
-        confirmText="Trả về nháp"
-        loading={isReturning}
-        onClose={() => setReturnTarget(null)}
-        onConfirm={() => {
-          if (returnTarget) onReturnToDraft(returnTarget);
-          setReturnTarget(null);
-        }}
+      <WeeklyReportRejectDialog
+        report={rejectTarget}
+        loading={isRejecting}
+        onClose={() => setRejectTarget(null)}
+        onReject={onReject}
       />
     </section>
   );

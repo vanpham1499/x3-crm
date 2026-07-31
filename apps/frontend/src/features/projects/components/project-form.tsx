@@ -10,13 +10,16 @@ import { FormActionBar } from '@/components/form/form-action-bar';
 import { FormDatePicker } from '@/components/form/form-date-picker';
 import { ExternalLinkAdornment } from '@/components/form/external-link-adornment';
 import { FormInputField } from '@/components/form/form-input-field';
+import { compactFormFieldClassName } from '@/components/form/form-field-styles';
 import { FormSection } from '@/components/form/form-section';
 import { FormSelectField } from '@/components/form/form-select-field';
+import { MoneyInput } from '@/components/form/money-input';
 import { ServerPaginatedAutocomplete } from '@/components/form/server-paginated-autocomplete';
 import { applyApiErrorsToForm } from '@/lib/api-error';
+import { projectStatusRequiresWeeklyReport } from '@/lib/option-utils';
 import { generateProjectCode, getProjectDefaults, getRootServiceCode } from '@/lib/project-utils';
 import { flattenServices } from '@/lib/service-utils';
-import { getReportWeekdayLabel } from '@/lib/weekly-report-schedule';
+import { getReportWeekdayLabel, REPORT_WEEKDAYS } from '@/lib/weekly-report-schedule';
 import api from '@/services/api/client';
 import type { AppOption } from '@/types/option';
 import type { ProjectCustomerSummary, ProjectFormValues, ProjectItem } from '@/types/project';
@@ -85,9 +88,12 @@ export function ProjectForm({
   const planLinkValue = useWatch({ control, name: 'planLink' }) || '';
   const customerTrackingReportLinkValue =
     useWatch({ control, name: 'customerTrackingReportLink' }) || '';
+  const selectedStatusOptionId = useWatch({ control, name: 'statusOptionId' }) || '';
   const selectedManagerUserId = useWatch({ control, name: 'managerUserId' }) || '';
   const weeklyReportWeekday = useWatch({ control, name: 'weeklyReportWeekday' }) || '';
   const reportWeekday = weeklyReportWeekday ? Number(weeklyReportWeekday) : null;
+  const selectedStatus = statuses.find((status) => String(status.id) === selectedStatusOptionId);
+  const statusAllowsWeeklyReport = projectStatusRequiresWeeklyReport(selectedStatus);
   const selectedManagerUser = users.find((user) => String(user.id) === selectedManagerUserId);
   const {
     data: weeklyAssignmentSummary,
@@ -111,7 +117,7 @@ export function ProjectForm({
           },
         })
         .then((response) => response.data),
-    enabled: Boolean(selectedManagerUserId && reportWeekday),
+    enabled: Boolean(statusAllowsWeeklyReport && selectedManagerUserId && reportWeekday),
   });
   const selectedService = serviceOptions.find(
     (service) => String(service.id) === selectedServiceId,
@@ -146,7 +152,7 @@ export function ProjectForm({
   });
 
   return (
-    <form className="flex w-full flex-1 flex-col gap-5" onSubmit={submitForm}>
+    <form noValidate className="flex w-full flex-1 flex-col gap-5" onSubmit={submitForm}>
       <div className="grid w-full items-start gap-6 xl:grid-cols-12">
         <div className="space-y-6 xl:col-span-8">
           <FormSection title="Thông tin dự án">
@@ -262,7 +268,7 @@ export function ProjectForm({
                     {...field}
                     value={displayedProjectCode}
                     label="Mã dự án"
-                    placeholder="Mã KH.DV.[LOẠI].TÊN DỰ ÁN"
+                    placeholder="[Mã KH].[DV].[LOẠI].[TÊN DỰ ÁN]"
                     className="[&_.MuiOutlinedInput-root]:!bg-emerald-50/60"
                     slotProps={{
                       htmlInput: { readOnly: true },
@@ -273,22 +279,43 @@ export function ProjectForm({
               />
             </div>
 
-            <FormInputField
-              label="Link plan"
-              placeholder="https://docs.google.com/..."
-              disabled={readOnly}
-              slotProps={{
-                input: {
-                  endAdornment: (
-                    <ExternalLinkAdornment
-                      value={planLinkValue}
-                      ariaLabel="Mở link plan trong tab mới"
+            <div className="grid gap-4 md:grid-cols-12">
+              <div className="md:col-span-8">
+                <FormInputField
+                  label="Link plan"
+                  placeholder="https://docs.google.com/..."
+                  disabled={readOnly}
+                  slotProps={{
+                    input: {
+                      endAdornment: (
+                        <ExternalLinkAdornment
+                          value={planLinkValue}
+                          ariaLabel="Mở link plan trong tab mới"
+                        />
+                      ),
+                    },
+                  }}
+                  {...register('planLink')}
+                />
+              </div>
+              <div className="md:col-span-4">
+                <Controller
+                  name="monthlyBudget"
+                  control={control}
+                  render={({ field }) => (
+                    <MoneyInput
+                      fullWidth
+                      size="small"
+                      label="Ngân sách/tháng"
+                      value={field.value || '0'}
+                      disabled={readOnly}
+                      onValueChange={field.onChange}
+                      className={compactFormFieldClassName}
                     />
-                  ),
-                },
-              }}
-              {...register('planLink')}
-            />
+                  )}
+                />
+              </div>
+            </div>
 
             <div className="grid gap-4 md:grid-cols-2">
               <FormInputField
@@ -409,18 +436,23 @@ export function ProjectForm({
             <Controller
               name="weeklyReportWeekday"
               control={control}
-              rules={{ required: 'Vui lòng chọn thứ báo cáo' }}
               render={({ field }) => (
                 <FormSelectField
                   label="Thứ báo cáo "
-                  required
-                  disabled={readOnly}
+                  disabled={readOnly || !statusAllowsWeeklyReport}
                   error={Boolean(errors.weeklyReportWeekday)}
-                  helperText={errors.weeklyReportWeekday?.message}
+                  helperText={
+                    errors.weeklyReportWeekday?.message ||
+                    (!statusAllowsWeeklyReport
+                      ? `Trạng thái ${selectedStatus?.label || 'hiện tại'} không yêu cầu báo cáo tuần`
+                      : !reportWeekday
+                        ? 'Chưa chọn: dự án sẽ không cần báo cáo tuần.'
+                        : undefined)
+                  }
                   {...field}
                 >
                   <MenuItem value="">Chưa chọn</MenuItem>
-                  {[1, 2, 3, 4, 5, 6, 7].map((weekday) => (
+                  {REPORT_WEEKDAYS.map((weekday) => (
                     <MenuItem key={weekday} value={String(weekday)}>
                       {getReportWeekdayLabel(weekday)}
                     </MenuItem>
@@ -429,7 +461,7 @@ export function ProjectForm({
               )}
             />
 
-            {selectedManagerUserId && reportWeekday ? (
+            {statusAllowsWeeklyReport && selectedManagerUserId && reportWeekday ? (
               <div
                 role="status"
                 className={`flex items-start gap-2 rounded-lg border px-3 py-2.5 text-sm ${

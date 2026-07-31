@@ -11,6 +11,7 @@ import {
   toServiceQuoteConfigPayload,
   type ServiceQuoteConfigMeta,
 } from '@/lib/service-quote-config';
+import { SERVICE_KPI_GROUP_OPTION_GROUP, toServiceKpiGroupPayload } from '@/lib/service-kpi-group';
 import { reorderServiceSiblings, toServicePayload } from '@/lib/service-utils';
 import api from '@/services/api/client';
 import type { AppOption } from '@/types/option';
@@ -45,6 +46,15 @@ export default function ServicesPage() {
     queryFn: () =>
       api
         .get<AppOption[]>('/options', { params: { groups: SERVICE_QUOTE_CONFIG_GROUP } })
+        .then((response) => response.data),
+    placeholderData: keepPreviousData,
+  });
+
+  const { data: kpiGroups = [], isFetching: kpiGroupsFetching } = useQuery<AppOption[]>({
+    queryKey: ['options', SERVICE_KPI_GROUP_OPTION_GROUP],
+    queryFn: () =>
+      api
+        .get<AppOption[]>('/options', { params: { groups: SERVICE_KPI_GROUP_OPTION_GROUP } })
         .then((response) => response.data),
     placeholderData: keepPreviousData,
   });
@@ -125,6 +135,46 @@ export default function ServicesPage() {
     },
   });
 
+  const kpiGroupMutation = useMutation({
+    mutationFn: ({
+      label,
+      serviceRootIds,
+      option,
+    }: {
+      label: string;
+      serviceRootIds: number[];
+      option?: AppOption | null;
+    }) => {
+      const payload = toServiceKpiGroupPayload(label, serviceRootIds);
+
+      return option
+        ? api.put<AppOption>(`/options/${option.id}`, payload).then((response) => response.data)
+        : api.post<AppOption>('/options', payload).then((response) => response.data);
+    },
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ['options', SERVICE_KPI_GROUP_OPTION_GROUP] });
+      queryClient.invalidateQueries({ queryKey: ['kpi'] });
+      queryClient.invalidateQueries({ queryKey: ['dashboard'] });
+      notify.success('Lưu nhóm KPI dịch vụ thành công');
+    },
+    onError: (error) => {
+      notify.error(getApiErrorMessage(error, 'Lưu nhóm KPI dịch vụ thất bại'));
+    },
+  });
+
+  const deleteKpiGroupMutation = useMutation({
+    mutationFn: (option: AppOption) => api.delete(`/options/${option.id}`),
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ['options', SERVICE_KPI_GROUP_OPTION_GROUP] });
+      queryClient.invalidateQueries({ queryKey: ['kpi'] });
+      queryClient.invalidateQueries({ queryKey: ['dashboard'] });
+      notify.success('Xóa nhóm KPI dịch vụ thành công');
+    },
+    onError: (error) => {
+      notify.error(getApiErrorMessage(error, 'Xóa nhóm KPI dịch vụ thất bại'));
+    },
+  });
+
   const reorderMutation = useMutation({
     mutationFn: ({
       parentId,
@@ -174,12 +224,15 @@ export default function ServicesPage() {
     <ServiceManager
       services={services}
       filters={filters}
-      isFetching={isFetching || quoteConfigsFetching}
+      isFetching={isFetching || quoteConfigsFetching || kpiGroupsFetching}
       isSubmitting={saveMutation.isPending}
       isDeleting={deleteMutation.isPending}
       isSavingQuoteConfig={quoteConfigMutation.isPending}
+      isSavingKpiGroup={kpiGroupMutation.isPending}
+      isDeletingKpiGroup={deleteKpiGroupMutation.isPending}
       isReordering={reorderMutation.isPending}
       quoteConfigs={quoteConfigs}
+      kpiGroups={kpiGroups}
       onFiltersChange={setFilters}
       onSubmit={(values, service) => saveMutation.mutateAsync({ values, service })}
       onDelete={(service) => deleteMutation.mutate(service)}
@@ -189,6 +242,10 @@ export default function ServicesPage() {
       onSaveQuoteConfig={(service, values, option) =>
         quoteConfigMutation.mutateAsync({ service, values, option })
       }
+      onSaveKpiGroup={(label, serviceRootIds, option) =>
+        kpiGroupMutation.mutateAsync({ label, serviceRootIds, option })
+      }
+      onDeleteKpiGroup={(option) => deleteKpiGroupMutation.mutateAsync(option)}
     />
   );
 }

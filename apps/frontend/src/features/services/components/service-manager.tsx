@@ -23,14 +23,24 @@ import { CSS } from '@dnd-kit/utilities';
 import AddRoundedIcon from '@mui/icons-material/AddRounded';
 import AccountTreeRoundedIcon from '@mui/icons-material/AccountTreeRounded';
 import DeleteRoundedIcon from '@mui/icons-material/DeleteRounded';
+import DonutLargeRoundedIcon from '@mui/icons-material/DonutLargeRounded';
 import DragIndicatorRoundedIcon from '@mui/icons-material/DragIndicatorRounded';
 import EditRoundedIcon from '@mui/icons-material/EditRounded';
 import MoreVertRoundedIcon from '@mui/icons-material/MoreVertRounded';
 import PriceCheckRoundedIcon from '@mui/icons-material/PriceCheckRounded';
 import SubdirectoryArrowRightRoundedIcon from '@mui/icons-material/SubdirectoryArrowRightRounded';
-import { IconButton, Menu, MenuItem, Switch, useMediaQuery } from '@mui/material';
+import {
+  Autocomplete,
+  Chip,
+  IconButton,
+  Menu,
+  MenuItem,
+  Switch,
+  useMediaQuery,
+} from '@mui/material';
 import { Controller, useForm } from 'react-hook-form';
 import { DialogActionButton } from '@/components/actions/dialog-action-button';
+import { TabActionButton } from '@/components/actions/tab-action-button';
 import { AppFormDialog } from '@/components/dialog/app-form-dialog';
 import { ConfirmDialog } from '@/components/feedback/confirm-dialog';
 import { useAppNotification } from '@/components/feedback/notification-provider';
@@ -51,6 +61,7 @@ import {
   getServiceQuoteConfigMeta,
   type ServiceQuoteConfigMeta,
 } from '@/lib/service-quote-config';
+import { getServiceKpiGroupForRoot, getServiceKpiGroupMeta } from '@/lib/service-kpi-group';
 import { flattenServices, getServiceDefaults, getServiceSiblings } from '@/lib/service-utils';
 import type { FlatServiceItem } from '@/lib/service-utils';
 import { useAuthStore } from '@/stores/auth-store';
@@ -64,8 +75,11 @@ type ServiceManagerProps = {
   isSubmitting: boolean;
   isDeleting: boolean;
   isSavingQuoteConfig: boolean;
+  isSavingKpiGroup: boolean;
+  isDeletingKpiGroup: boolean;
   isReordering: boolean;
   quoteConfigs: AppOption[];
+  kpiGroups: AppOption[];
   onFiltersChange: (filters: ServiceFilters) => void;
   onSubmit: (values: ServiceFormValues, service?: ServiceItem | null) => Promise<unknown>;
   onDelete: (service: ServiceItem) => void;
@@ -75,6 +89,12 @@ type ServiceManagerProps = {
     values: ServiceQuoteConfigMeta,
     option?: AppOption | null,
   ) => Promise<unknown>;
+  onSaveKpiGroup: (
+    label: string,
+    serviceRootIds: number[],
+    option?: AppOption | null,
+  ) => Promise<unknown>;
+  onDeleteKpiGroup: (option: AppOption) => Promise<unknown>;
 };
 
 type DialogState =
@@ -391,10 +411,259 @@ function QuoteConfigDialog({
   );
 }
 
+function KpiGroupDialog({
+  open,
+  services,
+  groups,
+  canManage,
+  isSaving,
+  isDeleting,
+  onClose,
+  onSave,
+  onRequestDelete,
+}: {
+  open: boolean;
+  services: ServiceItem[];
+  groups: AppOption[];
+  canManage: boolean;
+  isSaving: boolean;
+  isDeleting: boolean;
+  onClose: () => void;
+  onSave: (label: string, serviceRootIds: number[], option?: AppOption | null) => Promise<unknown>;
+  onRequestDelete: (option: AppOption) => void;
+}) {
+  const rootServices = useMemo(
+    () => services.filter((service) => service.parentId === null || service.parentId === undefined),
+    [services],
+  );
+  const [editingGroup, setEditingGroup] = useState<AppOption | null>(null);
+  const [label, setLabel] = useState('');
+  const [selectedServiceIds, setSelectedServiceIds] = useState<number[]>([]);
+  const [formError, setFormError] = useState('');
+
+  const resetEditor = () => {
+    setEditingGroup(null);
+    setLabel('');
+    setSelectedServiceIds([]);
+    setFormError('');
+  };
+
+  const close = () => {
+    resetEditor();
+    onClose();
+  };
+
+  const editGroup = (group: AppOption) => {
+    setEditingGroup(group);
+    setLabel(group.label);
+    setSelectedServiceIds(getServiceKpiGroupMeta(group).serviceRootIds);
+    setFormError('');
+  };
+
+  const assignedElsewhere = new Set(
+    groups
+      .filter((group) => group.id !== editingGroup?.id)
+      .flatMap((group) => getServiceKpiGroupMeta(group).serviceRootIds),
+  );
+  const availableServices = rootServices.filter(
+    (service) => !assignedElsewhere.has(service.id) || selectedServiceIds.includes(service.id),
+  );
+  const selectedServices = selectedServiceIds
+    .map((id) => rootServices.find((service) => service.id === id))
+    .filter((service): service is ServiceItem => Boolean(service));
+
+  return (
+    <AppFormDialog
+      open={open}
+      title="Nhóm KPI dịch vụ"
+      maxWidth="md"
+      submitting={isSaving || isDeleting}
+      onClose={close}
+      onSubmit={async (event) => {
+        event.preventDefault();
+        const normalizedLabel = label.trim();
+
+        if (!normalizedLabel) {
+          setFormError('Vui lòng nhập tên nhóm KPI.');
+          return;
+        }
+
+        if (selectedServiceIds.length < 2) {
+          setFormError('Mỗi nhóm KPI phải có ít nhất 2 dịch vụ cha.');
+          return;
+        }
+
+        try {
+          await onSave(normalizedLabel, selectedServiceIds, editingGroup);
+          resetEditor();
+        } catch {
+          // Notification và lỗi API được xử lý tại page quản lý dịch vụ.
+        }
+      }}
+      actions={
+        <>
+          <DialogActionButton onClick={close} disabled={isSaving || isDeleting}>
+            Đóng
+          </DialogActionButton>
+          <div className="flex-1" />
+          {editingGroup ? (
+            <DialogActionButton onClick={resetEditor} disabled={isSaving || isDeleting}>
+              Hủy sửa
+            </DialogActionButton>
+          ) : null}
+          <DialogActionButton
+            type="submit"
+            tone="primary"
+            disabled={!canManage || isSaving || isDeleting}
+          >
+            {isSaving ? 'Đang lưu...' : editingGroup ? 'Lưu thay đổi' : 'Thêm nhóm'}
+          </DialogActionButton>
+        </>
+      }
+    >
+      <div className="space-y-5">
+        <div className="rounded-lg border border-blue-200 bg-blue-50 px-3.5 py-3 text-sm font-semibold text-blue-800">
+          Mỗi dịch vụ cha chỉ thuộc một nhóm. KPI và Dashboard sẽ cộng kế hoạch, lợi nhuận của các
+          dịch vụ trong cùng nhóm.
+        </div>
+
+        <section>
+          <div className="mb-2 flex items-center justify-between gap-3">
+            <p className="text-sm font-bold text-slate-950">Nhóm đã cấu hình</p>
+            <span className="text-xs font-semibold text-slate-500">{groups.length} nhóm</span>
+          </div>
+          {groups.length === 0 ? (
+            <div className="rounded-lg border border-dashed border-slate-300 px-4 py-6 text-center text-sm font-semibold text-slate-500">
+              Chưa có nhóm KPI. Các dịch vụ đang được tính riêng.
+            </div>
+          ) : (
+            <div className="space-y-2">
+              {groups.map((group) => {
+                const memberIds = getServiceKpiGroupMeta(group).serviceRootIds;
+                const members = memberIds
+                  .map((id) => rootServices.find((service) => service.id === id))
+                  .filter((service): service is ServiceItem => Boolean(service));
+
+                return (
+                  <div
+                    key={group.id}
+                    className={`flex items-start justify-between gap-3 rounded-lg border px-3.5 py-3 ${
+                      editingGroup?.id === group.id
+                        ? 'border-primary bg-primary/5'
+                        : 'border-slate-200 bg-white'
+                    }`}
+                  >
+                    <div className="min-w-0">
+                      <p className="font-bold text-slate-950">{group.label}</p>
+                      <div className="mt-2 flex flex-wrap gap-1.5">
+                        {members.map((service) => (
+                          <Chip
+                            key={service.id}
+                            size="small"
+                            label={`${service.code} · ${service.name}`}
+                            className="!h-6 !bg-slate-100 !text-xs !font-semibold"
+                          />
+                        ))}
+                      </div>
+                    </div>
+                    <div className="flex shrink-0 items-center gap-1">
+                      <IconButton
+                        size="small"
+                        title="Chỉnh sửa nhóm KPI"
+                        aria-label={`Chỉnh sửa nhóm KPI ${group.label}`}
+                        disabled={!canManage || isSaving || isDeleting}
+                        onClick={() => editGroup(group)}
+                      >
+                        <EditRoundedIcon fontSize="small" />
+                      </IconButton>
+                      <IconButton
+                        size="small"
+                        color="error"
+                        title="Xóa nhóm KPI"
+                        aria-label={`Xóa nhóm KPI ${group.label}`}
+                        disabled={!canManage || isSaving || isDeleting}
+                        onClick={() => onRequestDelete(group)}
+                      >
+                        <DeleteRoundedIcon fontSize="small" />
+                      </IconButton>
+                    </div>
+                  </div>
+                );
+              })}
+            </div>
+          )}
+        </section>
+
+        <section className="space-y-3 border-t border-slate-200 pt-4">
+          <p className="text-sm font-bold text-slate-950">
+            {editingGroup ? 'Chỉnh sửa nhóm' : 'Thêm nhóm mới'}
+          </p>
+          <FormInputField
+            required
+            label="Tên nhóm KPI"
+            placeholder="VD: Marketing tổng hợp"
+            value={label}
+            error={Boolean(formError && !label.trim())}
+            helperText={formError && !label.trim() ? formError : undefined}
+            disabled={!canManage || isSaving || isDeleting}
+            onChange={(event) => {
+              setLabel(event.target.value);
+              setFormError('');
+            }}
+          />
+          <Autocomplete<ServiceItem, true, false, false>
+            multiple
+            disableCloseOnSelect
+            options={availableServices}
+            value={selectedServices}
+            disabled={!canManage || isSaving || isDeleting}
+            isOptionEqualToValue={(option, value) => option.id === value.id}
+            getOptionLabel={(option) => `${option.code} - ${option.name}`}
+            onChange={(_event, values) => {
+              setSelectedServiceIds(values.map((service) => service.id));
+              setFormError('');
+            }}
+            renderInput={(params) => (
+              <FormInputField
+                {...params}
+                required
+                label="Dịch vụ cha trong nhóm"
+                placeholder={selectedServiceIds.length === 0 ? 'Chọn ít nhất 2 dịch vụ' : ''}
+                error={Boolean(formError && selectedServiceIds.length < 2)}
+                helperText={
+                  formError && selectedServiceIds.length < 2
+                    ? formError
+                    : 'Dịch vụ đã thuộc nhóm khác sẽ không xuất hiện trong danh sách.'
+                }
+                sx={{
+                  '& .MuiInputBase-root': {
+                    height: 'auto !important',
+                    minHeight: '40px',
+                    alignItems: 'center',
+                    paddingTop: '4px !important',
+                    paddingBottom: '4px !important',
+                  },
+                  '& .MuiAutocomplete-tag': {
+                    maxWidth: 'calc(100% - 48px)',
+                  },
+                  '& .MuiAutocomplete-input': {
+                    minWidth: '140px !important',
+                  },
+                }}
+              />
+            )}
+          />
+        </section>
+      </div>
+    </AppFormDialog>
+  );
+}
+
 function SortableServiceRow({
   service,
   color,
   quoteConfig,
+  kpiGroup,
   autoQuoteEnabled,
   dragDisabled,
   dragTitle,
@@ -408,6 +677,7 @@ function SortableServiceRow({
   service: FlatServiceItem;
   color: (typeof ROOT_COLOR_CLASSES)[number];
   quoteConfig?: AppOption | null;
+  kpiGroup?: AppOption | null;
   autoQuoteEnabled: boolean;
   dragDisabled: boolean;
   dragTitle: string;
@@ -488,6 +758,15 @@ function SortableServiceRow({
                 Tự động báo giá
               </span>
             ) : null}
+            {service.depth === 0 && kpiGroup ? (
+              <span
+                title={`Nhóm KPI: ${kpiGroup.label}`}
+                className="inline-flex shrink-0 items-center gap-1 rounded-md bg-blue-50 px-2 py-1 text-[11px] font-bold text-blue-700 ring-1 ring-inset ring-blue-200"
+              >
+                <DonutLargeRoundedIcon className="!text-[14px]" />
+                {kpiGroup.label}
+              </span>
+            ) : null}
           </div>
         </div>
       </td>
@@ -558,13 +837,18 @@ export function ServiceManager({
   isSubmitting,
   isDeleting,
   isSavingQuoteConfig,
+  isSavingKpiGroup,
+  isDeletingKpiGroup,
   isReordering,
   quoteConfigs,
+  kpiGroups,
   onFiltersChange,
   onSubmit,
   onDelete,
   onReorder,
   onSaveQuoteConfig,
+  onSaveKpiGroup,
+  onDeleteKpiGroup,
 }: ServiceManagerProps) {
   const notify = useAppNotification();
   const currentUser = useAuthStore((state) => state.user);
@@ -572,6 +856,8 @@ export function ServiceManager({
   const [dialogState, setDialogState] = useState<DialogState | null>(null);
   const [quoteConfigDialogState, setQuoteConfigDialogState] =
     useState<QuoteConfigDialogState | null>(null);
+  const [kpiGroupDialogOpen, setKpiGroupDialogOpen] = useState(false);
+  const [deleteKpiGroupTarget, setDeleteKpiGroupTarget] = useState<AppOption | null>(null);
   const [deleteTarget, setDeleteTarget] = useState<ServiceItem | null>(null);
   const [menuAnchorEl, setMenuAnchorEl] = useState<HTMLElement | null>(null);
   const [activeService, setActiveService] = useState<FlatServiceItem | null>(null);
@@ -674,6 +960,14 @@ export function ServiceManager({
               onChange={(value) => updateFilters({ keyword: value })}
             />
           </ListFilterBar>
+          <TabActionButton
+            tone="secondary"
+            startIcon={<DonutLargeRoundedIcon />}
+            disabled={!canManage}
+            onClick={() => setKpiGroupDialogOpen(true)}
+          >
+            Nhóm KPI
+          </TabActionButton>
           <p className="hidden shrink-0 pb-2 text-xs font-semibold text-slate-500 lg:block">
             {dragParentId !== undefined
               ? 'Đang chỉ hiển thị các dịch vụ cùng cấp'
@@ -716,6 +1010,8 @@ export function ServiceManager({
                 const color = rootColorMap.get(getRootServiceId(service)) || ROOT_COLOR_CLASSES[0];
                 const quoteConfig =
                   service.depth === 0 ? getConfigForRoot(quoteConfigs, service) : null;
+                const kpiGroup =
+                  service.depth === 0 ? getServiceKpiGroupForRoot(kpiGroups, service.id) : null;
                 const autoQuoteEnabled = Boolean(
                   quoteConfig &&
                   quoteConfig.isActive &&
@@ -728,6 +1024,7 @@ export function ServiceManager({
                     service={service}
                     color={color}
                     quoteConfig={quoteConfig}
+                    kpiGroup={kpiGroup}
                     autoQuoteEnabled={autoQuoteEnabled}
                     dragDisabled={dragDisabled}
                     dragTitle={dragTitle}
@@ -815,6 +1112,33 @@ export function ServiceManager({
         isSubmitting={isSavingQuoteConfig}
         onClose={() => setQuoteConfigDialogState(null)}
         onSubmit={onSaveQuoteConfig}
+      />
+
+      <KpiGroupDialog
+        open={kpiGroupDialogOpen}
+        services={services}
+        groups={kpiGroups}
+        canManage={canManage}
+        isSaving={isSavingKpiGroup}
+        isDeleting={isDeletingKpiGroup}
+        onClose={() => setKpiGroupDialogOpen(false)}
+        onSave={onSaveKpiGroup}
+        onRequestDelete={setDeleteKpiGroupTarget}
+      />
+
+      <ConfirmDialog
+        open={Boolean(deleteKpiGroupTarget)}
+        title="Xóa nhóm KPI dịch vụ?"
+        description={`Nhóm "${deleteKpiGroupTarget?.label || ''}" sẽ được xóa. Các dịch vụ thành viên sẽ quay lại tính KPI riêng.`}
+        confirmText="Xóa nhóm"
+        loading={isDeletingKpiGroup}
+        onClose={() => setDeleteKpiGroupTarget(null)}
+        onConfirm={() => {
+          if (!deleteKpiGroupTarget) return;
+          void onDeleteKpiGroup(deleteKpiGroupTarget)
+            .then(() => setDeleteKpiGroupTarget(null))
+            .catch(() => undefined);
+        }}
       />
 
       <ConfirmDialog

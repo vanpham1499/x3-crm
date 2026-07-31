@@ -34,7 +34,7 @@ import { MoneyInput } from '@/components/form/money-input';
 import { TablePaginationBar } from '@/components/table/table-pagination-bar';
 import { getAdTopupCardLabel } from '@/lib/ad-topup-card-options';
 import { applyApiErrorsToForm, getApiErrorMessage } from '@/lib/api-error';
-import { canEditProject } from '@/lib/ownership';
+import { canManageProjectCosts } from '@/lib/ownership';
 import { calculateAvailableTopupBudget, isManagedBudgetProject } from '@/lib/project-topup-budget';
 import { formatCurrency } from '@/lib/utils';
 import api from '@/services/api/client';
@@ -772,7 +772,7 @@ export function ProjectCostPanel({
   const queryClient = useQueryClient();
   const notify = useAppNotification();
   const currentUser = useAuthStore((state) => state.user);
-  const canManage = canEditProject(currentUser, project);
+  const canManage = canManageProjectCosts(currentUser, project);
   const [page, setPage] = useState(1);
   const [dialogOpen, setDialogOpen] = useState(false);
   const [editingCost, setEditingCost] = useState<ProjectCost | null>(null);

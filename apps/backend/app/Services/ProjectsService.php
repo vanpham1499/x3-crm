@@ -58,8 +58,15 @@ class ProjectsService extends BaseService
             }
 
             $hasReportWeekday = array_key_exists('report_weekday', $data);
-            $reportWeekday = $hasReportWeekday ? (int) $data['report_weekday'] : null;
+            $hasMonthlyBudget = array_key_exists('monthly_budget', $data);
+            $monthlyBudget = $hasMonthlyBudget ? (float) ($data['monthly_budget'] ?? 0) : null;
+            $reportWeekday = $hasReportWeekday
+                && $data['report_weekday'] !== null
+                && $data['report_weekday'] !== ''
+                    ? (int) $data['report_weekday']
+                    : null;
             unset($data['report_weekday']);
+            unset($data['monthly_budget']);
             unset($data['project_code']);
             $this->validateQuotationLink($data);
             $data['project_type'] = $data['project_type'] ?? 'K';
@@ -70,7 +77,13 @@ class ProjectsService extends BaseService
 
             /** @var Project $project */
             $project = $this->projects->create($data);
-            $this->syncWeeklySetting($project, $reportWeekday, $hasReportWeekday);
+            $this->syncWeeklySetting(
+                $project,
+                $reportWeekday,
+                $hasReportWeekday,
+                $monthlyBudget,
+                $hasMonthlyBudget,
+            );
             $project = $this->loadProjectRelations($project);
             $this->recordTimeline($project, 'create', $this->buildCreatedTimelineContent($project));
             $contract = is_array($contractData) ? $this->syncProjectContract($project, $contractData) : null;
@@ -93,11 +106,22 @@ class ProjectsService extends BaseService
             $data = $this->normalizePayload($data);
 
             $hasReportWeekday = array_key_exists('report_weekday', $data);
-            $reportWeekday = $hasReportWeekday ? (int) $data['report_weekday'] : null;
+            $hasMonthlyBudget = array_key_exists('monthly_budget', $data);
+            $monthlyBudget = $hasMonthlyBudget ? (float) ($data['monthly_budget'] ?? 0) : null;
+            $reportWeekday = $hasReportWeekday
+                && $data['report_weekday'] !== null
+                && $data['report_weekday'] !== ''
+                    ? (int) $data['report_weekday']
+                    : null;
             unset($data['report_weekday']);
-            $shouldSyncWeeklySetting = $hasReportWeekday || array_key_exists('manager_user_id', $data);
+            unset($data['monthly_budget']);
+            $shouldSyncWeeklySetting = $hasReportWeekday
+                || $hasMonthlyBudget
+                || array_key_exists('manager_user_id', $data);
             unset($data['project_code']);
             $before = $this->loadProjectRelations($this->projects->findWithRelationsOrFail($id));
+            $beforeReportWeekday = $before->weeklySetting?->report_weekday;
+            $beforeMonthlyBudget = (float) ($before->weeklySetting?->monthly_budget ?? 0);
             $this->authorize('update', $before);
 
             if (
@@ -124,10 +148,40 @@ class ProjectsService extends BaseService
             /** @var Project $project */
             $project = $this->projects->update($id, $data);
             if ($shouldSyncWeeklySetting) {
-                $this->syncWeeklySetting($project, $reportWeekday, $hasReportWeekday);
+                $this->syncWeeklySetting(
+                    $project,
+                    $reportWeekday,
+                    $hasReportWeekday,
+                    $monthlyBudget,
+                    $hasMonthlyBudget,
+                );
             }
             $project = $this->loadProjectRelations($project);
             $changes = $this->describeProjectChanges($before, $project, $data);
+
+            if (
+                $hasReportWeekday
+                && $beforeReportWeekday !== $project->weeklySetting?->report_weekday
+            ) {
+                $changes[] = [
+                    'field' => 'report_weekday',
+                    'label' => 'Thứ báo cáo tuần',
+                    'old' => $this->displayReportWeekday($beforeReportWeekday),
+                    'new' => $this->displayReportWeekday($project->weeklySetting?->report_weekday),
+                ];
+            }
+
+            if (
+                $hasMonthlyBudget
+                && abs($beforeMonthlyBudget - (float) ($project->weeklySetting?->monthly_budget ?? 0)) > 0.01
+            ) {
+                $changes[] = [
+                    'field' => 'monthly_budget',
+                    'label' => 'Ngân sách/tháng',
+                    'old' => number_format($beforeMonthlyBudget, 0, ',', '.').' đ',
+                    'new' => number_format((float) ($project->weeklySetting?->monthly_budget ?? 0), 0, ',', '.').' đ',
+                ];
+            }
 
             if ($changes !== []) {
                 $this->recordTimeline($project, 'update', $this->buildUpdatedTimelineContent($project, $changes));
@@ -190,6 +244,7 @@ class ProjectsService extends BaseService
             'reportWeekday' => 'report_weekday',
             'zaloGroup' => 'zalo_group',
             'planLink' => 'plan_link',
+            'monthlyBudget' => 'monthly_budget',
             'weeklyReportLink' => 'weekly_report_link',
             'customerTrackingReportLink' => 'customer_tracking_report_link',
             'adminWebAccount' => 'admin_web_account',
@@ -250,30 +305,36 @@ class ProjectsService extends BaseService
         Project $project,
         ?int $reportWeekday,
         bool $hasReportWeekday,
+        ?float $monthlyBudget = null,
+        bool $hasMonthlyBudget = false,
     ): void {
         $setting = ProjectWeeklySetting::withTrashed()
             ->where('project_id', $project->id)
             ->first();
         $effectiveWeekday = $hasReportWeekday ? $reportWeekday : $setting?->report_weekday;
 
-        if (! $project->manager_user_id || ! $effectiveWeekday) {
-            if ($setting && ! $setting->trashed()) {
-                $setting->update([
-                    'is_active' => false,
-                    'updated_by' => $this->currentUser()?->id,
-                ]);
-            }
+        if (! in_array((int) $effectiveWeekday, [1, 2, 3, 4, 5], true)) {
+            $effectiveWeekday = null;
+        }
 
+        if (! $project->manager_user_id && ! $setting) {
             return;
         }
 
         $values = [
-            'report_owner_user_id' => $project->manager_user_id,
             'report_weekday' => $effectiveWeekday,
-            'is_active' => true,
+            'is_active' => (bool) ($project->manager_user_id && $effectiveWeekday),
             'updated_by' => $this->currentUser()?->id,
             'deleted_by' => null,
         ];
+
+        if ($project->manager_user_id) {
+            $values['report_owner_user_id'] = $project->manager_user_id;
+        }
+
+        if ($hasMonthlyBudget) {
+            $values['monthly_budget'] = max(0, (float) $monthlyBudget);
+        }
 
         if ($setting) {
             if ($setting->trashed()) {
@@ -287,7 +348,7 @@ class ProjectsService extends BaseService
 
         ProjectWeeklySetting::query()->create(array_merge($values, [
             'project_id' => $project->id,
-            'monthly_budget' => 0,
+            'monthly_budget' => $hasMonthlyBudget ? max(0, (float) $monthlyBudget) : 0,
             'management_fee_rate' => 0,
             'created_by' => $this->currentUser()?->id,
         ]));
@@ -510,6 +571,18 @@ class ProjectsService extends BaseService
     private function displayOption(?Option $option): string
     {
         return $option?->label ?: $this->emptyValue();
+    }
+
+    private function displayReportWeekday(?int $weekday): string
+    {
+        return match ($weekday) {
+            1 => 'Thứ 2',
+            2 => 'Thứ 3',
+            3 => 'Thứ 4',
+            4 => 'Thứ 5',
+            5 => 'Thứ 6',
+            default => 'Chưa chọn',
+        };
     }
 
     private function stringValue(mixed $value): string

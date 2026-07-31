@@ -209,6 +209,31 @@ df -h
 free -h
 ```
 
+Tạo lại admin production sau deploy, không chạy seeder mẫu:
+
+```bash
+cd /opt/x3crm
+read -rsp 'Mật khẩu admin mới: ' X3_ADMIN_PASSWORD
+echo
+export X3_ADMIN_PASSWORD
+docker compose exec -T -e X3_ADMIN_PASSWORD="$X3_ADMIN_PASSWORD" \
+  backend php artisan admin:ensure \
+  --email=admin@x3crm.com --code=NV000 --name="Admin X3"
+unset X3_ADMIN_PASSWORD
+```
+
+Reset dữ liệu nghiệp vụ sau khi đã backup và kiểm tra backup:
+
+```bash
+cd /opt/x3crm
+docker compose exec -T db psql -U x3crm -d x3crm \
+  < reset-keep-accounts-services.sql
+```
+
+Script giữ account/phân quyền/phòng ban và toàn bộ dữ liệu các page `/settings`
+(`services`, `service_packages`, `options`); các bảng public khác bị reset.
+Lệnh này chỉ reset database, không xóa volume `x3crm_uploads_data`.
+
 Kiểm tra sau deploy:
 
 ```bash

@@ -14,7 +14,6 @@ import LanguageRoundedIcon from '@mui/icons-material/LanguageRounded';
 import MoreVertRoundedIcon from '@mui/icons-material/MoreVertRounded';
 import OpenInNewRoundedIcon from '@mui/icons-material/OpenInNewRounded';
 import PersonAddAlt1RoundedIcon from '@mui/icons-material/PersonAddAlt1Rounded';
-import RequestQuoteRoundedIcon from '@mui/icons-material/RequestQuoteRounded';
 import VisibilityRoundedIcon from '@mui/icons-material/VisibilityRounded';
 import WorkRoundedIcon from '@mui/icons-material/WorkRounded';
 import { IconButton, Menu, MenuItem, Tooltip } from '@mui/material';
@@ -33,14 +32,14 @@ import { AppDataTable } from '@/components/table/app-data-table';
 import { EntityTableLink } from '@/components/table/entity-table-link';
 import { TablePaginationBar } from '@/components/table/table-pagination-bar';
 import { UserDateTimeCell } from '@/components/table/user-date-time-cell';
+import { EntityTimelineList } from '@/components/timeline/entity-timeline-list';
 import { getUniqueLeadStatuses } from '@/lib/lead-utils';
 import { getOptionColor } from '@/lib/option-utils';
 import { canCreateLead, canDeleteLead, canEditLead } from '@/lib/ownership';
-import { formatDate, formatDateTime } from '@/lib/utils';
+import { formatDate } from '@/lib/utils';
 import api from '@/services/api/client';
 import type { Lead, LeadFilters, LeadTimelineEntry } from '@/types/lead';
 import type { AppOption } from '@/types/option';
-import type { Quotation } from '@/types/quotation';
 import type { User } from '@/types/user';
 
 type LeadManagerProps = {
@@ -186,61 +185,6 @@ function stringValue(value?: string | number | boolean | null) {
   return String(value);
 }
 
-function getLeadStatusColor(lead: Lead) {
-  if (lead.statusOption) return getOptionColor(lead.statusOption);
-  return '#2563eb';
-}
-
-function getEntryData(entry: LeadTimelineEntry) {
-  if (entry.contentData) return entry.contentData;
-
-  if (!entry.content) return null;
-
-  try {
-    const parsed = JSON.parse(entry.content);
-    return parsed && typeof parsed === 'object' ? parsed : null;
-  } catch {
-    return null;
-  }
-}
-
-function getEntryStatusOption(entry: LeadTimelineEntry, statuses: AppOption[]) {
-  if (entry.statusOption) return entry.statusOption;
-
-  const status = getEntryData(entry)?.status;
-  if (!status) return null;
-
-  const matchedOption = statuses.find(
-    (option) =>
-      (status.id && option.id === status.id) ||
-      (status.key && option.key === status.key) ||
-      (status.label && option.label === status.label),
-  );
-
-  if (matchedOption) return matchedOption;
-
-  if (status.id || status.label || status.color || status.meta) {
-    return {
-      id: status.id || status.key || status.label || 'timeline-status',
-      group: 'lead_status',
-      key: status.key || undefined,
-      label: status.label || status.key || 'Trạng thái',
-      meta: status.meta || (status.color ? { color: status.color } : {}),
-      isActive: true,
-    };
-  }
-
-  return null;
-}
-
-function getEntryColor(entry: LeadTimelineEntry, lead: Lead, statuses: AppOption[]) {
-  const entryStatusOption = getEntryStatusOption(entry, statuses);
-
-  if (entryStatusOption) return getOptionColor(entryStatusOption);
-  if (entry.statusOption) return getOptionColor(entry.statusOption);
-  return getLeadStatusColor(lead);
-}
-
 function getTimelineEntries(lead: Lead) {
   const entries =
     lead.timelines ||
@@ -288,59 +232,6 @@ function getTimelineEntries(lead: Lead) {
   return fallbackEntries;
 }
 
-function getEntryTime(entry: LeadTimelineEntry) {
-  return entry.occurredAt || entry.createdAt || entry.updatedAt || entry.time || '';
-}
-
-function getEntryActor(entry: LeadTimelineEntry) {
-  return (
-    entry.actor ||
-    getEntryData(entry)?.actor ||
-    entry.user ||
-    entry.createdBy ||
-    entry.updatedBy ||
-    null
-  );
-}
-
-function getEntryTitle(entry: LeadTimelineEntry) {
-  const data = getEntryData(entry);
-
-  return data?.title || entry.title || data?.action || entry.action || entry.type || 'Cập nhật';
-}
-
-function getEntryDescription(entry: LeadTimelineEntry) {
-  const data = getEntryData(entry);
-
-  if (entry.description || entry.note || data?.note) {
-    return entry.description || entry.note || data?.note || '';
-  }
-
-  return data ? '' : entry.content || '';
-}
-
-function getEntryChanges(entry: LeadTimelineEntry) {
-  return entry.changes || getEntryData(entry)?.changes || [];
-}
-
-function getQuotationStatusLabel(status?: string | null) {
-  const normalizedStatus = status?.toLowerCase();
-
-  if (normalizedStatus === 'won') return 'Đã thanh toán';
-  if (normalizedStatus === 'refunded') return 'Đã hoàn tiền';
-  if (normalizedStatus) return 'Báo phí';
-
-  return status || '-';
-}
-
-function getQuotationStatusClass(status?: string | null) {
-  const normalizedStatus = status?.toLowerCase();
-
-  if (normalizedStatus === 'won') return 'bg-emerald-50 text-emerald-700 ring-emerald-100';
-  if (normalizedStatus === 'refunded') return 'bg-rose-50 text-rose-700 ring-rose-100';
-  return 'bg-sky-50 text-sky-700 ring-sky-100';
-}
-
 function LeadDetailRow({ label, value }: { label: string; value?: string | number | null }) {
   return (
     <div className="grid grid-cols-[120px_minmax(0,1fr)] gap-4 text-sm">
@@ -385,15 +276,6 @@ function LeadViewDialog({
   onTabChange: (tab: number) => void;
   onClose: () => void;
 }) {
-  const { data: quotations = [], isFetching: isFetchingQuotations } = useQuery<Quotation[]>({
-    queryKey: ['quotations', 'by-lead', lead?.id],
-    queryFn: () =>
-      api
-        .get<Quotation[]>('/quotations', { params: { lead_id: lead?.id } })
-        .then((response) => response.data),
-    enabled: Boolean(lead?.id),
-  });
-
   if (!lead) return null;
 
   const serviceOptions = lead.interestedServiceOptions?.length
@@ -413,7 +295,7 @@ function LeadViewDialog({
       open
       title={lead.customerName}
       eyebrow={lead.leadCode || `Lead #${lead.id}`}
-      loading={isLoading || isFetchingQuotations}
+      loading={isLoading}
       onClose={onClose}
       actions={
         <>
@@ -458,10 +340,6 @@ function LeadViewDialog({
             label: 'Lịch sử chăm sóc',
             icon: <HistoryRoundedIcon className="!text-[18px]" />,
           },
-          {
-            label: 'Lịch sử báo phí',
-            icon: <RequestQuoteRoundedIcon className="!text-[18px]" />,
-          },
         ]}
       />
 
@@ -499,155 +377,17 @@ function LeadViewDialog({
                 <HistoryRoundedIcon className="!text-[18px] text-slate-500" />
                 Lịch sử chăm sóc
               </h3>
-              <LeadTimelineList entries={timelineEntries} lead={lead} statuses={statuses} />
-            </section>
-          </div>
-        )}
-
-        {tab === 2 && (
-          <div role="tabpanel" aria-label="Lịch sử báo phí" className="p-4">
-            <section className="overflow-hidden rounded-xl border border-slate-200 bg-white">
-              <div className="flex flex-wrap items-center justify-between gap-3 border-b border-slate-200 px-4 py-3">
-                <h3 className="text-sm font-bold text-slate-950">
-                  Lịch sử báo phí ({quotations.length})
-                </h3>
-              </div>
-
-              {quotations.length === 0 ? (
-                <div className="px-4 py-10 text-center">
-                  <p className="text-sm font-semibold text-slate-500">Lead chưa có báo phí nào.</p>
-                </div>
-              ) : (
-                <div className="text-sm">
-                  <div className="hidden grid-cols-[minmax(180px,1fr)_150px_110px_112px] gap-3 bg-slate-50 px-4 py-2 text-xs font-bold uppercase text-slate-500 md:grid">
-                    <span>Báo phí</span>
-                    <span>Tổng tiền</span>
-                    <span>Trạng thái</span>
-                    <span />
-                  </div>
-                  <div className="divide-y divide-slate-100">
-                    {quotations.map((quotation) => (
-                      <div
-                        key={quotation.id}
-                        className="grid gap-3 px-4 py-3 transition-colors hover:bg-slate-50/70 md:grid-cols-[minmax(180px,1fr)_150px_110px_112px] md:items-center"
-                      >
-                        <div className="min-w-0">
-                          <Link
-                            href={`/quotations/${quotation.id}`}
-                            className="text-sm font-semibold text-slate-950 hover:text-emerald-700 hover:underline"
-                          >
-                            {quotation.quotationCode || `#${quotation.id}`}
-                          </Link>
-                          <p className="mt-1 text-xs font-medium text-slate-500">
-                            {quotation.createdAt
-                              ? formatDate(quotation.createdAt)
-                              : 'Chưa có ngày tạo'}
-                          </p>
-                        </div>
-                        <div>
-                          <p className="text-sm font-semibold tabular-nums text-slate-800">
-                            {new Intl.NumberFormat('vi-VN').format(
-                              Math.round(Number(quotation.totalAmount) || 0),
-                            )}{' '}
-                            đ
-                          </p>
-                        </div>
-                        <span
-                          className={`w-fit rounded-md px-2 py-1 text-xs font-bold ring-1 ${getQuotationStatusClass(quotation.status)}`}
-                        >
-                          {getQuotationStatusLabel(quotation.status)}
-                        </span>
-                        {quotation.projectId ? (
-                          <DialogActionButton href={`/projects/${quotation.projectId}`}>
-                            Mở dự án
-                          </DialogActionButton>
-                        ) : (
-                          <DialogActionButton href={`/quotations/${quotation.id}`}>
-                            Mở báo phí
-                          </DialogActionButton>
-                        )}
-                      </div>
-                    ))}
-                  </div>
-                </div>
-              )}
+              <EntityTimelineList
+                entries={timelineEntries}
+                statusOptions={statuses}
+                fallbackStatusOption={lead.statusOption}
+                emptyText="Chưa có lịch sử chăm sóc."
+              />
             </section>
           </div>
         )}
       </div>
     </AppDetailDialog>
-  );
-}
-
-function LeadTimelineList({
-  entries,
-  lead,
-  statuses,
-}: {
-  entries: LeadTimelineEntry[];
-  lead: Lead;
-  statuses: AppOption[];
-}) {
-  if (entries.length === 0) {
-    return <p className="text-sm font-medium text-slate-500">Chưa có lịch sử chăm sóc.</p>;
-  }
-
-  return (
-    <ol className="space-y-0">
-      {entries.map((entry, index) => {
-        const color = getEntryColor(entry, lead, statuses);
-        const actor = getEntryActor(entry);
-        const time = getEntryTime(entry);
-        const title = getEntryTitle(entry);
-        const description = getEntryDescription(entry);
-        const changes = getEntryChanges(entry);
-
-        return (
-          <li
-            key={entry.id || `${time}-${index}`}
-            className="grid grid-cols-[24px_minmax(0,1fr)] gap-3 pb-5 last:pb-0"
-          >
-            <div className="relative flex justify-center">
-              {index < entries.length - 1 && (
-                <span className="absolute top-5 h-full w-px bg-slate-200" />
-              )}
-              <span
-                className="relative mt-1 h-3 w-3 rounded-full ring-4 ring-white"
-                style={{ backgroundColor: color }}
-              />
-            </div>
-            <div className="min-w-0">
-              <p className="text-sm font-bold text-slate-900">{title}</p>
-              <p className="mt-1 text-xs font-medium text-slate-500">
-                {formatDateTime(time)}
-                {actor?.name ? ` - ${actor.name}` : ''}
-              </p>
-              {description && (
-                <p className="mt-2 whitespace-pre-line text-sm leading-6 text-slate-700">
-                  {description}
-                </p>
-              )}
-              {changes.length > 0 && (
-                <div className="mt-2 space-y-1 rounded-lg bg-slate-50 p-3">
-                  {changes.map((change, changeIndex) => (
-                    <p
-                      key={`${change.field || change.label}-${changeIndex}`}
-                      className="text-xs text-slate-600"
-                    >
-                      <span className="font-bold text-slate-800">
-                        {change.label || change.field || 'Trường dữ liệu'}:
-                      </span>{' '}
-                      {stringValue(change.oldValue ?? change.old ?? change.from)} →{' '}
-                      {stringValue(change.newValue ?? change.new ?? change.to)}
-                    </p>
-                  ))}
-                </div>
-              )}
-            </div>
-          </li>
-        );
-      })}
-    </ol>
   );
 }
 

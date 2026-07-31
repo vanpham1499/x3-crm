@@ -38,7 +38,8 @@ class PaymentRefundRepository extends BaseRepository
                     ->orWhere('note', 'ilike', "%{$keyword}%")
                     ->orWhereHas('payment', fn ($relation) => $relation
                         ->where('transaction_content', 'ilike', "%{$keyword}%")
-                        ->orWhere('reference', 'ilike', "%{$keyword}%"))
+                        ->orWhere('reference', 'ilike', "%{$keyword}%")
+                        ->orWhere('output_invoice_number', 'ilike', "%{$keyword}%"))
                     ->orWhereHas('quotation', fn ($relation) => $relation
                         ->where('quotation_code', 'ilike', "%{$keyword}%"))
                     ->orWhereHas('project', fn ($relation) => $relation

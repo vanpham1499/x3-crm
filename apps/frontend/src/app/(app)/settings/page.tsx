@@ -144,6 +144,7 @@ export default function SettingsPage() {
       <div className="grid items-start gap-6 xl:grid-cols-12">
         {canViewSiteProfile ? (
           <form
+            noValidate
             className="xl:col-span-8"
             onSubmit={(event) => {
               event.preventDefault();

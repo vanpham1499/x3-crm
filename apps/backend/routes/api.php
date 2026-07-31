@@ -112,15 +112,15 @@ Route::middleware(['auth:sanctum', 'active'])->group(function (): void {
     Route::delete('/projects/{id}', [ProjectsController::class, 'destroy'])->middleware('permission:project.delete,project.delete_department,project.delete_all');
 
     Route::get('/project-costs', [ProjectCostsController::class, 'index'])->middleware('permission:cost.view');
-    Route::post('/project-costs', [ProjectCostsController::class, 'store'])->middleware('permission:project.update,project.update_department,project.update_all');
+    Route::post('/project-costs', [ProjectCostsController::class, 'store'])->middleware('permission:cost.manage,cost.manage_department,cost.manage_all');
     Route::post('/project-costs/{id}/reconcile', [ProjectCostsController::class, 'reconcile'])->middleware('permission:cost.approve,cost.approve_department,cost.approve_all');
-    Route::put('/project-costs/{id}/cid-incident', [ProjectCostsController::class, 'reportCidIncident'])->middleware('permission:project.update,project.update_department,project.update_all');
+    Route::put('/project-costs/{id}/cid-incident', [ProjectCostsController::class, 'reportCidIncident'])->middleware('permission:cost.manage,cost.manage_department,cost.manage_all');
     Route::post('/project-costs/{id}/cid-incident/confirm', [ProjectCostsController::class, 'confirmCidIncident'])->middleware('permission:cost.approve,cost.approve_department,cost.approve_all');
-    Route::delete('/project-costs/{id}/cid-incident', [ProjectCostsController::class, 'cancelCidIncident'])->middleware('permission:project.update,project.update_department,project.update_all');
+    Route::delete('/project-costs/{id}/cid-incident', [ProjectCostsController::class, 'cancelCidIncident'])->middleware('permission:cost.manage,cost.manage_department,cost.manage_all');
     Route::get('/project-costs/{id}', [ProjectCostsController::class, 'show'])->middleware('permission:cost.view');
-    Route::put('/project-costs/{id}', [ProjectCostsController::class, 'update'])->middleware('permission:project.update,project.update_department,project.update_all');
-    Route::patch('/project-costs/{id}', [ProjectCostsController::class, 'update'])->middleware('permission:project.update,project.update_department,project.update_all');
-    Route::delete('/project-costs/{id}', [ProjectCostsController::class, 'destroy'])->middleware('permission:project.delete,project.delete_department,project.delete_all');
+    Route::put('/project-costs/{id}', [ProjectCostsController::class, 'update'])->middleware('permission:cost.manage,cost.manage_department,cost.manage_all');
+    Route::patch('/project-costs/{id}', [ProjectCostsController::class, 'update'])->middleware('permission:cost.manage,cost.manage_department,cost.manage_all');
+    Route::delete('/project-costs/{id}', [ProjectCostsController::class, 'destroy'])->middleware('permission:cost.manage,cost.manage_department,cost.manage_all');
 
     Route::get('/quotations', [QuotationsController::class, 'index'])->middleware('permission:quotation.view');
     Route::post('/quotations', [QuotationsController::class, 'store'])->middleware('permission:quotation.create');
@@ -151,9 +151,13 @@ Route::middleware(['auth:sanctum', 'active'])->group(function (): void {
         Route::get('/weekly-reports/{id}', [WeeklyReportsController::class, 'show']);
         Route::put('/weekly-reports/{id}', [WeeklyReportsController::class, 'update'])->middleware('permission:weeklyreport.update,weeklyreport.update_department,weeklyreport.update_all');
         Route::patch('/weekly-reports/{id}', [WeeklyReportsController::class, 'update'])->middleware('permission:weeklyreport.update,weeklyreport.update_department,weeklyreport.update_all');
+        Route::post('/weekly-reports/{id}/messages', [WeeklyReportsController::class, 'addMessage']);
+        Route::patch('/weekly-reports/{id}/messages/{messageId}', [WeeklyReportsController::class, 'updateMessage']);
+        Route::delete('/weekly-reports/{id}/messages/{messageId}', [WeeklyReportsController::class, 'deleteMessage']);
         Route::delete('/weekly-reports/{id}', [WeeklyReportsController::class, 'destroy'])->middleware('permission:weeklyreport.delete,weeklyreport.delete_department,weeklyreport.delete_all');
         Route::post('/weekly-reports/{id}/submit', [WeeklyReportsController::class, 'submit'])->middleware('permission:weeklyreport.update,weeklyreport.update_department,weeklyreport.update_all');
         Route::post('/weekly-reports/{id}/approve', [WeeklyReportsController::class, 'approve'])->middleware('permission:weeklyreport.approve,weeklyreport.approve_department,weeklyreport.approve_all');
+        Route::post('/weekly-reports/{id}/reject', [WeeklyReportsController::class, 'reject'])->middleware('permission:weeklyreport.approve,weeklyreport.approve_department,weeklyreport.approve_all');
         Route::post('/weekly-reports/{id}/return-to-draft', [WeeklyReportsController::class, 'returnToDraft'])->middleware('permission:weeklyreport.approve,weeklyreport.approve_department,weeklyreport.approve_all');
         Route::post('/weekly-reports/{id}/attachments', [WeeklyReportAttachmentsController::class, 'store'])->middleware('permission:weeklyreport.update,weeklyreport.update_department,weeklyreport.update_all');
         Route::delete('/weekly-report-attachments/{id}', [WeeklyReportAttachmentsController::class, 'destroy'])->middleware('permission:weeklyreport.update,weeklyreport.update_department,weeklyreport.update_all');
@@ -190,13 +194,17 @@ Route::middleware(['auth:sanctum', 'active'])->group(function (): void {
         Route::get('/payments', [PaymentsController::class, 'index']);
         Route::get('/payments/{id}', [PaymentsController::class, 'show']);
 
+        Route::post('/payments/{id}/allocations', [PaymentsController::class, 'allocate'])
+            ->middleware('permission:payment.allocate,payment.manage');
+        Route::delete('/payments/{paymentId}/allocations/{allocationId}', [PaymentsController::class, 'removeAllocation'])
+            ->middleware('permission:payment.allocate,payment.manage');
+        Route::post('/payments/{id}/refunds', [PaymentsController::class, 'refund'])
+            ->middleware('permission:payment.refund.create,payment.manage');
+
         Route::middleware('permission:payment.manage')->group(function (): void {
             Route::patch('/payment-refunds/{id}', [PaymentsController::class, 'updateRefund']);
             Route::delete('/payment-refunds/{id}', [PaymentsController::class, 'destroyRefund']);
             Route::post('/payments', [PaymentsController::class, 'store']);
-            Route::post('/payments/{id}/allocations', [PaymentsController::class, 'allocate']);
-            Route::delete('/payments/{paymentId}/allocations/{allocationId}', [PaymentsController::class, 'removeAllocation']);
-            Route::post('/payments/{id}/refunds', [PaymentsController::class, 'refund']);
             Route::post('/payments/{id}/classification', [PaymentsController::class, 'classify']);
             Route::patch('/payments/{id}/invoice', [PaymentsController::class, 'updateInvoice']);
             Route::put('/payments/{id}', [PaymentsController::class, 'update']);

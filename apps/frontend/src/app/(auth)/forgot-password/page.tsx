@@ -33,11 +33,12 @@ export default function ForgotPasswordPage() {
       <div className="mb-10 space-y-3.5">
         <h2 className="text-xl font-bold leading-[1.5] text-slate-950">Quên mật khẩu?</h2>
         <p className="text-sm text-slate-500">
-          Nhập email tài khoản của bạn. Hệ thống sẽ gửi hướng dẫn đặt lại mật khẩu nếu email tồn tại.
+          Nhập email tài khoản của bạn. Hệ thống sẽ gửi hướng dẫn đặt lại mật khẩu nếu email tồn
+          tại.
         </p>
       </div>
 
-      <form className="space-y-6" onSubmit={handleSubmit(onSubmit)}>
+      <form noValidate className="space-y-6" onSubmit={handleSubmit(onSubmit)}>
         <FormControl error={Boolean(errors.email)} fullWidth>
           <TextField
             label="Địa chỉ email"
@@ -56,7 +57,8 @@ export default function ForgotPasswordPage() {
 
         {submittedEmail && (
           <Alert severity="success">
-            Nếu {submittedEmail} tồn tại trong hệ thống, hướng dẫn đặt lại mật khẩu sẽ được gửi đến email này.
+            Nếu {submittedEmail} tồn tại trong hệ thống, hướng dẫn đặt lại mật khẩu sẽ được gửi đến
+            email này.
           </Alert>
         )}
 

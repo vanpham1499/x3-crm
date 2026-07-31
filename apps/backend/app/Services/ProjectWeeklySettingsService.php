@@ -48,6 +48,7 @@ class ProjectWeeklySettingsService extends BaseService
             $data = $this->normalizeKeys($data);
             $this->authorizeProjectOwnership($data['project_id'] ?? null);
             $existing = $this->settings->findByProject((string) $data['project_id']);
+            $data = $this->prepareScheduleData($data, $existing);
 
             /** @var ProjectWeeklySetting $setting */
             $setting = $existing
@@ -63,9 +64,10 @@ class ProjectWeeklySettingsService extends BaseService
         return $this->transaction(function () use ($id, $data): array {
             $existing = $this->settings->findOrFail($id);
             $this->authorizeProjectOwnership($existing->project_id);
+            $data = $this->prepareScheduleData($this->normalizeKeys($data), $existing);
 
             /** @var ProjectWeeklySetting $setting */
-            $setting = $this->settings->update($id, $this->normalizeKeys($data));
+            $setting = $this->settings->update($id, $data);
 
             return $this->apiResource($setting->load(['project', 'reportOwner']), ProjectWeeklySettingResource::class);
         });
@@ -98,6 +100,39 @@ class ProjectWeeklySettingsService extends BaseService
                 $data[$to] = $data[$from];
                 unset($data[$from]);
             }
+        }
+
+        return $data;
+    }
+
+    private function prepareScheduleData(
+        array $data,
+        ?ProjectWeeklySetting $existing = null,
+    ): array {
+        $hasWeekday = array_key_exists('report_weekday', $data);
+
+        if (! $hasWeekday && ! $existing) {
+            $data['report_weekday'] = null;
+            $data['is_active'] = false;
+
+            return $data;
+        }
+
+        if ($hasWeekday) {
+            $weekday = $data['report_weekday'];
+            $data['report_weekday'] = $weekday === null || $weekday === ''
+                ? null
+                : (int) $weekday;
+            $data['is_active'] = $data['report_weekday']
+                ? (bool) ($data['is_active'] ?? true)
+                : false;
+        }
+
+        $effectiveWeekday = $data['report_weekday'] ?? $existing?->report_weekday;
+
+        if (! in_array((int) $effectiveWeekday, [1, 2, 3, 4, 5], true)) {
+            $data['report_weekday'] = null;
+            $data['is_active'] = false;
         }
 
         return $data;

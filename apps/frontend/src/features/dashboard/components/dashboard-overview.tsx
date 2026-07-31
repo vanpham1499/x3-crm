@@ -879,7 +879,7 @@ function ServiceDashboard({
       minWidthClassName="min-w-[660px]"
     >
       {rows.map((row) => (
-        <tr key={row.id} className="hover:bg-slate-50/80">
+        <tr key={`${row.scopeType}-${row.id}`} className="hover:bg-slate-50/80">
           <td className="px-3 py-4">
             <ServiceTableCell
               code={row.code}
@@ -887,6 +887,11 @@ function ServiceDashboard({
                 row.isDeleted ? ' (Đã xóa)' : row.isActive ? '' : ' (Ngừng hoạt động)'
               }`}
             />
+            {row.scopeType === 'service_group' ? (
+              <p className="mt-1 truncate text-xs font-semibold text-slate-500">
+                Gồm: {row.memberServices?.map((service) => service.code).join(', ') || '-'}
+              </p>
+            ) : null}
           </td>
           <td
             className={`whitespace-nowrap px-3 py-4 text-right font-extrabold tabular-nums ${amountTone(row.actualAmount)}`}
@@ -1260,7 +1265,7 @@ function ScopedDashboardOverview({
     : 'Lợi nhuận cá nhân / kế hoạch phòng ban';
 
   return (
-    <div className="min-h-[calc(100vh-72px)] w-full bg-[#f6f8fc] p-4 sm:p-6">
+    <div className="min-h-[calc(100vh-72px)] w-full bg-slate-50/60 p-4 sm:p-6">
       <PageHeader
         title="Dashboard"
         actions={
@@ -1462,7 +1467,7 @@ export function DashboardOverview({
   }
 
   return (
-    <div className="min-h-[calc(100vh-72px)] w-full bg-[#f6f8fc] p-4 sm:p-6">
+    <div className="min-h-[calc(100vh-72px)] w-full bg-slate-50/60 p-4 sm:p-6">
       <PageHeader
         title="Dashboard"
         actions={

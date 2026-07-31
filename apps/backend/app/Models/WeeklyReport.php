@@ -13,6 +13,8 @@ class WeeklyReport extends BaseModel
 
     public const STATUS_APPROVED = 'approved';
 
+    public const STATUS_REJECTED = 'rejected';
+
     protected $fillable = [
         'project_id',
         'customer_id',
@@ -35,6 +37,9 @@ class WeeklyReport extends BaseModel
         'submitted_at',
         'approved_by',
         'approved_at',
+        'rejection_reason',
+        'rejected_by',
+        'rejected_at',
         'created_by',
         'updated_by',
         'deleted_by',
@@ -52,6 +57,7 @@ class WeeklyReport extends BaseModel
         'management_fee_rate' => 'decimal:2',
         'submitted_at' => 'datetime',
         'approved_at' => 'datetime',
+        'rejected_at' => 'datetime',
         'created_at' => 'datetime',
         'updated_at' => 'datetime',
         'deleted_at' => 'datetime',
@@ -77,9 +83,16 @@ class WeeklyReport extends BaseModel
         return $this->belongsTo(User::class, 'approved_by');
     }
 
+    public function rejecter(): BelongsTo
+    {
+        return $this->belongsTo(User::class, 'rejected_by');
+    }
+
     public function items(): HasMany
     {
-        return $this->hasMany(WeeklyReportItem::class);
+        return $this->hasMany(WeeklyReportItem::class)
+            ->orderBy('created_at')
+            ->orderBy('id');
     }
 
     public function attachments(): HasMany

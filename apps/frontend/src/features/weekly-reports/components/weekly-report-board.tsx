@@ -3,13 +3,13 @@
 import Link from 'next/link';
 import { useState, type MouseEvent } from 'react';
 import AddRoundedIcon from '@mui/icons-material/AddRounded';
+import BlockRoundedIcon from '@mui/icons-material/BlockRounded';
 import AssignmentOutlinedIcon from '@mui/icons-material/AssignmentOutlined';
 import CheckCircleOutlineRoundedIcon from '@mui/icons-material/CheckCircleOutlineRounded';
 import DeleteRoundedIcon from '@mui/icons-material/DeleteRounded';
 import EditRoundedIcon from '@mui/icons-material/EditRounded';
 import MoreVertRoundedIcon from '@mui/icons-material/MoreVertRounded';
 import PendingActionsRoundedIcon from '@mui/icons-material/PendingActionsRounded';
-import ReplayRoundedIcon from '@mui/icons-material/ReplayRounded';
 import SendRoundedIcon from '@mui/icons-material/SendRounded';
 import TaskAltRoundedIcon from '@mui/icons-material/TaskAltRounded';
 import TodayOutlinedIcon from '@mui/icons-material/TodayOutlined';
@@ -30,9 +30,10 @@ import {
   canDeleteWeeklyReport,
   canUpdateWeeklyReport,
 } from '@/lib/ownership';
-import { getReportWeekdayLabel } from '@/lib/weekly-report-schedule';
+import { getReportWeekdayLabel, REPORT_WEEKDAYS } from '@/lib/weekly-report-schedule';
 import { formatDate } from '@/lib/utils';
 import { WeeklyReportCustomerPreviewDialog } from './weekly-report-customer-preview-dialog';
+import { WeeklyReportRejectDialog } from './weekly-report-reject-dialog';
 import type { User } from '@/types/user';
 import type { AppOption } from '@/types/option';
 import type {
@@ -53,7 +54,7 @@ type WeeklyReportBoardProps = {
   isDeleting: boolean;
   isSubmitting: boolean;
   isApproving: boolean;
-  isReturning: boolean;
+  isRejecting: boolean;
   currentUser: User | null;
   page: number;
   totalPages: number;
@@ -65,7 +66,7 @@ type WeeklyReportBoardProps = {
   onDelete: (report: WeeklyReport) => void;
   onSubmit: (report: WeeklyReport) => void;
   onApprove: (report: WeeklyReport) => void;
-  onReturnToDraft: (report: WeeklyReport) => void;
+  onReject: (report: WeeklyReport, reason: string) => Promise<unknown>;
 };
 
 type WeeklyReportSummaryProps = {
@@ -87,6 +88,7 @@ const PROGRESS_STATUS_LABELS: Record<string, string> = {
   draft: 'Nháp',
   submitted: 'Chờ duyệt',
   approved: 'Đã duyệt',
+  rejected: 'Đã từ chối',
 };
 
 function dueStatusClass(status: string) {
@@ -101,6 +103,7 @@ function dueStatusClass(status: string) {
 function progressStatusClass(status: string) {
   if (status === 'approved') return 'bg-emerald-50 text-emerald-700 ring-emerald-200';
   if (status === 'submitted') return 'bg-sky-50 text-sky-700 ring-sky-200';
+  if (status === 'rejected') return 'bg-rose-50 text-rose-700 ring-rose-200';
   if (status === 'draft') return 'bg-amber-50 text-amber-700 ring-amber-200';
   return 'bg-slate-100 text-slate-600 ring-slate-200';
 }
@@ -205,7 +208,7 @@ export function WeeklyReportBoard({
   isDeleting,
   isSubmitting,
   isApproving,
-  isReturning,
+  isRejecting,
   currentUser,
   page,
   totalPages,
@@ -217,12 +220,12 @@ export function WeeklyReportBoard({
   onDelete,
   onSubmit,
   onApprove,
-  onReturnToDraft,
+  onReject,
 }: WeeklyReportBoardProps) {
   const [menuAnchorEl, setMenuAnchorEl] = useState<HTMLElement | null>(null);
   const [activeRow, setActiveRow] = useState<WeeklyReportBoardRow | null>(null);
   const [deleteTarget, setDeleteTarget] = useState<WeeklyReport | null>(null);
-  const [returnTarget, setReturnTarget] = useState<WeeklyReport | null>(null);
+  const [rejectTarget, setRejectTarget] = useState<WeeklyReport | null>(null);
   const [customerPreviewTarget, setCustomerPreviewTarget] = useState<WeeklyReport | null>(null);
   const canAuthor = canAuthorWeeklyReport(currentUser);
 
@@ -263,7 +266,7 @@ export function WeeklyReportBoard({
           <CompactSelectField
             label="Thứ báo cáo"
             value={filters.reportWeekday}
-            options={[1, 2, 3, 4, 5, 6, 7].map((weekday) => ({
+            options={REPORT_WEEKDAYS.map((weekday) => ({
               value: String(weekday),
               label: getReportWeekdayLabel(weekday),
             }))}
@@ -396,7 +399,11 @@ export function WeeklyReportBoard({
                               component={Link}
                               href={editHref}
                               size="small"
-                              color={report.status === 'draft' ? 'primary' : 'default'}
+                              color={
+                                ['draft', 'rejected'].includes(report.status)
+                                  ? 'primary'
+                                  : 'default'
+                              }
                               aria-label={`Chỉnh sửa báo cáo ${projectLabel}`}
                             >
                               <EditRoundedIcon fontSize="small" />
@@ -442,7 +449,8 @@ export function WeeklyReportBoard({
           <VisibilityOutlinedIcon fontSize="small" className="mr-2 text-slate-500" />
           Xem báo cáo
         </MenuItem>
-        {activeRow?.report?.status === 'draft' &&
+        {activeRow?.report &&
+        ['draft', 'rejected'].includes(activeRow.report.status) &&
         canUpdateWeeklyReport(currentUser, activeRow.report) ? (
           <MenuItem
             disabled={isSubmitting}
@@ -473,14 +481,14 @@ export function WeeklyReportBoard({
         activeRow.report &&
         canApproveWeeklyReport(currentUser, activeRow.report) ? (
           <MenuItem
-            disabled={isReturning}
+            disabled={isRejecting}
             onClick={() => {
-              setReturnTarget(activeRow.report || null);
+              setRejectTarget(activeRow.report || null);
               closeActionMenu();
             }}
           >
-            <ReplayRoundedIcon fontSize="small" className="mr-2 text-amber-600" />
-            Trả về nháp
+            <BlockRoundedIcon fontSize="small" className="mr-2 text-rose-600" />
+            Từ chối báo cáo
           </MenuItem>
         ) : null}
         {activeRow?.report?.status === 'draft' &&
@@ -517,17 +525,11 @@ export function WeeklyReportBoard({
         }}
       />
 
-      <ConfirmDialog
-        open={Boolean(returnTarget)}
-        title="Trả báo cáo về nháp?"
-        description="Sales có thể tiếp tục chỉnh sửa và gửi lại báo cáo sau khi được trả về nháp."
-        confirmText="Trả về nháp"
-        loading={isReturning}
-        onClose={() => setReturnTarget(null)}
-        onConfirm={() => {
-          if (returnTarget) onReturnToDraft(returnTarget);
-          setReturnTarget(null);
-        }}
+      <WeeklyReportRejectDialog
+        report={rejectTarget}
+        loading={isRejecting}
+        onClose={() => setRejectTarget(null)}
+        onReject={onReject}
       />
     </div>
   );

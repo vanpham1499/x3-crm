@@ -38,7 +38,6 @@ import type { User } from '@/types/user';
 
 const navGroups = [
   {
-    label: 'CRM',
     items: [
       {
         href: '/dashboard',
@@ -58,12 +57,6 @@ const navGroups = [
         label: 'Dự án',
         icon: WorkspacesRoundedIcon,
         permissions: ['project.view'],
-      },
-      {
-        href: '/meetings',
-        label: 'Lịch hẹn',
-        icon: EventNoteRoundedIcon,
-        permissions: ['meeting.view'],
       },
       {
         href: '/quotations',
@@ -88,6 +81,12 @@ const navGroups = [
         label: 'Báo cáo tuần',
         icon: CalendarMonthRoundedIcon,
         permissions: ['weeklyreport.view'],
+      },
+      {
+        href: '/meetings',
+        label: 'Lịch hẹn',
+        icon: EventNoteRoundedIcon,
+        permissions: ['meeting.view'],
       },
       {
         href: '/kpi',
@@ -306,8 +305,7 @@ export function Sidebar() {
                 );
                 const active =
                   pathname === item.href ||
-                  (item.href !== '/dashboard' &&
-                    pathname.startsWith(`${item.href}/`)) ||
+                  (item.href !== '/dashboard' && pathname.startsWith(`${item.href}/`)) ||
                   childActive;
                 const isOpen = openNavItems[item.href] ?? active;
 

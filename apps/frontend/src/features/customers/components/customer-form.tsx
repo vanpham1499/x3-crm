@@ -75,11 +75,18 @@ function MultiSelectField({
       onChange={(_, nextValue) => onChange(nextValue.map((item) => String(item)))}
       renderOption={(props, option, { selected }) => (
         <li {...props}>
-          <Checkbox icon={emptyCheckboxIcon} checkedIcon={checkedCheckboxIcon} checked={selected} className="mr-2" />
+          <Checkbox
+            icon={emptyCheckboxIcon}
+            checkedIcon={checkedCheckboxIcon}
+            checked={selected}
+            className="mr-2"
+          />
           {option}
         </li>
       )}
-      renderInput={(params) => <TextField {...params} label={label} placeholder={value.length ? '' : placeholder} />}
+      renderInput={(params) => (
+        <TextField {...params} label={label} placeholder={value.length ? '' : placeholder} />
+      )}
     />
   );
 }
@@ -128,15 +135,21 @@ export function CustomerForm({ mode, defaultValues, leadCode }: CustomerFormProp
     // TODO: Replace this mock with API calls when backend endpoints are ready.
     // create: await api.post('/customers', payload)
     // edit: await api.put(`/customers/${leadCode}`, payload)
-    console.info(mode === 'create' ? 'Create customer payload' : 'Update customer payload', payload);
+    console.info(
+      mode === 'create' ? 'Create customer payload' : 'Update customer payload',
+      payload,
+    );
     setSavedPayload(payload);
   };
 
   return (
-    <form className="w-full space-y-8" onSubmit={handleSubmit(onSubmit)}>
+    <form noValidate className="w-full space-y-8" onSubmit={handleSubmit(onSubmit)}>
       <div className="grid w-full items-start gap-6 xl:grid-cols-12">
         <div className="xl:col-span-8">
-          <FormSection title="Thông tin khách hàng" description="Thông tin liên hệ, trạng thái và thời gian chăm sóc.">
+          <FormSection
+            title="Thông tin khách hàng"
+            description="Thông tin liên hệ, trạng thái và thời gian chăm sóc."
+          >
             <TextField
               fullWidth
               label="Tên khách hàng *"
@@ -147,17 +160,43 @@ export function CustomerForm({ mode, defaultValues, leadCode }: CustomerFormProp
             />
 
             <div className="grid gap-4 md:grid-cols-2">
-              <TextField fullWidth label="Số điện thoại" placeholder="0901234567" {...register('phone')} />
-              <TextField fullWidth label="Ngành" placeholder="VD: Spa, BĐS, Nhà hàng..." {...register('industry')} />
+              <TextField
+                fullWidth
+                label="Số điện thoại"
+                placeholder="0901234567"
+                {...register('phone')}
+              />
+              <TextField
+                fullWidth
+                label="Ngành"
+                placeholder="VD: Spa, BĐS, Nhà hàng..."
+                {...register('industry')}
+              />
             </div>
 
             <div className="grid gap-4 md:grid-cols-2">
-              <TextField fullWidth label="Web/Page" placeholder="https://example.com" {...register('website')} />
-              <TextField fullWidth label="Link kế hoạch" placeholder="https://docs.google.com/..." {...register('planLink')} />
+              <TextField
+                fullWidth
+                label="Web/Page"
+                placeholder="https://example.com"
+                {...register('website')}
+              />
+              <TextField
+                fullWidth
+                label="Link kế hoạch"
+                placeholder="https://docs.google.com/..."
+                {...register('planLink')}
+              />
             </div>
 
             <div className="grid gap-4 md:grid-cols-3">
-              <TextField fullWidth select label="Tình trạng" defaultValue={formDefaults.status} {...register('status')}>
+              <TextField
+                fullWidth
+                select
+                label="Tình trạng"
+                defaultValue={formDefaults.status}
+                {...register('status')}
+              >
                 {CUSTOMER_STATUS_TABS.filter((item) => item !== 'Tất cả').map((item) => (
                   <MenuItem key={item} value={item}>
                     {item}
@@ -168,19 +207,32 @@ export function CustomerForm({ mode, defaultValues, leadCode }: CustomerFormProp
                 name="createdAt"
                 control={control}
                 render={({ field }) => (
-                  <CustomerDatePicker label="Ngày phát sinh" value={field.value} onChange={field.onChange} />
+                  <CustomerDatePicker
+                    label="Ngày phát sinh"
+                    value={field.value}
+                    onChange={field.onChange}
+                  />
                 )}
               />
               <Controller
                 name="closedAt"
                 control={control}
                 render={({ field }) => (
-                  <CustomerDatePicker label="Ngày chốt khách" value={field.value} onChange={field.onChange} />
+                  <CustomerDatePicker
+                    label="Ngày chốt khách"
+                    value={field.value}
+                    onChange={field.onChange}
+                  />
                 )}
               />
             </div>
 
-            <TextField fullWidth label="Nhóm Zalo" placeholder="Tên nhóm hoặc link nhóm" {...register('zaloGroup')} />
+            <TextField
+              fullWidth
+              label="Nhóm Zalo"
+              placeholder="Tên nhóm hoặc link nhóm"
+              {...register('zaloGroup')}
+            />
 
             <TextField
               fullWidth
@@ -194,7 +246,10 @@ export function CustomerForm({ mode, defaultValues, leadCode }: CustomerFormProp
         </div>
 
         <div className="xl:col-span-4">
-          <FormSection title="Phân loại & phụ trách" description="Nhân sự, nguồn phát sinh và dịch vụ quan tâm.">
+          <FormSection
+            title="Phân loại & phụ trách"
+            description="Nhân sự, nguồn phát sinh và dịch vụ quan tâm."
+          >
             <Controller
               name="owners"
               control={control}
@@ -240,7 +295,8 @@ export function CustomerForm({ mode, defaultValues, leadCode }: CustomerFormProp
 
       {savedPayload && (
         <div className="rounded-2xl border border-emerald-200 bg-emerald-50 px-4 py-3 text-sm font-semibold text-emerald-800">
-          Đã chuẩn bị payload {mode === 'create' ? 'tạo mới' : 'cập nhật'} khách hàng. Chỉ cần thay TODO bằng API thật.
+          Đã chuẩn bị payload {mode === 'create' ? 'tạo mới' : 'cập nhật'} khách hàng. Chỉ cần thay
+          TODO bằng API thật.
         </div>
       )}
 
@@ -251,7 +307,12 @@ export function CustomerForm({ mode, defaultValues, leadCode }: CustomerFormProp
         >
           Hủy
         </Link>
-        <Button type="submit" variant="contained" disabled={isSubmitting} startIcon={<SaveRoundedIcon />}>
+        <Button
+          type="submit"
+          variant="contained"
+          disabled={isSubmitting}
+          startIcon={<SaveRoundedIcon />}
+        >
           {mode === 'create' ? 'Tạo khách hàng' : 'Lưu thay đổi'}
         </Button>
       </div>

@@ -6,6 +6,7 @@ use App\Http\Resources\WeeklyReportResource;
 use App\Models\Project;
 use App\Models\ProjectWeeklySetting;
 use App\Models\WeeklyReport;
+use App\Models\WeeklyReportItem;
 use App\Repositories\ProjectWeeklySettingRepository;
 use App\Repositories\WeeklyReportRepository;
 use Carbon\CarbonImmutable;
@@ -45,7 +46,10 @@ class WeeklyReportsService extends BaseService
         $weekMonday = $this->resolveBoardWeek($filters['week_start'] ?? null);
         $weekSunday = $weekMonday->addDays(6);
         $today = CarbonImmutable::today(config('app.timezone'));
-        $settings = $this->weeklySettings->findActiveForBoard($filters, $this->currentUser());
+        $settings = $this->weeklySettings
+            ->findActiveForBoard($filters, $this->currentUser())
+            ->filter(fn (ProjectWeeklySetting $setting): bool => $setting->project?->requiresWeeklyReport() ?? false)
+            ->values();
         $projectIds = $settings->pluck('project_id')->map(fn ($id) => (int) $id)->all();
         $reports = $this->reports->findForBoardPeriods(
             $projectIds,
@@ -229,7 +233,7 @@ class WeeklyReportsService extends BaseService
             $report = $this->reports->create($data);
             $this->syncItems($report, $items);
 
-            return $this->apiResource($report->load(['project', 'customer', 'reporter', 'approver', 'items.assignee', 'attachments.uploadedBy']), WeeklyReportResource::class);
+            return $this->apiResource($report->load(['project', 'customer', 'reporter', 'approver', 'rejecter', 'items.assignee', 'items.createdBy:id,code,name', 'attachments.uploadedBy']), WeeklyReportResource::class);
         });
     }
 
@@ -239,9 +243,11 @@ class WeeklyReportsService extends BaseService
             /** @var WeeklyReport $existingReport */
             $existingReport = $this->reports->findWithRelationsOrFail($id);
             $this->authorize('update', $existingReport);
-            $this->assertStatus($existingReport, WeeklyReport::STATUS_DRAFT, 'Chỉ báo cáo nháp mới được chỉnh sửa.');
-            $hasItems = array_key_exists('items', $data);
-            $items = $data['items'] ?? [];
+            $this->assertStatusIn(
+                $existingReport,
+                [WeeklyReport::STATUS_DRAFT, WeeklyReport::STATUS_REJECTED],
+                'Chỉ báo cáo nháp hoặc đã bị từ chối mới được chỉnh sửa.',
+            );
             unset($data['items']);
 
             $data = $this->preparePayload($data);
@@ -259,11 +265,89 @@ class WeeklyReportsService extends BaseService
             /** @var WeeklyReport $report */
             $report = $this->reports->update($id, $data);
 
-            if ($hasItems) {
-                $this->syncItems($report, $items);
+            return $this->apiResource($report->load(['project', 'customer', 'reporter', 'approver', 'rejecter', 'items.assignee', 'items.createdBy:id,code,name', 'attachments.uploadedBy']), WeeklyReportResource::class);
+        });
+    }
+
+    public function addMessage(string $id, array $data): array
+    {
+        return $this->transaction(function () use ($id, $data): array {
+            /** @var WeeklyReport $report */
+            $report = $this->reports->findVisibleWithRelationsOrFail($this->currentUser(), $id);
+            $this->authorize('comment', $report);
+
+            $content = trim((string) ($data['content'] ?? ''));
+            $replyToId = $data['reply_to_message_id'] ?? $data['replyToMessageId'] ?? null;
+            $replyTo = null;
+
+            if ($content === '') {
+                throw ValidationException::withMessages([
+                    'content' => ['Nội dung trao đổi không được để trống.'],
+                ]);
             }
 
-            return $this->apiResource($report->load(['project', 'customer', 'reporter', 'approver', 'items.assignee', 'attachments.uploadedBy']), WeeklyReportResource::class);
+            if ($replyToId) {
+                /** @var WeeklyReportItem|null $replyTo */
+                $replyTo = $report->items()->whereKey($replyToId)->first();
+
+                if (! $replyTo) {
+                    throw ValidationException::withMessages([
+                        'replyToMessageId' => ['Tin nhắn được phản hồi không thuộc báo cáo này.'],
+                    ]);
+                }
+            }
+
+            $report->items()->create([
+                'reply_to_item_id' => $replyTo?->reply_to_item_id ?: $replyTo?->id,
+                'item_type' => $replyTo ? 'reply' : 'message',
+                'content' => $content,
+                'status' => 'open',
+            ]);
+
+            return $this->apiResource(
+                $report->fresh()->load(['project', 'customer', 'reporter', 'approver', 'rejecter', 'items.assignee', 'items.createdBy:id,code,name', 'attachments.uploadedBy']),
+                WeeklyReportResource::class,
+            );
+        });
+    }
+
+    public function updateMessage(string $id, string $messageId, array $data): array
+    {
+        return $this->transaction(function () use ($id, $messageId, $data): array {
+            $report = $this->reports->findVisibleWithRelationsOrFail($this->currentUser(), $id);
+            $message = $this->findMessageInReport($report, $messageId);
+            $this->authorize('update', $message);
+
+            $content = trim((string) ($data['content'] ?? ''));
+
+            if ($content === '') {
+                throw ValidationException::withMessages([
+                    'content' => ['Nội dung trao đổi không được để trống.'],
+                ]);
+            }
+
+            $message->update(['content' => $content]);
+
+            return $this->freshReportResource($report);
+        });
+    }
+
+    public function deleteMessage(string $id, string $messageId): array
+    {
+        return $this->transaction(function () use ($id, $messageId): array {
+            $report = $this->reports->findVisibleWithRelationsOrFail($this->currentUser(), $id);
+            $message = $this->findMessageInReport($report, $messageId);
+            $this->authorize('delete', $message);
+
+            if ($message->replies()->exists()) {
+                throw ValidationException::withMessages([
+                    'message' => ['Tin nhắn đã có phản hồi nên không thể xóa. Bạn vẫn có thể chỉnh sửa nội dung.'],
+                ]);
+            }
+
+            $message->delete();
+
+            return $this->freshReportResource($report);
         });
     }
 
@@ -286,7 +370,11 @@ class WeeklyReportsService extends BaseService
             /** @var WeeklyReport $existingReport */
             $existingReport = $this->reports->findWithRelationsOrFail($id);
             $this->authorize('update', $existingReport);
-            $this->assertStatus($existingReport, WeeklyReport::STATUS_DRAFT, 'Chỉ báo cáo nháp mới được gửi duyệt.');
+            $this->assertStatusIn(
+                $existingReport,
+                [WeeklyReport::STATUS_DRAFT, WeeklyReport::STATUS_REJECTED],
+                'Chỉ báo cáo nháp hoặc đã bị từ chối mới được gửi duyệt.',
+            );
             /** @var WeeklyReport $report */
             $report = $this->reports->update($id, [
                 'status' => WeeklyReport::STATUS_SUBMITTED,
@@ -294,7 +382,7 @@ class WeeklyReportsService extends BaseService
                 'updated_by' => $this->currentUser()?->id,
             ]);
 
-            return $this->apiResource($report->load(['project', 'customer', 'reporter', 'approver', 'items.assignee', 'attachments.uploadedBy']), WeeklyReportResource::class);
+            return $this->apiResource($report->load(['project', 'customer', 'reporter', 'approver', 'rejecter', 'items.assignee', 'items.createdBy:id,code,name', 'attachments.uploadedBy']), WeeklyReportResource::class);
         });
     }
 
@@ -312,7 +400,34 @@ class WeeklyReportsService extends BaseService
                 'approved_at' => now(),
             ]);
 
-            return $this->apiResource($report->load(['project', 'customer', 'reporter', 'approver', 'items.assignee', 'attachments.uploadedBy']), WeeklyReportResource::class);
+            return $this->apiResource($report->load(['project', 'customer', 'reporter', 'approver', 'rejecter', 'items.assignee', 'items.createdBy:id,code,name', 'attachments.uploadedBy']), WeeklyReportResource::class);
+        });
+    }
+
+    public function reject(string $id, array $data): array
+    {
+        return $this->transaction(function () use ($id, $data): array {
+            /** @var WeeklyReport $existingReport */
+            $existingReport = $this->reports->findWithRelationsOrFail($id);
+            $this->authorize('approve', $existingReport);
+            $this->assertStatus(
+                $existingReport,
+                WeeklyReport::STATUS_SUBMITTED,
+                'Chỉ báo cáo đang chờ duyệt mới được từ chối.',
+            );
+
+            /** @var WeeklyReport $report */
+            $report = $this->reports->update($id, [
+                'status' => WeeklyReport::STATUS_REJECTED,
+                'rejection_reason' => trim((string) $data['reason']),
+                'rejected_by' => $this->currentUser()?->id,
+                'rejected_at' => now(),
+                'approved_by' => null,
+                'approved_at' => null,
+                'updated_by' => $this->currentUser()?->id,
+            ]);
+
+            return $this->apiResource($report->load(['project', 'customer', 'reporter', 'approver', 'rejecter', 'items.assignee', 'items.createdBy:id,code,name', 'attachments.uploadedBy']), WeeklyReportResource::class);
         });
     }
 
@@ -333,7 +448,7 @@ class WeeklyReportsService extends BaseService
                 'updated_by' => $this->currentUser()?->id,
             ]);
 
-            return $this->apiResource($report->load(['project', 'customer', 'reporter', 'approver', 'items.assignee', 'attachments.uploadedBy']), WeeklyReportResource::class);
+            return $this->apiResource($report->load(['project', 'customer', 'reporter', 'approver', 'rejecter', 'items.assignee', 'items.createdBy:id,code,name', 'attachments.uploadedBy']), WeeklyReportResource::class);
         });
     }
 
@@ -348,6 +463,12 @@ class WeeklyReportsService extends BaseService
             $project = Project::query()->with('statusOption')->find($data['project_id']);
 
             if ($project) {
+                if ($isCreating && ! $project->requiresWeeklyReport()) {
+                    throw ValidationException::withMessages([
+                        'projectId' => ['Trạng thái hiện tại của dự án không yêu cầu báo cáo tuần.'],
+                    ]);
+                }
+
                 $data['customer_id'] = $data['customer_id'] ?? $project->customer_id;
                 $data['project_status'] = $data['project_status']
                     ?? $project->statusOption?->label
@@ -356,7 +477,8 @@ class WeeklyReportsService extends BaseService
 
             $settingQuery = ProjectWeeklySetting::query()
                 ->where('project_id', $data['project_id'])
-                ->where('is_active', true);
+                ->where('is_active', true)
+                ->whereBetween('report_weekday', [1, 5]);
 
             if ($isCreating) {
                 $settingQuery->lockForUpdate();
@@ -368,6 +490,8 @@ class WeeklyReportsService extends BaseService
             if ($setting) {
                 $data['monthly_budget'] = $data['monthly_budget'] ?? $setting->monthly_budget;
                 $data['management_fee_rate'] = $data['management_fee_rate'] ?? $setting->management_fee_rate;
+                $data['average_weekly_budget'] = $data['average_weekly_budget']
+                    ?? round((float) $setting->monthly_budget / 4, 2);
                 $data['total_budget'] = $data['total_budget'] ?? $setting->monthly_budget;
             }
 
@@ -470,7 +594,7 @@ class WeeklyReportsService extends BaseService
         CarbonImmutable $dueDate,
         CarbonImmutable $today,
     ): string {
-        if ($report && in_array($report->status, [WeeklyReport::STATUS_SUBMITTED, WeeklyReport::STATUS_APPROVED], true)) {
+        if ($report && in_array($report->status, [WeeklyReport::STATUS_SUBMITTED, WeeklyReport::STATUS_APPROVED, WeeklyReport::STATUS_REJECTED], true)) {
             $submittedDate = $report->submitted_at
                 ? CarbonImmutable::instance($report->submitted_at)->startOfDay()
                 : CarbonImmutable::instance($report->report_date)->startOfDay();
@@ -500,9 +624,10 @@ class WeeklyReportsService extends BaseService
         }
 
         return match ($row['progressStatus']) {
-            WeeklyReport::STATUS_DRAFT => 2,
-            WeeklyReport::STATUS_SUBMITTED => 3,
-            WeeklyReport::STATUS_APPROVED => 4,
+            WeeklyReport::STATUS_REJECTED => 2,
+            WeeklyReport::STATUS_DRAFT => 3,
+            WeeklyReport::STATUS_SUBMITTED => 4,
+            WeeklyReport::STATUS_APPROVED => 5,
             default => 5,
         };
     }
@@ -516,6 +641,15 @@ class WeeklyReportsService extends BaseService
         }
     }
 
+    private function assertStatusIn(WeeklyReport $report, array $allowedStatuses, string $message): void
+    {
+        if (! in_array($report->status, $allowedStatuses, true)) {
+            throw ValidationException::withMessages([
+                'status' => [$message],
+            ]);
+        }
+    }
+
     private function syncItems(WeeklyReport $report, array $items): void
     {
         $report->items()->delete();
@@ -523,6 +657,28 @@ class WeeklyReportsService extends BaseService
         foreach ($items as $item) {
             $report->items()->create($this->normalizeItemKeys($item));
         }
+    }
+
+    private function findMessageInReport(WeeklyReport $report, string $messageId): WeeklyReportItem
+    {
+        /** @var WeeklyReportItem|null $message */
+        $message = $report->items()->whereKey($messageId)->first();
+
+        if (! $message) {
+            throw ValidationException::withMessages([
+                'message' => ['Tin nhắn không tồn tại trong báo cáo này.'],
+            ]);
+        }
+
+        return $message;
+    }
+
+    private function freshReportResource(WeeklyReport $report): array
+    {
+        return $this->apiResource(
+            $report->fresh()->load(['project', 'customer', 'reporter', 'approver', 'rejecter', 'items.assignee', 'items.createdBy:id,code,name', 'attachments.uploadedBy']),
+            WeeklyReportResource::class,
+        );
     }
 
     private function normalizeItemKeys(array $item): array
@@ -539,6 +695,9 @@ class WeeklyReportsService extends BaseService
                 unset($item[$from]);
             }
         }
+
+        $item['item_type'] = $item['item_type'] ?? 'message';
+        $item['status'] = $item['status'] ?? 'open';
 
         return $item;
     }

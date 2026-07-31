@@ -1,8 +1,9 @@
 'use client';
 
+import { useState } from 'react';
 import { useParams } from 'next/navigation';
+import BlockRoundedIcon from '@mui/icons-material/BlockRounded';
 import CheckCircleOutlineRoundedIcon from '@mui/icons-material/CheckCircleOutlineRounded';
-import ReplayRoundedIcon from '@mui/icons-material/ReplayRounded';
 import SendRoundedIcon from '@mui/icons-material/SendRounded';
 import { Alert } from '@mui/material';
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
@@ -10,8 +11,8 @@ import { PrimaryActionButton } from '@/components/actions/primary-action-button'
 import { useAppNotification } from '@/components/feedback/notification-provider';
 import { ContentLoading } from '@/components/shell/content-loading';
 import { WeeklyReportForm } from '@/features/weekly-reports/components/weekly-report-form';
+import { WeeklyReportRejectDialog } from '@/features/weekly-reports/components/weekly-report-reject-dialog';
 import { getApiErrorMessage } from '@/lib/api-error';
-import { useAuthStore } from '@/stores/auth-store';
 import api from '@/services/api/client';
 import type { ProjectItem } from '@/types/project';
 import type { WeeklyReport } from '@/types/weekly-report';
@@ -20,6 +21,7 @@ const STATUS_LABELS: Record<string, string> = {
   draft: 'Nháp',
   submitted: 'Chờ duyệt',
   approved: 'Đã duyệt',
+  rejected: 'Đã từ chối',
 };
 
 export default function EditWeeklyReportPage() {
@@ -27,8 +29,7 @@ export default function EditWeeklyReportPage() {
   const id = params.id as string;
   const queryClient = useQueryClient();
   const notify = useAppNotification();
-  const currentUser = useAuthStore((state) => state.user);
-  const canApprove = currentUser?.role === 'ADMIN' || currentUser?.role === 'LEADER';
+  const [rejectDialogOpen, setRejectDialogOpen] = useState(false);
 
   const { data: report, isLoading: isReportLoading } = useQuery<WeeklyReport>({
     queryKey: ['weekly-reports', id],
@@ -73,15 +74,15 @@ export default function EditWeeklyReportPage() {
     onError: (error) => notify.error(getApiErrorMessage(error, 'Duyệt báo cáo thất bại')),
   });
 
-  const returnMutation = useMutation({
-    mutationFn: () =>
-      api.post<WeeklyReport>(`/weekly-reports/${id}/return-to-draft`).then((r) => r.data),
+  const rejectMutation = useMutation({
+    mutationFn: ({ reason }: { reason: string }) =>
+      api.post<WeeklyReport>(`/weekly-reports/${id}/reject`, { reason }).then((r) => r.data),
     onSuccess: (updatedReport) => {
       queryClient.setQueryData(['weekly-reports', id], updatedReport);
       queryClient.invalidateQueries({ queryKey: ['weekly-reports'] });
-      notify.success('Đã trả báo cáo về nháp');
+      notify.success('Đã từ chối báo cáo tuần');
     },
-    onError: (error) => notify.error(getApiErrorMessage(error, 'Trả báo cáo về nháp thất bại')),
+    onError: (error) => notify.error(getApiErrorMessage(error, 'Từ chối báo cáo thất bại')),
   });
 
   if (isReportLoading || (report?.projectId && isProjectLoading)) {
@@ -97,48 +98,57 @@ export default function EditWeeklyReportPage() {
   }
 
   return (
-    <WeeklyReportForm
-      mode="edit"
-      report={report}
-      projects={project ? [project] : []}
-      isSubmitting={updateMutation.isPending}
-      onSubmit={(payload) => updateMutation.mutateAsync(payload)}
-      headerActions={
-        <div className="flex flex-wrap items-center gap-2">
-          <span className="inline-flex h-10 items-center rounded-lg border border-slate-200 bg-white px-3 text-xs font-bold text-slate-700">
-            {STATUS_LABELS[report.status] || report.status}
-          </span>
-          {report.status === 'draft' && (
-            <PrimaryActionButton
-              tone="secondary"
-              startIcon={<SendRoundedIcon />}
-              disabled={submitMutation.isPending}
-              onClick={() => submitMutation.mutate()}
-            >
-              {submitMutation.isPending ? 'Đang gửi...' : 'Gửi duyệt'}
-            </PrimaryActionButton>
-          )}
-          {report.status === 'submitted' && canApprove && (
-            <>
+    <>
+      <WeeklyReportForm
+        mode="edit"
+        report={report}
+        projects={project ? [project] : []}
+        isSubmitting={updateMutation.isPending}
+        onSubmit={(payload) => updateMutation.mutateAsync(payload)}
+        headerActions={
+          <div className="flex flex-wrap items-center gap-2">
+            <span className="inline-flex h-10 items-center rounded-lg border border-slate-200 bg-white px-3 text-xs font-bold text-slate-700">
+              {STATUS_LABELS[report.status] || report.status}
+            </span>
+            {['draft', 'rejected'].includes(report.status) && (
               <PrimaryActionButton
                 tone="secondary"
-                startIcon={<ReplayRoundedIcon />}
-                disabled={returnMutation.isPending}
-                onClick={() => returnMutation.mutate()}
+                startIcon={<SendRoundedIcon />}
+                disabled={submitMutation.isPending}
+                onClick={() => submitMutation.mutate()}
               >
-                {returnMutation.isPending ? 'Đang trả về...' : 'Trả về nháp'}
+                {submitMutation.isPending ? 'Đang gửi...' : 'Gửi duyệt'}
               </PrimaryActionButton>
-              <PrimaryActionButton
-                startIcon={<CheckCircleOutlineRoundedIcon />}
-                disabled={approveMutation.isPending}
-                onClick={() => approveMutation.mutate()}
-              >
-                {approveMutation.isPending ? 'Đang duyệt...' : 'Duyệt báo cáo'}
-              </PrimaryActionButton>
-            </>
-          )}
-        </div>
-      }
-    />
+            )}
+            {report.status === 'submitted' && report.canApprove && (
+              <>
+                <PrimaryActionButton
+                  tone="secondary"
+                  startIcon={<BlockRoundedIcon />}
+                  disabled={rejectMutation.isPending}
+                  onClick={() => setRejectDialogOpen(true)}
+                >
+                  Từ chối
+                </PrimaryActionButton>
+                <PrimaryActionButton
+                  startIcon={<CheckCircleOutlineRoundedIcon />}
+                  disabled={approveMutation.isPending}
+                  onClick={() => approveMutation.mutate()}
+                >
+                  {approveMutation.isPending ? 'Đang duyệt...' : 'Duyệt báo cáo'}
+                </PrimaryActionButton>
+              </>
+            )}
+          </div>
+        }
+      />
+
+      <WeeklyReportRejectDialog
+        report={rejectDialogOpen ? report : null}
+        loading={rejectMutation.isPending}
+        onClose={() => setRejectDialogOpen(false)}
+        onReject={(_report, reason) => rejectMutation.mutateAsync({ reason })}
+      />
+    </>
   );
 }

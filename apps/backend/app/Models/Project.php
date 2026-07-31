@@ -121,8 +121,23 @@ class Project extends BaseModel
         return $this->hasMany(WeeklyReport::class);
     }
 
+    public function requiresWeeklyReport(): bool
+    {
+        if (! ($this->statusOption?->requiresWeeklyReport() ?? true)) {
+            return false;
+        }
+
+        $setting = $this->relationLoaded('weeklySetting')
+            ? $this->weeklySetting
+            : $this->weeklySetting()->first();
+
+        return $setting
+            && $setting->is_active
+            && in_array((int) $setting->report_weekday, [1, 2, 3, 4, 5], true);
+    }
+
     public function timelines(): HasMany
     {
-        return $this->hasMany(CustomerTimeline::class);
+        return $this->hasMany(CustomerTimeline::class)->orderByDesc('created_at');
     }
 }

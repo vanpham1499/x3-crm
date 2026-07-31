@@ -78,23 +78,7 @@ const INVOICE_LABELS: Record<string, string> = {
 
 const RECONCILIATION_RESULT_OPTIONS: { value: ProjectCostReconciliationResult; label: string }[] = [
   { value: 'matched', label: 'Khớp chuẩn' },
-  { value: 'matched_with_note', label: 'Khớp có lưu ý' },
-  { value: 'difference', label: 'Có chênh lệch' },
-  { value: 'pending_documents', label: 'Chờ chứng từ' },
-  { value: 'cancelled', label: 'Hủy giao dịch' },
-];
-
-const INVOICE_STATUS_OPTIONS = [
-  { value: 'pending', label: 'Chưa có hóa đơn' },
-  { value: 'waiting', label: 'Đang chờ hóa đơn' },
-  { value: 'received', label: 'Đã nhận hóa đơn' },
-  { value: 'not_required', label: 'Không cần hóa đơn' },
-];
-
-const INVOICE_RECIPIENT_OPTIONS = [
-  { value: 'customer', label: 'Theo khách hàng' },
-  { value: 'company', label: 'Công ty X3Sales' },
-  { value: 'other', label: 'Chủ thể khác' },
+  { value: 'unmatched', label: 'Chưa khớp' },
 ];
 
 const ADJUSTMENT_TYPE_OPTIONS: { value: ProjectCostAdjustmentType; label: string }[] = [
@@ -202,12 +186,8 @@ function moneyValue(value: string | number | null | undefined) {
   return Number(value) || 0;
 }
 
-function reconciliationResultLabel(value?: string | null) {
-  return RECONCILIATION_RESULT_OPTIONS.find((option) => option.value === value)?.label || '-';
-}
-
-function invoiceStatusLabel(value?: string | null) {
-  return INVOICE_STATUS_OPTIONS.find((option) => option.value === value)?.label || '-';
+function reconciliationResultLabel(cost: ProjectCost) {
+  return cost.reconciledAt ? 'Khớp chuẩn' : 'Chưa khớp';
 }
 
 function releasedBalanceAmount(cost: ProjectCost) {
@@ -321,11 +301,7 @@ function CostDetailDialog({
               }
             />
             <DetailRow label="Số hóa đơn" value={cost.invoiceNumber} />
-            <DetailRow
-              label="Kết quả đối soát"
-              value={reconciliationResultLabel(cost.reconciliationResult)}
-            />
-            <DetailRow label="Hóa đơn" value={invoiceStatusLabel(cost.invoiceStatus)} />
+            <DetailRow label="Kết quả đối soát" value={reconciliationResultLabel(cost)} />
             {isAdSpend ? (
               <>
                 <DetailRow label="Mã CID" value={cost.cid} />
@@ -529,18 +505,10 @@ function CostReconciliationDialog({
   onSubmit: (payload: ProjectCostReconciliationInput) => Promise<ProjectCost>;
 }) {
   const [result, setResult] = useState<ProjectCostReconciliationResult>(
-    cost?.reconciliationResult || 'matched',
+    cost?.reconciledAt ? 'matched' : 'unmatched',
   );
-  const [invoiceStatus, setInvoiceStatus] = useState(cost?.invoiceStatus || 'pending');
   const [invoiceNumber, setInvoiceNumber] = useState(cost?.invoiceNumber || '');
-  const [invoiceRecipientType, setInvoiceRecipientType] = useState(
-    cost?.invoiceRecipientType || 'customer',
-  );
-  const [invoiceRecipientName, setInvoiceRecipientName] = useState(
-    cost?.invoiceRecipientName || '',
-  );
   const [note, setNote] = useState(cost?.reconciliationNote || '');
-  const [errors, setErrors] = useState<Record<string, string>>({});
 
   if (!cost) return null;
 
@@ -549,30 +517,13 @@ function CostReconciliationDialog({
     ? moneyValue(cost.cidSpentAmount)
     : moneyValue(cost.actualCostAmount ?? cost.totalAmount);
   const originalBalanceAmount = moneyValue(cost.originalBalanceAmount);
-  const isFinalResult = ['matched', 'matched_with_note', 'difference'].includes(result);
-  const autoReleasedAmount = isFinalResult ? originalBalanceAmount : 0;
+  const isMatched = result === 'matched';
+  const autoReleasedAmount = isMatched ? originalBalanceAmount : 0;
 
   const submit = () => {
-    const nextErrors: Record<string, string> = {};
-
-    if (invoiceStatus === 'received' && !invoiceNumber.trim()) {
-      nextErrors.invoiceNumber = 'Vui lòng nhập số hóa đơn';
-    }
-
-    if (invoiceRecipientType === 'other' && !invoiceRecipientName.trim()) {
-      nextErrors.invoiceRecipientName = 'Vui lòng nhập chủ thể nhận hóa đơn';
-    }
-
-    setErrors(nextErrors);
-    if (Object.keys(nextErrors).length > 0) return;
-
     void onSubmit({
       reconciliationResult: result,
-      invoiceStatus: invoiceStatus as ProjectCostReconciliationInput['invoiceStatus'],
       invoiceNumber: invoiceNumber.trim() || null,
-      invoiceRecipientType:
-        invoiceRecipientType as ProjectCostReconciliationInput['invoiceRecipientType'],
-      invoiceRecipientName: invoiceRecipientName.trim() || null,
       reconciliationNote: note.trim() || null,
       adjustments: cost.adjustments || [],
     })
@@ -641,9 +592,9 @@ function CostReconciliationDialog({
               CID ngừng hoạt động · Đã chạy {formatCurrency(cost.cidSpentAmount)}
             </div>
             <p className="mt-1 pl-[26px] text-xs font-semibold leading-5 text-slate-600">
-              {isFinalResult
+              {isMatched
                 ? `${formatCurrency(originalBalanceAmount)} còn dư sẽ tự cộng lại vào Số tiền có thể nạp của dự án ngay khi lưu đối soát.`
-                : 'Hạn mức còn dư chỉ được hoàn lại sau khi chọn một kết quả đối soát hoàn tất.'}
+                : 'Hạn mức còn dư chỉ được hoàn lại sau khi khoản chi được xác nhận Khớp chuẩn.'}
             </p>
           </div>
         ) : null}
@@ -660,55 +611,14 @@ function CostReconciliationDialog({
               </MenuItem>
             ))}
           </FormSelectField>
-          <FormSelectField
-            label="Trạng thái hóa đơn"
-            value={invoiceStatus}
-            onChange={(event) =>
-              setInvoiceStatus(
-                event.target.value as ProjectCostReconciliationInput['invoiceStatus'],
-              )
-            }
-          >
-            {INVOICE_STATUS_OPTIONS.map((option) => (
-              <MenuItem key={option.value} value={option.value}>
-                {option.label}
-              </MenuItem>
-            ))}
-          </FormSelectField>
           <FormInputField
             label="Số hóa đơn"
             value={invoiceNumber}
-            error={Boolean(errors.invoiceNumber)}
-            helperText={errors.invoiceNumber}
             onChange={(event) => setInvoiceNumber(event.target.value)}
           />
-          <FormSelectField
-            label="Chủ thể nhận hóa đơn"
-            value={invoiceRecipientType}
-            onChange={(event) =>
-              setInvoiceRecipientType(
-                event.target.value as ProjectCostReconciliationInput['invoiceRecipientType'],
-              )
-            }
-          >
-            {INVOICE_RECIPIENT_OPTIONS.map((option) => (
-              <MenuItem key={option.value} value={option.value}>
-                {option.label}
-              </MenuItem>
-            ))}
-          </FormSelectField>
-          {invoiceRecipientType === 'other' ? (
-            <FormInputField
-              label="Tên chủ thể"
-              value={invoiceRecipientName}
-              error={Boolean(errors.invoiceRecipientName)}
-              helperText={errors.invoiceRecipientName}
-              onChange={(event) => setInvoiceRecipientName(event.target.value)}
-            />
-          ) : null}
           <FormInputField
             label="Ghi chú đối soát"
-            className={invoiceRecipientType === 'other' ? '' : 'md:col-span-2'}
+            className="md:col-span-2"
             value={note}
             onChange={(event) => setNote(event.target.value)}
           />
@@ -847,7 +757,7 @@ export function CostManager({
             { key: 'date', label: 'Ngày chi', className: 'w-32' },
             { key: 'type', label: 'Loại chi phí', className: 'w-40' },
             { key: 'amount', label: 'Chi phí', className: 'w-52 text-right' },
-            { key: 'detail', label: 'Chi tiết', className: 'w-72' },
+            { key: 'detail', label: 'Chi tiết', className: 'w-80' },
             { key: 'project', label: 'Dự án', className: 'w-56' },
             { key: 'processing', label: 'Xử lý', className: 'w-40 text-center' },
             { key: 'actions', className: 'w-20' },
@@ -909,12 +819,30 @@ export function CostManager({
                     </div>
                   </td>
                   <td className="px-3 py-3.5">
-                    <p
-                      className="truncate whitespace-nowrap text-sm font-semibold text-slate-700"
-                      title={costSummary(cost)}
-                    >
-                      {costSummary(cost) || '-'}
-                    </p>
+                    <div className="min-w-0">
+                      <p
+                        className="truncate whitespace-nowrap text-sm font-semibold text-slate-700"
+                        title={costSummary(cost)}
+                      >
+                        {costSummary(cost) || '-'}
+                      </p>
+                      {cost.invoiceNumber ? (
+                        <p
+                          className="mt-1 truncate text-xs font-semibold text-blue-700"
+                          title={`Số hóa đơn: ${cost.invoiceNumber}`}
+                        >
+                          Hóa đơn: {cost.invoiceNumber}
+                        </p>
+                      ) : null}
+                      {cost.reconciliationNote ? (
+                        <p
+                          className="mt-0.5 truncate text-xs font-medium text-slate-500"
+                          title={cost.reconciliationNote}
+                        >
+                          Ghi chú đối soát: {cost.reconciliationNote}
+                        </p>
+                      ) : null}
+                    </div>
                   </td>
                   {isFirstRow ? (
                     <td
@@ -955,6 +883,17 @@ export function CostManager({
                         <WarningAmberRoundedIcon className="!text-[15px]" />
                         CID chờ xác nhận
                       </span>
+                    ) : cost.reconciledAt && cost.canApprove ? (
+                      <button
+                        type="button"
+                        disabled={isReconciling}
+                        className="inline-flex items-center gap-1 whitespace-nowrap rounded-md bg-emerald-50 px-2 py-1 text-xs font-bold text-emerald-700 ring-1 ring-emerald-200 transition hover:bg-emerald-100 disabled:cursor-not-allowed disabled:opacity-50"
+                        title="Mở lại để chỉnh sửa kết quả đối soát"
+                        onClick={() => openReconcileDialog(cost)}
+                      >
+                        <CheckCircleRoundedIcon className="!text-[16px]" />
+                        Đã khớp
+                      </button>
                     ) : cost.reconciledAt ? (
                       <span
                         className="inline-flex items-center gap-1 whitespace-nowrap rounded-md bg-emerald-50 px-2 py-1 text-xs font-bold text-emerald-700 ring-1 ring-emerald-200"
@@ -977,12 +916,12 @@ export function CostManager({
                         onClick={() => openReconcileDialog(cost)}
                       >
                         <CheckCircleOutlineRoundedIcon className="!text-[16px]" />
-                        Chờ đối soát
+                        Chưa khớp
                       </button>
                     ) : (
                       <span className="inline-flex items-center gap-1 whitespace-nowrap rounded-md bg-slate-50 px-2 py-1 text-xs font-bold text-slate-600 ring-1 ring-slate-200">
                         <CheckCircleOutlineRoundedIcon className="!text-[16px]" />
-                        Chờ đối soát
+                        Chưa khớp
                       </span>
                     )}
                   </td>
@@ -1046,6 +985,17 @@ export function CostManager({
               >
                 <CheckCircleRoundedIcon fontSize="small" className="mr-2" />
                 Xác nhận CID ngừng
+              </MenuItem>
+            ) : null}
+            {activeCost.canApprove && activeCost.status !== 'cancelled' ? (
+              <MenuItem
+                onClick={() => {
+                  openReconcileDialog(activeCost);
+                  closeActionMenu();
+                }}
+              >
+                <CheckCircleOutlineRoundedIcon fontSize="small" className="mr-2 text-emerald-600" />
+                {activeCost.reconciledAt ? 'Chỉnh sửa đối soát' : 'Đối soát khoản chi'}
               </MenuItem>
             ) : null}
             <MenuItem

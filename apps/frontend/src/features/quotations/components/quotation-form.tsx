@@ -439,6 +439,7 @@ export function QuotationForm({
 
   return (
     <form
+      noValidate
       className="flex min-h-[calc(100vh-72px)] flex-col bg-slate-50/60 px-6 pt-6"
       onSubmit={(event) => {
         event.preventDefault();

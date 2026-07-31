@@ -31,7 +31,7 @@ class ProjectWeeklySettingsController extends Controller
     {
         $data = $request->validate([
             'report_owner_user_id' => ['required', 'integer', Rule::exists('users', 'id')->whereNull('deleted_at')],
-            'report_weekday' => ['required', 'integer', 'min:1', 'max:7'],
+            'report_weekday' => ['required', 'integer', Rule::in([1, 2, 3, 4, 5])],
             'exclude_project_id' => ['nullable', 'integer', Rule::exists('projects', 'id')->whereNull('deleted_at')],
         ]);
 

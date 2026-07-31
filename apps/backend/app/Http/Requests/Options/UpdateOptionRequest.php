@@ -24,6 +24,16 @@ class UpdateOptionRequest extends BaseRequest
             'value' => ['sometimes', 'nullable', 'string', 'max:255'],
             'label' => ['sometimes', 'string', 'max:255'],
             'meta' => ['sometimes', 'nullable', 'array'],
+            'meta.color' => ['nullable', 'string', 'regex:/^#[0-9a-fA-F]{6}$/'],
+            'meta.requiresWeeklyReport' => ['nullable', 'boolean'],
+            'meta.serviceRootIds' => ['nullable', 'array', 'min:2'],
+            'meta.serviceRootIds.*' => [
+                'integer',
+                'distinct',
+                Rule::exists('services', 'id')->where(fn ($query) => $query
+                    ->whereNull('parent_id')
+                    ->whereNull('deleted_at')),
+            ],
             'sort_order' => ['sometimes', 'nullable', 'integer'],
             'sortOrder' => ['sometimes', 'nullable', 'integer'],
             'is_active' => ['sometimes', 'nullable', 'boolean'],
