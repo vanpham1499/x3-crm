@@ -549,8 +549,31 @@ class DashboardService extends BaseService
                     'otherProjectCount' => (int) $statusCounts->get('other', 0),
                 ]);
             })
+            ->filter(fn (array $employee): bool => $this->employeeHasDashboardData($employee))
             ->values()
             ->all();
+    }
+
+    private function employeeHasDashboardData(array $employee): bool
+    {
+        if ((int) ($employee['projectCount'] ?? 0) > 0) {
+            return true;
+        }
+
+        foreach ([
+            'targetAmount',
+            'implementationReceivedAmount',
+            'implementationCostAmount',
+            'implementationRefundAmount',
+            'acquisitionCreditAmount',
+            'acquisitionRefundAmount',
+        ] as $field) {
+            if (abs((float) ($employee[$field] ?? 0)) >= self::MONEY_EPSILON) {
+                return true;
+            }
+        }
+
+        return false;
     }
 
     private function projectHealthBucket(?string $key, ?string $label): string

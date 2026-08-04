@@ -1508,6 +1508,11 @@ giữ ở cấp user:
 - Kế hoạch tháng lưu với `scope_type=employee`, `scope_id=users.id`; `Hoàn thành` lấy tổng lợi nhuận
   trước VAT của nhân sự chia cho kế hoạch riêng này;
 - bảng nhân sự giữ các số nguồn có VAT để đối soát và hiển thị riêng lợi nhuận trước VAT của từng nhánh.
+- User đang hoạt động vẫn xuất hiện ở KPI kể cả chưa có số để Admin có thể nhập kế hoạch. User đã
+  ngừng hoạt động hoặc bị xóa mềm chỉ xuất hiện ở đúng kỳ còn `Kế hoạch`, `Đã thu`, `Chi phí`,
+  `Hoàn tiền` hoặc ghi nhận nhánh phụ trách khách hàng khác `0`; dòng lịch sử hoàn toàn bằng `0` bị
+  loại khỏi response. Việc lấy user bằng `withTrashed()` vẫn được giữ để số liệu quá khứ không mất
+  người nhận.
 
 #### Hoàn tiền sang tháng sau
 
@@ -1668,6 +1673,9 @@ API `GET /api/dashboard?period_from=YYYY-MM&period_to=YYYY-MM` yêu cầu `dashb
   theo scope; Dashboard admin vẫn nhận toàn bộ tập dữ liệu như trước;
 - scope cá nhân dùng kế hoạch `employee` của chính user để tính Kế hoạch/Hoàn thành, không dùng kế
   hoạch tổng của phòng ban;
+- danh sách kết quả nhân sự trên Dashboard chỉ giữ dòng có kế hoạch/phát sinh tài chính hoặc có dự án
+  đang được tổng hợp. Vì vậy user đang hoạt động nhưng hoàn toàn chưa có dữ liệu cũng không làm dài
+  Dashboard; user ngừng hoạt động/xóa mềm chỉ còn hiển thị khi cần đối soát số liệu lịch sử;
   mỗi điểm `trend` có số phát sinh và số lũy kế của Báo phí, Đã thu, Hoàn tiền, Thu ròng;
 - `profitTrend` chỉ trả cho scope phòng ban/cá nhân, gồm lợi nhuận trước VAT phát sinh và lũy kế của
   kỳ đang xem/kỳ trước; scope toàn hệ thống trả `null` vì admin tiếp tục dùng biểu đồ hiện tại;

@@ -953,7 +953,10 @@ class KpiService extends BaseService
             ->map(function (array $period) use ($scope): array {
                 $services = collect($period['services']);
                 $departments = collect($period['departments']);
-                $employees = collect($period['employees']);
+                $employees = collect($period['employees'])
+                    ->filter(fn (array $employee): bool => (bool) ($employee['isActive'] ?? false)
+                        || $this->employeeHasKpiData($employee))
+                    ->values();
 
                 if ($scope['level'] === 'department') {
                     $services = collect();
@@ -983,5 +986,23 @@ class KpiService extends BaseService
                 return $period;
             })
             ->values();
+    }
+
+    private function employeeHasKpiData(array $employee): bool
+    {
+        foreach ([
+            'targetAmount',
+            'implementationReceivedAmount',
+            'implementationCostAmount',
+            'implementationRefundAmount',
+            'acquisitionCreditAmount',
+            'acquisitionRefundAmount',
+        ] as $field) {
+            if (abs((float) ($employee[$field] ?? 0)) >= self::MONEY_EPSILON) {
+                return true;
+            }
+        }
+
+        return false;
     }
 }
