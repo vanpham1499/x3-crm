@@ -161,7 +161,9 @@ class DatabaseSeeder extends Seeder
             ['module' => 'p2point', 'code' => 'p2point.approve_department', 'name' => 'Duyệt điểm P2 trong phòng ban'],
             ['module' => 'p2point', 'code' => 'p2point.approve_all', 'name' => 'Duyệt mọi điểm P2'],
 
-            ['module' => 'kpi', 'code' => 'kpi.view', 'name' => 'Xem KPI'],
+            ['module' => 'kpi', 'code' => 'kpi.view', 'name' => 'Xem KPI của mình'],
+            ['module' => 'kpi', 'code' => 'kpi.view_department', 'name' => 'Xem KPI trong phòng ban'],
+            ['module' => 'kpi', 'code' => 'kpi.view_all', 'name' => 'Xem toàn bộ KPI'],
             ['module' => 'kpi', 'code' => 'kpi.manage', 'name' => 'Quản lý kế hoạch KPI'],
 
             ['module' => 'payment', 'code' => 'payment.manage', 'name' => 'Đối soát / chốt thanh toán'],
@@ -216,6 +218,7 @@ class DatabaseSeeder extends Seeder
                 'meeting.view_department', 'meeting.update_department', 'meeting.delete_department',
                 'weeklyreport.view_department', 'weeklyreport.update_department', 'weeklyreport.delete_department', 'weeklyreport.approve_department',
                 'p2point.view_department', 'p2point.create_department', 'p2point.update_department', 'p2point.delete_department', 'p2point.approve_department',
+                'kpi.view_department',
                 'media.view_department', 'media.update_department', 'media.delete_department',
                 'user.view', 'department.view',
             ]),

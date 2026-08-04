@@ -1,11 +1,13 @@
 'use client';
 
-import { useState } from 'react';
+import { type ReactElement, useState } from 'react';
 import AccountBalanceWalletOutlinedIcon from '@mui/icons-material/AccountBalanceWalletOutlined';
 import CorporateFareRoundedIcon from '@mui/icons-material/CorporateFareRounded';
 import DonutLargeRoundedIcon from '@mui/icons-material/DonutLargeRounded';
 import EditRoundedIcon from '@mui/icons-material/EditRounded';
 import FlagOutlinedIcon from '@mui/icons-material/FlagOutlined';
+import PeopleAltRoundedIcon from '@mui/icons-material/PeopleAltRounded';
+import PersonRoundedIcon from '@mui/icons-material/PersonRounded';
 import RemoveRoundedIcon from '@mui/icons-material/RemoveRounded';
 import RoomServiceRoundedIcon from '@mui/icons-material/RoomServiceRounded';
 import TrendingDownRoundedIcon from '@mui/icons-material/TrendingDownRounded';
@@ -28,6 +30,7 @@ import { applyApiErrorsToForm } from '@/lib/api-error';
 import { formatCurrency } from '@/lib/utils';
 import type {
   DepartmentKpiRow,
+  EmployeeKpiRow,
   KpiMonthlyReport,
   KpiPeriodFilters,
   KpiReport,
@@ -36,7 +39,8 @@ import type {
   ServiceKpiRow,
 } from '@/types/kpi';
 
-type KpiRow = ServiceKpiRow | DepartmentKpiRow;
+type KpiRow = ServiceKpiRow | DepartmentKpiRow | EmployeeKpiRow;
+type KpiTabScope = 'services' | 'departments' | 'employees';
 type TargetDialogState = { row: KpiRow; period: string };
 
 type KpiManagerProps = {
@@ -71,7 +75,7 @@ function amountTone(value: number) {
 
 function aggregateSummary(
   periods: KpiMonthlyReport[],
-  scope: 'services' | 'departments',
+  scope: KpiTabScope,
 ): KpiSummary {
   const targetAmount = periods.reduce((sum, period) => sum + period.summary[scope].targetAmount, 0);
   const actualAmount = periods.reduce((sum, period) => sum + period.summary[scope].actualAmount, 0);
@@ -309,7 +313,7 @@ function ComparisonTable({
   isFetching,
 }: {
   periods: KpiMonthlyReport[];
-  scope: 'services' | 'departments';
+  scope: KpiTabScope;
   isFetching: boolean;
 }) {
   if (periods.length < 2) return null;
@@ -506,6 +510,16 @@ function DepartmentProfitBreakdown({
   profit: number;
   items: Array<{ label: string; value: number }>;
 }) {
+  const visibleItems = items.filter((item) => Math.abs(item.value) >= 0.01);
+
+  if (Math.abs(profit) < 0.01 && visibleItems.length === 0) {
+    return (
+      <span className="text-sm font-semibold text-slate-300" aria-label="Không phát sinh">
+        —
+      </span>
+    );
+  }
+
   return (
     <div className="ml-auto w-full max-w-[320px]">
       <div className="flex items-baseline justify-between gap-4">
@@ -516,21 +530,23 @@ function DepartmentProfitBreakdown({
           {formatCurrency(profit)}
         </strong>
       </div>
-      <div className="mt-2 border-t border-slate-200 pt-2">
-        <p className="mb-1 text-[10px] font-bold uppercase tracking-wide text-slate-400">
-          Số đối soát có VAT
-        </p>
-        <dl className="space-y-1">
-          {items.map((item) => (
-            <div key={item.label} className="flex items-baseline justify-between gap-4 text-xs">
-              <dt className="font-medium text-slate-500">{item.label}</dt>
-              <dd className="whitespace-nowrap font-semibold tabular-nums text-slate-700">
-                {formatCurrency(item.value)}
-              </dd>
-            </div>
-          ))}
-        </dl>
-      </div>
+      {visibleItems.length > 0 && (
+        <div className="mt-2 border-t border-slate-200 pt-2">
+          <p className="mb-1 text-[10px] font-bold uppercase tracking-wide text-slate-400">
+            Số đối soát có VAT
+          </p>
+          <dl className="space-y-1">
+            {visibleItems.map((item) => (
+              <div key={item.label} className="flex items-baseline justify-between gap-4 text-xs">
+                <dt className="font-medium text-slate-500">{item.label}</dt>
+                <dd className="whitespace-nowrap font-semibold tabular-nums text-slate-700">
+                  {formatCurrency(item.value)}
+                </dd>
+              </div>
+            ))}
+          </dl>
+        </div>
+      )}
     </div>
   );
 }
@@ -637,6 +653,111 @@ function DepartmentMonthTable({
   );
 }
 
+function EmployeeMonthTable({
+  report,
+  canManage,
+  isFetching,
+  onEdit,
+}: {
+  report: KpiMonthlyReport;
+  canManage: boolean;
+  isFetching: boolean;
+  onEdit: (state: TargetDialogState) => void;
+}) {
+  return (
+    <AppDataTable
+      columns={[
+        { key: 'employee', label: 'Nhân sự', className: 'w-[240px]' },
+        { key: 'target', label: 'Kế hoạch', className: 'w-[165px] text-right' },
+        {
+          key: 'implementation',
+          label: 'Nhánh triển khai',
+          className: 'w-[330px] text-right',
+        },
+        {
+          key: 'acquisition',
+          label: 'Nhánh phụ trách khách hàng',
+          className: 'w-[320px] text-right',
+        },
+        {
+          key: 'actual',
+          label: 'Tổng lợi nhuận trước VAT',
+          className: 'w-[175px] text-right',
+        },
+        { key: 'completion', label: 'Hoàn thành', className: 'w-[165px] text-right' },
+        { key: 'actions', className: 'w-[56px]' },
+      ]}
+      isLoading={isFetching}
+      isEmpty={report.employees.length === 0}
+      emptyText="Chưa có nhân sự trong phạm vi được cấp quyền"
+      minWidthClassName="min-w-[1490px]"
+    >
+      {report.employees.map((row) => (
+        <tr key={row.id} className="hover:bg-slate-50/80">
+          <td className="px-3 py-4">
+            <span className="flex min-w-0 items-center gap-2.5">
+              <span className="grid size-9 shrink-0 place-items-center rounded-xl bg-primary/10 text-primary">
+                <PersonRoundedIcon className="!text-[20px]" />
+              </span>
+              <span className="min-w-0">
+                <span className="block truncate font-bold text-slate-950" title={row.name}>
+                  {row.name}{row.isActive ? '' : ' (Ngừng hoạt động)'}
+                </span>
+                <span className="block truncate text-xs font-semibold text-slate-500">
+                  {[row.code, row.departmentName].filter(Boolean).join(' · ') || 'Chưa có phòng ban'}
+                </span>
+              </span>
+            </span>
+          </td>
+          <td className="whitespace-nowrap px-3 py-4 text-right font-bold tabular-nums text-slate-800">
+            {formatCurrency(row.targetAmount)}
+          </td>
+          <td className="px-3 py-4 text-right">
+            <DepartmentProfitBreakdown
+              profit={row.implementationAmount}
+              items={[
+                { label: 'Đã thu', value: row.implementationReceivedAmount },
+                { label: 'Chi phí thực tế', value: row.implementationCostAmount },
+                { label: 'Hoàn tiền', value: row.implementationRefundAmount },
+              ]}
+            />
+          </td>
+          <td className="px-3 py-4 text-right">
+            <DepartmentProfitBreakdown
+              profit={row.acquisitionAmount}
+              items={[
+                { label: 'Báo phí ghi nhận', value: row.acquisitionCreditAmount },
+                { label: 'Hoàn tiền', value: row.acquisitionRefundAmount },
+              ]}
+            />
+          </td>
+          <td
+            className={`whitespace-nowrap px-3 py-4 text-right font-extrabold tabular-nums ${amountTone(row.actualAmount)}`}
+          >
+            {formatCurrency(row.actualAmount)}
+          </td>
+          <td className="px-3 py-4">
+            <CompletionCell value={row.completionRate} />
+          </td>
+          <td className="px-3 py-4 text-right">
+            {canManage && (
+              <Tooltip title="Cập nhật kế hoạch">
+                <IconButton
+                  size="small"
+                  aria-label={`Cập nhật kế hoạch KPI cho ${row.name} ${formatMonthLabel(report.period)}`}
+                  onClick={() => onEdit({ row, period: report.period })}
+                >
+                  <EditRoundedIcon fontSize="small" />
+                </IconButton>
+              </Tooltip>
+            )}
+          </td>
+        </tr>
+      ))}
+    </AppDataTable>
+  );
+}
+
 export function KpiManager({
   report,
   filters,
@@ -648,10 +769,50 @@ export function KpiManager({
 }: KpiManagerProps) {
   const [activeTab, setActiveTab] = useState(0);
   const [targetDialog, setTargetDialog] = useState<TargetDialogState | null>(null);
-  const isServiceTab = activeTab === 0;
-  const scope = isServiceTab ? 'services' : 'departments';
+  const tabs: Array<{ scope: KpiTabScope; label: string; icon: ReactElement }> =
+    report.viewerScope.level === 'all'
+      ? [
+          {
+            scope: 'services',
+            label: 'Theo dịch vụ',
+            icon: <RoomServiceRoundedIcon fontSize="small" />,
+          },
+          {
+            scope: 'departments',
+            label: 'Theo phòng ban',
+            icon: <CorporateFareRoundedIcon fontSize="small" />,
+          },
+          {
+            scope: 'employees',
+            label: 'Theo nhân sự',
+            icon: <PeopleAltRoundedIcon fontSize="small" />,
+          },
+        ]
+      : report.viewerScope.level === 'department'
+        ? [
+            {
+              scope: 'departments',
+              label: 'Theo phòng ban',
+              icon: <CorporateFareRoundedIcon fontSize="small" />,
+            },
+            {
+              scope: 'employees',
+              label: 'Theo nhân sự',
+              icon: <PeopleAltRoundedIcon fontSize="small" />,
+            },
+          ]
+        : [
+            {
+              scope: 'employees',
+              label: 'KPI của tôi',
+              icon: <PersonRoundedIcon fontSize="small" />,
+            },
+          ];
+  const selectedTab = tabs[activeTab] ?? tabs[0];
+  const scope = selectedTab.scope;
   const summary = aggregateSummary(report.periods, scope);
-  const scopeLabel = isServiceTab ? 'dịch vụ' : 'phòng ban';
+  const scopeLabel =
+    scope === 'services' ? 'dịch vụ' : scope === 'departments' ? 'phòng ban' : 'nhân sự';
   const summaryItems = [
     {
       label: 'Kế hoạch',
@@ -716,10 +877,7 @@ export function KpiManager({
           value={activeTab}
           ariaLabel="Phạm vi báo cáo KPI"
           onChange={setActiveTab}
-          items={[
-            { label: 'Theo dịch vụ', icon: <RoomServiceRoundedIcon fontSize="small" /> },
-            { label: 'Theo phòng ban', icon: <CorporateFareRoundedIcon fontSize="small" /> },
-          ]}
+          items={tabs.map(({ label, icon }) => ({ label, icon }))}
         />
 
         <PeriodFilters filters={filters} onChange={onFiltersChange} />
@@ -731,15 +889,22 @@ export function KpiManager({
             <header className="border-b border-slate-200 px-4 py-3">
               <h2 className="font-bold text-slate-950">{formatMonthLabel(monthlyReport.period)}</h2>
             </header>
-            {isServiceTab ? (
+            {scope === 'services' ? (
               <ServiceMonthTable
                 report={monthlyReport}
                 canManage={canManage}
                 isFetching={isFetching}
                 onEdit={setTargetDialog}
               />
-            ) : (
+            ) : scope === 'departments' ? (
               <DepartmentMonthTable
+                report={monthlyReport}
+                canManage={canManage}
+                isFetching={isFetching}
+                onEdit={setTargetDialog}
+              />
+            ) : (
+              <EmployeeMonthTable
                 report={monthlyReport}
                 canManage={canManage}
                 isFetching={isFetching}

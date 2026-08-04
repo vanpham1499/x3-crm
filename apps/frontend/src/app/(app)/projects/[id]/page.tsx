@@ -411,7 +411,7 @@ export default function EditProjectPage() {
         ) : null}
 
         {activeTab === 'customer' ? (
-          <ProjectCustomerPanel project={project} customer={projectCustomer || project.customer} />
+          <ProjectCustomerPanel customer={projectCustomer || project.customer} />
         ) : null}
       </div>
     </div>

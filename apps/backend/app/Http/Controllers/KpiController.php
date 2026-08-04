@@ -17,7 +17,7 @@ class KpiController extends Controller
         $periodFrom = $filters['period_from'] ?? $filters['period'] ?? null;
         $periodTo = $filters['period_to'] ?? $periodFrom;
 
-        return $this->success($this->kpi->report($periodFrom, $periodTo));
+        return $this->success($this->kpi->report($periodFrom, $periodTo, $request->user()));
     }
 
     public function upsertTarget(UpsertKpiTargetRequest $request): JsonResponse

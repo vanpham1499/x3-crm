@@ -1,4 +1,4 @@
-export type KpiScopeType = 'service' | 'service_group' | 'department';
+export type KpiScopeType = 'service' | 'service_group' | 'department' | 'employee';
 export type KpiPeriodMode = 'month' | 'quarter' | 'year' | 'range';
 
 export type KpiSummary = {
@@ -41,11 +41,13 @@ export type DepartmentKpiRow = {
 
 export type EmployeeKpiRow = {
   id: number;
+  scopeType: 'employee';
   code?: string | null;
   name: string;
   departmentId?: number | null;
   departmentName?: string | null;
   isActive: boolean;
+  targetAmount: number;
   implementationReceivedAmount: number;
   implementationCostAmount: number;
   implementationRefundAmount: number;
@@ -54,6 +56,7 @@ export type EmployeeKpiRow = {
   acquisitionRefundAmount: number;
   acquisitionAmount: number;
   actualAmount: number;
+  completionRate: number | null;
 };
 
 export type KpiMonthlyReport = {
@@ -64,12 +67,18 @@ export type KpiMonthlyReport = {
   summary: {
     services: KpiSummary;
     departments: KpiSummary;
+    employees: KpiSummary;
   };
 };
 
 export type KpiReport = {
   periodFrom: string;
   periodTo: string;
+  viewerScope: {
+    level: 'own' | 'department' | 'all';
+    userId: number | null;
+    departmentId: number | null;
+  };
   calculationBasis: {
     currency: 'VND';
     sourceAmountBasis: 'gross_including_vat';

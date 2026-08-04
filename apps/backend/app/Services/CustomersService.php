@@ -43,7 +43,7 @@ class CustomersService extends BaseService
     {
         return $this->apiResource(
             $this->customers->findLookupOrFail($id, $this->currentUser()),
-            CustomerLookupResource::class,
+            CustomerResource::class,
         );
     }
 

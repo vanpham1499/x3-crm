@@ -132,11 +132,13 @@ export type DashboardDepartmentRow = {
 
 export type DashboardEmployeeRow = {
   id: number;
+  scopeType: 'employee';
   code?: string | null;
   name: string;
   departmentId?: number | null;
   departmentName?: string | null;
   isActive: boolean;
+  targetAmount: number;
   implementationReceivedAmount: number;
   implementationCostAmount: number;
   implementationRefundAmount: number;
@@ -145,6 +147,7 @@ export type DashboardEmployeeRow = {
   acquisitionRefundAmount: number;
   acquisitionAmount: number;
   actualAmount: number;
+  completionRate: number | null;
   projectCount: number;
   activeProjectCount: number;
   pausedProjectCount: number;

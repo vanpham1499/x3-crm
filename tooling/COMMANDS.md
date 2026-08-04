@@ -23,7 +23,7 @@ PHP 8.2+, Composer và extension `pdo_pgsql`.
 
 ## 2. Chạy môi trường phát triển
 
-Chạy PostgreSQL local trước, sau đó chạy frontend, backend, Reverb và queue worker:
+Chạy PostgreSQL local trước, sau đó chạy frontend, backend, Reverb, queue worker và scheduler:
 
 ```powershell
 npm run dev:db
@@ -38,6 +38,7 @@ npm run dev:backend
 npm run dev:realtime
 npm run dev:reverb
 npm run dev:queue
+npm run dev:scheduler
 ```
 
 Chạy backend với domain ngrok dev cố định:

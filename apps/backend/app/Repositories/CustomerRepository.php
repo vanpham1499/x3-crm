@@ -45,7 +45,13 @@ class CustomerRepository extends BaseRepository
             throw new NotFoundHttpException($this->notFoundMessage);
         }
 
-        return $customer;
+        return $customer->load([
+            'lead',
+            'customerTypeOption',
+            'sourceOption',
+            'industryOption',
+            'salesUser',
+        ]);
     }
 
     private function lookupQuery(array $filters, ?User $user = null): Builder

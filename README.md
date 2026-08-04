@@ -76,8 +76,8 @@ Nếu PHP/Composer không nằm trong `PATH`, script backend mặc định dùng
 ### Chạy môi trường phát triển khuyến nghị
 
 Backend chạy trên máy host, PostgreSQL chạy trong Docker. `npm run dev` chạy đồng thời frontend,
-backend, Reverb và database queue worker; backend tự migrate/seed database local và mặc định mở thêm
-ngrok cho webhook SePay.
+backend, Reverb, database queue worker và Laravel scheduler; backend tự migrate/seed database local
+và mặc định mở thêm ngrok cho webhook SePay.
 
 ```powershell
 npm run dev:db
@@ -102,6 +102,7 @@ Các địa chỉ hỗ trợ:
 npm run dev:frontend
 npm run dev:backend
 npm run dev:realtime
+npm run dev:scheduler
 
 # Hoặc chạy riêng từng process realtime
 npm run dev:reverb
@@ -452,8 +453,8 @@ Seeder tạo năm Role:
 
 | Role         | Mô tả             | Số quyền seed | Phạm vi mặc định                                               |
 | ------------ | ----------------- | ------------: | -------------------------------------------------------------- |
-| `ADMIN`      | Quản trị hệ thống |           123 | Tất cả permission hiện có                                      |
-| `LEADER`     | Trưởng nhóm       |            72 | Bộ quyền cơ sở, quản lý dữ liệu trong phòng ban và xem nhân sự |
+| `ADMIN`      | Quản trị hệ thống |           125 | Tất cả permission hiện có                                      |
+| `LEADER`     | Trưởng nhóm       |            73 | Bộ quyền cơ sở, quản lý dữ liệu trong phòng ban và xem nhân sự |
 | `EMPLOYEE`   | Nhân sự           |            41 | Bộ quyền cơ sở, thao tác dữ liệu trong phạm vi sở hữu          |
 | `SALES`      | Sales             |            41 | Hiện giống hoàn toàn `EMPLOYEE`                                |
 | `ACCOUNTANT` | Kế toán           |            46 | Bộ quyền cơ sở, quyền Payment và duyệt mọi chi phí             |
@@ -472,13 +473,13 @@ Bộ quyền cơ sở gồm:
 - `user.lookup`, `department.lookup`, `customer.lookup`.
 
 `LEADER` được cộng thêm quyền phạm vi phòng ban của Lead, Customer, Project, Báo phí, Lịch hẹn, Báo
-cáo tuần, Điểm P2 và Thư viện, cùng `user.view`, `department.view`. Leader không được seed quyền
+cáo tuần, KPI, Điểm P2 và Thư viện, cùng `user.view`, `department.view`. Leader không được seed quyền
 `_all`; phạm vi luôn xác định bằng `users.department_id`, không bằng tên Role. Quyền duyệt Báo cáo
 tuần và P2 của Leader cũng chỉ áp dụng trong phòng ban. `LEADER` được seed `cost.manage_department`
 để nạp/cập nhật/hủy khoản chi trong phòng ban; `ACCOUNTANT` được seed `cost.approve_all` để đối
 soát/xác nhận CID trên mọi dự án nhưng không được sửa dữ liệu gốc của khoản chi.
 
-### Danh mục 123 permission hiện tại
+### Danh mục 125 permission hiện tại
 
 Ký hiệu Role: `A` = ADMIN, `L` = LEADER, `E` = EMPLOYEE, `S` = SALES,
 `K` = ACCOUNTANT. Cột “Kiểm tra backend” mô tả code đang chạy, không phải thiết kế mong muốn.
@@ -599,8 +600,10 @@ Ký hiệu Role: `A` = ADMIN, `L` = LEADER, `E` = EMPLOYEE, `S` = SALES,
 | `p2point.approve`                  | Duyệt P2 của Project mình quản lý           | A, L, E, S, K | `P2PointPolicy::approve`                                                    |
 | `p2point.approve_department`       | Duyệt P2 trong phòng ban                    | L             | Theo phòng ban người nhận                                                   |
 | `p2point.approve_all`              | Duyệt mọi điểm P2                           | A             | Bỏ qua giới hạn Project                                                     |
-| `kpi.view`                         | Xem báo cáo KPI                             | A, L, E, S, K | Route middleware cho API và route/menu KPI frontend                         |
-| `kpi.manage`                       | Nhập kế hoạch tháng theo dịch vụ/phòng ban  | A             | Route middleware cho API cập nhật kế hoạch                                  |
+| `kpi.view`                         | Xem KPI của chính mình                      | A, L, E, S, K | Mở page/API; response chỉ có dòng nhân sự của user                           |
+| `kpi.view_department`              | Xem KPI trong phòng ban                     | L             | Trả phòng ban hiện tại và các nhân sự cùng `department_id`                   |
+| `kpi.view_all`                     | Xem toàn bộ KPI                             | A             | Trả KPI dịch vụ, mọi phòng ban và mọi nhân sự                               |
+| `kpi.manage`                       | Nhập kế hoạch tháng theo dịch vụ/phòng ban/nhân sự | A       | Route middleware cho API cập nhật kế hoạch                                  |
 | `payment.allocate`                 | Phân bổ/hủy phân bổ Payment vào Báo phí     | A, K          | Quyền hành động độc lập; Project/Customer suy ra từ Báo phí                 |
 | `payment.refund.create`            | Tạo khoản trả khách                         | A, K          | Chỉ tạo mới; cập nhật/hoàn tất/hủy khoản trả vẫn dùng `payment.manage`      |
 | `payment.manage`                   | Quản trị nghiệp vụ kế toán Payment          | A, K          | Phân loại, hóa đơn, sửa giao dịch và quản lý khoản trả đã tạo               |
@@ -857,6 +860,11 @@ Ví dụ:
 - Form Project không tạo Hợp đồng hoặc Báo phí ngầm. Hai nghiệp vụ này chỉ bắt đầu sau khi Project
   tồn tại.
 - Hồ sơ `/projects/[id]` có bốn tab: `Thông tin dự án`, `Hợp đồng`, `Tài chính`, `Khách hàng`.
+- Tab `Khách hàng` đọc trực tiếp hồ sơ Customer đang liên kết qua
+  `GET /api/customers/lookup/{id}` và không lưu bản sao trên Project. API chi tiết lookup trả đủ
+  thông tin liên hệ, pháp lý/hóa đơn, phân loại, nguồn, ngành và nhân sự phụ trách; API danh sách
+  lookup vẫn chỉ trả dữ liệu rút gọn để bộ chọn nhẹ. Quyền `customer.lookup` cho phép form Project
+  dùng dữ liệu này dù user không được mở page quản trị Khách hàng.
 - Summary hồ sơ Project hiển thị năm số liệu: `Tiền cọc`, `Còn phải thu` để nhân sự lưu ý thu,
   `Số tiền có thể nạp` để Lead kiểm tra trước khi nạp, `Chi phí đã chi` từ các khoản chi completed
   thực tế và `Lợi nhuận thực nhận` theo công thức dòng tiền của Project.
@@ -919,6 +927,10 @@ số lượng, đơn giá và chi phí đối tác/thực hiện.
   khóa; chỉ `Ghi chú` còn được sửa. Hủy phân bổ có thể mở khóa nếu tổng nhận xuống dưới mức phải
   thu. Hoàn tiền không xóa chứng từ thu gốc và không tự mở khóa lịch sử.
 - Báo phí đã có phân bổ không được đổi tổng tiền hoặc xóa.
+- Trong `Bản gửi khách`, nhân sự chọn `Số tiền yêu cầu thanh toán lần này`; giá trị mặc định bằng
+  `Còn phải thu`, phải lớn hơn `0` và không được vượt công nợ hiện tại. Giá trị này chỉ dùng để đóng
+  số tiền vào VietQR/ảnh gửi khách, không lưu thành Payment, không làm tăng `Đã thu` và không tác động
+  KPI. Chỉ webhook hoặc thao tác Payment thực tế mới ghi nhận tiền đã nhận.
 
 ### 4. Hợp đồng
 
@@ -1231,8 +1243,10 @@ lên favicon, thêm `(n)` trước title của tab và gọi App Badging API n�
 - `POST /api/notifications/{id}/restore`.
 
 Nhắc việc theo thời gian chạy bằng `notifications:dispatch-reminders`, được Laravel scheduler gọi mỗi
-phút với `withoutOverlapping`. Production dùng chung backend image cho `backend`, `scheduler`, `reverb`
-và `queue-worker`; Nginx proxy `/app/`, `/apps/` tới Reverb và `/broadcasting/` tới API để xác thực private
+phút với `withoutOverlapping`. Nhắc Báo cáo tuần đến hạn/quá hạn chỉ bắt đầu phát từ `08:00` theo múi
+giờ `Asia/Ho_Chi_Minh`; scheduler chạy lại sau đó vẫn an toàn nhờ `dedupe_key`, còn báo cáo đã nộp hoặc
+duyệt không phát nhắc việc. Production dùng chung backend image cho `backend`, `scheduler`, `reverb` và
+`queue-worker`; Nginx proxy `/app/`, `/apps/` tới Reverb và `/broadcasting/` tới API để xác thực private
 channel bằng Sanctum. Phase này chưa gửi email, Web Push hoặc Zalo.
 
 ### 8. Báo cáo tuần
@@ -1334,20 +1348,32 @@ draft → submitted → approved
 
 ### 10. KPI theo tháng
 
-KPI là module tài chính riêng, không liên quan đến điểm P2. Trang `/kpi` có hai phạm vi:
+KPI là module tài chính riêng, không liên quan đến điểm P2. Trang `/kpi` có ba phạm vi:
 
 - `Theo dịch vụ`: mỗi dòng là một dịch vụ gốc chưa được nhóm hoặc một nhóm KPI của nhiều dịch vụ gốc;
-- `Theo phòng ban`: mỗi dòng là một phòng ban và cộng hai nhánh đóng góp độc lập.
+- `Theo phòng ban`: mỗi dòng là một phòng ban và cộng hai nhánh đóng góp độc lập;
+- `Theo nhân sự`: mỗi dòng là một user và cộng đúng hai nhánh đóng góp của riêng user đó.
 
 Ba chỉ số dùng chung:
 
-- `Kế hoạch`: Admin nhập tay lợi nhuận trước VAT cho từng tháng, từng dịch vụ gốc/nhóm KPI dịch vụ hoặc từng phòng ban;
+- `Kế hoạch`: Admin nhập tay lợi nhuận trước VAT cho từng tháng, từng dịch vụ gốc/nhóm KPI dịch vụ,
+  từng phòng ban hoặc từng nhân sự;
 - `Lợi nhuận trước VAT`: lợi nhuận thực nhận đã loại VAT của đúng tháng đang xem;
 - `Hoàn thành`: `Lợi nhuận / Kế hoạch × 100%`; nếu Kế hoạch bằng 0 thì để trống thay vì chia cho 0.
 
 Kế hoạch lưu tại `kpi_targets` với khóa duy nhất `(scope_type, scope_id, period_month)`.
-`scope_type` nhận `service`, `service_group` hoặc `department`; kế hoạch không được âm. `kpi.view` cho phép xem
-báo cáo, còn `kpi.manage` cho phép cập nhật kế hoạch và mặc định chỉ cấp cho Admin.
+`scope_type` nhận `service`, `service_group`, `department` hoặc `employee`; kế hoạch không được âm.
+`kpi.manage` cho phép cập nhật kế hoạch và mặc định chỉ cấp cho Admin.
+
+Phạm vi đọc dùng permission động, không kiểm tra tên Role:
+
+- `kpi.view`: chỉ trả tab `KPI của tôi` và dòng của user hiện tại;
+- `kpi.view_department`: trả tab phòng ban hiện tại và các nhân sự có cùng `department_id`; user chưa
+  thuộc phòng ban tự rơi về scope của mình;
+- `kpi.view_all`: trả đủ tab dịch vụ, mọi phòng ban và mọi nhân sự;
+- `kpi.manage` bao hàm scope xem toàn bộ để người quản lý kế hoạch luôn đối chiếu được mọi đối tượng,
+  đồng thời giữ tương thích khi database chưa kịp bổ sung `kpi.view_all` cho Role quản trị;
+- backend lọc mảng và tính lại `summary` theo scope trước khi trả response, không chỉ ẩn tab frontend.
 
 Màn hình mặc định mở tháng hiện tại. Bộ lọc hỗ trợ `Theo tháng`, `Theo quý`, `Theo năm` và
 `Khoảng tháng`; tháng/năm dùng MUI DatePicker giống các form khác trong CRM. Khi khoảng lọc có từ
@@ -1466,6 +1492,22 @@ nhánh phụ trách khách hàng. Số `Ghi nhận` hiển thị để đối so
 Để tab phòng ban dễ đối soát mà không tạo quá nhiều cột ngang, mỗi dòng tách thành hai ô
 `Nhánh triển khai` và `Nhánh phụ trách khách hàng`. Mỗi ô hiển thị Lợi nhuận trước VAT trước, sau đó
 mới liệt kê nhóm `Số đối soát có VAT`; cột `Tổng lợi nhuận trước VAT` là tổng của đúng hai nhánh.
+Nhánh không có bất kỳ phát sinh nào chỉ hiển thị dấu `—`; trong nhánh có dữ liệu, các dòng đối soát
+bằng `0` được ẩn để bảng tập trung vào số thực tế phát sinh. Quy tắc hiển thị này dùng chung cho tab
+phòng ban và nhân sự.
+
+#### KPI theo nhân sự
+
+KPI nhân sự không tạo công thức thứ ba. Hệ thống dùng cùng dữ liệu đã phân bổ cho KPI phòng ban nhưng
+giữ ở cấp user:
+
+- nhánh triển khai lấy Project có `projects.manager_user_id = users.id`;
+- nhánh phụ trách khách hàng lấy `projects.customer_id → customers.sales_user_id = users.id`;
+- lợi nhuận nhân sự là tổng hai nhánh; nếu một user vừa triển khai vừa phụ trách khách hàng thì cả hai
+  đóng góp vẫn được cộng độc lập giống quy tắc phòng ban;
+- Kế hoạch tháng lưu với `scope_type=employee`, `scope_id=users.id`; `Hoàn thành` lấy tổng lợi nhuận
+  trước VAT của nhân sự chia cho kế hoạch riêng này;
+- bảng nhân sự giữ các số nguồn có VAT để đối soát và hiển thị riêng lợi nhuận trước VAT của từng nhánh.
 
 #### Hoàn tiền sang tháng sau
 
@@ -1486,7 +1528,8 @@ trách khách hàng, hai nhánh vẫn cộng độc lập, kể cả khoản ghi
 
 API:
 
-- `GET /api/kpi?period_from=YYYY-MM&period_to=YYYY-MM`: trả `periodFrom`, `periodTo` và mảng
+- `GET /api/kpi?period_from=YYYY-MM&period_to=YYYY-MM`: trả `periodFrom`, `periodTo`, `viewerScope`
+  và mảng
   `periods`; mỗi phần tử tháng có `services`, `departments`, `employees` và `summary`;
   `calculationBasis` xác nhận `sourceAmountBasis=gross_including_vat`,
   `profitAmountBasis=before_vat`, `projectScope=existing_projects`, quy tắc cọc của số nguồn/hai
@@ -1494,7 +1537,7 @@ API:
 - `period=YYYY-MM` vẫn được chấp nhận để lấy một tháng; nếu không truyền kỳ thì mặc định tháng hiện
   tại; khoảng tối đa 36 tháng;
 - `PUT /api/kpi/targets`: upsert kế hoạch bằng payload
-  `{"period":"2026-07","scopeType":"service","scopeId":1,"targetAmount":100000000}`.
+  `{"period":"2026-07","scopeType":"employee","scopeId":1,"targetAmount":100000000}`.
 
 ### 11. Dashboard điều hành
 
@@ -1623,6 +1666,8 @@ API `GET /api/dashboard?period_from=YYYY-MM&period_to=YYYY-MM` yêu cầu `dashb
   frontend chọn đúng layout mà không suy đoán role;
 - `summary`, `trend`, `services`, `departments`, `employees` là dữ liệu tài chính và KPI đã giới hạn
   theo scope; Dashboard admin vẫn nhận toàn bộ tập dữ liệu như trước;
+- scope cá nhân dùng kế hoạch `employee` của chính user để tính Kế hoạch/Hoàn thành, không dùng kế
+  hoạch tổng của phòng ban;
   mỗi điểm `trend` có số phát sinh và số lũy kế của Báo phí, Đã thu, Hoàn tiền, Thu ròng;
 - `profitTrend` chỉ trả cho scope phòng ban/cá nhân, gồm lợi nhuận trước VAT phát sinh và lũy kế của
   kỳ đang xem/kỳ trước; scope toàn hệ thống trả `null` vì admin tiếp tục dùng biểu đồ hiện tại;

@@ -446,7 +446,7 @@ export function WeeklyReportForm({
               onImageUrlsChange={onPendingImageUrlsChange || (() => {})}
             />
           )}
-          <FormSection title="2. Chỉ tiêu tuần qua">
+          <FormSection title="2. Chi tiêu tuần qua">
             <div className="grid gap-3 md:grid-cols-2">
               <MoneyInput
                 fullWidth

@@ -9,6 +9,10 @@ use Carbon\CarbonImmutable;
 
 class ScheduledNotificationService
 {
+    private const BUSINESS_TIMEZONE = 'Asia/Ho_Chi_Minh';
+
+    private const WEEKLY_REPORT_REMINDER_HOUR = 8;
+
     public function __construct(
         private readonly NotificationDispatchService $notifications,
         private readonly NotificationRecipientResolver $notificationRecipients,
@@ -67,7 +71,14 @@ class ScheduledNotificationService
 
     private function dispatchWeeklyReportReminders(): int
     {
-        $today = CarbonImmutable::today('Asia/Ho_Chi_Minh');
+        $now = CarbonImmutable::now(self::BUSINESS_TIMEZONE);
+        $reminderStartsAt = $now->startOfDay()->setTime(self::WEEKLY_REPORT_REMINDER_HOUR, 0);
+
+        if ($now->lessThan($reminderStartsAt)) {
+            return 0;
+        }
+
+        $today = $now->startOfDay();
         $weekMonday = $today->startOfWeek(CarbonImmutable::MONDAY);
         $settings = ProjectWeeklySetting::query()
             ->where('is_active', true)

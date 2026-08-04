@@ -6,7 +6,6 @@ import ContactPhoneOutlinedIcon from '@mui/icons-material/ContactPhoneOutlined';
 import ManageAccountsOutlinedIcon from '@mui/icons-material/ManageAccountsOutlined';
 import { TabActionButton } from '@/components/actions/tab-action-button';
 import type { Customer } from '@/types/customer';
-import type { ProjectItem } from '@/types/project';
 
 type CustomerDetail = {
   label: string;
@@ -60,10 +59,8 @@ function CustomerDetailGroup({
 }
 
 export function ProjectCustomerPanel({
-  project,
   customer,
 }: {
-  project: ProjectItem;
   customer?: Customer | null;
 }) {
   if (!customer) {
@@ -77,7 +74,7 @@ export function ProjectCustomerPanel({
   const customerName = customer.customerName || customer.companyName || '-';
   const customerIdentity = [customer.customerCode, customerName].filter(Boolean).join('.');
   const customerType = customer.customerTypeOption?.label || customer.customerType;
-  const salesUser = customer.salesUser || project.salesUser;
+  const salesUser = customer.salesUser;
   const salesLabel = [salesUser?.code, salesUser?.name].filter(Boolean).join(' - ');
   const createdDate = customer.createdAt
     ? new Date(customer.createdAt).toLocaleDateString('vi-VN')
@@ -127,6 +124,16 @@ export function ProjectCustomerPanel({
     { label: 'Người đại diện', value: textOrDash(customer.representativeName) },
     { label: 'Mã số thuế', value: textOrDash(customer.taxCode) },
     { label: 'CCCD/CMND', value: textOrDash(customer.identityNo) },
+    {
+      label: 'Email hóa đơn',
+      value: customer.invoiceEmail ? (
+        <a className="text-blue-700 hover:underline" href={`mailto:${customer.invoiceEmail}`}>
+          {customer.invoiceEmail}
+        </a>
+      ) : (
+        '-'
+      ),
+    },
   ];
 
   const crmItems: CustomerDetail[] = [

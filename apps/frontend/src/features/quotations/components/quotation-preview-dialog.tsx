@@ -13,6 +13,7 @@ import x3salesLogo from '@assets/logos/x3sales-logo.svg';
 import { DialogActionButton } from '@/components/actions/dialog-action-button';
 import { AppDetailDialog } from '@/components/dialog/app-detail-dialog';
 import { useAppNotification } from '@/components/feedback/notification-provider';
+import { MoneyInput } from '@/components/form/money-input';
 import { ImageLightbox } from '@/components/media/image-lightbox';
 import { getMediaPreviewUrl } from '@/lib/media-url';
 import { getQuotationPaymentContent } from '@/lib/quotation-utils';
@@ -88,23 +89,20 @@ function payableAmount(quotation: Quotation) {
   return Math.max(0, total - paid);
 }
 
-function quotationQrUrl(quotation: Quotation) {
+function quotationQrUrl(quotation: Quotation, amount: number) {
   const bankCode = quotationMetadata(quotation, 'bankCode');
   const accountNo = quotationMetadata(quotation, 'bankAccountNo');
   const accountName = quotationMetadata(quotation, 'bankAccountName');
   const paymentContent = getQuotationPaymentContent(quotation);
-  const amount = payableAmount(quotation);
 
-  if (!paymentContent || !bankCode || !accountNo || !accountName) return '';
+  if (!paymentContent || !bankCode || !accountNo || !accountName || amount <= 0) return '';
 
   const params = new URLSearchParams({
     addInfo: paymentContent,
     accountName,
   });
 
-  if (amount > 0) {
-    params.set('amount', String(Math.round(amount)));
-  }
+  params.set('amount', String(Math.round(amount)));
 
   return `https://img.vietqr.io/image/${bankCode}-${accountNo}-qr_only.png?${params.toString()}`;
 }
@@ -134,12 +132,17 @@ function CustomerInfoCell({ label, value }: { label: string; value: string }) {
 function PaymentDetails({
   quotation,
   customerView = false,
+  requestedAmount,
 }: {
   quotation: Quotation;
   customerView?: boolean;
+  requestedAmount?: number | null;
 }) {
-  const qrUrl = quotationQrUrl(quotation);
-  const amount = payableAmount(quotation);
+  const outstandingAmount = payableAmount(quotation);
+  const amount =
+    requestedAmount === undefined ? outstandingAmount : Math.max(0, requestedAmount ?? 0);
+  const isWaitingForValidAmount = requestedAmount === null && outstandingAmount > 0;
+  const qrUrl = quotationQrUrl(quotation, amount);
   const bankName =
     quotationMetadata(quotation, 'bankName') || quotationMetadata(quotation, 'bankCode');
   const accountNo = quotationMetadata(quotation, 'bankAccountNo');
@@ -202,15 +205,25 @@ function PaymentDetails({
             ) : null}
             <div className="flex min-w-0 items-center gap-1.5">
               <dt className="shrink-0 font-medium">
-                {amount > 0 ? 'Số tiền cần thanh toán:' : 'Tình trạng:'}
+                {amount > 0
+                  ? customerView
+                    ? 'Số tiền thanh toán lần này:'
+                    : 'Số tiền cần thanh toán:'
+                  : 'Tình trạng:'}
               </dt>
               <dd
                 className={`flex items-center gap-1 font-extrabold tabular-nums ${
-                  amount > 0 ? 'text-emerald-700' : 'text-sky-700'
+                  amount > 0
+                    ? 'text-emerald-700'
+                    : isWaitingForValidAmount
+                      ? 'text-amber-700'
+                      : 'text-sky-700'
                 }`}
               >
                 {amount > 0 ? (
                   formatCurrency(amount)
+                ) : isWaitingForValidAmount ? (
+                  'Chưa chọn số tiền hợp lệ'
                 ) : (
                   <>
                     <CheckCircleRoundedIcon className="!text-[18px]" /> Đã thu đủ
@@ -345,6 +358,7 @@ export function QuotationPreviewDialog({ quotation, onClose }: QuotationPreviewD
   const [mode, setMode] = useState<PreviewMode>('detail');
   const [isCopyingImage, setIsCopyingImage] = useState(false);
   const [reconciliationPreviewIndex, setReconciliationPreviewIndex] = useState<number | null>(null);
+  const [requestedPaymentAmount, setRequestedPaymentAmount] = useState('');
 
   const { data: siteProfileOptions = [] } = useQuery<AppOption[]>({
     queryKey: ['options', SITE_PROFILE_OPTION_GROUP],
@@ -365,7 +379,8 @@ export function QuotationPreviewDialog({ quotation, onClose }: QuotationPreviewD
 
   useEffect(() => {
     setMode('detail');
-  }, [quotation?.id]);
+    setRequestedPaymentAmount(quotation ? String(Math.round(payableAmount(quotation))) : '');
+  }, [quotation]);
 
   if (!quotation) return null;
 
@@ -381,6 +396,17 @@ export function QuotationPreviewDialog({ quotation, onClose }: QuotationPreviewD
         ? 'Đã thanh toán'
         : 'Báo phí';
   const projectCode = quotation.project?.projectCode || 'Chưa gắn dự án';
+  const outstandingPaymentAmount = payableAmount(quotation);
+  const requestedPaymentValue = toNumber(requestedPaymentAmount);
+  const requestedPaymentError =
+    outstandingPaymentAmount <= 0
+      ? ''
+      : requestedPaymentValue <= 0
+        ? 'Vui lòng nhập số tiền lớn hơn 0.'
+        : requestedPaymentValue > outstandingPaymentAmount + 0.01
+          ? `Không được vượt quá số tiền còn phải thu ${formatCurrency(outstandingPaymentAmount)}.`
+          : '';
+  const validRequestedPaymentAmount = requestedPaymentError ? null : requestedPaymentValue;
   const reconciliationLinks = reconciliationImages
     .map((imageUrl) => getMediaPreviewUrl(imageUrl) || imageUrl)
     .filter(Boolean);
@@ -507,7 +533,7 @@ export function QuotationPreviewDialog({ quotation, onClose }: QuotationPreviewD
             <DialogActionButton
               tone="primary"
               startIcon={<PhotoCameraRoundedIcon />}
-              disabled={isCopyingImage}
+              disabled={isCopyingImage || Boolean(requestedPaymentError)}
               onClick={copyCustomerImage}
             >
               {isCopyingImage ? 'Đang lấy ảnh...' : 'Lấy ảnh'}
@@ -624,6 +650,43 @@ export function QuotationPreviewDialog({ quotation, onClose }: QuotationPreviewD
         </div>
       ) : (
         <div className="overflow-x-auto bg-slate-100 p-3 sm:p-6">
+          <section className="mx-auto mb-4 max-w-[1040px] rounded-xl border border-slate-200 bg-white p-4">
+            <div className="grid gap-3 md:grid-cols-[minmax(280px,360px)_minmax(0,1fr)_auto] md:items-start">
+              <MoneyInput
+                fullWidth
+                size="small"
+                label="Số tiền yêu cầu thanh toán lần này"
+                value={requestedPaymentAmount}
+                disabled={outstandingPaymentAmount <= 0}
+                error={Boolean(requestedPaymentError)}
+                helperText={
+                  outstandingPaymentAmount <= 0
+                    ? 'Báo phí đã thu đủ.'
+                    : requestedPaymentError || 'Chỉ dùng để tạo QR, chưa được tính là đã thu.'
+                }
+                onValueChange={setRequestedPaymentAmount}
+              />
+
+              <div className="rounded-lg bg-slate-50 px-4 py-2.5">
+                <p className="text-[11px] font-bold uppercase tracking-wide text-slate-400">
+                  Còn phải thu
+                </p>
+                <p className="mt-0.5 text-base font-extrabold tabular-nums text-slate-950">
+                  {formatCurrency(outstandingPaymentAmount)}
+                </p>
+              </div>
+
+              <DialogActionButton
+                disabled={outstandingPaymentAmount <= 0}
+                onClick={() =>
+                  setRequestedPaymentAmount(String(Math.round(outstandingPaymentAmount)))
+                }
+              >
+                Dùng số còn lại
+              </DialogActionButton>
+            </div>
+          </section>
+
           <article
             ref={customerSheetRef}
             className="mx-auto max-w-[1040px] overflow-hidden rounded-xl border border-slate-200 bg-white text-slate-900"
@@ -637,14 +700,14 @@ export function QuotationPreviewDialog({ quotation, onClose }: QuotationPreviewD
                 {companyInfo.taxCode ? <p>MST: {companyInfo.taxCode}</p> : null}
                 <p>{[companyInfo.phone, companyInfo.website].filter(Boolean).join(' · ')}</p>
                 {companyInfo.address ? <p>{companyInfo.address}</p> : null}
-                {companyInfo.office ? <p>Văn phòng: {companyInfo.office}</p> : null}
+                {companyInfo.office ? <p>{companyInfo.office}</p> : null}
               </div>
             </header>
 
             <div className="px-6 py-6">
               <div className="text-center">
                 <h2 className="mt-2 text-2xl font-black uppercase tracking-tight text-slate-950">
-                  Bảng báo giá thanh toán
+                  BẢNG BÁO GIÁ DỊCH VỤ
                 </h2>
                 <p className="mt-1.5 text-base font-extrabold uppercase tracking-wide text-blue-700">
                   {quotation.serviceName || quotation.serviceCode || 'Dịch vụ'}
@@ -714,7 +777,11 @@ export function QuotationPreviewDialog({ quotation, onClose }: QuotationPreviewD
               ) : null}
 
               <div className="mt-5 overflow-hidden rounded-xl border border-slate-200">
-                <PaymentDetails quotation={quotation} customerView />
+                <PaymentDetails
+                  quotation={quotation}
+                  customerView
+                  requestedAmount={validRequestedPaymentAmount}
+                />
               </div>
 
               <p className="mt-5 text-center text-xs font-semibold text-slate-400">

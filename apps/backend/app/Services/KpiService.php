@@ -29,7 +29,11 @@ class KpiService extends BaseService
         private readonly KpiTargetRepository $targets,
     ) {}
 
-    public function report(?string $periodFrom = null, ?string $periodTo = null): array
+    public function report(
+        ?string $periodFrom = null,
+        ?string $periodTo = null,
+        ?User $viewer = null,
+    ): array
     {
         [$rangeStart, $rangeEnd] = $this->periodRange($periodFrom, $periodTo);
         $rangeEndExclusive = $rangeEnd->addMonth();
@@ -109,10 +113,16 @@ class KpiService extends BaseService
             $refundsByPeriod->get($periodStart->format('Y-m'), collect()),
             $costsByPeriod->get($periodStart->format('Y-m'), collect()),
         ))->values();
+        $viewerScope = $viewer ? $this->viewerScope($viewer) : $this->allViewerScope();
+
+        if ($viewer) {
+            $periods = $this->scopePeriods($periods, $viewerScope);
+        }
 
         return [
             'periodFrom' => $rangeStart->format('Y-m'),
             'periodTo' => $rangeEnd->format('Y-m'),
+            'viewerScope' => $viewerScope,
             'calculationBasis' => [
                 'currency' => 'VND',
                 'sourceAmountBasis' => 'gross_including_vat',
@@ -241,21 +251,25 @@ class KpiService extends BaseService
             ->values();
 
         $employeeRows = $users
-            ->map(function (User $user) use ($employeeActuals): array {
+            ->map(function (User $user) use ($employeeActuals, $targetMap): array {
                 $actual = $employeeActuals[(int) $user->id];
+                $target = (float) ($targetMap->get(KpiTarget::SCOPE_EMPLOYEE.':'.$user->id)?->target_amount ?? 0);
                 $implementationAmount = $actual['implementationReceivedBeforeVatAmount']
                     - $actual['implementationCostBeforeVatAmount']
                     - $actual['implementationRefundBeforeVatAmount'];
                 $acquisitionAmount = $actual['acquisitionCreditBeforeVatAmount']
                     - $actual['acquisitionRefundBeforeVatAmount'];
+                $actualAmount = $implementationAmount + $acquisitionAmount;
 
                 return [
                     'id' => (int) $user->id,
+                    'scopeType' => KpiTarget::SCOPE_EMPLOYEE,
                     'code' => $user->code,
                     'name' => $user->name,
                     'departmentId' => $user->department_id ? (int) $user->department_id : null,
                     'departmentName' => $user->department?->name,
                     'isActive' => (bool) $user->is_active && ! $user->trashed(),
+                    'targetAmount' => $this->money($target),
                     'implementationReceivedAmount' => $this->money($actual['implementationReceivedAmount']),
                     'implementationCostAmount' => $this->money($actual['implementationCostAmount']),
                     'implementationRefundAmount' => $this->money($actual['implementationRefundAmount']),
@@ -263,7 +277,8 @@ class KpiService extends BaseService
                     'acquisitionCreditAmount' => $this->money($actual['acquisitionCreditAmount']),
                     'acquisitionRefundAmount' => $this->money($actual['acquisitionRefundAmount']),
                     'acquisitionAmount' => $this->money($acquisitionAmount),
-                    'actualAmount' => $this->money($implementationAmount + $acquisitionAmount),
+                    'actualAmount' => $this->money($actualAmount),
+                    'completionRate' => $this->completionRate($actualAmount, $target),
                 ];
             })
             ->values();
@@ -276,6 +291,7 @@ class KpiService extends BaseService
             'summary' => [
                 'services' => $this->summary($serviceRows),
                 'departments' => $this->summary($departmentRows),
+                'employees' => $this->summary($employeeRows),
             ],
         ];
     }
@@ -885,6 +901,7 @@ class KpiService extends BaseService
                 ->where('is_active', true)
                 ->exists(),
             KpiTarget::SCOPE_DEPARTMENT => Department::query()->whereKey($scopeId)->exists(),
+            KpiTarget::SCOPE_EMPLOYEE => User::query()->whereKey($scopeId)->exists(),
             default => false,
         };
 
@@ -898,5 +915,73 @@ class KpiService extends BaseService
     private function money(float $amount): float
     {
         return round($amount, 2);
+    }
+
+    private function viewerScope(User $viewer): array
+    {
+        if ($viewer->hasPermission('kpi.view_all') || $viewer->hasPermission('kpi.manage')) {
+            return $this->allViewerScope($viewer);
+        }
+
+        if ($viewer->hasPermission('kpi.view_department') && $viewer->department_id) {
+            return [
+                'level' => 'department',
+                'userId' => (int) $viewer->id,
+                'departmentId' => (int) $viewer->department_id,
+            ];
+        }
+
+        return [
+            'level' => 'own',
+            'userId' => (int) $viewer->id,
+            'departmentId' => $viewer->department_id ? (int) $viewer->department_id : null,
+        ];
+    }
+
+    private function allViewerScope(?User $viewer = null): array
+    {
+        return [
+            'level' => 'all',
+            'userId' => $viewer ? (int) $viewer->id : null,
+            'departmentId' => $viewer?->department_id ? (int) $viewer->department_id : null,
+        ];
+    }
+
+    private function scopePeriods(Collection $periods, array $scope): Collection
+    {
+        return $periods
+            ->map(function (array $period) use ($scope): array {
+                $services = collect($period['services']);
+                $departments = collect($period['departments']);
+                $employees = collect($period['employees']);
+
+                if ($scope['level'] === 'department') {
+                    $services = collect();
+                    $departments = $departments
+                        ->where('id', $scope['departmentId'])
+                        ->values();
+                    $employees = $employees
+                        ->where('departmentId', $scope['departmentId'])
+                        ->values();
+                } elseif ($scope['level'] === 'own') {
+                    $services = collect();
+                    $departments = collect();
+                    $employees = $employees
+                        ->where('id', $scope['userId'])
+                        ->values();
+                }
+
+                $period['services'] = $services->values();
+                $period['departments'] = $departments->values();
+                $period['employees'] = $employees->values();
+                $period['summary'] = [
+                    'services' => $this->summary($services),
+                    'departments' => $this->summary($departments),
+                    'employees' => $this->summary($employees),
+                ];
+
+                return $period;
+            })
+            ->values();
     }
 }

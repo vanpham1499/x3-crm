@@ -10,10 +10,13 @@ class KpiTarget extends BaseModel
 
     public const SCOPE_DEPARTMENT = 'department';
 
+    public const SCOPE_EMPLOYEE = 'employee';
+
     public const SCOPES = [
         self::SCOPE_SERVICE,
         self::SCOPE_SERVICE_GROUP,
         self::SCOPE_DEPARTMENT,
+        self::SCOPE_EMPLOYEE,
     ];
 
     protected $fillable = [

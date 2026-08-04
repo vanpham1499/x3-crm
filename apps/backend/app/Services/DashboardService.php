@@ -515,7 +515,7 @@ class DashboardService extends BaseService
 
         $employee = collect($employees)->firstWhere('id', $scope['userId']);
         $profitAmount = (float) ($employee['actualAmount'] ?? 0);
-        $targetAmount = (float) ($department['targetAmount'] ?? 0);
+        $targetAmount = (float) ($employee['targetAmount'] ?? 0);
 
         return [
             'receivedAmount' => $this->money(
@@ -643,6 +643,7 @@ class DashboardService extends BaseService
     private function aggregateEmployees(Collection|array $periods): array
     {
         $amountFields = [
+            'targetAmount',
             'implementationReceivedAmount',
             'implementationCostAmount',
             'implementationRefundAmount',
@@ -662,6 +663,11 @@ class DashboardService extends BaseService
                 foreach ($amountFields as $field) {
                     $result[$field] = $this->money((float) $rows->sum($field));
                 }
+
+                $result['completionRate'] = $this->completionRate(
+                    $result['actualAmount'],
+                    $result['targetAmount'],
+                );
 
                 return $result;
             })

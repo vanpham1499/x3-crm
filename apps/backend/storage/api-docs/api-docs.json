@@ -110,6 +110,56 @@
                         "description": "Local API server"
                     }
                 ]
+            },
+            "patch": {
+                "tags": [
+                    "Auth"
+                ],
+                "summary": "Update the current user name, phone and avatar",
+                "operationId": "authUpdateProfile",
+                "requestBody": {
+                    "required": true,
+                    "content": {
+                        "application/json": {
+                            "schema": {
+                                "$ref": "#/components/schemas/UpdateProfileRequest"
+                            }
+                        }
+                    }
+                },
+                "responses": {
+                    "200": {
+                        "description": "Profile updated",
+                        "content": {
+                            "application/json": {
+                                "schema": {
+                                    "$ref": "#/components/schemas/GenericObject"
+                                }
+                            }
+                        }
+                    },
+                    "422": {
+                        "description": "Validation error",
+                        "content": {
+                            "application/json": {
+                                "schema": {
+                                    "$ref": "#/components/schemas/ApiError"
+                                }
+                            }
+                        }
+                    }
+                },
+                "security": [
+                    {
+                        "cookieAuth": []
+                    }
+                ],
+                "servers": [
+                    {
+                        "url": "http://localhost:4000/api",
+                        "description": "Local API server"
+                    }
+                ]
             }
         },
         "/auth/me": {
@@ -1095,12 +1145,84 @@
                 ]
             }
         },
+        "/dashboard": {
+            "get": {
+                "tags": [
+                    "Dashboard"
+                ],
+                "summary": "CRM operations, project portfolio, work queue, finance and KPI dashboard",
+                "operationId": "dashboardReport",
+                "parameters": [
+                    {
+                        "name": "period_from",
+                        "in": "query",
+                        "description": "First month in YYYY-MM format; defaults to current month",
+                        "schema": {
+                            "type": "string",
+                            "example": "2026-07"
+                        }
+                    },
+                    {
+                        "name": "period_to",
+                        "in": "query",
+                        "description": "Last month in YYYY-MM format; defaults to period_from, maximum range 36 months",
+                        "schema": {
+                            "type": "string",
+                            "example": "2026-09"
+                        }
+                    }
+                ],
+                "responses": {
+                    "200": {
+                        "description": "Operational overview, project statuses, meeting and weekly-report queues, finance summary, cumulative quotation/received/refund/net cash trend and KPI breakdowns",
+                        "content": {
+                            "application/json": {
+                                "schema": {
+                                    "$ref": "#/components/schemas/GenericObject"
+                                }
+                            }
+                        }
+                    },
+                    "403": {
+                        "description": "Missing kpi.view permission",
+                        "content": {
+                            "application/json": {
+                                "schema": {
+                                    "$ref": "#/components/schemas/ApiError"
+                                }
+                            }
+                        }
+                    },
+                    "422": {
+                        "description": "Validation error",
+                        "content": {
+                            "application/json": {
+                                "schema": {
+                                    "$ref": "#/components/schemas/ApiError"
+                                }
+                            }
+                        }
+                    }
+                },
+                "security": [
+                    {
+                        "cookieAuth": []
+                    }
+                ],
+                "servers": [
+                    {
+                        "url": "http://localhost:4000/api",
+                        "description": "Local API server"
+                    }
+                ]
+            }
+        },
         "/kpi": {
             "get": {
                 "tags": [
                     "KPI"
                 ],
-                "summary": "KPI report for existing projects by month range, root service and department",
+                "summary": "Scoped KPI report for existing projects by month range, service, department and employee",
                 "operationId": "kpiReport",
                 "parameters": [
                     {
@@ -1133,7 +1255,7 @@
                 ],
                 "responses": {
                     "200": {
-                        "description": "KPI report with gross source amounts, before-VAT profit, calculationBasis and one monthly result per item in periods; soft-deleted projects are excluded",
+                        "description": "KPI report scoped by kpi.view, kpi.view_department or kpi.view_all, with monthly service, department and employee results; soft-deleted projects are excluded",
                         "content": {
                             "application/json": {
                                 "schema": {
@@ -1512,6 +1634,78 @@
                     },
                     "422": {
                         "description": "Validation error",
+                        "content": {
+                            "application/json": {
+                                "schema": {
+                                    "$ref": "#/components/schemas/ApiError"
+                                }
+                            }
+                        }
+                    }
+                },
+                "security": [
+                    {
+                        "cookieAuth": []
+                    }
+                ],
+                "servers": [
+                    {
+                        "url": "http://localhost:4000/api",
+                        "description": "Local API server"
+                    }
+                ]
+            }
+        },
+        "/weekly-reports/{id}/reject": {
+            "post": {
+                "tags": [
+                    "Weekly Reports"
+                ],
+                "summary": "Reject a submitted weekly report with a required reason",
+                "operationId": "weeklyReportsReject",
+                "parameters": [
+                    {
+                        "name": "id",
+                        "in": "path",
+                        "required": true,
+                        "schema": {
+                            "type": "integer"
+                        }
+                    }
+                ],
+                "requestBody": {
+                    "required": true,
+                    "content": {
+                        "application/json": {
+                            "schema": {
+                                "$ref": "#/components/schemas/WeeklyReportRejectRequest"
+                            }
+                        }
+                    }
+                },
+                "responses": {
+                    "200": {
+                        "description": "Weekly report rejected",
+                        "content": {
+                            "application/json": {
+                                "schema": {
+                                    "$ref": "#/components/schemas/GenericObject"
+                                }
+                            }
+                        }
+                    },
+                    "403": {
+                        "description": "Approval permission denied",
+                        "content": {
+                            "application/json": {
+                                "schema": {
+                                    "$ref": "#/components/schemas/ApiError"
+                                }
+                            }
+                        }
+                    },
+                    "422": {
+                        "description": "Validation or status error",
                         "content": {
                             "application/json": {
                                 "schema": {
@@ -3167,6 +3361,107 @@
                 "responses": {
                     "201": {
                         "description": "Created",
+                        "content": {
+                            "application/json": {
+                                "schema": {
+                                    "$ref": "#/components/schemas/GenericObject"
+                                }
+                            }
+                        }
+                    }
+                },
+                "security": [
+                    {
+                        "cookieAuth": []
+                    }
+                ],
+                "servers": [
+                    {
+                        "url": "http://localhost:4000/api",
+                        "description": "Local API server"
+                    }
+                ]
+            }
+        },
+        "/customers/lookup": {
+            "get": {
+                "tags": [
+                    "Customers"
+                ],
+                "summary": "Lookup customers available to Project forms",
+                "operationId": "customersLookup",
+                "parameters": [
+                    {
+                        "name": "keyword",
+                        "in": "query",
+                        "schema": {
+                            "type": "string"
+                        }
+                    },
+                    {
+                        "name": "page",
+                        "in": "query",
+                        "schema": {
+                            "type": "integer",
+                            "minimum": 1
+                        }
+                    },
+                    {
+                        "name": "per_page",
+                        "in": "query",
+                        "schema": {
+                            "type": "integer",
+                            "maximum": 100,
+                            "minimum": 1
+                        }
+                    }
+                ],
+                "responses": {
+                    "200": {
+                        "description": "Scoped customer lookup",
+                        "content": {
+                            "application/json": {
+                                "schema": {
+                                    "$ref": "#/components/schemas/GenericList"
+                                }
+                            }
+                        }
+                    }
+                },
+                "security": [
+                    {
+                        "cookieAuth": []
+                    }
+                ],
+                "servers": [
+                    {
+                        "url": "http://localhost:4000/api",
+                        "description": "Local API server"
+                    }
+                ]
+            }
+        },
+        "/customers/lookup/{id}": {
+            "get": {
+                "tags": [
+                    "Customers"
+                ],
+                "summary": "Show a customer available to Project forms",
+                "operationId": "customersLookupShow",
+                "parameters": [
+                    {
+                        "name": "id",
+                        "in": "path",
+                        "required": true,
+                        "schema": {
+                            "type": "string",
+                            "format": "uuid"
+                        }
+                    }
+                ],
+                "responses": {
+                    "200": {
+                        "description": "Scoped customer lookup item",
                         "content": {
                             "application/json": {
                                 "schema": {
@@ -4877,14 +5172,14 @@
                 "tags": [
                     "Roles"
                 ],
-                "summary": "Create role",
+                "summary": "Create role and assign permissions atomically",
                 "operationId": "rolesStore",
                 "requestBody": {
                     "required": true,
                     "content": {
                         "application/json": {
                             "schema": {
-                                "$ref": "#/components/schemas/GenericObject"
+                                "$ref": "#/components/schemas/RoleCreateMutation"
                             }
                         }
                     }
@@ -4927,8 +5222,7 @@
                         "in": "path",
                         "required": true,
                         "schema": {
-                            "type": "string",
-                            "format": "uuid"
+                            "type": "integer"
                         }
                     }
                 ],
@@ -4960,7 +5254,7 @@
                 "tags": [
                     "Roles"
                 ],
-                "summary": "Update role",
+                "summary": "Update role and replace permissions atomically",
                 "operationId": "rolesPut",
                 "parameters": [
                     {
@@ -4968,8 +5262,7 @@
                         "in": "path",
                         "required": true,
                         "schema": {
-                            "type": "string",
-                            "format": "uuid"
+                            "type": "integer"
                         }
                     }
                 ],
@@ -4978,7 +5271,7 @@
                     "content": {
                         "application/json": {
                             "schema": {
-                                "$ref": "#/components/schemas/GenericObject"
+                                "$ref": "#/components/schemas/RoleUpdateMutation"
                             }
                         }
                     }
@@ -5019,8 +5312,7 @@
                         "in": "path",
                         "required": true,
                         "schema": {
-                            "type": "string",
-                            "format": "uuid"
+                            "type": "integer"
                         }
                     }
                 ],
@@ -5052,7 +5344,7 @@
                 "tags": [
                     "Roles"
                 ],
-                "summary": "Patch role",
+                "summary": "Patch role and replace supplied permissions atomically",
                 "operationId": "rolesPatch",
                 "parameters": [
                     {
@@ -5060,8 +5352,7 @@
                         "in": "path",
                         "required": true,
                         "schema": {
-                            "type": "string",
-                            "format": "uuid"
+                            "type": "integer"
                         }
                     }
                 ],
@@ -5070,7 +5361,7 @@
                     "content": {
                         "application/json": {
                             "schema": {
-                                "$ref": "#/components/schemas/GenericObject"
+                                "$ref": "#/components/schemas/RoleUpdateMutation"
                             }
                         }
                     }
@@ -5113,8 +5404,7 @@
                         "in": "path",
                         "required": true,
                         "schema": {
-                            "type": "string",
-                            "format": "uuid"
+                            "type": "integer"
                         }
                     }
                 ],
@@ -5154,8 +5444,7 @@
                         "in": "path",
                         "required": true,
                         "schema": {
-                            "type": "string",
-                            "format": "uuid"
+                            "type": "integer"
                         }
                     }
                 ],
@@ -5164,7 +5453,7 @@
                     "content": {
                         "application/json": {
                             "schema": {
-                                "$ref": "#/components/schemas/GenericObject"
+                                "$ref": "#/components/schemas/RolePermissionSync"
                             }
                         }
                     }
@@ -5228,6 +5517,61 @@
                     "additionalProperties": true
                 }
             },
+            "RoleCreateMutation": {
+                "required": [
+                    "name"
+                ],
+                "properties": {
+                    "name": {
+                        "type": "string",
+                        "maxLength": 100
+                    },
+                    "description": {
+                        "type": "string",
+                        "nullable": true
+                    },
+                    "permission_ids": {
+                        "type": "array",
+                        "items": {
+                            "type": "integer"
+                        }
+                    }
+                },
+                "type": "object"
+            },
+            "RoleUpdateMutation": {
+                "properties": {
+                    "name": {
+                        "type": "string",
+                        "maxLength": 100
+                    },
+                    "description": {
+                        "type": "string",
+                        "nullable": true
+                    },
+                    "permission_ids": {
+                        "type": "array",
+                        "items": {
+                            "type": "integer"
+                        }
+                    }
+                },
+                "type": "object"
+            },
+            "RolePermissionSync": {
+                "required": [
+                    "permission_ids"
+                ],
+                "properties": {
+                    "permission_ids": {
+                        "type": "array",
+                        "items": {
+                            "type": "integer"
+                        }
+                    }
+                },
+                "type": "object"
+            },
             "LoginRequest": {
                 "required": [
                     "email",
@@ -5247,6 +5591,25 @@
                         "description": "Keep this device signed in for the configured remember duration",
                         "type": "boolean",
                         "default": false
+                    }
+                },
+                "type": "object"
+            },
+            "UpdateProfileRequest": {
+                "properties": {
+                    "name": {
+                        "type": "string",
+                        "maxLength": 255
+                    },
+                    "phone": {
+                        "type": "string",
+                        "nullable": true,
+                        "maxLength": 50
+                    },
+                    "avatar": {
+                        "type": "string",
+                        "nullable": true,
+                        "maxLength": 2048
                     }
                 },
                 "type": "object"
@@ -5317,7 +5680,9 @@
                         "type": "string",
                         "enum": [
                             "service",
-                            "department"
+                            "service_group",
+                            "department",
+                            "employee"
                         ]
                     },
                     "scopeId": {
@@ -5378,6 +5743,18 @@
                             "type": "object",
                             "additionalProperties": true
                         }
+                    }
+                },
+                "type": "object"
+            },
+            "WeeklyReportRejectRequest": {
+                "required": [
+                    "reason"
+                ],
+                "properties": {
+                    "reason": {
+                        "type": "string",
+                        "maxLength": 2000
                     }
                 },
                 "type": "object"
@@ -5552,6 +5929,9 @@
         },
         {
             "name": "P2 Points"
+        },
+        {
+            "name": "Dashboard"
         },
         {
             "name": "KPI"

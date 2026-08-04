@@ -480,7 +480,7 @@ export function QuickQuotationBuilderDialog({
                 {companyInfo.taxCode ? <p>MST: {companyInfo.taxCode}</p> : null}
                 <p>{[companyInfo.phone, companyInfo.website].filter(Boolean).join(' · ')}</p>
                 {companyInfo.address ? <p>{companyInfo.address}</p> : null}
-                {companyInfo.office ? <p>Văn phòng: {companyInfo.office}</p> : null}
+                {companyInfo.office ? <p>{companyInfo.office}</p> : null}
               </div>
             </header>
 
