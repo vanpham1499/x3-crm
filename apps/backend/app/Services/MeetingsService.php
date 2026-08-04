@@ -16,7 +16,11 @@ use Illuminate\Validation\ValidationException;
 
 class MeetingsService extends BaseService
 {
-    public function __construct(private readonly MeetingRepository $meetings) {}
+    public function __construct(
+        private readonly MeetingRepository $meetings,
+        private readonly NotificationDispatchService $notifications,
+        private readonly NotificationRecipientResolver $notificationRecipients,
+    ) {}
 
     public function findAll(array $filters): Collection
     {
@@ -103,6 +107,7 @@ class MeetingsService extends BaseService
             ]);
             $this->syncPeople($meeting, $participantIds, $guests);
             $this->recordHistory($meeting, 'created', ['meeting' => $this->snapshot($meeting)]);
+            $this->notifyMeeting($meeting, $this->meetingRecipientIds($meeting), 'meeting_created');
             $this->recordTimeline($meeting, 'meeting_created', 'Tạo lịch hẹn');
 
             return $this->resource($meeting);
@@ -116,6 +121,7 @@ class MeetingsService extends BaseService
             $this->authorize('update', $meeting);
             $this->assertActive($meeting);
             $before = $this->snapshot($meeting);
+            $beforeRecipientIds = $this->meetingRecipientIds($meeting);
 
             [$payload, $participantIds, $guests, $allowConflict] = $this->preparePayload($data);
             $this->assertNoConflict(
@@ -147,6 +153,12 @@ class MeetingsService extends BaseService
                 $timeChanged ? 'Đổi lịch hẹn' : 'Cập nhật lịch hẹn',
             );
 
+            $recipientIds = $beforeRecipientIds
+                ->merge($this->meetingRecipientIds($meeting))
+                ->unique()
+                ->values();
+            $this->notifyMeeting($meeting, $recipientIds, $timeChanged ? 'meeting_rescheduled' : 'meeting_updated');
+
             return $this->resource($meeting);
         });
     }
@@ -157,6 +169,9 @@ class MeetingsService extends BaseService
             $meeting = $this->meetings->findVisibleOrFail($this->requiredUser(), $id);
             $this->authorize('delete', $meeting);
             $this->recordTimeline($meeting, 'meeting_deleted', 'Xóa lịch hẹn');
+            $recipientIds = $this->meetingRecipientIds($meeting);
+            $this->notifyMeeting($meeting, $recipientIds, 'meeting_cancelled', 'Lịch hẹn đã bị xóa');
+            $this->notifications->resolve('meeting', $meeting->id, ['meeting_reminder_24h', 'meeting_reminder_30m']);
             $meeting->deleted_by = $this->currentUser()?->id;
             $meeting->save();
             $meeting->delete();
@@ -214,6 +229,8 @@ class MeetingsService extends BaseService
                 'cancellation_reason' => trim($reason),
                 'cancelled_at' => now(),
             ]);
+            $this->notifyMeeting($meeting, $this->meetingRecipientIds($meeting), 'meeting_cancelled');
+            $this->notifications->resolve('meeting', $meeting->id, ['meeting_reminder_24h', 'meeting_reminder_30m']);
             $this->recordHistory($meeting, 'cancelled', ['reason' => $meeting->cancellation_reason]);
             $this->recordTimeline($meeting, 'meeting_cancelled', 'Hủy lịch hẹn');
 
@@ -368,6 +385,46 @@ class MeetingsService extends BaseService
         if ($guests !== []) {
             $meeting->guests()->createMany($guests);
         }
+    }
+
+    /** @return Collection<int, int> */
+    private function meetingRecipientIds(Meeting $meeting): Collection
+    {
+        return collect([$meeting->organizer_user_id])
+            ->merge($meeting->participants()->pluck('users.id'))
+            ->filter()
+            ->map(fn ($id): int => (int) $id)
+            ->unique()
+            ->values();
+    }
+
+    private function notifyMeeting(
+        Meeting $meeting,
+        Collection $recipientIds,
+        string $eventKey,
+        ?string $title = null,
+    ): void {
+        $titles = [
+            'meeting_created' => 'Bạn có lịch hẹn mới',
+            'meeting_updated' => 'Lịch hẹn đã được cập nhật',
+            'meeting_rescheduled' => 'Thời gian lịch hẹn đã thay đổi',
+            'meeting_cancelled' => 'Lịch hẹn đã bị hủy',
+        ];
+        $time = $meeting->starts_at
+            ? $meeting->starts_at->timezone($meeting->timezone ?: 'Asia/Ho_Chi_Minh')->format('H:i d/m/Y')
+            : null;
+
+        $this->notifications->send($this->notificationRecipients->authorizedUsers($recipientIds, 'view', $meeting), [
+            'module' => 'meeting',
+            'event_key' => $eventKey,
+            'title' => $title ?? ($titles[$eventKey] ?? 'Lịch hẹn được cập nhật'),
+            'message' => trim($meeting->subject.($time ? ' · '.$time : '')),
+            'severity' => $eventKey === 'meeting_cancelled' ? 'warning' : 'info',
+            'entity_type' => 'meeting',
+            'entity_id' => $meeting->id,
+            'action_url' => '/meetings',
+            'dedupe_key' => implode(':', [$eventKey, $meeting->id, $meeting->updated_at?->format('YmdHisu')]),
+        ]);
     }
 
     private function assertActive(Meeting $meeting): void

@@ -21,6 +21,8 @@ class PaymentsService extends BaseService
         private readonly PaymentRefundRepository $refunds,
         private readonly QuotationsService $quotations,
         private readonly PaymentAllocationService $paymentAllocations,
+        private readonly NotificationDispatchService $notifications,
+        private readonly NotificationRecipientResolver $notificationRecipients,
     ) {}
 
     public function findAll(array $filters = [])
@@ -70,6 +72,7 @@ class PaymentsService extends BaseService
             $payment = $this->payments->create($data);
             $this->paymentAllocations->reconcilePayment($payment->id);
             $this->paymentAllocations->autoAllocateToQuotation($payment->id, $quotation?->id, auth()->id());
+            $this->syncPaymentNotifications($payment->id, true);
 
             return $this->paymentResource($payment);
         });
@@ -116,6 +119,8 @@ class PaymentsService extends BaseService
                 $this->paymentAllocations->autoAllocateToQuotation($payment->id, $quotationId, auth()->id());
             }
 
+            $this->syncPaymentNotifications($payment->id);
+
             return $this->paymentResource($payment);
         });
     }
@@ -131,6 +136,7 @@ class PaymentsService extends BaseService
                 ]);
             }
 
+            $this->notifications->resolve('payment', $payment->id, ['payment_processing_required']);
             $this->payments->delete($id);
 
             return ['message' => 'Xóa thanh toán thành công'];
@@ -176,6 +182,7 @@ class PaymentsService extends BaseService
                     $quotation?->id,
                     auth()->id(),
                 );
+                $this->syncPaymentNotifications($existingPayment->id);
 
                 return $this->paymentResource($existingPayment);
             }
@@ -188,6 +195,7 @@ class PaymentsService extends BaseService
                     'webhook_payload' => $rawPayload,
                 ]));
                 $this->paymentAllocations->reconcilePayment($payment->id);
+                $this->syncPaymentNotifications($payment->id, true);
 
                 return $this->paymentResource($payment);
             }
@@ -197,6 +205,7 @@ class PaymentsService extends BaseService
                 'webhook_payload' => $rawPayload,
             ]));
             $this->paymentAllocations->autoAllocateToQuotation($payment->id, $quotation->id, auth()->id());
+            $this->syncPaymentNotifications($payment->id, true);
 
             return $this->paymentResource($payment);
         });
@@ -206,6 +215,7 @@ class PaymentsService extends BaseService
     {
         $this->authorize('allocate', Payment::class);
         $this->paymentAllocations->allocate($id, $data['allocations'] ?? [], auth()->id());
+        $this->syncPaymentNotifications($id);
 
         return $this->paymentResource($this->payments->findWithRelationsOrFail($id));
     }
@@ -214,6 +224,7 @@ class PaymentsService extends BaseService
     {
         $this->authorize('allocate', Payment::class);
         $this->paymentAllocations->removeAllocation($paymentId, $allocationId, auth()->id());
+        $this->syncPaymentNotifications($paymentId);
 
         return $this->paymentResource($this->payments->findWithRelationsOrFail($paymentId));
     }
@@ -221,7 +232,9 @@ class PaymentsService extends BaseService
     public function refund(string $id, array $data): array
     {
         $this->authorize('createRefund', Payment::class);
-        $this->paymentAllocations->refund($id, $data, auth()->id());
+        $refund = $this->paymentAllocations->refund($id, $data, auth()->id());
+        $this->syncRefundNotifications($refund);
+        $this->syncPaymentNotifications($id);
 
         return $this->paymentResource($this->payments->findWithRelationsOrFail($id));
     }
@@ -230,6 +243,8 @@ class PaymentsService extends BaseService
     {
         $this->authorize('manage', Payment::class);
         $refund = $this->paymentAllocations->updateRefund($id, $data, auth()->id());
+        $this->syncRefundNotifications($refund);
+        $this->syncPaymentNotifications($refund->payment_id);
 
         return $this->apiResource($refund, PaymentRefundResource::class);
     }
@@ -237,7 +252,10 @@ class PaymentsService extends BaseService
     public function removeRefund(string $id): array
     {
         $this->authorize('manage', Payment::class);
+        $refund = PaymentRefund::query()->findOrFail($id);
         $this->paymentAllocations->removeRefund($id, auth()->id());
+        $this->notifications->resolve('payment_refund', $refund->id, ['payment_refund_processing_required']);
+        $this->syncPaymentNotifications($refund->payment_id);
 
         return ['message' => 'Đã xóa khoản hoàn và tính lại công nợ'];
     }
@@ -246,6 +264,7 @@ class PaymentsService extends BaseService
     {
         $this->authorize('manage', Payment::class);
         $this->paymentAllocations->classify($id, $this->normalizeKeys($data));
+        $this->syncPaymentNotifications($id);
 
         return $this->paymentResource($this->payments->findWithRelationsOrFail($id));
     }
@@ -260,6 +279,186 @@ class PaymentsService extends BaseService
         ]);
 
         return $this->paymentResource($this->payments->findWithRelationsOrFail($id));
+    }
+
+    private function syncPaymentNotifications(string|int $paymentId, bool $isNewReceipt = false): void
+    {
+        $payment = Payment::query()->with([
+            'project',
+            'customer',
+            'lead',
+            'allocations.quotation.project',
+            'allocations.quotation.customer',
+            'allocations.quotation.lead',
+        ])->findOrFail($paymentId);
+
+        if (($payment->receipt_type ?? 'customer') !== 'customer') {
+            $this->notifications->resolve('payment', $payment->id, ['payment_processing_required']);
+
+            return;
+        }
+
+        $requiresProcessing = $payment->reconciled_status === 'unmatched'
+            || (float) $payment->excess_amount > 0.01;
+
+        if ($requiresProcessing) {
+            $this->notifications->send($this->notificationRecipients->paymentManagers(), [
+                'module' => 'payment',
+                'event_key' => 'payment_processing_required',
+                'title' => 'Có khoản thu đang chờ xử lý',
+                'message' => $this->paymentMessage($payment),
+                'kind' => 'action',
+                'severity' => 'warning',
+                'entity_type' => 'payment',
+                'entity_id' => $payment->id,
+                'action_url' => '/payments',
+                'dedupe_key' => 'payment_processing_required:'.$payment->id,
+                'reopen_resolved' => true,
+            ]);
+        } else {
+            $this->notifications->resolve('payment', $payment->id, ['payment_processing_required']);
+        }
+
+        $relatedRecipients = $this->notificationRecipients->usersWithPermission(
+            $this->paymentRecipientIds($payment),
+            'payment.view',
+        );
+        $hasAllocation = $payment->allocations->isNotEmpty();
+
+        if (! $hasAllocation && ! ($isNewReceipt && ! $requiresProcessing)) {
+            return;
+        }
+
+        $recipients = $relatedRecipients;
+
+        if ($isNewReceipt && ! $requiresProcessing) {
+            $recipients = $recipients
+                ->concat($this->notificationRecipients->paymentManagers())
+                ->unique('id')
+                ->values();
+        }
+
+        $this->notifications->send($recipients, [
+            'module' => 'payment',
+            'event_key' => 'payment_received',
+            'title' => 'Đã nhận thanh toán từ khách hàng',
+            'message' => $this->paymentMessage($payment),
+            'severity' => 'success',
+            'entity_type' => 'payment',
+            'entity_id' => $payment->id,
+            'action_url' => '/payments',
+            'dedupe_key' => 'payment_received:'.$payment->id,
+        ]);
+    }
+
+    private function syncRefundNotifications(PaymentRefund $refund): void
+    {
+        $refund = $refund->refresh()->load([
+            'payment.project',
+            'payment.customer',
+            'payment.lead',
+            'payment.allocations.quotation.project',
+            'payment.allocations.quotation.customer',
+            'payment.allocations.quotation.lead',
+            'project',
+            'customer',
+            'quotation',
+        ]);
+        $this->notifications->resolve('payment_refund', $refund->id, ['payment_refund_processing_required']);
+
+        if ($refund->status === PaymentRefund::STATUS_PENDING) {
+            $this->notifications->send($this->notificationRecipients->paymentManagers(), [
+                'module' => 'payment',
+                'event_key' => 'payment_refund_processing_required',
+                'title' => $refund->refund_type === PaymentRefund::TYPE_COMPENSATION
+                    ? 'Có khoản bù thêm đang chờ xử lý'
+                    : 'Có khoản trả khách đang chờ xử lý',
+                'message' => $this->refundMessage($refund),
+                'kind' => 'action',
+                'severity' => 'warning',
+                'entity_type' => 'payment_refund',
+                'entity_id' => $refund->id,
+                'action_url' => '/payments?tab=refunds',
+                'dedupe_key' => 'payment_refund_processing_required:'.$refund->id,
+                'reopen_resolved' => true,
+            ]);
+
+            return;
+        }
+
+        $payment = $refund->payment;
+        $recipientIds = $this->paymentRecipientIds($payment)
+            ->push($refund->created_by)
+            ->push($refund->project?->manager_user_id)
+            ->push($refund->project?->sales_user_id)
+            ->push($refund->customer?->sales_user_id)
+            ->filter()
+            ->unique()
+            ->values();
+        $recipients = $this->notificationRecipients->usersWithPermission($recipientIds, 'payment.view');
+        $isCompleted = $refund->status === PaymentRefund::STATUS_COMPLETED;
+        $isCompensation = $refund->refund_type === PaymentRefund::TYPE_COMPENSATION;
+
+        $this->notifications->send($recipients, [
+            'module' => 'payment',
+            'event_key' => $isCompleted ? 'payment_refund_completed' : 'payment_refund_cancelled',
+            'title' => $isCompleted
+                ? ($isCompensation ? 'Khoản bù thêm đã hoàn tất' : 'Khoản trả khách đã hoàn tất')
+                : 'Khoản trả khách đã được hủy',
+            'message' => $this->refundMessage($refund),
+            'severity' => $isCompleted ? 'success' : 'info',
+            'entity_type' => 'payment_refund',
+            'entity_id' => $refund->id,
+            'action_url' => '/payments?tab=refunds',
+            'dedupe_key' => ($isCompleted ? 'payment_refund_completed:' : 'payment_refund_cancelled:').$refund->id,
+        ]);
+    }
+
+    private function paymentRecipientIds(Payment $payment): \Illuminate\Support\Collection
+    {
+        $ids = collect([
+            $payment->project?->manager_user_id,
+            $payment->project?->sales_user_id,
+            $payment->customer?->sales_user_id,
+            $payment->lead?->assigned_user_id,
+        ]);
+
+        foreach ($payment->allocations as $allocation) {
+            $quotation = $allocation->quotation;
+            $ids->push(
+                $quotation?->project?->manager_user_id,
+                $quotation?->project?->sales_user_id,
+                $quotation?->customer?->sales_user_id,
+                $quotation?->lead?->assigned_user_id,
+            );
+        }
+
+        return $ids->filter()->map(fn ($id): int => (int) $id)->unique()->values();
+    }
+
+    private function paymentMessage(Payment $payment): string
+    {
+        $projectNames = $payment->allocations
+            ->map(fn ($allocation) => $allocation->quotation?->project?->project_name)
+            ->push($payment->project?->project_name)
+            ->filter()
+            ->unique()
+            ->implode(', ');
+
+        return implode(' · ', array_filter([
+            number_format((float) $payment->amount, 0, ',', '.').' đ',
+            $projectNames ?: $payment->customer?->customer_name,
+            $payment->sender_name,
+        ]));
+    }
+
+    private function refundMessage(PaymentRefund $refund): string
+    {
+        return implode(' · ', array_filter([
+            number_format((float) $refund->amount, 0, ',', '.').' đ',
+            $refund->project?->project_name ?: $refund->customer?->customer_name,
+            $refund->reason,
+        ]));
     }
 
     private function matchedPayload(Quotation $quotation): array

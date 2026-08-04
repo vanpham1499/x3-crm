@@ -2,7 +2,7 @@
 
 import { useState } from 'react';
 import BackspaceRoundedIcon from '@mui/icons-material/BackspaceRounded';
-import CalculateRoundedIcon from '@mui/icons-material/CalculateRounded';
+import { UtilityDrawer } from '@/components/shell/utility-drawer';
 
 type Operator = '+' | '-' | 'x' | '/' | null;
 
@@ -44,7 +44,7 @@ function formatDisplay(value: string) {
   return isNegative ? `-${formattedValue}` : formattedValue;
 }
 
-export function CalculatorPanel() {
+export function CalculatorPanel({ open, onClose }: { open: boolean; onClose: () => void }) {
   const [display, setDisplay] = useState('0');
   const [storedValue, setStoredValue] = useState<number | null>(null);
   const [operator, setOperator] = useState<Operator>(null);
@@ -146,19 +146,14 @@ export function CalculatorPanel() {
   };
 
   return (
-    <aside className="sticky top-0 z-20 hidden h-screen w-[320px] shrink-0 border-r border-slate-200 bg-slate-50 px-4 py-5 lg:block">
-      <div className="flex h-full flex-col">
-        <div className="mb-4 flex items-center gap-3 px-1">
-          <span className="inline-flex h-10 w-10 items-center justify-center rounded-2xl bg-emerald-100 text-emerald-600">
-            <CalculateRoundedIcon className="text-[22px]" />
-          </span>
-          <div>
-            <p className="text-sm font-extrabold text-slate-950">Máy tính</p>
-            <p className="text-xs font-medium text-slate-500">Tính nhanh trong CRM</p>
-          </div>
-        </div>
-
-        <div className="rounded-[28px] border border-slate-200 bg-slate-950 p-4 shadow-xl shadow-slate-200/70">
+    <UtilityDrawer
+      open={open}
+      onClose={onClose}
+      title="Máy tính"
+      subtitle="Tính nhanh ngay trong CRM"
+    >
+      <div className="h-full overflow-y-auto bg-slate-50 p-5 dark:bg-slate-900/60">
+        <div className="rounded-[28px] border border-slate-800 bg-slate-950 p-4 shadow-xl shadow-slate-300/60 dark:shadow-none">
           <div className="mb-4 rounded-2xl bg-slate-900 px-4 py-5 text-right">
             <p className="min-h-5 text-xs font-semibold uppercase tracking-[0.22em] text-slate-500">
               {operator ? `Đang tính ${operator}` : 'Sẵn sàng'}
@@ -178,6 +173,7 @@ export function CalculatorPanel() {
                   key={value}
                   type="button"
                   onClick={() => handleButton(value)}
+                  aria-label={value === 'backspace' ? 'Xóa một ký tự' : value}
                   className={`flex h-14 items-center justify-center rounded-2xl text-base font-extrabold transition active:scale-[0.98] ${
                     isOperator
                       ? 'bg-emerald-500 text-white hover:bg-emerald-400'
@@ -192,14 +188,7 @@ export function CalculatorPanel() {
             })}
           </div>
         </div>
-
-        <div className="mt-4 rounded-2xl border border-slate-200 bg-white p-4">
-          <p className="text-xs font-bold uppercase text-slate-400">Ghi chú</p>
-          <p className="mt-2 text-sm font-medium leading-6 text-slate-600">
-            Panel này nằm cố định như một cột phụ, không tự đóng khi thao tác trên nội dung trang.
-          </p>
-        </div>
       </div>
-    </aside>
+    </UtilityDrawer>
   );
 }

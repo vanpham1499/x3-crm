@@ -4,6 +4,7 @@ namespace App\Http\Controllers;
 
 use App\Http\Requests\Auth\ChangePasswordRequest;
 use App\Http\Requests\Auth\LoginRequest;
+use App\Http\Requests\Auth\UpdateProfileRequest;
 use App\Services\AuthService;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Http\Request;
@@ -31,6 +32,13 @@ class AuthController extends Controller
     public function profile(Request $request): JsonResponse
     {
         return $this->success($this->auth->getProfile($request->user()));
+    }
+
+    public function updateProfile(UpdateProfileRequest $request): JsonResponse
+    {
+        return $this->success(
+            $this->auth->updateProfile($request->user(), $request->validatedData()),
+        );
     }
 
     public function logout(Request $request): JsonResponse

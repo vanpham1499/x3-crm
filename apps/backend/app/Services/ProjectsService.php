@@ -19,6 +19,8 @@ class ProjectsService extends BaseService
     public function __construct(
         private readonly ProjectRepository $projects,
         private readonly QuotationsService $quotations,
+        private readonly NotificationDispatchService $notifications,
+        private readonly NotificationRecipientResolver $notificationRecipients,
     ) {}
 
     public function findAll(array $filters = [])
@@ -91,6 +93,8 @@ class ProjectsService extends BaseService
             if ($project->quotation_id) {
                 $this->quotations->linkWonRecords($project->quotation_id, $project->customer_id, $project->id, $contract?->id);
             }
+
+            $this->notifyProjectAssignments($project, [], 'project_assigned');
 
             return $this->apiResource($this->loadProjectRelations($project), ProjectResource::class);
         });
@@ -193,6 +197,12 @@ class ProjectsService extends BaseService
                 $this->quotations->linkWonRecords($project->quotation_id, $project->customer_id, $project->id, $contract?->id);
             }
 
+            $changedAssignments = collect(['manager_user_id', 'sales_user_id'])
+                ->filter(fn (string $field) => array_key_exists($field, $data)
+                    && (string) $before->{$field} !== (string) $project->{$field})
+                ->all();
+            $this->notifyProjectAssignments($project, $changedAssignments, 'project_reassigned');
+
             return $this->apiResource($this->loadProjectRelations($project), ProjectResource::class);
         });
     }
@@ -226,6 +236,34 @@ class ProjectsService extends BaseService
         }
 
         return $data;
+    }
+
+    private function notifyProjectAssignments(Project $project, array $changedFields, string $eventKey): void
+    {
+        $fields = $changedFields === [] && $eventKey === 'project_assigned'
+            ? ['manager_user_id', 'sales_user_id']
+            : $changedFields;
+        $recipientIds = collect($fields)
+            ->map(fn (string $field) => $project->{$field})
+            ->filter()
+            ->unique()
+            ->values();
+
+        if ($recipientIds->isEmpty()) {
+            return;
+        }
+
+        $this->notifications->send($this->notificationRecipients->authorizedUsers($recipientIds, 'view', $project), [
+            'module' => 'project',
+            'event_key' => $eventKey,
+            'title' => $eventKey === 'project_assigned' ? 'Bạn được phân công dự án mới' : 'Dự án được phân công lại cho bạn',
+            'message' => trim(($project->project_code ? $project->project_code.' · ' : '').$project->project_name),
+            'severity' => 'info',
+            'entity_type' => 'project',
+            'entity_id' => $project->id,
+            'action_url' => '/projects/'.$project->id,
+            'dedupe_key' => implode(':', [$eventKey, $project->id, $recipientIds->implode('-'), $project->updated_at?->format('YmdHisu')]),
+        ]);
     }
 
     private function normalizeKeys(array $data): array

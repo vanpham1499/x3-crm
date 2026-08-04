@@ -257,9 +257,14 @@ export function Sidebar() {
         className={`flex h-[72px] items-center ${collapsed ? 'justify-center px-0' : 'justify-start px-6'}`}
       >
         {collapsed ? (
-          <span className="inline-flex h-10 w-10 items-center justify-center rounded-full bg-primary text-xs font-extrabold text-white">
-            X3
-          </span>
+          <Image
+            src="/favicon.png"
+            alt="X3Sales"
+            width={40}
+            height={40}
+            priority
+            className="size-10 object-contain"
+          />
         ) : (
           <Image
             src={x3salesLogo}
@@ -289,13 +294,7 @@ export function Sidebar() {
         className={`sidebar-scrollbar z-0 flex-1 overflow-y-auto pb-2 ${collapsed ? 'px-3' : 'px-4'}`}
       >
         {visibleNavGroups.map((group) => (
-          <div key={group.label} className="mb-5">
-            {!collapsed && (
-              <p className="px-3 pb-2 text-[11px] font-extrabold uppercase leading-5 text-slate-400">
-                {group.label}
-              </p>
-            )}
-
+          <div key={group.items[0]?.href ?? 'navigation'} className="mb-5">
             <nav className="space-y-1.5">
               {group.items.map((item) => {
                 const Icon = item.icon;

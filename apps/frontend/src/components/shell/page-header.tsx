@@ -112,36 +112,38 @@ export function PageHeader({
         {eyebrow && <div className="mb-2 flex flex-wrap items-center gap-2">{eyebrow}</div>}
         <h1 className="mb-2 block text-2xl font-bold text-slate-950">{title}</h1>
 
-        <Breadcrumbs
-          aria-label="Điều hướng trang"
-          separator={<ChevronRightRoundedIcon className="!text-[16px] text-slate-300" />}
-        >
-          {resolvedBreadcrumbs.map((item, index) => {
-            const isCurrent = index === resolvedBreadcrumbs.length - 1;
+        {resolvedBreadcrumbs.length > 0 ? (
+          <Breadcrumbs
+            aria-label="Điều hướng trang"
+            separator={<ChevronRightRoundedIcon className="!text-[16px] text-slate-300" />}
+          >
+            {resolvedBreadcrumbs.map((item, index) => {
+              const isCurrent = index === resolvedBreadcrumbs.length - 1;
 
-            if (item.href && !isCurrent) {
+              if (item.href && !isCurrent) {
+                return (
+                  <Link
+                    key={`${item.label}-${item.href}`}
+                    href={item.href}
+                    className="rounded text-sm font-medium text-slate-500 transition-colors hover:text-primary focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary/30"
+                  >
+                    {item.label}
+                  </Link>
+                );
+              }
+
               return (
-                <Link
-                  key={`${item.label}-${item.href}`}
-                  href={item.href}
-                  className="rounded text-sm font-medium text-slate-500 transition-colors hover:text-primary focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary/30"
+                <span
+                  key={item.label}
+                  aria-current={isCurrent ? 'page' : undefined}
+                  className="text-sm font-semibold text-slate-950"
                 >
                   {item.label}
-                </Link>
+                </span>
               );
-            }
-
-            return (
-              <span
-                key={item.label}
-                aria-current={isCurrent ? 'page' : undefined}
-                className="text-sm font-semibold text-slate-950"
-              >
-                {item.label}
-              </span>
-            );
-          })}
-        </Breadcrumbs>
+            })}
+          </Breadcrumbs>
+        ) : null}
       </div>
 
       {actions ||

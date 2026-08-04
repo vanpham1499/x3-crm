@@ -75,8 +75,9 @@ Nếu PHP/Composer không nằm trong `PATH`, script backend mặc định dùng
 
 ### Chạy môi trường phát triển khuyến nghị
 
-Backend chạy trên máy host, PostgreSQL chạy trong Docker. `npm run dev` chạy đồng thời frontend và
-backend; backend tự migrate/seed database local và mặc định mở thêm ngrok cho webhook SePay.
+Backend chạy trên máy host, PostgreSQL chạy trong Docker. `npm run dev` chạy đồng thời frontend,
+backend, Reverb và database queue worker; backend tự migrate/seed database local và mặc định mở thêm
+ngrok cho webhook SePay.
 
 ```powershell
 npm run dev:db
@@ -89,6 +90,7 @@ Các địa chỉ hỗ trợ:
 | ---------------- | --------------------------------------- |
 | Frontend         | http://localhost:3000                   |
 | Backend API      | http://localhost:4000/api               |
+| Reverb WebSocket | ws://localhost:8080                     |
 | Swagger UI       | http://localhost:4000/api/documentation |
 | PostgreSQL local | `127.0.0.1:5433`                        |
 | Ngrok inspector  | http://127.0.0.1:4040                   |
@@ -99,6 +101,11 @@ Các địa chỉ hỗ trợ:
 ```powershell
 npm run dev:frontend
 npm run dev:backend
+npm run dev:realtime
+
+# Hoặc chạy riêng từng process realtime
+npm run dev:reverb
+npm run dev:queue
 
 # Backend dùng domain ngrok dev cố định
 npm run dev:backend:x3sales
@@ -131,8 +138,9 @@ docker compose -f tooling/development/compose.full.yml ps
 docker compose -f tooling/development/compose.full.yml logs -f --tail=200
 ```
 
-`tooling/development/compose.full.yml` cung cấp frontend `3000`, backend `4000` và PostgreSQL host
-port `5433`. Backend container tự chạy migration và seed khi khởi động.
+`tooling/development/compose.full.yml` cung cấp frontend `3000`, backend `4000`, Reverb `8080` và
+PostgreSQL host port `5433`; queue worker dùng chung backend image. Backend container tự chạy migration
+và seed khi khởi động.
 
 ### Database, cache và Swagger
 
@@ -228,8 +236,10 @@ Hoặc dùng SSH key và tham số rõ ràng:
   -PublicUrl https://crm.x3sales.com
 ```
 
-Script build image `linux/amd64`, backup database VPS, tải image/cấu hình, chạy migration, khởi động
-lại container và kiểm tra HTTP. Chi tiết và lệnh vận hành máy chủ nằm ở phần
+Script build image `linux/amd64`, tải image/cấu hình, chạy migration, khởi động lại container, dọn
+image cũ và kiểm tra HTTP. Deploy không lưu backup hoặc image rollback trên VPS; backup sẽ được cấu
+hình riêng trên hạ tầng lưu trữ ngoài. Production chặn toàn bộ search engine bằng `robots.txt`,
+metadata robots và response header `X-Robots-Tag`. Chi tiết và lệnh vận hành máy chủ nằm ở phần
 [Triển khai và vận hành VPS](#triển-khai-và-vận-hành-vps).
 
 ## Tổng quan sản phẩm
@@ -361,6 +371,12 @@ image.
   180 ngày; đây là dữ liệu khác với session và remember cookie.
 - Frontend lưu current user trong Zustand memory. Khi refresh, đổi route hoặc cửa sổ lấy lại focus,
   frontend gọi `GET /api/auth/me` để xác minh session và lấy lại permission mới nhất.
+- Trong lúc auth store ở trạng thái `checking`, khi `/login` đang chuyển user đã đăng nhập về
+  Dashboard, khi route nghiệp vụ chuyển user hết phiên về `/login`, hoặc khi Next.js dùng
+  `app/loading.tsx` để tải route, frontend hiển thị `AppSplashScreen`. Splash dùng logo/màu thương hiệu,
+  chỉ hiển thị nhận diện thương hiệu cùng loading progress, không hiện nội dung kỹ thuật của tác vụ đang
+  chờ và tôn trọng `prefers-reduced-motion`; việc `verify()` chạy nền khi đổi route/focus tab không tự
+  bật splash nếu phiên vẫn còn hợp lệ.
 - Axios client tại `apps/frontend/src/services/api/client.ts` luôn gửi cookie bằng
   `withCredentials`; request thay đổi dữ liệu gửi XSRF token.
 - Mọi route nghiệp vụ, trừ `POST /api/auth/login`, health endpoint và webhook thanh toán, đều đi qua
@@ -1147,9 +1163,77 @@ sửa/xóa/chuyển trạng thái kiểm tra `MeetingPolicy`. API chính:
 - `POST /api/meetings/{id}/cancel`;
 - `POST /api/meetings/{id}/no-show`.
 
-Giai đoạn hiện tại chưa tạo notification, email, lời mời Google Calendar/Outlook, lịch lặp hoặc kéo
-thả đổi giờ. Các phần này phải được triển khai thành phase riêng; không thêm bản ghi notification
-rỗng hoặc giả lập gửi thông báo trong module meeting.
+Lịch hẹn đã nối notification nội bộ Phase 1: người tổ chức và người tham gia nhận thông báo khi tạo,
+cập nhật/đổi giờ, hủy/xóa; scheduler nhắc một lần khi còn tối đa 24 giờ và thêm một lần khi còn tối đa
+30 phút. Email, lời mời Google Calendar/Outlook, lịch lặp và kéo thả đổi giờ chưa nằm trong Phase 1.
+
+### 7.1. Notification nội bộ - Phase 1
+
+Notification là inbox cá nhân có lưu database, độc lập với toast phản hồi thao tác và
+`customer_timelines`. Dữ liệu nằm tại `user_notifications`; mỗi bản ghi thuộc đúng một người nhận và
+có khóa `dedupe_key` để một event/scheduler có thể chạy lại an toàn mà không sinh bản ghi trùng.
+
+Hai trạng thái phải hiểu riêng:
+
+- `read_at`: người dùng đã nhìn thấy thông báo hay chưa;
+- `resolved_at`: công việc yêu cầu hành động đã được xử lý hay chưa. Đọc thông báo không tự hoàn tất
+  công việc; duyệt/từ chối/nộp lại nghiệp vụ mới resolve đúng event;
+- `archived_at`: người dùng chủ động ẩn thông báo khỏi inbox cá nhân, không thay đổi dữ liệu nghiệp vụ.
+
+Người nhận không được tính theo tên role cố định. `NotificationRecipientResolver` lọc user active theo
+permission động, sau đó kiểm tra lại Policy/Gate và scope `của mình / phòng ban / tất cả` trên chính
+entity. Các quan hệ trực tiếp như người được phân công, người tổ chức/tham gia, reporter, manager và
+sales được gửi thẳng tới user liên quan. Notification chỉ dẫn tới màn đích; API của màn đích vẫn kiểm
+tra authorization bình thường, vì vậy notification không phải là cách vượt quyền dữ liệu.
+
+Các luồng đã bật trong Phase 1:
+
+- Lead/Project: báo cho người vừa được phân công hoặc phân công lại; không báo ngược cho chính người
+  đang thao tác;
+- Lịch hẹn: tạo, cập nhật/đổi giờ, hủy/xóa và nhắc trước 24 giờ/30 phút;
+- Báo cáo tuần: đến hạn hôm nay, quá hạn, gửi duyệt, duyệt, từ chối/trả nháp và trao đổi mới;
+- Chi phí: có khoản chờ đối soát, kết quả khớp hoặc chưa khớp cần kiểm tra lại;
+- Thanh toán: khoản thu mới đã phân bổ báo người phụ trách; khoản thu còn dư hoặc chưa nhận diện tạo
+  việc cần xử lý cho user có `payment.manage` và tự resolve khi dòng tiền đã được xử lý;
+- Hoàn tiền/bù thêm: trạng thái chờ tạo việc cho user có `payment.manage`; khi hoàn tất hoặc hủy sẽ
+  resolve việc và báo lại người tạo cùng nhân sự liên quan đến Customer/Project;
+- Điểm P2: điểm mới/chỉnh sửa đang chờ báo đúng người có quyền duyệt theo scope; khi duyệt, cập nhật
+  hoặc xóa điểm đã duyệt sẽ báo người được ghi nhận và người tạo nếu họ còn quyền xem;
+- không tạo notification cho Dashboard/KPI, Báo phí, Thư viện, thao tác mở trang/filter/upload media
+  hoặc chỉnh setting thông thường.
+
+Frontend dùng Laravel Echo kết nối Laravel Reverb qua private channel `users.{id}`. Mọi lần tạo, đọc,
+đọc tất cả, lưu trữ, khôi phục hoặc resolve notification đều phát event `notifications.changed` sau khi
+transaction database commit; event chạy qua database queue `realtime`. Frontend nhận event thì invalidate
+summary/list của React Query ngay. Summary còn polling nền mỗi 15 giây, refetch khi focus và refetch khi
+mở panel để badge chuông không bị đứng nếu WebSocket tạm mất kết nối.
+
+Notification, Máy tính và Hồ sơ cá nhân dùng chung utility drawer bên phải,
+chiều rộng `420px` trên desktop và full width trên mobile; layout chỉ cho phép mở một utility tại một thời
+điểm để không chồng panel. Notification có filter `Tất cả`, `Chưa đọc`, `Đã lưu trữ`; danh sách hiển thị
+phẳng theo thời gian, không hiện nhãn trạng thái nghiệp vụ trên từng item, hỗ trợ đánh dấu toàn bộ đã đọc,
+lưu trữ, phân trang mỗi lần 10 thông báo và điều hướng
+tới entity. Lưu trữ không xóa dữ liệu; người dùng xem lại trong tab `Đã lưu trữ` và có thể khôi phục về
+inbox. Badge trên icon chuông chỉ đếm bản ghi chưa đọc và giảm ngay khi mở item. Trạng thái nghiệp vụ cần
+xử lý vẫn được backend theo dõi để resolve đúng event nhưng không hiển thị thành nhãn trong danh sách;
+trạng thái này không tự mất chỉ vì notification đã được xem. API dưới middleware `auth:sanctum,active`,
+không cần permission page riêng:
+
+Favicon dùng logo X3Sales tại `public/favicon.png`. Khi có thông báo chưa đọc, frontend vẽ badge đỏ có số
+lên favicon, thêm `(n)` trước title của tab và gọi App Badging API nếu trình duyệt hỗ trợ; khi đọc hết hoặc
+đăng xuất sẽ tự trả favicon/title về trạng thái thường.
+
+- `GET /api/notifications/summary`;
+- `GET /api/notifications?filter=all|unread|action|archived&page=1&per_page=10`;
+- `PATCH /api/notifications/{id}/read`;
+- `POST /api/notifications/read-all`;
+- `POST /api/notifications/{id}/archive`;
+- `POST /api/notifications/{id}/restore`.
+
+Nhắc việc theo thời gian chạy bằng `notifications:dispatch-reminders`, được Laravel scheduler gọi mỗi
+phút với `withoutOverlapping`. Production dùng chung backend image cho `backend`, `scheduler`, `reverb`
+và `queue-worker`; Nginx proxy `/app/`, `/apps/` tới Reverb và `/broadcasting/` tới API để xác thực private
+channel bằng Sanctum. Phase này chưa gửi email, Web Push hoặc Zalo.
 
 ### 8. Báo cáo tuần
 
@@ -1432,14 +1516,24 @@ Quý 3/2026          -> so với quý 2/2026
 Dashboard admin là màn hình điều hành toàn CRM, không chỉ là báo cáo tài chính. Thứ tự đọc giao
 diện admin:
 
-1. header chuẩn của site, bộ chọn kỳ và tháng/quý/năm nằm cùng hàng; không dùng hero riêng;
+1. header chuẩn của site dùng lời chào `Chào mừng bạn trở lại 👋`, không lặp title/breadcrumb
+   `Dashboard`; bộ chọn kỳ và tháng/quý/năm nằm cùng hàng, không dùng hero riêng;
 2. summary vận hành gồm `Lead mới`, `Chuyển đổi lead`, `Khách hàng mới`, `Dự án mới`;
-3. luồng CRM trong kỳ, công việc cần chú ý, phân bổ toàn bộ Project theo trạng thái bằng donut
-   nhiều tầng: vòng ngoài là trạng thái, vòng trong là mức đã/chưa phân loại;
+3. luồng CRM trong kỳ, công việc cần chú ý, phân bổ toàn bộ Project theo trạng thái bằng các vòng
+   donut đồng tâm: vòng ngoài chia theo màu Option của trạng thái Project, vòng trong thể hiện số
+   Project đã/chưa phân loại. Các phân đoạn có bo góc và khoảng tách nhẹ; khi có trên sáu trạng thái,
+   năm trạng thái có nhiều Project nhất được giữ riêng và phần còn lại cộng vào `Trạng thái khác`;
 4. sức khỏe tài chính gồm `Đã thu`, `Lợi nhuận`, `Kế hoạch`, `Hoàn thành`, biểu đồ đường lũy kế
    Báo phí/Đã thu/Hoàn tiền/Thu ròng và biểu đồ ba cột KPI theo dịch vụ;
 5. phân tích chuyên sâu dạng bảng gọn theo dịch vụ hoặc phòng ban; ngoài cột nhận diện chỉ giữ
    `Lợi nhuận trước VAT`, `Kế hoạch`, `Hoàn thành`.
+
+Dashboard ưu tiên số liệu: summary card không lặp công thức/mô tả dài, mỗi section chỉ giữ một tiêu đề
+chính và legend cần thiết cho biểu đồ. Các card nằm cùng một grid row phải dùng `items-stretch` và `h-full`
+để đồng chiều cao; mô tả nghiệp vụ chi tiết giữ trong README hoặc màn chuyên biệt thay vì lặp trên Dashboard.
+Hàng biểu đồ Project/Dòng tiền theo tỷ lệ desktop `4/8`, dùng card phẳng, border và shadow nhẹ. Biểu đồ
+dòng tiền hiển thị tổng cuối kỳ ngay tại legend, dùng đường `monotoneX`; `Đã thu` và `Thu ròng` là hai
+chuỗi chính có area rất mờ, còn `Báo phí` và `Hoàn tiền` dùng đường đứt nét để đủ dữ liệu mà không che nhau.
 
 Dashboard dùng primary xanh lá `#00a878` và brand blue của logo làm hai màu nhận diện; màu đỏ/cam
 chỉ dùng cho cảnh báo nghiệp vụ. Toàn bộ Pie, Bar, Area/Line và Gauge trên Dashboard dùng
@@ -1578,7 +1672,7 @@ Các route authenticated nằm trong `apps/frontend/src/app/(app)`.
 | Thẻ nạp QC     | `/settings/ad-topup-cards`                                       | Nguồn chi/nạp quảng cáo                                                                 |
 | Hạng mục P2    | `/settings/p2-categories`                                        | Danh mục điểm P2                                                                        |
 | Danh mục chung | `/settings/options`                                              | Option theo group, kéo thả thứ tự                                                       |
-| Hồ sơ cá nhân  | `/profile`                                                       | Chỉ hiển thị current user, avatar và thông tin tài khoản; không có tab Dự án/Khách hàng |
+| Hồ sơ cá nhân  | Avatar tại header; `/profile` giữ tương thích                    | Drawer sửa tên, điện thoại, avatar, mật khẩu và đăng xuất; mã, email, role chỉ đọc       |
 
 ## Tổng quan API
 
@@ -1617,6 +1711,11 @@ client code.
 
 Hầu hết resource hỗ trợ `GET list/show`, `POST create`, `PUT/PATCH update`, `DELETE soft delete` theo
 route hiện có.
+
+Hồ sơ cá nhân không phụ thuộc permission quản lý User. Mọi user active được gọi `PATCH /api/auth/profile`
+để tự đổi duy nhất `name`, `phone`, `avatar`; không được tự đổi mã nhân viên, email, role, phòng ban hoặc
+trạng thái. `PUT /api/auth/change-password` tiếp tục yêu cầu mật khẩu hiện tại. Sau khi lưu, frontend cập
+nhật auth store ngay để tên/avatar ở header đổi mà không cần tải lại hoặc truy cập `/profile`.
 
 ### Action endpoints quan trọng
 
@@ -1714,6 +1813,12 @@ cả migration, Service, Resource và frontend type/helper; không chỉ sửa g
 - Vùng cuộn sidebar dùng `sidebar-scrollbar`: thanh cuộn rộng 6px, bo tròn, mặc định trong suốt và
   chỉ hiện màu xám nhạt khi hover hoặc focus bên trong; vẫn giữ khả năng cuộn bằng chuột, touchpad
   và bàn phím.
+- Khi sidebar thu gọn, logo dùng trực tiếp `public/favicon.png` để đồng nhất với biểu tượng trên tab
+  trình duyệt; khi mở rộng vẫn hiển thị logo X3Sales đầy đủ.
+- Header hiển thị ngày giờ trên cùng một hàng theo format `Thứ ..., DD/MM/YYYY · HH:mm`, lấy thời
+  gian trên thiết bị và nằm đối diện nhóm máy tính/thông báo/tài khoản. Cụm này chỉ hiện từ desktop
+  `lg` để không cạnh tranh diện tích với menu và logo trên màn hình nhỏ. Ngày giờ hiển thị dạng text
+  phẳng, không nền/border; icon lịch dùng cùng kích thước với icon máy tính trên header.
 - Summary của `/meetings`, `/weekly-reports`, `/kpi` và `/p2-points` dùng cùng
   `SummaryMetricCard`: card rời `rounded-xl`, khoảng cách `gap-3`, icon trạng thái 36px bên trái,
   nhãn/mô tả ở giữa và số liệu 22px bên phải. Summary có chức năng lọc phải dùng button, giữ
@@ -1868,7 +1973,7 @@ Seeder cũng tạo role, permission và cây dịch vụ mẫu.
 - Public URL: https://crm.x3sales.com.
 - VPS hiện được cấu hình tại `45.252.251.120`, thư mục `/opt/x3crm`.
 - Compose project: `x3crm`.
-- Bốn service: `nginx`, `frontend`, `backend`, `db`.
+- Bảy service: `nginx`, `frontend`, `backend`, `scheduler`, `queue-worker`, `reverb`, `db`.
 - Nginx public `80/443`; HTTP redirect HTTPS.
 - Backend và frontend chỉ giao tiếp qua network Compose.
 - PostgreSQL bind `127.0.0.1:5432` trên VPS, không mở ra Internet.
@@ -1879,7 +1984,7 @@ Các file triển khai nguồn:
 
 | File                                                             | Vai trò                                        |
 | ---------------------------------------------------------------- | ---------------------------------------------- |
-| `tooling/deployment/production/compose.yml`                      | Bốn service, volume, healthcheck, log rotation |
+| `tooling/deployment/production/compose.yml`                      | Bảy service, volume, healthcheck, log rotation |
 | `tooling/deployment/production/backend.Dockerfile`               | Laravel/PHP 8.4, pdo_pgsql, OPcache            |
 | `tooling/deployment/production/frontend.Dockerfile`              | Next.js standalone/Node 20                     |
 | `tooling/deployment/production/nginx.conf`                       | HTTPS, frontend, API, Sanctum, VietQR, uploads |
@@ -1896,18 +2001,22 @@ Các file triển khai nguồn:
 1. kiểm tra Docker và SSH;
 2. tạo frontend build context sạch;
 3. build backend/frontend `linux/amd64`;
-4. đóng `NEXT_PUBLIC_API_URL` và `NEXT_PUBLIC_MEDIA_URL` vào frontend image;
+4. đóng public API/media/Reverb config vào frontend image;
 5. tạo tar image;
-6. kiểm tra `PAYMENT_WEBHOOK_SECRET` trên server;
-7. backup database `pre-deploy-<release>.dump` và kiểm tra bằng `pg_restore -l`;
+6. tự khởi tạo `REVERB_APP_SECRET` nếu server chưa có, sau đó kiểm tra `PAYMENT_WEBHOOK_SECRET`;
+7. xóa tar hoặc backup `pre-deploy-*` còn sót từ quy trình cũ;
 8. upload image, Compose và Nginx config;
-9. tag image hiện tại thành `rollback-<release>`;
-10. load image mới, chạy migration và recreate backend/frontend/nginx;
-11. kiểm tra frontend, API, container và migration status;
-12. xóa artifact tạm local/remote sau khi thành công.
+9. load image mới, chạy migration và recreate backend/scheduler/reverb/queue-worker/frontend/nginx;
+10. xóa image cũ không còn được container sử dụng;
+11. áp dụng `robots.txt` và `X-Robots-Tag: noindex, nofollow` cho toàn bộ domain production;
+12. kiểm tra frontend, API, container và migration status;
+13. luôn xóa tar tạm trên server khi bước load kết thúc, kể cả khi lỗi.
 
 `NEXT_PUBLIC_*` được đóng vào bundle lúc build. Đổi domain/API URL bắt buộc build lại frontend;
 chỉ sửa `.env` VPS là chưa đủ.
+
+`REVERB_APP_SECRET` chỉ nằm trong `.env` trên VPS và được deploy script sinh ngẫu nhiên một lần;
+không đưa secret này vào frontend hay source code.
 
 ### Lệnh vận hành thường ngày trên VPS
 
@@ -1916,9 +2025,15 @@ cd /opt/x3crm
 docker compose ps
 docker compose logs -f --tail=200
 docker compose logs -f --tail=200 backend
+docker compose logs -f --tail=200 scheduler
+docker compose logs -f --tail=200 reverb
+docker compose logs -f --tail=200 queue-worker
 docker compose up -d
 docker compose restart backend
+docker compose restart scheduler
+docker compose restart reverb queue-worker
 docker compose exec -T backend php artisan migrate --force
+docker compose exec -T backend php artisan notifications:dispatch-reminders
 docker stats --no-stream
 df -h
 free -h
@@ -1946,7 +2061,11 @@ Xác nhận:
 - upload trả URL `/uploads/...` HTTP 200;
 - không có `production.ERROR` mới hoặc vòng restart.
 
-### Backup database
+### Backup database thủ công
+
+Deploy không tự tạo backup trên ổ VPS để tránh đầy dung lượng. Khi hệ thống backup ngoài chưa được
+cấu hình, chỉ dùng quy trình dưới đây khi thật sự cần và phải tải file sang hosting/object storage
+khác ngay sau khi kiểm tra.
 
 ```bash
 cd /opt/x3crm
@@ -1960,7 +2079,7 @@ docker compose exec -T db pg_restore -l < "backups/x3crm-db-${ts}.dump" > /dev/n
 sha256sum "backups/x3crm-db-${ts}.dump"
 ```
 
-### Backup uploads
+### Backup uploads thủ công
 
 ```bash
 cd /opt/x3crm
@@ -2070,23 +2189,12 @@ phạm vi này, đã tạo và kiểm tra archive uploads riêng, đồng thời
 Không dùng `php artisan optimize:clear` nếu production đang dùng database cache mà chưa có bảng
 `cache`; dùng ba lệnh clear riêng như trên.
 
-### Rollback image
+### Dung lượng và phiên bản image
 
-Deploy script gắn image cũ bằng tag `rollback-<release>`. Chọn đúng release trước khi tag lại:
-
-```bash
-cd /opt/x3crm
-docker image ls --filter 'reference=x3crm-*'
-
-docker tag x3crm-backend:rollback-<release> x3crm-backend:deploy
-docker tag x3crm-frontend:rollback-<release> x3crm-frontend:deploy
-docker compose up -d --force-recreate backend frontend nginx
-docker compose ps
-docker compose logs --since=5m --tail=200
-```
-
-Rollback image không tự rollback migration/database. Nếu migration không tương thích ngược, restore
-đúng database backup `pre-deploy-<release>.dump`.
+VPS production không giữ image `rollback-*` hoặc backup `pre-deploy-*`. Sau khi container mới được
+recreate, deploy chạy `docker image prune -f` để xóa image cũ không còn được sử dụng. File tar được
+xóa bằng `trap` kể cả khi bước load/restart lỗi. Vì vậy rollback cần được thực hiện bằng cách build
+và deploy lại commit mong muốn; database và volume uploads không bị quy trình dọn image tác động.
 
 ### Xử lý sự cố nhanh
 

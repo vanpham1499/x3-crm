@@ -4,7 +4,7 @@ import { useEffect, useRef, useState } from 'react';
 import { usePathname, useRouter } from 'next/navigation';
 import { CalculatorPanel } from '@/components/shell/calculator-panel';
 import { ErrorState } from '@/components/feedback/error-state';
-import { Header } from '@/components/shell/header';
+import { Header, type HeaderUtility } from '@/components/shell/header';
 import { Sidebar } from '@/components/shell/sidebar';
 import { AppSplashScreen } from '@/components/shell/app-splash-screen';
 import { hasPermission } from '@/lib/ownership';
@@ -15,7 +15,7 @@ export default function AppLayout({ children }: { children: React.ReactNode }) {
   const router = useRouter();
   const pathname = usePathname();
   const { status, init, verify, user } = useAuthStore();
-  const [calculatorOpen, setCalculatorOpen] = useState(false);
+  const [activeUtility, setActiveUtility] = useState<HeaderUtility | null>(null);
   const verifiedPathRef = useRef(pathname);
 
   useEffect(() => {
@@ -41,7 +41,7 @@ export default function AppLayout({ children }: { children: React.ReactNode }) {
   }, [status, verify]);
 
   if (status === 'checking' || status === 'unauthenticated') {
-    return <AppSplashScreen label="Dang kiem tra dang nhap" />;
+    return <AppSplashScreen label="Đang xác minh phiên đăng nhập" />;
   }
 
   if (status === 'unavailable') {
@@ -64,11 +64,16 @@ export default function AppLayout({ children }: { children: React.ReactNode }) {
   return (
     <div className="flex min-h-screen bg-background">
       <Sidebar />
-      {calculatorOpen ? <CalculatorPanel /> : null}
+      <CalculatorPanel
+        open={activeUtility === 'calculator'}
+        onClose={() => setActiveUtility(null)}
+      />
       <div className="min-w-0 flex-1">
         <Header
-          calculatorOpen={calculatorOpen}
-          onToggleCalculator={() => setCalculatorOpen((value) => !value)}
+          activeUtility={activeUtility}
+          onToggleUtility={(utility) =>
+            setActiveUtility((current) => (current === utility ? null : utility))
+          }
         />
         <main className="min-h-[calc(100vh-72px)]">
           {hasAccess ? (

@@ -13,7 +13,11 @@ use Illuminate\Validation\ValidationException;
 
 class ProjectCostsService extends BaseService
 {
-    public function __construct(private readonly ProjectCostRepository $costs) {}
+    public function __construct(
+        private readonly ProjectCostRepository $costs,
+        private readonly NotificationDispatchService $notifications,
+        private readonly NotificationRecipientResolver $notificationRecipients,
+    ) {}
 
     public function findAll(array $filters = [])
     {
@@ -41,8 +45,10 @@ class ProjectCostsService extends BaseService
             $this->authorize('manageProject', [ProjectCost::class, $project]);
             /** @var ProjectCost $cost */
             $cost = $this->costs->create($data);
+            $cost = $this->costs->findWithRelationsOrFail((string) $cost->id);
+            $this->notifyCostApprovers($cost);
 
-            return $this->apiResource($this->costs->findWithRelationsOrFail((string) $cost->id), ProjectCostResource::class);
+            return $this->apiResource($cost, ProjectCostResource::class);
         });
     }
 
@@ -62,8 +68,10 @@ class ProjectCostsService extends BaseService
             }
 
             $this->costs->update($id, $data);
+            $cost = $this->costs->findWithRelationsOrFail($id);
+            $this->notifyCostApprovers($cost);
 
-            return $this->apiResource($this->costs->findWithRelationsOrFail($id), ProjectCostResource::class);
+            return $this->apiResource($cost, ProjectCostResource::class);
         });
     }
 
@@ -74,6 +82,10 @@ class ProjectCostsService extends BaseService
             $cost->load('project.managerUser', 'project.salesUser');
             $this->authorize('manage', $cost);
             $this->ensureNotReconciled($cost);
+            $this->notifications->resolve('project_cost', $cost->id, [
+                'cost_reconciliation_required',
+                'cost_reconciliation_unmatched',
+            ]);
             $this->costs->delete($id);
 
             return ['message' => 'Xóa chi phí dự án thành công'];
@@ -112,12 +124,78 @@ class ProjectCostsService extends BaseService
 
             $this->costs->update($id, $updates);
             $this->syncAdjustments($cost, $adjustments);
+            $cost = $this->costs->findWithRelationsOrFail($id);
+            $this->notifications->resolve('project_cost', $cost->id, ['cost_reconciliation_required']);
+
+            if ($isMatched) {
+                $cost->loadMissing('project');
+                $recipients = $this->notificationRecipients->usersWithPermission([
+                    $cost->created_by,
+                    $cost->project?->manager_user_id,
+                    $cost->project?->sales_user_id,
+                ], 'cost.view');
+                $this->notifications->send($recipients, [
+                    'module' => 'cost',
+                    'event_key' => 'cost_reconciled',
+                    'title' => 'Chi phí đã được đối soát khớp',
+                    'message' => $cost->project?->project_name,
+                    'severity' => 'success',
+                    'entity_type' => 'project_cost',
+                    'entity_id' => $cost->id,
+                    'action_url' => '/costs',
+                    'dedupe_key' => 'cost_reconciled:'.$cost->id.':'.$cost->updated_at?->format('YmdHisu'),
+                ]);
+            } else {
+                $cost->loadMissing('project');
+                $recipients = $this->notificationRecipients->usersWithPermission([
+                    $cost->created_by,
+                    $cost->project?->manager_user_id,
+                    $cost->project?->sales_user_id,
+                ], 'cost.view');
+                $this->notifications->send($recipients, [
+                    'module' => 'cost',
+                    'event_key' => 'cost_reconciliation_unmatched',
+                    'title' => 'Chi phí chưa khớp, cần kiểm tra lại',
+                    'message' => $cost->reconciliation_note ?: $cost->project?->project_name,
+                    'kind' => 'action',
+                    'severity' => 'error',
+                    'entity_type' => 'project_cost',
+                    'entity_id' => $cost->id,
+                    'action_url' => '/costs',
+                    'dedupe_key' => 'cost_reconciliation_unmatched:'.$cost->id.':'.$cost->updated_at?->format('YmdHisu'),
+                ]);
+            }
 
             return $this->apiResource(
-                $this->costs->findWithRelationsOrFail($id),
+                $cost,
                 ProjectCostResource::class,
             );
         });
+    }
+
+    private function notifyCostApprovers(ProjectCost $cost): void
+    {
+        if ($cost->status !== ProjectCost::STATUS_PENDING) {
+            return;
+        }
+
+        $cost->loadMissing('project');
+        $this->notifications->resolve('project_cost', $cost->id, [
+            'cost_reconciliation_required',
+            'cost_reconciliation_unmatched',
+        ]);
+        $this->notifications->send($this->notificationRecipients->projectCostApprovers($cost), [
+            'module' => 'cost',
+            'event_key' => 'cost_reconciliation_required',
+            'title' => 'Có chi phí đang chờ đối soát',
+            'message' => $cost->project?->project_name,
+            'kind' => 'action',
+            'severity' => 'warning',
+            'entity_type' => 'project_cost',
+            'entity_id' => $cost->id,
+            'action_url' => '/costs',
+            'dedupe_key' => 'cost_reconciliation_required:'.$cost->id.':'.$cost->updated_at?->format('YmdHisu'),
+        ]);
     }
 
     public function reportCidIncident(string $id, array $data): array

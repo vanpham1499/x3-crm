@@ -1,6 +1,7 @@
 'use client';
 
 import { useEffect, useState } from 'react';
+import { useSearchParams } from 'next/navigation';
 import { keepPreviousData, useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import { useAppNotification } from '@/components/feedback/notification-provider';
 import { ContentLoading } from '@/components/shell/content-loading';
@@ -51,10 +52,15 @@ function paymentParams(filters: PaymentFilters) {
 }
 
 export default function PaymentsPage() {
+  const searchParams = useSearchParams();
   const [activeTab, setActiveTab] = useState<'incoming' | 'refunds'>('incoming');
   const queryClient = useQueryClient();
   const notify = useAppNotification();
   const currentUser = useAuthStore((state) => state.user);
+
+  useEffect(() => {
+    setActiveTab(searchParams.get('tab') === 'refunds' ? 'refunds' : 'incoming');
+  }, [searchParams]);
   const { filters, requestFilters, page, pageSize, setPage, setPageSize, onFiltersChange } =
     useServerListState<PaymentFilters>({
       initialFilters: DEFAULT_PAYMENT_FILTERS,

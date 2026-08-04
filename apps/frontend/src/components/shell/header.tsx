@@ -1,22 +1,73 @@
 'use client';
 
 import { useEffect, useState } from 'react';
-import type { MouseEvent } from 'react';
 import Image from 'next/image';
-import { useRouter } from 'next/navigation';
 import CalculateRoundedIcon from '@mui/icons-material/CalculateRounded';
+import CalendarMonthRoundedIcon from '@mui/icons-material/CalendarMonthRounded';
 import DarkModeRoundedIcon from '@mui/icons-material/DarkModeRounded';
 import MenuRoundedIcon from '@mui/icons-material/MenuRounded';
-import LogoutRoundedIcon from '@mui/icons-material/LogoutRounded';
-import PersonRoundedIcon from '@mui/icons-material/PersonRounded';
-import SearchRoundedIcon from '@mui/icons-material/SearchRounded';
 import WbSunnyRoundedIcon from '@mui/icons-material/WbSunnyRounded';
-import { Avatar, Menu, MenuItem } from '@mui/material';
-import { useAppNotification } from '@/components/feedback/notification-provider';
-import { getMediaPreviewUrl } from '@/lib/media-url';
-import { ROLE_LABELS } from '@/lib/utils';
-import { useAuthStore } from '@/stores/auth-store';
+import { NotificationCenter } from '@/features/notifications/components/notification-center';
+import { ProfileCenter } from '@/features/profile/components/profile-center';
 import x3salesLogo from '@assets/logos/x3sales-logo.svg';
+
+const WEEKDAY_LABELS = [
+  'Chủ nhật',
+  'Thứ Hai',
+  'Thứ Ba',
+  'Thứ Tư',
+  'Thứ Năm',
+  'Thứ Sáu',
+  'Thứ Bảy',
+];
+const headerDateFormatter = new Intl.DateTimeFormat('vi-VN', {
+  day: '2-digit',
+  month: '2-digit',
+  year: 'numeric',
+});
+const headerTimeFormatter = new Intl.DateTimeFormat('vi-VN', {
+  hour: '2-digit',
+  minute: '2-digit',
+  hour12: false,
+});
+
+function HeaderDateTime() {
+  const [currentTime, setCurrentTime] = useState<Date | null>(null);
+
+  useEffect(() => {
+    const updateTime = () => setCurrentTime(new Date());
+
+    updateTime();
+    const timer = window.setInterval(updateTime, 30_000);
+
+    return () => window.clearInterval(timer);
+  }, []);
+
+  const dateLabel = currentTime
+    ? `${WEEKDAY_LABELS[currentTime.getDay()]}, ${headerDateFormatter.format(currentTime)}`
+    : 'Hôm nay, --/--/----';
+  const timeLabel = currentTime ? headerTimeFormatter.format(currentTime) : '--:--';
+
+  return (
+    <div className="hidden items-center gap-1 lg:flex">
+      <span className="grid size-10 shrink-0 place-items-center text-slate-500 dark:text-slate-300">
+        <CalendarMonthRoundedIcon />
+      </span>
+      <p className="flex items-center gap-2 whitespace-nowrap text-sm font-semibold text-slate-600 dark:text-slate-300">
+        <span>{dateLabel}</span>
+        <span aria-hidden="true" className="text-slate-300 dark:text-slate-600">
+          ·
+        </span>
+        <time
+          dateTime={currentTime?.toISOString()}
+          className="font-extrabold tabular-nums text-slate-900 dark:text-slate-100"
+        >
+          {timeLabel}
+        </time>
+      </p>
+    </div>
+  );
+}
 
 function HeaderIconButton({
   children,
@@ -41,22 +92,15 @@ function HeaderIconButton({
   );
 }
 
+export type HeaderUtility = 'calculator' | 'notifications' | 'profile';
+
 type HeaderProps = {
-  calculatorOpen?: boolean;
-  onToggleCalculator?: () => void;
+  activeUtility?: HeaderUtility | null;
+  onToggleUtility?: (utility: HeaderUtility) => void;
 };
 
-export function Header({ calculatorOpen = false, onToggleCalculator }: HeaderProps) {
-  const router = useRouter();
-  const notify = useAppNotification();
-  const { user, logout } = useAuthStore();
-  const [accountAnchorEl, setAccountAnchorEl] = useState<HTMLElement | null>(null);
+export function Header({ activeUtility = null, onToggleUtility }: HeaderProps) {
   const [themeMode, setThemeMode] = useState<'light' | 'dark'>('light');
-  const displayName = user?.name || user?.email || user?.code || 'X3Sales';
-  const displayRole = user?.role ? ROLE_LABELS[user.role] : 'Giao diện';
-  const displayInitial = displayName.trim().charAt(0).toUpperCase() || 'X';
-  const avatarUrl = getMediaPreviewUrl(user?.avatar);
-  const accountMenuOpen = Boolean(accountAnchorEl);
 
   useEffect(() => {
     const savedTheme = localStorage.getItem('x3_theme');
@@ -65,30 +109,6 @@ export function Header({ calculatorOpen = false, onToggleCalculator }: HeaderPro
     setThemeMode(nextTheme);
     document.documentElement.classList.toggle('dark', nextTheme === 'dark');
   }, []);
-
-  const openAccountMenu = (event: MouseEvent<HTMLButtonElement>) => {
-    setAccountAnchorEl(event.currentTarget);
-  };
-
-  const closeAccountMenu = () => {
-    setAccountAnchorEl(null);
-  };
-
-  const goToProfile = () => {
-    closeAccountMenu();
-    router.push('/profile');
-  };
-
-  const handleLogout = async () => {
-    closeAccountMenu();
-
-    try {
-      await logout();
-      router.replace('/login');
-    } catch {
-      notify.error('Không thể đăng xuất vì máy chủ đang không phản hồi');
-    }
-  };
 
   const toggleTheme = () => {
     const nextTheme = themeMode === 'dark' ? 'light' : 'dark';
@@ -114,20 +134,30 @@ export function Header({ calculatorOpen = false, onToggleCalculator }: HeaderPro
             className="h-auto w-28"
           />
         </div>
+
+        <HeaderDateTime />
       </div>
 
       <div className="flex items-center gap-1">
         <HeaderIconButton
-          title={calculatorOpen ? 'Ẩn máy tính' : 'Mở máy tính'}
-          onClick={onToggleCalculator}
+          title={activeUtility === 'calculator' ? 'Ẩn máy tính' : 'Mở máy tính'}
+          onClick={() => onToggleUtility?.('calculator')}
           className={
-            calculatorOpen
+            activeUtility === 'calculator'
               ? 'bg-emerald-50 text-emerald-600 hover:bg-emerald-100 hover:text-emerald-700'
               : ''
           }
         >
           <CalculateRoundedIcon />
         </HeaderIconButton>
+
+        <NotificationCenter
+          open={activeUtility === 'notifications'}
+          onToggle={() => onToggleUtility?.('notifications')}
+          onClose={() => {
+            if (activeUtility === 'notifications') onToggleUtility?.('notifications');
+          }}
+        />
 
         <button
           type="button"
@@ -138,42 +168,13 @@ export function Header({ calculatorOpen = false, onToggleCalculator }: HeaderPro
           {themeMode === 'dark' ? <WbSunnyRoundedIcon /> : <DarkModeRoundedIcon />}
         </button>
 
-        <button
-          type="button"
-          title={`${displayName} - ${displayRole}`}
-          onClick={openAccountMenu}
-          className="inline-flex h-10 w-10 items-center justify-center rounded-full p-1 transition hover:bg-slate-100 dark:hover:bg-slate-800"
-        >
-          <Avatar
-            src={avatarUrl || undefined}
-            alt={displayName}
-            className="!h-8 !w-8 !bg-primary !text-sm !font-bold !text-white"
-          >
-            {displayInitial}
-          </Avatar>
-        </button>
-
-        <Menu
-          anchorEl={accountAnchorEl}
-          open={accountMenuOpen}
-          onClose={closeAccountMenu}
-          anchorOrigin={{ vertical: 'bottom', horizontal: 'right' }}
-          transformOrigin={{ vertical: 'top', horizontal: 'right' }}
-          slotProps={{ paper: { className: 'mt-2 min-w-56 rounded-xl shadow-lg' } }}
-        >
-          <div className="border-b border-slate-100 px-4 py-3">
-            <p className="truncate text-sm font-bold text-slate-950">{displayName}</p>
-            <p className="mt-0.5 truncate text-xs font-semibold text-slate-500">{displayRole}</p>
-          </div>
-          <MenuItem onClick={goToProfile}>
-            <PersonRoundedIcon fontSize="small" className="mr-2 text-slate-500" />
-            Profile
-          </MenuItem>
-          <MenuItem onClick={handleLogout} className="text-rose-600">
-            <LogoutRoundedIcon fontSize="small" className="mr-2" />
-            Đăng xuất
-          </MenuItem>
-        </Menu>
+        <ProfileCenter
+          open={activeUtility === 'profile'}
+          onToggle={() => onToggleUtility?.('profile')}
+          onClose={() => {
+            if (activeUtility === 'profile') onToggleUtility?.('profile');
+          }}
+        />
       </div>
     </header>
   );

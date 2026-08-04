@@ -23,6 +23,8 @@ class LeadsService extends BaseService
         private readonly ProjectsService $projects,
         private readonly ContractsService $contracts,
         private readonly QuotationsService $quotations,
+        private readonly NotificationDispatchService $notifications,
+        private readonly NotificationRecipientResolver $notificationRecipients,
     ) {}
 
     public function findAll(array $filters = [])
@@ -73,6 +75,7 @@ class LeadsService extends BaseService
 
             $lead = $this->loadLeadRelations($lead);
             $this->recordTimeline($lead, 'create', $this->buildCreatedTimelineContent($lead));
+            $this->notifyLeadAssignment($lead, 'lead_assigned');
 
             return $this->apiResource($this->loadLeadRelations($lead), LeadResource::class);
         });
@@ -120,6 +123,13 @@ class LeadsService extends BaseService
 
             if ($changes !== []) {
                 $this->recordTimeline($lead, 'update', $this->buildUpdatedTimelineContent($lead, $changes));
+            }
+
+            if (
+                array_key_exists('assigned_user_id', $data)
+                && (string) $before->assigned_user_id !== (string) $lead->assigned_user_id
+            ) {
+                $this->notifyLeadAssignment($lead, 'lead_reassigned');
             }
 
             return $this->apiResource($this->loadLeadRelations($lead), LeadResource::class);
@@ -392,6 +402,28 @@ class LeadsService extends BaseService
     private function loadLeadRelations(Lead $lead): Lead
     {
         return $lead->load(['statusOption', 'assignedUser', 'createdBy', 'sourceOption', 'industryOption', 'interestedServiceOption', 'interestedServiceOptions', 'interestedService', 'convertedCustomer', 'timelines.createdBy']);
+    }
+
+    private function notifyLeadAssignment(Lead $lead, string $eventKey): void
+    {
+        if (! $lead->assigned_user_id) {
+            return;
+        }
+
+        $this->notifications->send(
+            $this->notificationRecipients->authorizedUsers([$lead->assigned_user_id], 'view', $lead),
+            [
+                'module' => 'lead',
+                'event_key' => $eventKey,
+                'title' => $eventKey === 'lead_assigned' ? 'Bạn được phân công Lead mới' : 'Lead được phân công lại cho bạn',
+                'message' => trim(($lead->lead_code ? $lead->lead_code.' · ' : '').$lead->customer_name),
+                'severity' => 'info',
+                'entity_type' => 'lead',
+                'entity_id' => $lead->id,
+                'action_url' => '/leads/'.$lead->id,
+                'dedupe_key' => implode(':', [$eventKey, $lead->id, $lead->assigned_user_id, $lead->updated_at?->format('YmdHisu')]),
+            ],
+        );
     }
 
     private function syncInheritedCustomerFields(Lead $lead): void

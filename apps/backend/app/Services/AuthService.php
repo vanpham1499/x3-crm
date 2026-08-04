@@ -53,6 +53,17 @@ class AuthService extends BaseService
         return ['message' => 'Đăng xuất thành công'];
     }
 
+    public function updateProfile(User $user, array $data): array
+    {
+        return $this->transaction(function () use ($user, $data): array {
+            $user->fill(collect($data)->only(['name', 'phone', 'avatar'])->all());
+            $user->updated_by = $user->id;
+            $user->save();
+
+            return $this->getProfile($user->refresh());
+        });
+    }
+
     public function changePassword(User $user, string $currentPassword, string $newPassword): array
     {
         if (! Hash::check($currentPassword, $user->password)) {

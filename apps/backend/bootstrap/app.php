@@ -1,10 +1,12 @@
 <?php
 
+use App\Console\Commands\DispatchNotificationReminders;
 use App\Console\Commands\EnsureAdminUser;
 use App\Http\Middleware\EnsureActiveUser;
 use App\Http\Middleware\EnsurePermission;
 use App\Http\Middleware\EnsureUserRole;
 use App\Http\Middleware\VerifyPaymentWebhookSecret;
+use Illuminate\Console\Scheduling\Schedule;
 use Illuminate\Foundation\Application;
 use Illuminate\Foundation\Configuration\Exceptions;
 use Illuminate\Foundation\Configuration\Middleware;
@@ -17,11 +19,20 @@ use Symfony\Component\HttpKernel\Exception\HttpExceptionInterface;
 return Application::configure(basePath: dirname(__DIR__))
     ->withCommands([
         EnsureAdminUser::class,
+        DispatchNotificationReminders::class,
     ])
+    ->withSchedule(function (Schedule $schedule): void {
+        $schedule->command('notifications:dispatch-reminders')
+            ->everyMinute()
+            ->withoutOverlapping(10);
+    })
     ->withRouting(
         api: __DIR__.'/../routes/api.php',
         apiPrefix: 'api',
     )
+    ->withBroadcasting(__DIR__.'/../routes/channels.php', [
+        'middleware' => ['api', 'auth:sanctum', 'active'],
+    ])
     ->withMiddleware(function (Middleware $middleware): void {
         $middleware->statefulApi();
 

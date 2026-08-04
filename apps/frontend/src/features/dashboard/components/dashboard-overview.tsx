@@ -20,7 +20,7 @@ import { ChartsGrid } from '@mui/x-charts/ChartsGrid';
 import { ChartsTooltip } from '@mui/x-charts/ChartsTooltip';
 import { ChartsXAxis } from '@mui/x-charts/ChartsXAxis';
 import { ChartsYAxis } from '@mui/x-charts/ChartsYAxis';
-import { LinePlot } from '@mui/x-charts/LineChart';
+import { AreaPlot, LinePlot } from '@mui/x-charts/LineChart';
 import { PieChart } from '@mui/x-charts/PieChart';
 import { IconTabs } from '@/components/navigation/icon-tabs';
 import { PageHeader } from '@/components/shell/page-header';
@@ -131,7 +131,6 @@ function ChangeBadge({ value }: { value: number | null }) {
 function OperationMetricCard({
   label,
   value,
-  helper,
   change,
   href,
   icon,
@@ -139,7 +138,6 @@ function OperationMetricCard({
 }: {
   label: string;
   value: string;
-  helper: string;
   change?: number | null;
   href: string;
   icon: React.ReactNode;
@@ -161,7 +159,7 @@ function OperationMetricCard({
   return (
     <Link
       href={href}
-      className={`group relative overflow-hidden rounded-2xl border border-slate-200/80 bg-gradient-to-br ${tones.shell} p-4 shadow-[0_12px_30px_rgba(15,23,42,0.04)] transition duration-200 hover:-translate-y-0.5 hover:border-slate-300 hover:shadow-[0_18px_40px_rgba(15,23,42,0.08)]`}
+      className={`group relative h-full min-h-[132px] overflow-hidden rounded-2xl border border-slate-200/80 bg-gradient-to-br ${tones.shell} p-4 shadow-[0_12px_30px_rgba(15,23,42,0.04)] transition duration-200 hover:-translate-y-0.5 hover:border-slate-300 hover:shadow-[0_18px_40px_rgba(15,23,42,0.08)]`}
     >
       <span className={`absolute inset-x-0 top-0 h-0.5 ${tones.accent}`} />
       <div className="flex items-start justify-between gap-3">
@@ -179,8 +177,7 @@ function OperationMetricCard({
           {icon}
         </span>
       </div>
-      <div className="mt-4 flex min-h-7 items-end justify-between gap-2">
-        <p className="line-clamp-2 text-xs font-semibold leading-5 text-slate-500">{helper}</p>
+      <div className="mt-4 flex min-h-7 items-end justify-end">
         {change !== undefined && <ChangeBadge value={change} />}
       </div>
     </Link>
@@ -221,16 +218,10 @@ function CrmFlowCard({ report }: { report: DashboardReport }) {
   const maxValue = Math.max(...stages.map((stage) => stage.value), 1);
 
   return (
-    <section className="rounded-3xl border border-slate-200 bg-white p-5 shadow-[0_16px_38px_rgba(15,23,42,0.05)] xl:p-6">
+    <section className="h-full rounded-3xl border border-slate-200 bg-white p-5 shadow-[0_16px_38px_rgba(15,23,42,0.05)] xl:p-6">
       <div className="flex items-start justify-between gap-4">
         <div>
-          <p className="text-xs font-extrabold uppercase tracking-[0.14em] text-primary">
-            Luồng CRM
-          </p>
-          <h2 className="mt-1 text-lg font-black text-slate-950">Nhịp vận hành trong kỳ</h2>
-          <p className="mt-1 text-xs font-semibold text-slate-500">
-            Theo dõi các mốc chính từ lead đến dự án
-          </p>
+          <h2 className="text-lg font-black text-slate-950">Luồng CRM trong kỳ</h2>
         </div>
         <span className="grid size-10 shrink-0 place-items-center rounded-xl bg-primary/10 text-primary">
           <InsightsRoundedIcon className="!text-[22px]" />
@@ -302,13 +293,9 @@ function AttentionBoard({ report }: { report: DashboardReport }) {
   const weeklyReports = report.operations.weeklyReports;
 
   return (
-    <section className="overflow-hidden rounded-3xl border border-slate-200 border-t-4 border-t-primary bg-white shadow-[0_16px_38px_rgba(15,23,42,0.05)]">
+    <section className="h-full overflow-hidden rounded-3xl border border-slate-200 border-t-4 border-t-primary bg-white shadow-[0_16px_38px_rgba(15,23,42,0.05)]">
       <div className="px-5 pb-4 pt-5">
-        <p className="text-xs font-extrabold uppercase tracking-[0.14em] text-primary">Cần chú ý</p>
-        <h2 className="mt-1 text-lg font-black text-slate-950">Công việc hiện tại</h2>
-        <p className="mt-1 text-xs font-semibold text-slate-500">
-          Lịch hôm nay và tiến độ báo cáo tuần
-        </p>
+        <h2 className="text-lg font-black text-slate-950">Công việc cần chú ý</h2>
       </div>
 
       <div className="grid gap-px bg-slate-200 sm:grid-cols-2 xl:grid-cols-1 2xl:grid-cols-2">
@@ -379,14 +366,10 @@ function projectStatusChartRows(statuses: DashboardProjectStatus[]) {
   ];
 }
 
-function ProjectPortfolio({
-  report,
-  subtitle = 'Tỷ trọng toàn bộ dự án đang tồn tại',
-}: {
-  report: DashboardReport;
-  subtitle?: string;
-}) {
-  const data = projectStatusChartRows(report.operations.projects.statuses);
+function ProjectPortfolio({ report }: { report: DashboardReport }) {
+  const data = projectStatusChartRows(report.operations.projects.statuses).filter(
+    (row) => row.count > 0,
+  );
   const total = report.operations.projects.totalCount;
   const unclassifiedCount =
     report.operations.projects.statuses.find((row) => row.id === 0)?.count ?? 0;
@@ -411,26 +394,15 @@ function ProjectPortfolio({
   ];
 
   return (
-    <section className="flex h-full min-h-[500px] flex-col rounded-3xl border border-slate-200 bg-white p-5 shadow-[0_16px_38px_rgba(15,23,42,0.05)] xl:p-6">
-      <div className="flex min-h-[64px] items-start justify-between gap-4">
-        <div>
-          <p className="text-xs font-extrabold uppercase tracking-[0.14em] text-primary">
-            Danh mục dự án
-          </p>
-          <h2 className="mt-1 text-lg font-black text-slate-950">Phân bổ theo trạng thái</h2>
-          <p className="mt-1 text-xs font-semibold text-slate-500">{subtitle}</p>
-        </div>
-        <Link
-          href="/projects"
-          className="inline-flex min-h-10 items-center gap-1 rounded-xl bg-primary/10 px-3 text-xs font-extrabold text-primary transition-colors duration-200 hover:bg-primary/15"
-        >
-          Xem dự án
-          <ArrowForwardRoundedIcon className="!text-[17px]" />
-        </Link>
+    <section className="flex h-full min-h-[430px] flex-col overflow-hidden rounded-2xl border border-slate-100 bg-white shadow-[0_1px_2px_rgba(15,23,42,0.02),0_12px_32px_rgba(15,23,42,0.04)]">
+      <div className="px-5 pt-5 xl:px-6 xl:pt-6">
+        <h2 className="text-lg font-extrabold tracking-[-0.01em] text-slate-900">
+          Dự án theo trạng thái
+        </h2>
       </div>
 
-      <div className="mt-4 flex flex-1 flex-col items-center justify-center">
-        <div className="relative mx-auto h-[300px] w-full max-w-[360px]">
+      <div className="flex flex-1 flex-col items-center justify-center px-5 xl:px-6">
+        <div className="relative mx-auto h-[300px] w-full max-w-[350px]">
           {data.length === 0 ? (
             <EmptyChart text="Chưa có dự án" />
           ) : (
@@ -438,15 +410,15 @@ function ProjectPortfolio({
               <PieChart
                 height={300}
                 hideLegend
-                margin={{ top: 10, right: 10, bottom: 10, left: 10 }}
+                margin={{ top: 6, right: 6, bottom: 6, left: 6 }}
                 series={[
                   {
                     id: 'project-classification',
                     data: classificationData,
-                    innerRadius: '33%',
+                    innerRadius: '34%',
                     outerRadius: '56%',
-                    paddingAngle: 2,
-                    cornerRadius: 4,
+                    paddingAngle: 2.5,
+                    cornerRadius: 12,
                     valueFormatter: (item) => `${integerFormatter.format(item.value)} dự án`,
                   },
                   {
@@ -457,16 +429,16 @@ function ProjectPortfolio({
                       value: row.count,
                       color: row.color,
                     })),
-                    innerRadius: '60%',
-                    outerRadius: '88%',
-                    paddingAngle: 2,
-                    cornerRadius: 4,
+                    innerRadius: '64%',
+                    outerRadius: '92%',
+                    paddingAngle: 2.5,
+                    cornerRadius: 12,
                     valueFormatter: (item) => `${integerFormatter.format(item.value)} dự án`,
                   },
                 ]}
               />
               <div className="pointer-events-none absolute inset-0 grid place-content-center text-center">
-                <span className="text-[28px] font-black leading-none tabular-nums text-slate-950">
+                <span className="text-[30px] font-black leading-none tabular-nums text-slate-950">
                   {integerFormatter.format(total)}
                 </span>
                 <span className="mt-1 text-[10px] font-extrabold uppercase tracking-[0.12em] text-slate-400">
@@ -477,29 +449,25 @@ function ProjectPortfolio({
           )}
         </div>
 
-        <div className="mt-2 grid w-full gap-2 sm:grid-cols-2">
+        <div className="mt-auto flex w-full flex-wrap justify-center gap-x-5 gap-y-2 border-t border-slate-100 py-4">
           {data.map((row) => {
             const percentage = total > 0 ? (row.count / total) * 100 : 0;
 
             return (
               <div
                 key={row.id}
-                className="rounded-xl border border-slate-100 bg-slate-50/70 px-3 py-3 transition-colors duration-200 hover:border-primary/20 hover:bg-primary/5"
+                className="flex min-w-0 items-center gap-2 text-xs font-bold text-slate-600"
               >
-                <div className="flex items-center justify-between gap-3">
-                  <span className="flex min-w-0 items-center gap-2 text-sm font-extrabold text-slate-700">
-                    <span
-                      className="size-3 shrink-0 rounded-full"
-                      style={{ backgroundColor: row.color }}
-                    />
-                    <span className="truncate" title={row.label}>
-                      {row.label}
-                    </span>
-                  </span>
-                  <span className="whitespace-nowrap text-sm font-black tabular-nums text-slate-950">
-                    {integerFormatter.format(row.count)} · {compactNumber.format(percentage)}%
-                  </span>
-                </div>
+                <span
+                  className="size-2.5 shrink-0 rounded-full"
+                  style={{ backgroundColor: row.color }}
+                />
+                <span className="max-w-28 truncate" title={row.label}>
+                  {row.label}
+                </span>
+                <span className="whitespace-nowrap font-black tabular-nums text-slate-900">
+                  {integerFormatter.format(row.count)} · {compactNumber.format(percentage)}%
+                </span>
               </div>
             );
           })}
@@ -512,18 +480,16 @@ function ProjectPortfolio({
 function FinanceMetric({
   label,
   value,
-  helper,
   icon,
   valueClassName = 'text-slate-950',
 }: {
   label: string;
   value: string;
-  helper: string;
   icon: React.ReactNode;
   valueClassName?: string;
 }) {
   return (
-    <div className="rounded-2xl border border-slate-200 bg-white p-4 shadow-[0_10px_28px_rgba(15,23,42,0.04)]">
+    <div className="h-full min-h-[116px] rounded-2xl border border-slate-200 bg-white p-4 shadow-[0_10px_28px_rgba(15,23,42,0.04)]">
       <div className="flex items-center gap-2 text-xs font-extrabold uppercase tracking-[0.1em] text-slate-500">
         <span className="grid size-8 place-items-center rounded-lg bg-primary/10 text-primary [&>svg]:!text-[18px]">
           {icon}
@@ -536,15 +502,13 @@ function FinanceMetric({
       >
         {value}
       </p>
-      <p className="mt-1 truncate text-xs font-semibold text-slate-500" title={helper}>
-        {helper}
-      </p>
     </div>
   );
 }
 
 function CashTrendChart({ report }: { report: DashboardReport }) {
   const data = report.trend.points;
+  const lastPoint = data[data.length - 1];
   const hasData = data.some(
     (point) =>
       point.quotationAmount !== 0 || point.receivedAmount !== 0 || point.refundAmount !== 0,
@@ -552,49 +516,76 @@ function CashTrendChart({ report }: { report: DashboardReport }) {
   const tickStep = Math.max(1, Math.ceil(data.length / 12));
   const chartTitle =
     report.trend.granularity === 'day' ? 'Dòng tiền từng ngày' : 'Dòng tiền từng tháng';
+  const legendItems = [
+    {
+      label: 'Báo phí',
+      value: lastPoint?.cumulativeQuotationAmount ?? 0,
+      color: '#60a5fa',
+      secondary: true,
+    },
+    {
+      label: 'Đã thu',
+      value: lastPoint?.cumulativeReceivedAmount ?? 0,
+      color: PRIMARY_COLOR,
+      secondary: false,
+    },
+    {
+      label: 'Hoàn tiền',
+      value: lastPoint?.cumulativeRefundAmount ?? 0,
+      color: ERROR_COLOR,
+      secondary: true,
+    },
+    {
+      label: 'Thu ròng',
+      value: lastPoint?.cumulativeNetAmount ?? 0,
+      color: BRAND_BLUE_COLOR,
+      secondary: false,
+    },
+  ];
 
   return (
-    <section className="flex h-full min-h-[500px] flex-col rounded-3xl border border-slate-200 bg-white p-5 shadow-[0_16px_38px_rgba(15,23,42,0.05)] xl:p-6">
-      <div className="flex min-h-[64px] flex-wrap items-start justify-between gap-3">
-        <div>
-          <p className="text-xs font-extrabold uppercase tracking-[0.14em] text-primary">
-            Dòng tiền
-          </p>
-          <h2 className="mt-1 text-lg font-black text-slate-950">{chartTitle}</h2>
-          <p className="mt-1 text-xs font-semibold text-slate-500">
-            Lũy kế Báo phí gồm VAT và cọc, Đã thu, Hoàn tiền và Thu ròng
-          </p>
-        </div>
-        <div className="flex flex-wrap justify-end gap-x-4 gap-y-2 text-[11px] font-extrabold text-slate-600">
-          <span className="inline-flex items-center gap-1.5">
-            <span className="h-0.5 w-5 bg-brand-blue" /> Báo phí
-          </span>
-          <span className="inline-flex items-center gap-1.5">
-            <span className="h-0.5 w-5 bg-primary" /> Đã thu
-          </span>
-          <span className="inline-flex items-center gap-1.5">
-            <span className="h-0.5 w-5 border-t-2 border-dashed border-rose-500" /> Hoàn tiền
-          </span>
-          <span className="inline-flex items-center gap-1.5">
-            <span className="h-0.5 w-5 bg-slate-800" /> Thu ròng
-          </span>
+    <section className="flex h-full min-h-[430px] flex-col overflow-hidden rounded-2xl border border-slate-100 bg-white p-5 shadow-[0_1px_2px_rgba(15,23,42,0.02),0_12px_32px_rgba(15,23,42,0.04)] xl:p-6">
+      <div>
+        <h2 className="text-lg font-extrabold tracking-[-0.01em] text-slate-900">{chartTitle}</h2>
+        <div className="mt-4 grid grid-cols-2 gap-x-5 gap-y-3 sm:grid-cols-4">
+          {legendItems.map((item) => (
+            <div key={item.label} className={item.secondary ? 'opacity-75' : ''}>
+              <span className="flex items-center gap-2 text-[11px] font-bold text-slate-500">
+                <span
+                  className={`shrink-0 ${item.secondary ? 'h-0 w-3 border-t-2 border-dashed' : 'size-2.5 rounded-full'}`}
+                  style={
+                    item.secondary ? { borderColor: item.color } : { backgroundColor: item.color }
+                  }
+                />
+                {item.label}
+              </span>
+              <span
+                className={`mt-1 block tabular-nums text-slate-900 ${item.secondary ? 'text-sm font-bold' : 'text-base font-black'}`}
+                title={formatCurrency(item.value)}
+              >
+                {formatCompactMoney(item.value)}
+              </span>
+            </div>
+          ))}
         </div>
       </div>
 
-      <div className="mt-4 h-[330px] rounded-2xl border border-slate-200 bg-slate-50/80">
+      <div className="mt-3 h-[270px] min-h-0 flex-1">
         {!hasData ? (
-          <EmptyChart text="Chưa có Báo phí, giao dịch thu hoặc hoàn tiền trong kỳ đã chọn" />
+          <div className="grid h-full min-h-[250px] place-items-center rounded-xl bg-slate-50/70 px-6 text-center text-sm font-semibold text-slate-400">
+            Chưa có dòng tiền trong kỳ đã chọn
+          </div>
         ) : (
           <ChartsContainer
-            height={328}
-            margin={{ top: 8, right: 10, bottom: 4, left: 4 }}
+            height={270}
+            margin={{ top: 14, right: 8, bottom: 2, left: 0 }}
             series={[
               {
                 id: 'quotation',
                 type: 'line',
                 label: 'Báo phí',
                 data: data.map((point) => point.cumulativeQuotationAmount),
-                color: BRAND_BLUE_COLOR,
+                color: '#60a5fa',
                 curve: 'monotoneX',
                 showMark: false,
                 valueFormatter: (value) => (value === null ? '' : formatCurrency(value)),
@@ -606,6 +597,7 @@ function CashTrendChart({ report }: { report: DashboardReport }) {
                 data: data.map((point) => point.cumulativeReceivedAmount),
                 color: PRIMARY_COLOR,
                 curve: 'monotoneX',
+                area: true,
                 showMark: false,
                 valueFormatter: (value) => (value === null ? '' : formatCurrency(value)),
               },
@@ -624,8 +616,9 @@ function CashTrendChart({ report }: { report: DashboardReport }) {
                 type: 'line',
                 label: 'Thu ròng',
                 data: data.map((point) => point.cumulativeNetAmount),
-                color: '#1e293b',
+                color: BRAND_BLUE_COLOR,
                 curve: 'monotoneX',
+                area: true,
                 showMark: false,
                 valueFormatter: (value) => (value === null ? '' : formatCurrency(value)),
               },
@@ -651,27 +644,40 @@ function CashTrendChart({ report }: { report: DashboardReport }) {
             ]}
             sx={{
               '& .MuiChartsGrid-line': {
-                stroke: '#d9e1ea',
+                stroke: '#e8edf3',
+                strokeDasharray: '3 5',
               },
-              '& .MuiLineElement-root[data-series="quotation"]': {
-                strokeWidth: 2.5,
+              '& .MuiLineChart-area[data-series="received"]': {
+                fill: PRIMARY_COLOR,
+                fillOpacity: 0.08,
               },
-              '& .MuiLineElement-root[data-series="received"]': {
-                strokeWidth: 2.5,
+              '& .MuiLineChart-area[data-series="net"]': {
+                fill: BRAND_BLUE_COLOR,
+                fillOpacity: 0.04,
               },
-              '& .MuiLineElement-root[data-series="refund"]': {
-                strokeDasharray: '6 5',
-                strokeWidth: 2.5,
+              '& .MuiLineChart-line[data-series="quotation"]': {
+                strokeDasharray: '5 5',
+                strokeWidth: 1.75,
               },
-              '& .MuiLineElement-root[data-series="net"]': {
-                strokeWidth: 3,
+              '& .MuiLineChart-line[data-series="received"]': {
+                filter: 'drop-shadow(0 3px 4px rgb(0 171 85 / 0.15))',
+                strokeWidth: 2.75,
+              },
+              '& .MuiLineChart-line[data-series="refund"]': {
+                strokeDasharray: '4 5',
+                strokeWidth: 1.75,
+              },
+              '& .MuiLineChart-line[data-series="net"]': {
+                filter: 'drop-shadow(0 3px 4px rgb(11 125 179 / 0.12))',
+                strokeWidth: 2.75,
               },
             }}
           >
-            <ChartsGrid horizontal vertical />
+            <ChartsGrid horizontal />
+            <AreaPlot />
             <LinePlot />
-            <ChartsXAxis axisId="period" disableTicks />
-            <ChartsYAxis axisId="money" disableTicks />
+            <ChartsXAxis axisId="period" disableLine disableTicks />
+            <ChartsYAxis axisId="money" disableLine disableTicks />
             <ChartsTooltip trigger="axis" />
           </ChartsContainer>
         )}
@@ -697,10 +703,7 @@ function ProfitTargetCard({ report }: { report: DashboardReport }) {
 
   return (
     <section className="flex h-full min-h-[500px] flex-col rounded-3xl border border-slate-200 bg-white p-5 shadow-[0_16px_38px_rgba(15,23,42,0.05)] xl:p-6">
-      <p className="text-xs font-extrabold uppercase tracking-[0.14em] text-primary">
-        Hiệu quả KPI
-      </p>
-      <h2 className="mt-1 text-lg font-black text-slate-950">So sánh theo dịch vụ</h2>
+      <h2 className="text-lg font-black text-slate-950">Hiệu quả KPI theo dịch vụ</h2>
 
       <div className="mt-4 grid grid-cols-3 gap-2">
         <div className="rounded-xl bg-primary/5 px-3 py-3">
@@ -960,7 +963,6 @@ function DepartmentDashboard({
 function ScopedMetricCard({
   label,
   value,
-  helper,
   icon,
   change,
   tone = 'primary',
@@ -968,7 +970,6 @@ function ScopedMetricCard({
 }: {
   label: string;
   value: string;
-  helper: string;
   icon: React.ReactNode;
   change?: number | null;
   tone?: 'primary' | 'brand';
@@ -979,7 +980,7 @@ function ScopedMetricCard({
     tone === 'brand' ? 'bg-brand-blue/10 text-brand-blue' : 'bg-primary/10 text-primary';
 
   return (
-    <section className="relative overflow-hidden rounded-2xl border border-slate-200 bg-white p-4 shadow-[0_12px_30px_rgba(15,23,42,0.04)]">
+    <section className="relative h-full min-h-[126px] overflow-hidden rounded-2xl border border-slate-200 bg-white p-4 shadow-[0_12px_30px_rgba(15,23,42,0.04)]">
       <span className={`absolute inset-x-0 top-0 h-0.5 ${accent}`} />
       <div className="flex items-start justify-between gap-3">
         <div className="min-w-0">
@@ -999,8 +1000,7 @@ function ScopedMetricCard({
           {icon}
         </span>
       </div>
-      <div className="mt-4 flex min-h-7 items-end justify-between gap-2">
-        <p className="line-clamp-2 text-xs font-semibold leading-5 text-slate-500">{helper}</p>
+      <div className="mt-4 flex min-h-7 items-end justify-end">
         {change !== undefined && <ChangeBadge value={change} />}
       </div>
     </section>
@@ -1022,15 +1022,9 @@ function ScopedProfitTrendChart({ report }: { report: DashboardReport }) {
 
   return (
     <section className="flex h-full min-h-[500px] flex-col rounded-3xl border border-slate-200 bg-white p-5 shadow-[0_16px_38px_rgba(15,23,42,0.05)] xl:p-6">
-      <div className="flex min-h-[64px] flex-wrap items-start justify-between gap-3">
+      <div className="flex min-h-[44px] flex-wrap items-start justify-between gap-3">
         <div>
-          <p className="text-xs font-extrabold uppercase tracking-[0.14em] text-primary">
-            Hiệu quả theo thời gian
-          </p>
-          <h2 className="mt-1 text-lg font-black text-slate-950">{title}</h2>
-          <p className="mt-1 text-xs font-semibold text-slate-500">
-            Lợi nhuận trước VAT phát sinh trong từng mốc thời gian
-          </p>
+          <h2 className="text-lg font-black text-slate-950">{title}</h2>
         </div>
         <div className="flex flex-wrap justify-end gap-x-4 gap-y-2 text-[11px] font-extrabold text-slate-600">
           <span className="inline-flex items-center gap-1.5">
@@ -1121,13 +1115,7 @@ function EmployeePerformanceCard({
   return (
     <section className="h-full min-h-[500px] overflow-hidden rounded-3xl border border-slate-200 bg-white shadow-[0_16px_38px_rgba(15,23,42,0.05)]">
       <div className="border-b border-slate-200 px-5 py-5 xl:px-6">
-        <p className="text-xs font-extrabold uppercase tracking-[0.14em] text-primary">
-          Hiệu quả nhân sự
-        </p>
-        <h2 className="mt-1 text-lg font-black text-slate-950">Kết quả trong phòng ban</h2>
-        <p className="mt-1 text-xs font-semibold text-slate-500">
-          Lợi nhuận và trạng thái dự án do từng nhân sự triển khai
-        </p>
+        <h2 className="text-lg font-black text-slate-950">Kết quả nhân sự</h2>
       </div>
       <div className="max-h-[408px] overflow-y-auto [&_thead]:sticky [&_thead]:top-0 [&_thead]:z-10">
         <AppDataTable
@@ -1197,26 +1185,18 @@ function PersonalContributionCard({ row }: { row?: DashboardEmployeeRow }) {
     {
       label: 'Triển khai dự án',
       value: row?.implementationAmount ?? 0,
-      helper: 'Tiền thu trước VAT − chi phí − hoàn tiền',
       icon: <CorporateFareRoundedIcon />,
     },
     {
       label: 'Phụ trách khách hàng',
       value: row?.acquisitionAmount ?? 0,
-      helper: 'Báo phí thanh toán thành công đầu tiên và hoàn tiền',
       icon: <PeopleAltRoundedIcon />,
     },
   ];
 
   return (
     <section className="flex h-full min-h-[500px] flex-col rounded-3xl border border-slate-200 bg-white p-5 shadow-[0_16px_38px_rgba(15,23,42,0.05)] xl:p-6">
-      <p className="text-xs font-extrabold uppercase tracking-[0.14em] text-primary">
-        Cơ cấu lợi nhuận
-      </p>
-      <h2 className="mt-1 text-lg font-black text-slate-950">Đóng góp của tôi</h2>
-      <p className="mt-1 text-xs font-semibold text-slate-500">
-        Hai vai trò được cộng dồn nếu bạn vừa triển khai vừa phụ trách khách hàng
-      </p>
+      <h2 className="text-lg font-black text-slate-950">Đóng góp của tôi</h2>
 
       <div className="mt-5 grid flex-1 content-center gap-3">
         {items.map((item) => (
@@ -1237,7 +1217,6 @@ function PersonalContributionCard({ row }: { row?: DashboardEmployeeRow }) {
                 {item.icon}
               </span>
             </div>
-            <p className="mt-3 text-xs font-semibold leading-5 text-slate-500">{item.helper}</p>
           </div>
         ))}
       </div>
@@ -1260,14 +1239,11 @@ function ScopedDashboardOverview({
     ? report.scope.departmentName || report.scope.label
     : report.scope.userName;
   const employee = report.employees[0];
-  const completionHelper = isDepartment
-    ? 'Lợi nhuận TEAM / kế hoạch phòng ban'
-    : 'Lợi nhuận cá nhân / kế hoạch phòng ban';
-
   return (
     <div className="min-h-[calc(100vh-72px)] w-full bg-slate-50/60 p-4 sm:p-6">
       <PageHeader
-        title="Dashboard"
+        title="Chào mừng bạn trở lại 👋"
+        breadcrumbs={[]}
         actions={
           <DashboardPeriodFilterBar
             filters={filters}
@@ -1288,7 +1264,7 @@ function ScopedDashboardOverview({
           </span>
           <div className="min-w-0">
             <p className="text-[11px] font-extrabold uppercase tracking-[0.12em] text-primary">
-              {isDepartment ? 'Dashboard phòng ban' : 'Dashboard cá nhân'}
+              {isDepartment ? 'Phạm vi phòng ban' : 'Phạm vi cá nhân'}
             </p>
             <p className="truncate text-base font-black text-slate-950" title={subjectLabel}>
               {subjectLabel}
@@ -1305,11 +1281,10 @@ function ScopedDashboardOverview({
         </div>
       </section>
 
-      <div className="grid gap-3 sm:grid-cols-2 xl:grid-cols-4">
+      <div className="grid items-stretch gap-3 sm:grid-cols-2 xl:grid-cols-4">
         <ScopedMetricCard
           label={isDepartment ? 'Lợi nhuận TEAM' : 'Lợi nhuận của tôi'}
           value={formatCompactMoney(report.summary.profitAmount)}
-          helper="Lợi nhuận thực tế trước VAT"
           change={report.summary.profitChangeRate}
           icon={<TrendingUpRoundedIcon />}
           valueClassName={amountTone(report.summary.profitAmount)}
@@ -1317,7 +1292,6 @@ function ScopedDashboardOverview({
         <ScopedMetricCard
           label={report.scope.targetLabel}
           value={formatCompactMoney(report.summary.targetAmount)}
-          helper="Admin thiết lập theo từng tháng"
           icon={<InsightsRoundedIcon />}
           tone="brand"
           valueClassName="text-brand-blue"
@@ -1325,14 +1299,12 @@ function ScopedDashboardOverview({
         <ScopedMetricCard
           label={isDepartment ? 'Hoàn thành KPI' : 'Đóng góp kế hoạch'}
           value={formatPercent(report.summary.completionRate)}
-          helper={completionHelper}
           icon={<CheckCircleRoundedIcon />}
           valueClassName="text-primary"
         />
         <ScopedMetricCard
           label="Dự án đang quản lý"
           value={integerFormatter.format(report.operations.projects.totalCount)}
-          helper={`${integerFormatter.format(report.operations.projects.newCount)} dự án mới trong kỳ`}
           change={report.operations.projects.managedChangeRate}
           icon={<CorporateFareRoundedIcon />}
           tone="brand"
@@ -1347,14 +1319,7 @@ function ScopedDashboardOverview({
           <AttentionBoard report={report} />
         </div>
         <div className="h-full xl:col-span-5">
-          <ProjectPortfolio
-            report={report}
-            subtitle={
-              isDepartment
-                ? 'Các dự án thuộc phạm vi phòng ban'
-                : 'Các dự án bạn đang triển khai hoặc phụ trách'
-            }
-          />
+          <ProjectPortfolio report={report} />
         </div>
         <div className="h-full xl:col-span-7">
           {isDepartment ? (
@@ -1375,10 +1340,7 @@ function AnalysisSection({ report, isFetching }: { report: DashboardReport; isFe
     <section className="h-full min-h-[500px] overflow-hidden rounded-3xl border border-slate-200 bg-white shadow-[0_16px_38px_rgba(15,23,42,0.05)]">
       <div className="flex flex-col gap-4 border-b border-slate-200 px-5 pb-0 pt-5 xl:flex-row xl:items-end xl:justify-between">
         <div className="pb-4">
-          <p className="text-xs font-extrabold uppercase tracking-[0.14em] text-primary">
-            Phân tích chuyên sâu
-          </p>
-          <h2 className="mt-1 text-lg font-black text-slate-950">Chi tiết KPI trong kỳ</h2>
+          <h2 className="text-lg font-black text-slate-950">Chi tiết KPI</h2>
         </div>
         <IconTabs
           value={activeTab}
@@ -1416,7 +1378,6 @@ export function DashboardOverview({
       {
         label: 'Lead mới',
         value: integerFormatter.format(report.operations.leads.newCount),
-        helper: `${integerFormatter.format(report.operations.leads.openCount)} lead chưa chuyển khách`,
         change: report.operations.leads.newChangeRate,
         href: '/leads',
         icon: <GroupsRoundedIcon />,
@@ -1428,7 +1389,6 @@ export function DashboardOverview({
           report.operations.leads.conversionRate === null
             ? '—'
             : `${compactNumber.format(report.operations.leads.conversionRate)}%`,
-        helper: `${integerFormatter.format(report.operations.leads.convertedFromNewCount)} lead trong kỳ đã thành khách hàng`,
         href: '/leads',
         icon: <TrendingUpRoundedIcon />,
         tone: 'brand' as const,
@@ -1436,7 +1396,6 @@ export function DashboardOverview({
       {
         label: 'Khách hàng mới',
         value: integerFormatter.format(report.operations.customers.newCount),
-        helper: `${integerFormatter.format(report.operations.customers.totalCount)} khách hàng đang quản lý`,
         change: report.operations.customers.newChangeRate,
         href: '/customers',
         icon: <PeopleAltRoundedIcon />,
@@ -1445,7 +1404,6 @@ export function DashboardOverview({
       {
         label: 'Dự án mới',
         value: integerFormatter.format(report.operations.projects.newCount),
-        helper: `${integerFormatter.format(report.operations.projects.totalCount)} dự án đang quản lý`,
         change: report.operations.projects.newChangeRate,
         href: '/projects',
         icon: <CorporateFareRoundedIcon />,
@@ -1469,7 +1427,8 @@ export function DashboardOverview({
   return (
     <div className="min-h-[calc(100vh-72px)] w-full bg-slate-50/60 p-4 sm:p-6">
       <PageHeader
-        title="Dashboard"
+        title="Chào mừng bạn trở lại 👋"
+        breadcrumbs={[]}
         actions={
           <DashboardPeriodFilterBar
             filters={filters}
@@ -1483,69 +1442,62 @@ export function DashboardOverview({
         {isFetching && <LinearProgress color="primary" />}
       </div>
 
-      <div className="grid gap-3 sm:grid-cols-2 xl:grid-cols-4">
+      <div className="grid items-stretch gap-3 sm:grid-cols-2 xl:grid-cols-4">
         {operationItems.map((item) => (
           <OperationMetricCard key={item.label} {...item} />
         ))}
       </div>
 
-      <div className="mt-5 grid gap-5 xl:grid-cols-12">
-        <div className="xl:col-span-8">
+      <div className="mt-5 grid items-stretch gap-5 xl:grid-cols-12">
+        <div className="h-full xl:col-span-8">
           <CrmFlowCard report={report} />
         </div>
-        <div className="xl:col-span-4">
+        <div className="h-full xl:col-span-4">
           <AttentionBoard report={report} />
         </div>
       </div>
 
-      <div className="mt-8 flex items-end justify-between gap-4">
+      <div className="mt-5 flex items-end justify-between gap-4">
         <div>
-          <p className="text-xs font-extrabold uppercase tracking-[0.14em] text-primary">
-            Tài chính & KPI
-          </p>
-          <h2 className="mt-1 text-xl font-black text-slate-950">Sức khỏe kinh doanh</h2>
+          <h2 className="text-xl font-black text-slate-950">Tài chính & KPI</h2>
         </div>
         <span className="hidden text-xs font-semibold text-slate-500 sm:block">
           So sánh với {comparisonLabel}
         </span>
       </div>
 
-      <div className="mt-4 grid gap-3 sm:grid-cols-2 xl:grid-cols-4">
+      <div className="mt-4 grid items-stretch gap-3 sm:grid-cols-2 xl:grid-cols-4">
         <FinanceMetric
           label="Đã thu"
           value={formatCompactMoney(report.summary.receivedAmount)}
-          helper={`Có VAT và tiền cọc · ${changeText(report.summary.receivedChangeRate)}`}
           icon={<AccountBalanceWalletRoundedIcon />}
           valueClassName="text-primary"
         />
         <FinanceMetric
           label="Lợi nhuận"
           value={formatCompactMoney(report.summary.profitAmount)}
-          helper={`Trước VAT · ${changeText(report.summary.profitChangeRate)}`}
           icon={<TrendingUpRoundedIcon />}
           valueClassName={amountTone(report.summary.profitAmount)}
         />
         <FinanceMetric
           label="Kế hoạch"
           value={formatCompactMoney(report.summary.targetAmount)}
-          helper="Admin thiết lập cho kỳ đang xem"
           icon={<InsightsRoundedIcon />}
           valueClassName="text-brand-blue"
         />
         <FinanceMetric
           label="Hoàn thành"
           value={formatPercent(report.summary.completionRate)}
-          helper="Lợi nhuận thực tế / kế hoạch"
           icon={<CheckCircleRoundedIcon />}
           valueClassName="text-primary"
         />
       </div>
 
       <div className="mt-5 grid items-stretch gap-5 xl:grid-cols-12">
-        <div className="h-full xl:col-span-5">
+        <div className="h-full xl:col-span-4">
           <ProjectPortfolio report={report} />
         </div>
-        <div className="h-full xl:col-span-7">
+        <div className="h-full xl:col-span-8">
           <CashTrendChart report={report} />
         </div>
         <div className="h-full xl:col-span-5">

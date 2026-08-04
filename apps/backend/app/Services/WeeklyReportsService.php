@@ -17,6 +17,8 @@ class WeeklyReportsService extends BaseService
     public function __construct(
         private readonly WeeklyReportRepository $reports,
         private readonly ProjectWeeklySettingRepository $weeklySettings,
+        private readonly NotificationDispatchService $notifications,
+        private readonly NotificationRecipientResolver $notificationRecipients,
     ) {}
 
     public function findAll(array $filters = [])
@@ -297,11 +299,31 @@ class WeeklyReportsService extends BaseService
                 }
             }
 
-            $report->items()->create([
+            /** @var WeeklyReportItem $message */
+            $message = $report->items()->create([
                 'reply_to_item_id' => $replyTo?->reply_to_item_id ?: $replyTo?->id,
                 'item_type' => $replyTo ? 'reply' : 'message',
                 'content' => $content,
                 'status' => 'open',
+            ]);
+            $report->loadMissing('project');
+            $recipientIds = $replyTo
+                ? collect([$replyTo->created_by])
+                : collect([
+                    $report->reporter_user_id,
+                    $report->project?->manager_user_id,
+                    $report->project?->sales_user_id,
+                ]);
+            $this->notifications->send($this->notificationRecipients->authorizedUsers($recipientIds, 'view', $report), [
+                'module' => 'weekly_report',
+                'event_key' => 'weekly_report_message',
+                'title' => $replyTo ? 'Có phản hồi mới trong báo cáo tuần' : 'Có trao đổi mới trong báo cáo tuần',
+                'message' => $report->project?->project_name,
+                'severity' => 'info',
+                'entity_type' => 'weekly_report',
+                'entity_id' => $report->id,
+                'action_url' => '/weekly-reports/'.$report->id,
+                'dedupe_key' => 'weekly_report_message:'.$message->id,
             ]);
 
             return $this->apiResource(
@@ -381,6 +403,29 @@ class WeeklyReportsService extends BaseService
                 'submitted_at' => now(),
                 'updated_by' => $this->currentUser()?->id,
             ]);
+            $report->loadMissing(['project.weeklySetting', 'reporter']);
+            $this->notifications->resolve('weekly_report', $report->id, [
+                'weekly_report_rejected',
+                'weekly_report_returned',
+            ]);
+            if ($report->project?->weeklySetting) {
+                $this->notifications->resolve('project_weekly_setting', $report->project->weeklySetting->id, [
+                    'weekly_report_due',
+                    'weekly_report_overdue',
+                ]);
+            }
+            $this->notifications->send($this->notificationRecipients->weeklyReportApprovers($report), [
+                'module' => 'weekly_report',
+                'event_key' => 'weekly_report_submitted',
+                'title' => 'Báo cáo tuần đang chờ duyệt',
+                'message' => trim(($report->project?->project_name ?? 'Dự án').' · '.($report->reporter?->name ?? 'Nhân sự')),
+                'kind' => 'action',
+                'severity' => 'warning',
+                'entity_type' => 'weekly_report',
+                'entity_id' => $report->id,
+                'action_url' => '/weekly-reports/'.$report->id,
+                'dedupe_key' => 'weekly_report_submitted:'.$report->id.':'.$report->submitted_at?->format('YmdHisu'),
+            ]);
 
             return $this->apiResource($report->load(['project', 'customer', 'reporter', 'approver', 'rejecter', 'items.assignee', 'items.createdBy:id,code,name', 'attachments.uploadedBy']), WeeklyReportResource::class);
         });
@@ -399,6 +444,13 @@ class WeeklyReportsService extends BaseService
                 'approved_by' => $this->currentUser()?->id,
                 'approved_at' => now(),
             ]);
+            $report->loadMissing('project');
+            $this->notifications->resolve('weekly_report', $report->id, [
+                'weekly_report_submitted',
+                'weekly_report_due',
+                'weekly_report_overdue',
+            ]);
+            $this->notifyReporter($report, 'weekly_report_approved', 'Báo cáo tuần đã được duyệt', 'success');
 
             return $this->apiResource($report->load(['project', 'customer', 'reporter', 'approver', 'rejecter', 'items.assignee', 'items.createdBy:id,code,name', 'attachments.uploadedBy']), WeeklyReportResource::class);
         });
@@ -426,6 +478,16 @@ class WeeklyReportsService extends BaseService
                 'approved_at' => null,
                 'updated_by' => $this->currentUser()?->id,
             ]);
+            $report->loadMissing('project');
+            $this->notifications->resolve('weekly_report', $report->id, ['weekly_report_submitted']);
+            $this->notifyReporter(
+                $report,
+                'weekly_report_rejected',
+                'Báo cáo tuần bị từ chối',
+                'error',
+                'action',
+                trim((string) $report->rejection_reason),
+            );
 
             return $this->apiResource($report->load(['project', 'customer', 'reporter', 'approver', 'rejecter', 'items.assignee', 'items.createdBy:id,code,name', 'attachments.uploadedBy']), WeeklyReportResource::class);
         });
@@ -447,9 +509,37 @@ class WeeklyReportsService extends BaseService
                 'approved_at' => null,
                 'updated_by' => $this->currentUser()?->id,
             ]);
+            $report->loadMissing('project');
+            $this->notifications->resolve('weekly_report', $report->id, ['weekly_report_submitted']);
+            $this->notifyReporter($report, 'weekly_report_returned', 'Báo cáo tuần được trả về bản nháp', 'warning', 'action');
 
             return $this->apiResource($report->load(['project', 'customer', 'reporter', 'approver', 'rejecter', 'items.assignee', 'items.createdBy:id,code,name', 'attachments.uploadedBy']), WeeklyReportResource::class);
         });
+    }
+
+    private function notifyReporter(
+        WeeklyReport $report,
+        string $eventKey,
+        string $title,
+        string $severity,
+        string $kind = 'info',
+        ?string $message = null,
+    ): void {
+        $this->notifications->send(
+            $this->notificationRecipients->authorizedUsers([$report->reporter_user_id], 'view', $report),
+            [
+                'module' => 'weekly_report',
+                'event_key' => $eventKey,
+                'title' => $title,
+                'message' => $message ?: $report->project?->project_name,
+                'kind' => $kind,
+                'severity' => $severity,
+                'entity_type' => 'weekly_report',
+                'entity_id' => $report->id,
+                'action_url' => '/weekly-reports/'.$report->id,
+                'dedupe_key' => implode(':', [$eventKey, $report->id, $report->updated_at?->format('YmdHisu')]),
+            ],
+        );
     }
 
     private function preparePayload(array $data, bool $isCreating = false): array

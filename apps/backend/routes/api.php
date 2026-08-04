@@ -19,6 +19,7 @@ use App\Http\Controllers\ProjectWeeklySettingsController;
 use App\Http\Controllers\QuotationsController;
 use App\Http\Controllers\RolesController;
 use App\Http\Controllers\ServicesController;
+use App\Http\Controllers\UserNotificationsController;
 use App\Http\Controllers\UsersController;
 use App\Http\Controllers\WeeklyReportAttachmentsController;
 use App\Http\Controllers\WeeklyReportsController;
@@ -36,8 +37,16 @@ Route::post('/payments/webhook', [PaymentsController::class, 'webhook'])->middle
 Route::middleware(['auth:sanctum', 'active'])->group(function (): void {
     Route::get('/auth/profile', [AuthController::class, 'profile']);
     Route::get('/auth/me', [AuthController::class, 'profile']);
+    Route::patch('/auth/profile', [AuthController::class, 'updateProfile']);
     Route::post('/auth/logout', [AuthController::class, 'logout']);
     Route::put('/auth/change-password', [AuthController::class, 'changePassword']);
+
+    Route::get('/notifications/summary', [UserNotificationsController::class, 'summary']);
+    Route::get('/notifications', [UserNotificationsController::class, 'index']);
+    Route::post('/notifications/read-all', [UserNotificationsController::class, 'markAllRead']);
+    Route::patch('/notifications/{id}/read', [UserNotificationsController::class, 'markRead']);
+    Route::post('/notifications/{id}/archive', [UserNotificationsController::class, 'archive']);
+    Route::post('/notifications/{id}/restore', [UserNotificationsController::class, 'restore']);
 
     Route::middleware('permission:media.view')->group(function (): void {
         Route::get('/media', [MediaController::class, 'index']);

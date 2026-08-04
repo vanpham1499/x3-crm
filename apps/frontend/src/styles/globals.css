@@ -140,37 +140,87 @@
 
 @layer components {
   .x3-splash {
+    position: relative;
+    z-index: 1;
     display: flex;
-    width: 220px;
+    width: 100%;
     flex-direction: column;
     align-items: center;
-    gap: 22px;
+    opacity: 0;
+    animation: x3-splash-appear 240ms ease-out 120ms forwards;
+  }
+
+  .x3-splash-screen {
+    background:
+      radial-gradient(circle at 50% 12%, hsl(var(--primary) / 0.12), transparent 32%),
+      radial-gradient(circle at 92% 88%, hsl(var(--brand-blue) / 0.09), transparent 28%),
+      hsl(var(--background));
+  }
+
+  .x3-splash-grid {
+    position: absolute;
+    inset: 0;
+    background-image:
+      linear-gradient(hsl(var(--foreground) / 0.025) 1px, transparent 1px),
+      linear-gradient(90deg, hsl(var(--foreground) / 0.025) 1px, transparent 1px);
+    background-size: 32px 32px;
+    mask-image: radial-gradient(circle at center, #000 0%, transparent 68%);
+  }
+
+  .x3-splash-logo-shell {
+    position: relative;
+    display: grid;
+    min-height: 104px;
+    min-width: 236px;
+    place-items: center;
+    border: 1px solid hsl(var(--border) / 0.8);
+    border-radius: 24px;
+    background: hsl(var(--card) / 0.94);
+    box-shadow: 0 20px 54px rgb(15 23 42 / 0.07);
+  }
+
+  .x3-splash-logo-halo {
+    position: absolute;
+    inset: 12px;
+    border-radius: 18px;
+    background: linear-gradient(
+      135deg,
+      hsl(var(--primary) / 0.1),
+      transparent 48%,
+      hsl(var(--brand-blue) / 0.09)
+    );
   }
 
   .x3-splash-logo {
+    position: relative;
     height: auto;
-    width: 116px;
-    filter: drop-shadow(0 18px 22px rgb(15 23 42 / 0.08));
-    opacity: 0.94;
-    animation: x3-splash-logo-breathe 2.4s cubic-bezier(0.4, 0, 0.2, 1) infinite;
+    width: 168px;
+    filter: drop-shadow(0 10px 20px rgb(15 23 42 / 0.08));
+    animation: x3-splash-logo-breathe 2.2s ease-in-out infinite;
   }
 
   .x3-splash-progress {
     position: relative;
-    height: 3px;
-    width: 176px;
+    height: 4px;
+    width: min(232px, calc(100vw - 96px));
     overflow: hidden;
     border-radius: 999px;
-    background: hsl(var(--primary) / 0.1);
+    background: hsl(var(--primary) / 0.12);
   }
 
   .x3-splash-progress span {
     position: absolute;
     inset: 0;
-    width: 42%;
+    width: 46%;
     border-radius: inherit;
-    background: linear-gradient(90deg, transparent, hsl(var(--primary) / 0.88), transparent);
-    animation: x3-splash-progress 1.35s cubic-bezier(0.4, 0, 0.2, 1) infinite;
+    background: linear-gradient(
+      90deg,
+      transparent,
+      hsl(var(--primary)),
+      hsl(var(--brand-blue)),
+      transparent
+    );
+    animation: x3-splash-progress 1.4s ease-in-out infinite;
   }
 
   .x3-content-loader {
@@ -291,13 +341,19 @@
 @keyframes x3-splash-logo-breathe {
   0%,
   100% {
-    opacity: 0.78;
-    transform: translateY(2px) scale(0.985);
+    opacity: 0.9;
+    transform: scale(0.99);
   }
 
   50% {
     opacity: 1;
-    transform: translateY(-2px) scale(1);
+    transform: scale(1.015);
+  }
+}
+
+@keyframes x3-splash-appear {
+  to {
+    opacity: 1;
   }
 }
 
@@ -328,5 +384,22 @@
 @keyframes x3-option-box-spin {
   to {
     transform: rotate(360deg);
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .x3-splash {
+    opacity: 1;
+    animation: none;
+  }
+
+  .x3-splash-logo {
+    animation: none;
+  }
+
+  .x3-splash-progress span {
+    width: 100%;
+    animation: none;
+    opacity: 0.72;
   }
 }

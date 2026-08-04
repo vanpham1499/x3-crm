@@ -23,7 +23,7 @@ PHP 8.2+, Composer và extension `pdo_pgsql`.
 
 ## 2. Chạy môi trường phát triển
 
-Chạy PostgreSQL local trước, sau đó chạy frontend và backend:
+Chạy PostgreSQL local trước, sau đó chạy frontend, backend, Reverb và queue worker:
 
 ```powershell
 npm run dev:db
@@ -35,6 +35,9 @@ Chạy riêng từng phần:
 ```powershell
 npm run dev:frontend
 npm run dev:backend
+npm run dev:realtime
+npm run dev:reverb
+npm run dev:queue
 ```
 
 Chạy backend với domain ngrok dev cố định:
@@ -61,6 +64,7 @@ Kiểm tra hoặc tải ngrok local:
 
 - Frontend: `http://localhost:3000`
 - Backend API: `http://localhost:4000/api`
+- Reverb WebSocket: `ws://localhost:8080`
 - Swagger: `http://localhost:4000/api/documentation`
 - PostgreSQL local: `127.0.0.1:5433`
 - Ngrok inspector: `http://127.0.0.1:4040`
@@ -121,6 +125,10 @@ php artisan view:clear
 php artisan route:list
 php artisan migrate:status
 php artisan l5-swagger:generate
+php artisan notifications:dispatch-reminders
+php artisan queue:work database --queue=realtime,default --sleep=1 --tries=3 --timeout=60
+php artisan reverb:start --host=0.0.0.0 --port=8080
+php artisan schedule:list
 Set-Location ../..
 ```
 
@@ -189,8 +197,8 @@ Deploy bằng SSH key và tham số cụ thể:
   -PublicUrl https://crm.x3sales.com
 ```
 
-Script sẽ build image, backup database, upload cấu hình, chạy migration,
-khởi động lại dịch vụ và kiểm tra HTTP.
+Script sẽ build image, tự khởi tạo `REVERB_APP_SECRET` trên VPS nếu còn thiếu, dọn deployment artifact cũ, upload cấu hình, chạy migration,
+khởi động lại backend/scheduler/reverb/queue-worker/frontend/nginx và kiểm tra HTTP.
 
 ## 8. Vận hành production trên VPS
 
@@ -201,9 +209,15 @@ cd /opt/x3crm
 docker compose ps
 docker compose logs -f --tail=200
 docker compose logs -f --tail=200 backend
+docker compose logs -f --tail=200 scheduler
+docker compose logs -f --tail=200 reverb
+docker compose logs -f --tail=200 queue-worker
 docker compose up -d
 docker compose restart backend
+docker compose restart scheduler
+docker compose restart reverb queue-worker
 docker compose exec -T backend php artisan migrate --force
+docker compose exec -T backend php artisan notifications:dispatch-reminders
 docker stats --no-stream
 df -h
 free -h
@@ -282,7 +296,7 @@ docker image ls --filter 'reference=x3crm-*'
 # Thay <release> bằng release cần rollback
 docker tag x3crm-backend:rollback-<release> x3crm-backend:deploy
 docker tag x3crm-frontend:rollback-<release> x3crm-frontend:deploy
-docker compose up -d --force-recreate backend frontend nginx
+docker compose up -d --force-recreate backend scheduler reverb queue-worker frontend nginx
 docker compose ps
 docker compose logs --since=5m --tail=200
 ```

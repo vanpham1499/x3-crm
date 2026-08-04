@@ -151,6 +151,11 @@ try {
     & docker build --platform linux/amd64 `
         --build-arg "NEXT_PUBLIC_API_URL=$PublicUrl/api" `
         --build-arg "NEXT_PUBLIC_MEDIA_URL=$PublicUrl" `
+        --build-arg "NEXT_PUBLIC_REVERB_ENABLED=true" `
+        --build-arg "NEXT_PUBLIC_REVERB_APP_KEY=x3crm-production-key" `
+        --build-arg "NEXT_PUBLIC_REVERB_HOST=$($PublicUri.Host)" `
+        --build-arg "NEXT_PUBLIC_REVERB_PORT=443" `
+        --build-arg "NEXT_PUBLIC_REVERB_SCHEME=https" `
         -t x3crm-frontend:deploy $FrontendContext
     Assert-LastExitCode 'Frontend image build'
 
@@ -160,21 +165,27 @@ try {
     & docker save -o $frontendTar x3crm-frontend:deploy
     Assert-LastExitCode 'Save frontend image'
 
-    Write-Step 'Backing up server database before migrations'
+    Write-Step 'Checking production configuration'
     Invoke-Remote @"
 set -euo pipefail
 cd '$RemoteDir'
+if ! grep -Eq '^REVERB_APP_SECRET=.+$' .env; then
+  printf '\nREVERB_APP_SECRET=%s\n' "`$(openssl rand -hex 32)" >> .env
+fi
 grep -Eq '^PAYMENT_WEBHOOK_SECRET=.+$' .env || {
   echo 'PAYMENT_WEBHOOK_SECRET is missing in $RemoteDir/.env' >&2
   exit 1
 }
-mkdir -p backups
-backup_path='$RemoteDir/backups/pre-deploy-$release.dump'
-docker compose exec -T db pg_dump -U x3crm -d x3crm -Fc > "`$backup_path"
-test -s "`$backup_path"
-docker compose exec -T db pg_restore -l < "`$backup_path" > /dev/null
-sha256sum "`$backup_path"
-ls -lh "`$backup_path"
+"@
+
+    Write-Step 'Removing stale deployment artifacts from server'
+    Invoke-Remote @"
+set -euo pipefail
+cd '$RemoteDir'
+find . -maxdepth 1 -type f \( -name 'x3crm-backend-*.tar' -o -name 'x3crm-frontend-*.tar' \) -delete
+if [ -d backups ]; then
+  find backups -maxdepth 1 -type f -name 'pre-deploy-*.dump' -delete
+fi
 "@
 
     Write-Step 'Uploading images and deployment configuration'
@@ -193,16 +204,13 @@ ls -lh "`$backup_path"
     Invoke-Remote @"
 set -euo pipefail
 cd '$RemoteDir'
-docker image inspect x3crm-backend:deploy >/dev/null 2>&1 && docker tag x3crm-backend:deploy x3crm-backend:rollback-$release || true
-docker image inspect x3crm-frontend:deploy >/dev/null 2>&1 && docker tag x3crm-frontend:deploy x3crm-frontend:rollback-$release || true
-docker image rm x3crm-backend:deploy >/dev/null 2>&1 || true
-docker image rm x3crm-frontend:deploy >/dev/null 2>&1 || true
+trap "rm -f 'x3crm-backend-$release.tar' 'x3crm-frontend-$release.tar'" EXIT
 docker load -i 'x3crm-backend-$release.tar'
 docker load -i 'x3crm-frontend-$release.tar'
 docker compose config -q
 docker compose up -d --no-deps db
-docker compose up -d --force-recreate backend frontend nginx
-rm -f 'x3crm-backend-$release.tar' 'x3crm-frontend-$release.tar'
+docker compose up -d --force-recreate backend scheduler reverb queue-worker frontend nginx
+docker image prune -f
 docker compose ps
 "@
 
@@ -223,7 +231,7 @@ docker compose ps
         }
     }
     if (-not $healthy) {
-        throw "Deployment did not become healthy at $($healthUrls -join ', '). Rollback images are tagged with release $release."
+        throw "Deployment did not become healthy at $($healthUrls -join ', ')."
     }
 
     Write-Step 'Verifying containers and migrations'
@@ -236,7 +244,6 @@ docker compose exec -T backend php artisan migrate:status --no-ansi | tail -n 12
 
     Write-Host "`nDEPLOY SUCCESS: $PublicUrl" -ForegroundColor Green
     Write-Host "Release: $release"
-    Write-Host "Database backup: $RemoteDir/backups/pre-deploy-$release.dump"
     Remove-Item -LiteralPath $backendTar, $frontendTar -Force -ErrorAction SilentlyContinue
 } finally {
     Pop-Location

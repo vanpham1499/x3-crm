@@ -10,7 +10,11 @@ use Symfony\Component\HttpKernel\Exception\UnprocessableEntityHttpException;
 
 class P2PointsService extends BaseService
 {
-    public function __construct(private readonly P2PointRepository $points) {}
+    public function __construct(
+        private readonly P2PointRepository $points,
+        private readonly NotificationDispatchService $notifications,
+        private readonly NotificationRecipientResolver $notificationRecipients,
+    ) {}
 
     public function findAll(array $filters = [])
     {
@@ -73,8 +77,10 @@ class P2PointsService extends BaseService
 
             /** @var P2Point $point */
             $point = $this->points->create($data);
+            $point->load(['user', 'project', 'approver', 'categoryOption']);
+            $this->syncP2Notifications($point);
 
-            return $this->apiResource($point->load(['user', 'project', 'approver']), P2PointResource::class);
+            return $this->apiResource($point, P2PointResource::class);
         });
     }
 
@@ -83,13 +89,26 @@ class P2PointsService extends BaseService
         return $this->transaction(function () use ($id, $data): array {
             $existing = $this->points->findWithRelationsOrFail($id);
             $this->authorize('update', $existing);
+            $wasApproved = (bool) $existing->is_approved;
             $data = $this->preparePayload($data);
             $data['updated_by'] = $this->currentUser()?->id;
 
             /** @var P2Point $point */
             $point = $this->points->update($id, $data);
+            $point->load(['user', 'project', 'approver', 'categoryOption']);
+            $this->notifications->resolve('p2_point', $point->id, ['p2_approval_required']);
 
-            return $this->apiResource($point->load(['user', 'project', 'approver']), P2PointResource::class);
+            if ($point->is_approved) {
+                $this->notifyP2Recipient(
+                    $point,
+                    $wasApproved ? 'p2_updated' : 'p2_approved',
+                    $wasApproved ? 'Điểm P2 của bạn đã được cập nhật' : 'Điểm P2 của bạn đã được duyệt',
+                );
+            } else {
+                $this->notifyP2Approvers($point);
+            }
+
+            return $this->apiResource($point, P2PointResource::class);
         });
     }
 
@@ -98,6 +117,12 @@ class P2PointsService extends BaseService
         return $this->transaction(function () use ($id): array {
             $point = $this->points->findWithRelationsOrFail($id);
             $this->authorize('delete', $point);
+            $this->notifications->resolve('p2_point', $point->id, ['p2_approval_required']);
+
+            if ($point->is_approved) {
+                $this->notifyP2Recipient($point, 'p2_deleted', 'Điểm P2 của bạn đã bị xóa');
+            }
+
             $this->points->delete($id);
 
             return ['message' => 'Xóa điểm P2 thành công'];
@@ -107,7 +132,8 @@ class P2PointsService extends BaseService
     public function approve(string $id): array
     {
         return $this->transaction(function () use ($id): array {
-            $this->authorize('approve', $this->points->findWithRelationsOrFail($id));
+            $existing = $this->points->findWithRelationsOrFail($id);
+            $this->authorize('approve', $existing);
 
             /** @var P2Point $point */
             $point = $this->points->update($id, [
@@ -115,9 +141,76 @@ class P2PointsService extends BaseService
                 'approved_by' => $this->currentUser()?->id,
                 'approved_at' => now(),
             ]);
+            $point->load(['user', 'project', 'approver', 'categoryOption']);
+            $this->notifications->resolve('p2_point', $point->id, ['p2_approval_required']);
+            $this->notifyP2Recipient($point, 'p2_approved', 'Điểm P2 của bạn đã được duyệt');
 
-            return $this->apiResource($point->load(['user', 'project', 'approver']), P2PointResource::class);
+            return $this->apiResource($point, P2PointResource::class);
         });
+    }
+
+    private function syncP2Notifications(P2Point $point): void
+    {
+        if ($point->is_approved) {
+            $this->notifyP2Recipient($point, 'p2_approved', 'Điểm P2 của bạn đã được duyệt');
+
+            return;
+        }
+
+        $this->notifyP2Approvers($point);
+    }
+
+    private function notifyP2Approvers(P2Point $point): void
+    {
+        $this->notifications->send($this->notificationRecipients->p2PointApprovers($point), [
+            'module' => 'p2point',
+            'event_key' => 'p2_approval_required',
+            'title' => 'Có điểm P2 đang chờ duyệt',
+            'message' => $this->p2Message($point),
+            'kind' => 'action',
+            'severity' => 'warning',
+            'entity_type' => 'p2_point',
+            'entity_id' => $point->id,
+            'action_url' => '/p2-points',
+            'dedupe_key' => 'p2_approval_required:'.$point->id,
+            'reopen_resolved' => true,
+        ]);
+    }
+
+    private function notifyP2Recipient(P2Point $point, string $eventKey, string $title): void
+    {
+        $recipients = $this->notificationRecipients->authorizedUsers([
+            $point->user_id,
+            $point->created_by,
+        ], 'view', $point);
+
+        $this->notifications->send($recipients, [
+            'module' => 'p2point',
+            'event_key' => $eventKey,
+            'title' => $title,
+            'message' => $this->p2Message($point),
+            'severity' => $eventKey === 'p2_deleted' ? 'error' : 'success',
+            'entity_type' => 'p2_point',
+            'entity_id' => $point->id,
+            'action_url' => '/p2-points',
+            'dedupe_key' => $eventKey.':'.$point->id.($eventKey === 'p2_updated'
+                ? ':'.$point->updated_at?->format('YmdHisu')
+                : ''),
+        ]);
+    }
+
+    private function p2Message(P2Point $point): string
+    {
+        $score = rtrim(rtrim(number_format(abs((float) $point->score), 2, '.', ''), '0'), '.');
+        $sign = $point->type === P2Point::TYPE_PENALTY ? '-' : '+';
+        $category = $point->categoryOption?->label ?: $point->category;
+
+        return implode(' · ', array_filter([
+            $point->user?->name,
+            $category,
+            $sign.$score.' điểm',
+            $point->project?->project_name,
+        ]));
     }
 
     private function preparePayload(array $data): array

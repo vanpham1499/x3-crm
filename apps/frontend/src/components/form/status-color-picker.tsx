@@ -181,6 +181,7 @@ export function StatusColorPicker({
 
         <Tooltip title="Chọn màu nâng cao" arrow>
           <IconButton
+            data-testid="advanced-color-picker-trigger"
             size="small"
             aria-label="Mở bộ chọn màu nâng cao"
             className="!h-7 !w-7 !shrink-0 !rounded-md"
@@ -203,7 +204,7 @@ export function StatusColorPicker({
           },
         }}
       >
-        <div className="p-3">
+        <div data-testid="advanced-color-picker-popover" className="p-3">
           <div
             role="slider"
             tabIndex={0}

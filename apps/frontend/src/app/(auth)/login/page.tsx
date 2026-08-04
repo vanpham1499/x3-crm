@@ -79,7 +79,7 @@ export default function LoginPage() {
   };
 
   if (status === 'checking' || status === 'authenticated') {
-    return <AppSplashScreen label="Dang kiem tra dang nhap" />;
+    return <AppSplashScreen label="Đang xác minh phiên đăng nhập" />;
   }
 
   return (

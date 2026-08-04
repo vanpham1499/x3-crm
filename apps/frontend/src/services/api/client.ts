@@ -22,7 +22,7 @@ function resolveApiUrl() {
 }
 
 const API_URL = resolveApiUrl();
-const API_ORIGIN = API_URL.replace(/\/api\/?$/, '');
+export const API_ORIGIN = API_URL.replace(/\/api\/?$/, '');
 
 export const api = axios.create({
   baseURL: API_URL,
