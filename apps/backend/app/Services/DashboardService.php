@@ -3,6 +3,7 @@
 namespace App\Services;
 
 use App\Models\Customer;
+use App\Models\Department;
 use App\Models\Lead;
 use App\Models\Option;
 use App\Models\PaymentAllocation;
@@ -323,6 +324,11 @@ class DashboardService extends BaseService
 
     private function dashboardScope(User $user): array
     {
+        $departmentIds = $user->accessibleDepartmentIds();
+        $departmentNames = Department::query()
+            ->whereIn('id', $departmentIds)
+            ->orderBy('name')
+            ->pluck('name');
         $departmentName = $user->department_id
             ? $user->department()->value('name')
             : null;
@@ -334,19 +340,23 @@ class DashboardService extends BaseService
                 'userId' => (int) $user->id,
                 'userName' => $user->name,
                 'departmentId' => $user->department_id ? (int) $user->department_id : null,
+                'departmentIds' => $departmentIds,
                 'departmentName' => $departmentName,
                 'targetLabel' => 'Kế hoạch toàn công ty',
             ];
         }
 
-        if ($user->hasPermission('project.view_department') && $user->department_id) {
+        if ($user->hasPermission('project.view_department') && $departmentIds !== []) {
             return [
                 'level' => 'department',
-                'label' => $departmentName ?: 'Phòng ban của tôi',
+                'label' => $departmentNames->count() === 1
+                    ? (string) $departmentNames->first()
+                    : $departmentNames->count().' phòng ban phụ trách',
                 'userId' => (int) $user->id,
                 'userName' => $user->name,
-                'departmentId' => (int) $user->department_id,
-                'departmentName' => $departmentName,
+                'departmentId' => $departmentIds[0] ?? null,
+                'departmentIds' => $departmentIds,
+                'departmentName' => $departmentNames->implode(', '),
                 'targetLabel' => 'Kế hoạch phòng ban',
             ];
         }
@@ -357,6 +367,7 @@ class DashboardService extends BaseService
             'userId' => (int) $user->id,
             'userName' => $user->name,
             'departmentId' => $user->department_id ? (int) $user->department_id : null,
+            'departmentIds' => $user->department_id ? [(int) $user->department_id] : [],
             'departmentName' => $departmentName,
             'targetLabel' => $departmentName ? 'Kế hoạch phòng ban' : 'Chưa có kế hoạch',
         ];
@@ -370,10 +381,12 @@ class DashboardService extends BaseService
             return $query;
         }
 
-        if ($user->hasPermission('lead.view_department') && $user->department_id) {
+        $departmentIds = $user->accessibleDepartmentIds();
+
+        if ($user->hasPermission('lead.view_department') && $departmentIds !== []) {
             return $query->whereHas(
                 'assignedUser',
-                fn (Builder $assigned) => $assigned->where('department_id', $user->department_id),
+                fn (Builder $assigned) => $assigned->whereIn('department_id', $departmentIds),
             );
         }
 
@@ -388,10 +401,12 @@ class DashboardService extends BaseService
             return $query;
         }
 
-        if ($user->hasPermission('customer.view_department') && $user->department_id) {
+        $departmentIds = $user->accessibleDepartmentIds();
+
+        if ($user->hasPermission('customer.view_department') && $departmentIds !== []) {
             return $query->whereHas(
                 'salesUser',
-                fn (Builder $sales) => $sales->where('department_id', $user->department_id),
+                fn (Builder $sales) => $sales->whereIn('department_id', $departmentIds),
             );
         }
 
@@ -406,16 +421,18 @@ class DashboardService extends BaseService
             return $query;
         }
 
-        if ($user->hasPermission('project.view_department') && $user->department_id) {
-            return $query->where(function (Builder $scope) use ($user): void {
+        $departmentIds = $user->accessibleDepartmentIds();
+
+        if ($user->hasPermission('project.view_department') && $departmentIds !== []) {
+            return $query->where(function (Builder $scope) use ($departmentIds): void {
                 $scope
                     ->whereHas(
                         'managerUser',
-                        fn (Builder $manager) => $manager->where('department_id', $user->department_id),
+                        fn (Builder $manager) => $manager->whereIn('department_id', $departmentIds),
                     )
                     ->orWhereHas(
                         'salesUser',
-                        fn (Builder $sales) => $sales->where('department_id', $user->department_id),
+                        fn (Builder $sales) => $sales->whereIn('department_id', $departmentIds),
                     );
             });
         }
@@ -436,10 +453,12 @@ class DashboardService extends BaseService
             return $projects->values();
         }
 
-        if ($level === 'department' && $user->department_id) {
+        $departmentIds = $user->accessibleDepartmentIds();
+
+        if ($level === 'department' && $departmentIds !== []) {
             return $projects
-                ->filter(fn (Project $project): bool => (int) ($project->managerUser?->department_id ?? 0) === (int) $user->department_id
-                    || (int) ($project->salesUser?->department_id ?? 0) === (int) $user->department_id)
+                ->filter(fn (Project $project): bool => in_array((int) ($project->managerUser?->department_id ?? 0), $departmentIds, true)
+                    || in_array((int) ($project->salesUser?->department_id ?? 0), $departmentIds, true))
                 ->values();
         }
 
@@ -455,12 +474,12 @@ class DashboardService extends BaseService
             return $rows;
         }
 
-        if (! $scope['departmentId']) {
+        if (($scope['departmentIds'] ?? []) === []) {
             return [];
         }
 
         return collect($rows)
-            ->where('id', $scope['departmentId'])
+            ->whereIn('id', $scope['departmentIds'])
             ->values()
             ->all();
     }
@@ -475,7 +494,7 @@ class DashboardService extends BaseService
 
         if ($scope['level'] === 'department') {
             return $collection
-                ->where('departmentId', $scope['departmentId'])
+                ->whereIn('departmentId', $scope['departmentIds'] ?? [])
                 ->values()
                 ->all();
         }
@@ -496,16 +515,16 @@ class DashboardService extends BaseService
             return $this->serviceSummary($services);
         }
 
-        $department = collect($departments)->firstWhere('id', $scope['departmentId']);
-
         if ($scope['level'] === 'department') {
-            $profitAmount = (float) ($department['actualAmount'] ?? 0);
-            $targetAmount = (float) ($department['targetAmount'] ?? 0);
+            $departmentRows = collect($departments)
+                ->whereIn('id', $scope['departmentIds'] ?? []);
+            $profitAmount = (float) $departmentRows->sum('actualAmount');
+            $targetAmount = (float) $departmentRows->sum('targetAmount');
 
             return [
                 'receivedAmount' => $this->money(
-                    (float) ($department['implementationReceivedAmount'] ?? 0)
-                    + (float) ($department['acquisitionCreditAmount'] ?? 0),
+                    (float) $departmentRows->sum('implementationReceivedAmount')
+                    + (float) $departmentRows->sum('acquisitionCreditAmount'),
                 ),
                 'profitAmount' => $this->money($profitAmount),
                 'targetAmount' => $this->money($targetAmount),
@@ -871,7 +890,7 @@ class DashboardService extends BaseService
         );
         $projectMap = $projects->keyBy('id');
         $quotationMap = $quotations->keyBy('id');
-        $firstSuccessfulByProject = $this->firstSuccessfulQuotations($quotations, $allocations);
+        $paidFirstQuotationByProject = $this->kpi->paidFirstQuotations($quotations, $allocations);
 
         foreach ($allocations->groupBy('quotation_id') as $quotationId => $quotationAllocations) {
             /** @var Quotation|null $quotation */
@@ -934,7 +953,7 @@ class DashboardService extends BaseService
             );
         }
 
-        foreach ($firstSuccessfulByProject as $projectId => $success) {
+        foreach ($paidFirstQuotationByProject as $projectId => $success) {
             /** @var Project|null $project */
             $project = $projectMap->get($projectId);
 
@@ -946,7 +965,7 @@ class DashboardService extends BaseService
             $quotation = $success['quotation'];
             $this->addProfitTrendAmount(
                 $success['paidAt'],
-                (float) $quotation->subtotal_amount + (float) $quotation->deposit_amount,
+                $this->kpi->acquisitionProfitBeforeVat($project, $quotation),
                 $rangeStart,
                 $rangeEnd->addMonth(),
                 $previousStart,
@@ -989,7 +1008,7 @@ class DashboardService extends BaseService
                 );
             }
 
-            $firstSuccess = $firstSuccessfulByProject->get($projectId);
+            $firstSuccess = $paidFirstQuotationByProject->get($projectId);
 
             if ($this->matchesAcquisitionScope($project, $scope)
                 && $firstSuccess
@@ -997,7 +1016,7 @@ class DashboardService extends BaseService
                 && $refund->refund_type !== PaymentRefund::TYPE_OVERPAYMENT) {
                 $this->addProfitTrendAmount(
                     $eventAt,
-                    -$this->refundBeforeVat($refund, $quotation),
+                    -$this->kpi->acquisitionRefundBeforeVat($project, $refund, $quotation),
                     $rangeStart,
                     $rangeEnd->addMonth(),
                     $previousStart,
@@ -1077,7 +1096,11 @@ class DashboardService extends BaseService
     private function matchesImplementationScope(Project $project, array $scope): bool
     {
         if ($scope['level'] === 'department') {
-            return (int) ($project->managerUser?->department_id ?? 0) === (int) $scope['departmentId'];
+            return in_array(
+                (int) ($project->managerUser?->department_id ?? 0),
+                $scope['departmentIds'] ?? [],
+                true,
+            );
         }
 
         return (int) $project->manager_user_id === (int) $scope['userId'];
@@ -1086,57 +1109,14 @@ class DashboardService extends BaseService
     private function matchesAcquisitionScope(Project $project, array $scope): bool
     {
         if ($scope['level'] === 'department') {
-            return (int) ($project->customer?->salesUser?->department_id ?? 0) === (int) $scope['departmentId'];
+            return in_array(
+                (int) ($project->customer?->salesUser?->department_id ?? 0),
+                $scope['departmentIds'] ?? [],
+                true,
+            );
         }
 
         return (int) ($project->customer?->sales_user_id ?? 0) === (int) $scope['userId'];
-    }
-
-    private function firstSuccessfulQuotations(Collection $quotations, Collection $allocations): Collection
-    {
-        $allocationsByQuotation = $allocations->groupBy('quotation_id');
-        $successes = collect();
-
-        foreach ($quotations as $quotation) {
-            /** @var Quotation $quotation */
-            $totalAmount = (float) $quotation->total_amount;
-
-            if ($totalAmount <= self::MONEY_EPSILON) {
-                continue;
-            }
-
-            $cumulativeAmount = 0.0;
-            $paidAt = null;
-            $sortedAllocations = $allocationsByQuotation
-                ->get($quotation->id, collect())
-                ->sortBy(fn (PaymentAllocation $allocation): string => $this->allocationEventAt($allocation)->format('Y-m-d H:i:s.u').'-'.str_pad((string) $allocation->id, 20, '0', STR_PAD_LEFT));
-
-            foreach ($sortedAllocations as $allocation) {
-                $cumulativeAmount += (float) $allocation->amount;
-
-                if ($cumulativeAmount >= $totalAmount - self::MONEY_EPSILON) {
-                    $paidAt = $this->allocationEventAt($allocation);
-                    break;
-                }
-            }
-
-            if (! $paidAt) {
-                continue;
-            }
-
-            $current = $successes->get($quotation->project_id);
-
-            if (! $current
-                || $paidAt->lessThan($current['paidAt'])
-                || ($paidAt->equalTo($current['paidAt']) && $quotation->id < $current['quotation']->id)) {
-                $successes->put($quotation->project_id, [
-                    'quotation' => $quotation,
-                    'paidAt' => $paidAt,
-                ]);
-            }
-        }
-
-        return $successes;
     }
 
     private function recognizedRevenueBetween(Quotation $quotation, float $before, float $after): float

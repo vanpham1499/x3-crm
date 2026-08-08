@@ -465,36 +465,6 @@ class PaymentAllocationService
         });
     }
 
-    public function classify(string|int $paymentId, array $data): void
-    {
-        DB::transaction(function () use ($paymentId, $data): void {
-            $payment = Payment::query()->lockForUpdate()->findOrFail($paymentId);
-            $receiptType = $data['receipt_type'] ?? $data['receiptType'] ?? $payment->receipt_type ?? 'customer';
-
-            if ($receiptType !== 'customer' && ($payment->allocations()->exists() || $payment->refunds()->exists())) {
-                throw ValidationException::withMessages([
-                    'receiptType' => ['Cần hủy phân bổ và hoàn tiền trước khi đổi loại giao dịch.'],
-                ]);
-            }
-
-            $update = ['receipt_type' => $receiptType];
-
-            if ($receiptType !== 'customer') {
-                $update = array_merge($update, [
-                    'quotation_id' => null,
-                    'customer_id' => null,
-                    'project_id' => null,
-                    'contract_id' => null,
-                ]);
-            }
-
-            DB::table('payments')->where('id', $payment->id)->update(array_merge($update, [
-                'updated_at' => now(),
-            ]));
-            $this->reconcilePayment($payment->id);
-        });
-    }
-
     public function reconcilePayment(string|int|null $paymentId): void
     {
         if (! $paymentId) {

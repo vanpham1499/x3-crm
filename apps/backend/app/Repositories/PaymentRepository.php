@@ -3,6 +3,7 @@
 namespace App\Repositories;
 
 use App\Models\Payment;
+use App\Models\User;
 use Illuminate\Contracts\Pagination\LengthAwarePaginator;
 use Illuminate\Database\Eloquent\Builder;
 use Illuminate\Database\Eloquent\Collection;
@@ -18,20 +19,24 @@ class PaymentRepository extends BaseRepository
         return Payment::class;
     }
 
-    public function findAll(array $filters = []): Collection
+    public function findAll(array $filters = [], ?User $user = null): Collection
     {
-        return $this->filteredQuery($filters)->get();
+        return $this->filteredQuery($filters, $user)->get();
     }
 
-    public function findPaginated(array $filters, int $perPage, int $page): LengthAwarePaginator
-    {
+    public function findPaginated(
+        array $filters,
+        int $perPage,
+        int $page,
+        ?User $user = null,
+    ): LengthAwarePaginator {
         if (! filter_var($filters['group_by_quotation'] ?? false, FILTER_VALIDATE_BOOL)) {
-            return $this->filteredQuery($filters)
+            return $this->filteredQuery($filters, $user)
                 ->paginate($perPage, ['*'], 'page', $page);
         }
 
         $groupPaginator = DB::query()
-            ->fromSub($this->filteredQuery($filters)->toBase(), 'ordered_payments')
+            ->fromSub($this->filteredQuery($filters, $user)->toBase(), 'ordered_payments')
             ->select('quotation_group_id')
             ->selectRaw('MAX(quotation_group_latest_at) AS quotation_group_latest_at')
             ->groupBy('quotation_group_id')
@@ -47,7 +52,7 @@ class PaymentRepository extends BaseRepository
         }
 
         $paymentIds = DB::query()
-            ->fromSub($this->filteredQuery($filters)->toBase(), 'ordered_payments')
+            ->fromSub($this->filteredQuery($filters, $user)->toBase(), 'ordered_payments')
             ->whereIn('quotation_group_id', $groupIds)
             ->orderByDesc('quotation_group_latest_at')
             ->orderByDesc('quotation_group_id')
@@ -80,7 +85,7 @@ class PaymentRepository extends BaseRepository
         return $groupPaginator->setCollection($orderedPayments);
     }
 
-    private function filteredQuery(array $filters): Builder
+    private function filteredQuery(array $filters, ?User $user = null): Builder
     {
         $keyword = trim((string) ($filters['keyword'] ?? $filters['search'] ?? ''));
         $dateFrom = $filters['date_from'] ?? null;
@@ -96,7 +101,11 @@ class PaymentRepository extends BaseRepository
                 'allocations.quotation.customer',
                 'allocations.quotation.project',
                 'refunds',
-            ])
+            ]);
+
+        $this->applyViewScope($query, $user);
+
+        $query
             ->when($keyword !== '', fn ($query) => $query->where(function ($query) use ($keyword): void {
                 $query
                     ->where('transaction_content', 'ilike', "%{$keyword}%")
@@ -215,10 +224,10 @@ class PaymentRepository extends BaseRepository
             ->orderByDesc('created_at');
     }
 
-    public function findWithRelationsOrFail(string $id): Payment
+    public function findWithRelationsOrFail(string $id, ?User $user = null): Payment
     {
         /** @var Payment|null $payment */
-        $payment = $this->query()
+        $query = $this->query()
             ->with([
                 'quotation',
                 'lead',
@@ -228,14 +237,73 @@ class PaymentRepository extends BaseRepository
                 'allocations.quotation.customer',
                 'allocations.quotation.project',
                 'refunds',
-            ])
-            ->whereKey($id)
-            ->first();
+            ]);
+
+        $this->applyViewScope($query, $user);
+        $payment = $query->whereKey($id)->first();
 
         if (! $payment) {
             throw new NotFoundHttpException($this->notFoundMessage);
         }
 
         return $payment;
+    }
+
+    private function applyViewScope(Builder $query, ?User $user): void
+    {
+        if (
+            ! $user
+            || $user->hasPermission('payment.view_all')
+            || $user->hasPermission('payment.manage')
+        ) {
+            return;
+        }
+
+        $projectRelations = [
+            'project',
+            'quotation.project',
+            'allocations.project',
+            'allocations.quotation.project',
+        ];
+
+        $departmentIds = $user->accessibleDepartmentIds();
+
+        $query->where(function (Builder $scope) use ($departmentIds, $projectRelations, $user): void {
+            $scope->where(function (Builder $orphan): void {
+                $this->applyOrphanCondition($orphan);
+            });
+
+            foreach ($projectRelations as $relation) {
+                if ($user->hasPermission('payment.view_department') && $departmentIds !== []) {
+                    $scope->orWhereHas(
+                        $relation.'.managerUser',
+                        fn (Builder $manager) => $manager->whereIn('department_id', $departmentIds),
+                    );
+
+                    continue;
+                }
+
+                $scope->orWhereHas(
+                    $relation,
+                    fn (Builder $project) => $project->where('manager_user_id', $user->id),
+                );
+            }
+        });
+    }
+
+    private function applyOrphanCondition(Builder $query): void
+    {
+        $query
+            ->where('receipt_type', 'customer')
+            ->where(function (Builder $status): void {
+                $status
+                    ->where('reconciled_status', 'unmatched')
+                    ->orWhere(function (Builder $legacy): void {
+                        $legacy->whereNull('reconciled_status')->where('status', 'unmatched');
+                    });
+            })
+            ->whereNull('quotation_id')
+            ->whereNull('project_id')
+            ->whereDoesntHave('allocations');
     }
 }

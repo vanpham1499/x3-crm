@@ -15,7 +15,6 @@ import type {
   Payment,
   PaymentAllocationInput,
   PaymentFilters,
-  PaymentClassificationInput,
   PaymentRefund,
   PaymentRefundFilters,
   PaymentRefundInput,
@@ -28,7 +27,6 @@ const PAYMENT_REFUNDS_LIST_QUERY_KEY = ['payment-refunds', 'list'] as const;
 const DEFAULT_PAYMENT_FILTERS: PaymentFilters = {
   keyword: '',
   status: '',
-  reconciled_status: '',
   date_from: '',
   date_to: '',
 };
@@ -44,7 +42,6 @@ function paymentParams(filters: PaymentFilters) {
   return {
     keyword: filters.keyword.trim() || undefined,
     status: filters.status || undefined,
-    reconciled_status: filters.reconciled_status || undefined,
     date_from: filters.date_from || undefined,
     date_to: filters.date_to || undefined,
     group_by_quotation: 1,
@@ -226,24 +223,6 @@ export default function PaymentsPage() {
     onError: (error) => notify.error(getApiErrorMessage(error, 'Không thể xóa khoản trả khách')),
   });
 
-  const classifyMutation = useMutation({
-    mutationFn: ({
-      paymentId,
-      values,
-    }: {
-      paymentId: number;
-      values: PaymentClassificationInput;
-    }) =>
-      api
-        .post<Payment>(`/payments/${paymentId}/classification`, values)
-        .then((response) => response.data),
-    onSuccess: () => {
-      void refreshPaymentData();
-      notify.success('Đã phân loại giao dịch');
-    },
-    onError: (error) => notify.error(getApiErrorMessage(error, 'Không thể phân loại giao dịch')),
-  });
-
   const updateInvoiceMutation = useMutation({
     mutationFn: ({
       paymentId,
@@ -300,7 +279,6 @@ export default function PaymentsPage() {
         refundMutation.isPending ||
         updateRefundMutation.isPending ||
         deleteRefundMutation.isPending ||
-        classifyMutation.isPending ||
         updateInvoiceMutation.isPending ||
         removeAllocationMutation.isPending
       }
@@ -318,7 +296,6 @@ export default function PaymentsPage() {
       onRefund={(paymentId, values) => refundMutation.mutateAsync({ paymentId, values })}
       onUpdateRefund={(refundId, values) => updateRefundMutation.mutateAsync({ refundId, values })}
       onDeleteRefund={(refundId) => deleteRefundMutation.mutateAsync(refundId)}
-      onClassify={(paymentId, values) => classifyMutation.mutateAsync({ paymentId, values })}
       onUpdateInvoice={(paymentId, invoiceNumber) =>
         updateInvoiceMutation.mutateAsync({ paymentId, invoiceNumber })
       }

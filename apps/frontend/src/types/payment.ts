@@ -214,14 +214,9 @@ export type PaymentRefundUpdateInput = {
   note?: string;
 };
 
-export type PaymentClassificationInput = {
-  receiptType: PaymentReceiptType;
-};
-
 export type PaymentFilters = {
   keyword: string;
   status: string;
-  reconciled_status: string;
   date_from: string;
   date_to: string;
 };

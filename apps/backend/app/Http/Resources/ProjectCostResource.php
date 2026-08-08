@@ -102,6 +102,7 @@ class ProjectCostResource extends JsonResource
                 ] : null,
             ] : null),
             'canManage' => (bool) ($request->user()?->can('manage', $this->resource) ?? false),
+            'canFund' => (bool) ($request->user()?->can('fund', $this->resource) ?? false),
             'canApprove' => (bool) ($request->user()?->can('approve', $this->resource) ?? false),
             'createdAt' => $this->created_at?->toISOString(),
             'updatedAt' => $this->updated_at?->toISOString(),

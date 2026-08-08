@@ -20,7 +20,6 @@ class CreateDepartmentRequest extends BaseRequest
                 'required',
                 'integer',
                 Rule::exists('users', 'id')->whereNull('deleted_at'),
-                Rule::unique('departments', 'leader_user_id')->whereNull('deleted_at'),
             ],
             'memberUserIds' => ['nullable', 'array'],
             'memberUserIds.*' => [

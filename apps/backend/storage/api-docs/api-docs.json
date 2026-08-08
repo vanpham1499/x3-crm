@@ -4616,59 +4616,6 @@
                 ]
             }
         },
-        "/payments/{id}/classification": {
-            "post": {
-                "tags": [
-                    "Payments"
-                ],
-                "summary": "Classify payment receipt type",
-                "operationId": "paymentsClassify",
-                "parameters": [
-                    {
-                        "name": "id",
-                        "in": "path",
-                        "required": true,
-                        "schema": {
-                            "type": "string",
-                            "format": "uuid"
-                        }
-                    }
-                ],
-                "requestBody": {
-                    "required": true,
-                    "content": {
-                        "application/json": {
-                            "schema": {
-                                "$ref": "#/components/schemas/GenericObject"
-                            }
-                        }
-                    }
-                },
-                "responses": {
-                    "200": {
-                        "description": "Classified",
-                        "content": {
-                            "application/json": {
-                                "schema": {
-                                    "$ref": "#/components/schemas/GenericObject"
-                                }
-                            }
-                        }
-                    }
-                },
-                "security": [
-                    {
-                        "cookieAuth": []
-                    }
-                ],
-                "servers": [
-                    {
-                        "url": "http://localhost:4000/api",
-                        "description": "Local API server"
-                    }
-                ]
-            }
-        },
         "/payments/{id}/invoice": {
             "patch": {
                 "tags": [

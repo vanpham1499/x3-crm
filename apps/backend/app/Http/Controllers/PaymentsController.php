@@ -3,7 +3,6 @@
 namespace App\Http\Controllers;
 
 use App\Http\Requests\Payments\AllocatePaymentRequest;
-use App\Http\Requests\Payments\ClassifyPaymentRequest;
 use App\Http\Requests\Payments\CreatePaymentRequest;
 use App\Http\Requests\Payments\RefundPaymentRequest;
 use App\Http\Requests\Payments\UpdatePaymentInvoiceRequest;
@@ -112,11 +111,6 @@ class PaymentsController extends Controller
     public function destroyRefund(string $id): JsonResponse
     {
         return $this->success($this->payments->removeRefund($id));
-    }
-
-    public function classify(ClassifyPaymentRequest $request, string $id): JsonResponse
-    {
-        return $this->success($this->payments->classify($id, $request->validatedData()));
     }
 
     public function updateInvoice(UpdatePaymentInvoiceRequest $request, string $id): JsonResponse

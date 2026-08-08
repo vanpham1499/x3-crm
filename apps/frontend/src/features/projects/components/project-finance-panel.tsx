@@ -222,7 +222,7 @@ export function ProjectFinancePanel({
                         ) : null}
                       </td>
                       <td
-                        className={`px-3 py-3 text-right font-bold tabular-nums ${remaining > 0 ? 'text-amber-700' : 'text-slate-500'}`}
+                        className={`px-3 py-3 text-right font-bold tabular-nums ${remaining > 0 ? 'text-rose-700' : 'text-slate-500'}`}
                       >
                         <span className="whitespace-nowrap">{formatCurrency(remaining)}</span>
                       </td>

@@ -58,11 +58,7 @@ function CustomerDetailGroup({
   );
 }
 
-export function ProjectCustomerPanel({
-  customer,
-}: {
-  customer?: Customer | null;
-}) {
+export function ProjectCustomerPanel({ customer }: { customer?: Customer | null }) {
   if (!customer) {
     return (
       <section className="rounded-2xl border border-slate-200 bg-white px-5 py-10 text-center text-sm font-semibold text-slate-500 shadow-sm">
@@ -122,8 +118,7 @@ export function ProjectCustomerPanel({
   const legalItems: CustomerDetail[] = [
     { label: 'Tên pháp nhân', value: textOrDash(customer.companyName) },
     { label: 'Người đại diện', value: textOrDash(customer.representativeName) },
-    { label: 'Mã số thuế', value: textOrDash(customer.taxCode) },
-    { label: 'CCCD/CMND', value: textOrDash(customer.identityNo) },
+    { label: 'CCCD/MST', value: textOrDash(customer.taxCode) },
     {
       label: 'Email hóa đơn',
       value: customer.invoiceEmail ? (
@@ -138,7 +133,7 @@ export function ProjectCustomerPanel({
 
   const crmItems: CustomerDetail[] = [
     {
-      label: 'Sales',
+      label: 'Nhân viên',
       value: (
         <span className="block truncate whitespace-nowrap" title={salesLabel || undefined}>
           {textOrDash(salesLabel)}

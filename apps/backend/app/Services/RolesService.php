@@ -186,6 +186,8 @@ class RolesService extends BaseService
 
         $pageCodes = $permissions
             ->reject(fn ($permission) => str_ends_with($permission->code, '.lookup'))
+            ->filter(fn ($permission): bool => $permission->module !== 'cost'
+                || str_starts_with($permission->code, 'cost.view'))
             ->map(fn ($permission) => self::PAGE_PERMISSION_BY_MODULE[$permission->module] ?? null)
             ->filter()
             ->unique();
@@ -198,6 +200,8 @@ class RolesService extends BaseService
 
         $scopedPageCodes = $permissions
             ->filter(fn ($permission): bool => str_ends_with($permission->code, '_department') || str_ends_with($permission->code, '_all'))
+            ->filter(fn ($permission): bool => $permission->module !== 'cost'
+                || str_starts_with($permission->code, 'cost.view'))
             ->map(function ($permission): ?string {
                 $pageCode = self::PAGE_PERMISSION_BY_MODULE[$permission->module] ?? null;
 
@@ -231,6 +235,17 @@ class RolesService extends BaseService
                     ->whereNull('deleted_at')
                     ->pluck('id'),
             );
+        }
+
+        if ($permissions->contains('code', 'payment.manage')) {
+            $paymentViewAllId = DB::table('permissions')
+                ->where('code', 'payment.view_all')
+                ->whereNull('deleted_at')
+                ->value('id');
+
+            if ($paymentViewAllId !== null) {
+                $normalizedIds->push($paymentViewAllId);
+            }
         }
 
         $roleEditorCodes = ['role.create', 'role.update', 'role.permission.update'];

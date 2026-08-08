@@ -33,7 +33,7 @@ class AuthService extends BaseService
 
     public function getProfile(User $user): array
     {
-        $user->load('roleRef.permissions');
+        $user->load(['roleRef.permissions', 'ledDepartments:id,leader_user_id']);
 
         return [
             'user' => $this->apiResource($user, UserResource::class),

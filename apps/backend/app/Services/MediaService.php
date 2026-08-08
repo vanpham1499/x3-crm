@@ -53,10 +53,12 @@ class MediaService extends BaseService
             ->where('file_type', 'like', 'image/%');
 
         if (! $user->hasPermission('media.view_all')) {
-            if ($user->hasPermission('media.view_department') && $user->department_id) {
+            $departmentIds = $user->accessibleDepartmentIds();
+
+            if ($user->hasPermission('media.view_department') && $departmentIds !== []) {
                 $query->whereHas(
                     'uploadedBy',
-                    fn (Builder $uploader) => $uploader->where('department_id', $user->department_id),
+                    fn (Builder $uploader) => $uploader->whereIn('department_id', $departmentIds),
                 );
             } else {
                 $query->where('uploaded_by', $user->id);

@@ -6,13 +6,10 @@ use App\Http\Resources\DepartmentResource;
 use App\Models\Department;
 use App\Models\User;
 use App\Repositories\DepartmentRepository;
-use Illuminate\Validation\ValidationException;
 
 class DepartmentsService extends BaseService
 {
-    public function __construct(private readonly DepartmentRepository $departments)
-    {
-    }
+    public function __construct(private readonly DepartmentRepository $departments) {}
 
     public function findAll(?string $keyword = null)
     {
@@ -94,21 +91,21 @@ class DepartmentsService extends BaseService
     private function syncMembers(Department $department, array $memberUserIds): void
     {
         $memberUserIds = collect($memberUserIds)
-            ->push((int) $department->leader_user_id)
             ->filter()
             ->unique()
             ->values()
             ->all();
 
-        $hasLeaderFromAnotherDepartment = Department::query()
-            ->where('id', '<>', $department->id)
-            ->whereIn('leader_user_id', $memberUserIds)
-            ->exists();
+        $leader = User::query()->find($department->leader_user_id);
 
-        if ($hasLeaderFromAnotherDepartment) {
-            throw ValidationException::withMessages([
-                'memberUserIds' => 'Một nhân viên đã chọn đang là Lead của phòng ban khác.',
-            ]);
+        // A leader keeps one primary department and can lead additional teams
+        // without being moved away from that primary membership.
+        if ($leader && (! $leader->department_id || (int) $leader->department_id === (int) $department->id)) {
+            $memberUserIds = collect($memberUserIds)
+                ->push((int) $leader->id)
+                ->unique()
+                ->values()
+                ->all();
         }
 
         $now = now();

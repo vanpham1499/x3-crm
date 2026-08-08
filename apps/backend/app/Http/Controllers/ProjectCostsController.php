@@ -29,6 +29,7 @@ class ProjectCostsController extends Controller
             'dateFrom' => $request->query('date_from'),
             'dateTo' => $request->query('date_to'),
             'groupByProject' => $request->boolean('group_by_project'),
+            'context' => $request->query('context'),
         ];
 
         if ($request->query->has('page') || $request->query->has('per_page')) {

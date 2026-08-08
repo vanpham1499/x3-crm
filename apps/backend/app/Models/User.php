@@ -78,6 +78,9 @@ class User extends Authenticatable
 
     private ?Collection $permissionCodesCache = null;
 
+    /** @var array<int>|null */
+    private ?array $accessibleDepartmentIdsCache = null;
+
     /**
      * Whether the user's role has been granted this permission code, via role_permissions.
      * Role-agnostic by design: callers should never branch on role name, only on permission code.
@@ -98,11 +101,50 @@ class User extends Authenticatable
         return $this->belongsTo(Department::class);
     }
 
+    public function ledDepartments(): HasMany
+    {
+        return $this->hasMany(Department::class, 'leader_user_id');
+    }
+
+    /**
+     * A user belongs to one primary department, but may lead multiple teams.
+     * Department-scoped permissions cover both the primary department and
+     * every department currently led by the user.
+     *
+     * @return array<int>
+     */
+    public function accessibleDepartmentIds(): array
+    {
+        if ($this->accessibleDepartmentIdsCache !== null) {
+            return $this->accessibleDepartmentIdsCache;
+        }
+
+        $ledDepartmentIds = $this->relationLoaded('ledDepartments')
+            ? $this->ledDepartments->pluck('id')
+            : $this->ledDepartments()->pluck('departments.id');
+
+        return $this->accessibleDepartmentIdsCache = $ledDepartmentIds
+            ->push($this->department_id)
+            ->filter()
+            ->map(fn ($departmentId): int => (int) $departmentId)
+            ->unique()
+            ->values()
+            ->all();
+    }
+
+    public function canAccessDepartment(int|string|null $departmentId): bool
+    {
+        if (! $departmentId) {
+            return false;
+        }
+
+        return in_array((int) $departmentId, $this->accessibleDepartmentIds(), true);
+    }
+
+    /** Directional check: whether this user may access the other user's department scope. */
     public function sharesDepartmentWith(?User $other): bool
     {
-        return $this->department_id !== null
-            && $other?->department_id !== null
-            && (string) $this->department_id === (string) $other->department_id;
+        return $this->canAccessDepartment($other?->department_id);
     }
 
     public function createdBy(): BelongsTo

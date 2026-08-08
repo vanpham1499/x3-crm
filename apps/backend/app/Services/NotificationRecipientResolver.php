@@ -2,8 +2,8 @@
 
 namespace App\Services;
 
-use App\Models\ProjectCost;
 use App\Models\P2Point;
+use App\Models\ProjectCost;
 use App\Models\User;
 use App\Models\WeeklyReport;
 use Illuminate\Support\Collection;
@@ -45,6 +45,16 @@ class NotificationRecipientResolver
             'cost.approve_department',
             'cost.approve_all',
         ])->filter(fn (User $user) => Gate::forUser($user)->allows('approve', $cost))->values();
+    }
+
+    /** @return Collection<int, User> */
+    public function projectCostFunders(ProjectCost $cost): Collection
+    {
+        return $this->usersWithAnyPermission([
+            'cost.fund',
+            'cost.fund_department',
+            'cost.fund_all',
+        ])->filter(fn (User $user) => Gate::forUser($user)->allows('fund', $cost))->values();
     }
 
     /** @return Collection<int, User> */

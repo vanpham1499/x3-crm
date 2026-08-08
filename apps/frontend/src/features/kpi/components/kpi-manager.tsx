@@ -12,6 +12,7 @@ import RemoveRoundedIcon from '@mui/icons-material/RemoveRounded';
 import RoomServiceRoundedIcon from '@mui/icons-material/RoomServiceRounded';
 import TrendingDownRoundedIcon from '@mui/icons-material/TrendingDownRounded';
 import TrendingUpRoundedIcon from '@mui/icons-material/TrendingUpRounded';
+import VisibilityRoundedIcon from '@mui/icons-material/VisibilityRounded';
 import { IconButton, LinearProgress, MenuItem, Tooltip } from '@mui/material';
 import { Controller, useForm } from 'react-hook-form';
 import { DialogActionButton } from '@/components/actions/dialog-action-button';
@@ -26,6 +27,10 @@ import { IconTabs } from '@/components/navigation/icon-tabs';
 import { PageHeader } from '@/components/shell/page-header';
 import { AppDataTable } from '@/components/table/app-data-table';
 import { ServiceTableCell } from '@/components/table/service-table-cell';
+import {
+  KpiDetailDialog,
+  type KpiDetailDialogState,
+} from '@/features/kpi/components/kpi-detail-dialog';
 import { applyApiErrorsToForm } from '@/lib/api-error';
 import { formatCurrency } from '@/lib/utils';
 import type {
@@ -73,10 +78,7 @@ function amountTone(value: number) {
   return value < 0 ? 'text-rose-700' : 'text-emerald-700';
 }
 
-function aggregateSummary(
-  periods: KpiMonthlyReport[],
-  scope: KpiTabScope,
-): KpiSummary {
+function aggregateSummary(periods: KpiMonthlyReport[], scope: KpiTabScope): KpiSummary {
   const targetAmount = periods.reduce((sum, period) => sum + period.summary[scope].targetAmount, 0);
   const actualAmount = periods.reduce((sum, period) => sum + period.summary[scope].actualAmount, 0);
 
@@ -120,6 +122,53 @@ function CompletionCell({ value }: { value: number | null }) {
           },
         }}
       />
+    </div>
+  );
+}
+
+function KpiRowActions({
+  row,
+  period,
+  canManage,
+  onDetail,
+  onEdit,
+}: {
+  row: KpiRow;
+  period: string;
+  canManage: boolean;
+  onDetail: (state: KpiDetailDialogState) => void;
+  onEdit: (state: TargetDialogState) => void;
+}) {
+  return (
+    <div className="flex items-center justify-end gap-1">
+      <Tooltip title="Xem dữ liệu đối soát">
+        <IconButton
+          size="small"
+          aria-label={`Xem dữ liệu đối soát KPI cho ${row.name} ${formatMonthLabel(period)}`}
+          onClick={() =>
+            onDetail({
+              scopeType: row.scopeType,
+              scopeId: row.id,
+              scopeName: row.name,
+              period,
+            })
+          }
+        >
+          <VisibilityRoundedIcon fontSize="small" />
+        </IconButton>
+      </Tooltip>
+
+      {canManage ? (
+        <Tooltip title="Cập nhật kế hoạch">
+          <IconButton
+            size="small"
+            aria-label={`Cập nhật kế hoạch KPI cho ${row.name} ${formatMonthLabel(period)}`}
+            onClick={() => onEdit({ row, period })}
+          >
+            <EditRoundedIcon fontSize="small" />
+          </IconButton>
+        </Tooltip>
+      ) : null}
     </div>
   );
 }
@@ -405,11 +454,13 @@ function ServiceMonthTable({
   report,
   canManage,
   isFetching,
+  onDetail,
   onEdit,
 }: {
   report: KpiMonthlyReport;
   canManage: boolean;
   isFetching: boolean;
+  onDetail: (state: KpiDetailDialogState) => void;
   onEdit: (state: TargetDialogState) => void;
 }) {
   return (
@@ -442,12 +493,12 @@ function ServiceMonthTable({
           className: 'w-[165px] text-right',
         },
         { key: 'completion', label: 'Hoàn thành', className: 'w-[165px] text-right' },
-        { key: 'actions', className: 'w-[56px]' },
+        { key: 'actions', className: 'w-[96px]' },
       ]}
       isLoading={isFetching}
       isEmpty={report.services.length === 0}
       emptyText="Chưa có dịch vụ gốc để tính KPI"
-      minWidthClassName="min-w-[1336px]"
+      minWidthClassName="min-w-[1376px]"
     >
       {report.services.map((row) => (
         <tr key={`${row.scopeType}-${row.id}`} className="hover:bg-slate-50/80">
@@ -485,17 +536,13 @@ function ServiceMonthTable({
             <CompletionCell value={row.completionRate} />
           </td>
           <td className="px-3 py-4 text-right">
-            {canManage && (
-              <Tooltip title="Cập nhật kế hoạch">
-                <IconButton
-                  size="small"
-                  aria-label={`Cập nhật kế hoạch KPI cho ${row.name} ${formatMonthLabel(report.period)}`}
-                  onClick={() => onEdit({ row, period: report.period })}
-                >
-                  <EditRoundedIcon fontSize="small" />
-                </IconButton>
-              </Tooltip>
-            )}
+            <KpiRowActions
+              row={row}
+              period={report.period}
+              canManage={canManage}
+              onDetail={onDetail}
+              onEdit={onEdit}
+            />
           </td>
         </tr>
       ))}
@@ -555,11 +602,13 @@ function DepartmentMonthTable({
   report,
   canManage,
   isFetching,
+  onDetail,
   onEdit,
 }: {
   report: KpiMonthlyReport;
   canManage: boolean;
   isFetching: boolean;
+  onDetail: (state: KpiDetailDialogState) => void;
   onEdit: (state: TargetDialogState) => void;
 }) {
   return (
@@ -587,12 +636,12 @@ function DepartmentMonthTable({
           className: 'w-[175px] text-right',
         },
         { key: 'completion', label: 'Hoàn thành', className: 'w-[165px] text-right' },
-        { key: 'actions', className: 'w-[56px]' },
+        { key: 'actions', className: 'w-[96px]' },
       ]}
       isLoading={isFetching}
       isEmpty={report.departments.length === 0}
       emptyText="Chưa có phòng ban để tính KPI"
-      minWidthClassName="min-w-[1480px]"
+      minWidthClassName="min-w-[1520px]"
     >
       {report.departments.map((row) => (
         <tr key={row.id} className="hover:bg-slate-50/80">
@@ -635,17 +684,13 @@ function DepartmentMonthTable({
             <CompletionCell value={row.completionRate} />
           </td>
           <td className="px-3 py-4 text-right">
-            {canManage && (
-              <Tooltip title="Cập nhật kế hoạch">
-                <IconButton
-                  size="small"
-                  aria-label={`Cập nhật kế hoạch KPI cho ${row.name} ${formatMonthLabel(report.period)}`}
-                  onClick={() => onEdit({ row, period: report.period })}
-                >
-                  <EditRoundedIcon fontSize="small" />
-                </IconButton>
-              </Tooltip>
-            )}
+            <KpiRowActions
+              row={row}
+              period={report.period}
+              canManage={canManage}
+              onDetail={onDetail}
+              onEdit={onEdit}
+            />
           </td>
         </tr>
       ))}
@@ -657,11 +702,13 @@ function EmployeeMonthTable({
   report,
   canManage,
   isFetching,
+  onDetail,
   onEdit,
 }: {
   report: KpiMonthlyReport;
   canManage: boolean;
   isFetching: boolean;
+  onDetail: (state: KpiDetailDialogState) => void;
   onEdit: (state: TargetDialogState) => void;
 }) {
   return (
@@ -685,12 +732,12 @@ function EmployeeMonthTable({
           className: 'w-[175px] text-right',
         },
         { key: 'completion', label: 'Hoàn thành', className: 'w-[165px] text-right' },
-        { key: 'actions', className: 'w-[56px]' },
+        { key: 'actions', className: 'w-[96px]' },
       ]}
       isLoading={isFetching}
       isEmpty={report.employees.length === 0}
       emptyText="Chưa có nhân sự trong phạm vi được cấp quyền"
-      minWidthClassName="min-w-[1490px]"
+      minWidthClassName="min-w-[1530px]"
     >
       {report.employees.map((row) => (
         <tr key={row.id} className="hover:bg-slate-50/80">
@@ -701,10 +748,12 @@ function EmployeeMonthTable({
               </span>
               <span className="min-w-0">
                 <span className="block truncate font-bold text-slate-950" title={row.name}>
-                  {row.name}{row.isActive ? '' : ' (Ngừng hoạt động)'}
+                  {row.name}
+                  {row.isActive ? '' : ' (Ngừng hoạt động)'}
                 </span>
                 <span className="block truncate text-xs font-semibold text-slate-500">
-                  {[row.code, row.departmentName].filter(Boolean).join(' · ') || 'Chưa có phòng ban'}
+                  {[row.code, row.departmentName].filter(Boolean).join(' · ') ||
+                    'Chưa có phòng ban'}
                 </span>
               </span>
             </span>
@@ -740,17 +789,13 @@ function EmployeeMonthTable({
             <CompletionCell value={row.completionRate} />
           </td>
           <td className="px-3 py-4 text-right">
-            {canManage && (
-              <Tooltip title="Cập nhật kế hoạch">
-                <IconButton
-                  size="small"
-                  aria-label={`Cập nhật kế hoạch KPI cho ${row.name} ${formatMonthLabel(report.period)}`}
-                  onClick={() => onEdit({ row, period: report.period })}
-                >
-                  <EditRoundedIcon fontSize="small" />
-                </IconButton>
-              </Tooltip>
-            )}
+            <KpiRowActions
+              row={row}
+              period={report.period}
+              canManage={canManage}
+              onDetail={onDetail}
+              onEdit={onEdit}
+            />
           </td>
         </tr>
       ))}
@@ -769,6 +814,7 @@ export function KpiManager({
 }: KpiManagerProps) {
   const [activeTab, setActiveTab] = useState(0);
   const [targetDialog, setTargetDialog] = useState<TargetDialogState | null>(null);
+  const [detailDialog, setDetailDialog] = useState<KpiDetailDialogState | null>(null);
   const tabs: Array<{ scope: KpiTabScope; label: string; icon: ReactElement }> =
     report.viewerScope.level === 'all'
       ? [
@@ -894,6 +940,7 @@ export function KpiManager({
                 report={monthlyReport}
                 canManage={canManage}
                 isFetching={isFetching}
+                onDetail={setDetailDialog}
                 onEdit={setTargetDialog}
               />
             ) : scope === 'departments' ? (
@@ -901,6 +948,7 @@ export function KpiManager({
                 report={monthlyReport}
                 canManage={canManage}
                 isFetching={isFetching}
+                onDetail={setDetailDialog}
                 onEdit={setTargetDialog}
               />
             ) : (
@@ -908,6 +956,7 @@ export function KpiManager({
                 report={monthlyReport}
                 canManage={canManage}
                 isFetching={isFetching}
+                onDetail={setDetailDialog}
                 onEdit={setTargetDialog}
               />
             )}
@@ -921,6 +970,7 @@ export function KpiManager({
         onClose={() => setTargetDialog(null)}
         onSave={onSaveTarget}
       />
+      <KpiDetailDialog state={detailDialog} onClose={() => setDetailDialog(null)} />
     </div>
   );
 }

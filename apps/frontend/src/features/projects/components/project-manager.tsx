@@ -33,6 +33,7 @@ import { formatProjectDate, getProjectExternalUrl } from '@/lib/project-utils';
 import { getOptionColor } from '@/lib/option-utils';
 import { flattenServices } from '@/lib/service-utils';
 import { canCreateProject, canDeleteProject, canEditProject } from '@/lib/ownership';
+import { formatCurrency } from '@/lib/utils';
 import api from '@/services/api/client';
 import type { AppOption } from '@/types/option';
 import type { ProjectFilters, ProjectItem } from '@/types/project';
@@ -179,6 +180,13 @@ function ProjectViewDialog({
   if (!project) return null;
 
   const timelineEntries = getProjectTimelineEntries(project);
+  const linkedQuotations = Array.from(
+    new Map(
+      [...(project.quotations || []), ...(project.quotation ? [project.quotation] : [])].map(
+        (quotation) => [quotation.id, quotation],
+      ),
+    ).values(),
+  );
 
   return (
     <AppDetailDialog
@@ -236,6 +244,10 @@ function ProjectViewDialog({
                 />
                 <ProjectDetailRow label="Bắt đầu" value={formatProjectDate(project.startDate)} />
                 <ProjectDetailRow label="Kết thúc" value={formatProjectDate(project.endDate)} />
+                <ProjectDetailRow
+                  label="Tổng ngân sách"
+                  value={formatCurrency(Number(project.weeklySetting?.monthlyBudget) || 0)}
+                />
               </dl>
             </section>
           </div>
@@ -244,12 +256,7 @@ function ProjectViewDialog({
         {tab === 1 && (
           <div role="tabpanel" aria-label="Liên kết dự án" className="p-4">
             <section className="rounded-xl border border-slate-200 bg-white p-5">
-              <dl className="grid gap-x-8 gap-y-4 md:grid-cols-2">
-                <ProjectDetailRow label="Báo phí" value={project.quotation?.quotationCode} />
-                <ProjectDetailRow label="Nhóm Zalo" value={project.zaloGroup} />
-              </dl>
-
-              <div className="mt-5 grid gap-4 border-t border-slate-100 pt-5 md:grid-cols-2">
+              <div className="grid gap-x-8 gap-y-4 md:grid-cols-2">
                 <div className="grid grid-cols-[128px_minmax(0,1fr)] gap-3 text-sm">
                   <span className="font-semibold text-slate-500">Plan</span>
                   {project.planLink ? (
@@ -266,16 +273,47 @@ function ProjectViewDialog({
                     <span className="font-semibold text-slate-800">-</span>
                   )}
                 </div>
+                <div className="grid grid-cols-[128px_minmax(0,1fr)] gap-3 text-sm">
+                  <span className="font-semibold text-slate-500">Link BC tổng hợp</span>
+                  {project.customerTrackingReportLink ? (
+                    <a
+                      href={getProjectExternalUrl(project.customerTrackingReportLink)}
+                      target="_blank"
+                      rel="noreferrer"
+                      className="inline-flex min-w-0 items-center gap-1 font-semibold text-blue-600 hover:text-blue-700"
+                    >
+                      <LinkRoundedIcon className="!text-[18px]" />
+                      <span className="truncate">Mở báo cáo tổng hợp</span>
+                    </a>
+                  ) : (
+                    <span className="font-semibold text-slate-800">-</span>
+                  )}
+                </div>
+                <ProjectDetailRow label="Tài khoản Admin Web" value={project.adminWebAccount} />
                 <ProjectDetailRow label="Ghi chú" value={project.note} />
               </div>
 
-              {project.quotation?.id && (
-                <div className="mt-5 border-t border-slate-100 pt-4">
-                  <DialogActionButton href={`/quotations/${project.quotation.id}`}>
-                    Mở báo phí
-                  </DialogActionButton>
+              <div className="mt-5 border-t border-slate-100 pt-5">
+                <div className="grid grid-cols-[128px_minmax(0,1fr)] gap-3 text-sm">
+                  <span className="font-semibold text-slate-500">Danh sách báo phí</span>
+                  {linkedQuotations.length > 0 ? (
+                    <div className="flex min-w-0 flex-wrap gap-2">
+                      {linkedQuotations.map((quotation) => (
+                        <Link
+                          key={quotation.id}
+                          href={`/quotations/${quotation.id}`}
+                          className="inline-flex items-center gap-1 rounded-md bg-emerald-50 px-2.5 py-1.5 text-xs font-bold text-emerald-700 ring-1 ring-emerald-100 transition-colors hover:bg-emerald-100"
+                        >
+                          <LinkRoundedIcon className="!text-[16px]" />
+                          {quotation.quotationCode || `Báo phí #${quotation.id}`}
+                        </Link>
+                      ))}
+                    </div>
+                  ) : (
+                    <span className="font-semibold text-slate-800">-</span>
+                  )}
                 </div>
-              )}
+              </div>
             </section>
           </div>
         )}

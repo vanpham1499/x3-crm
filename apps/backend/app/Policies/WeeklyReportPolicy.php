@@ -103,7 +103,7 @@ class WeeklyReportPolicy
 
     private function belongsToDepartmentScope(User $user, WeeklyReport $report): bool
     {
-        if (! $user->department_id) {
+        if ($user->accessibleDepartmentIds() === []) {
             return false;
         }
 

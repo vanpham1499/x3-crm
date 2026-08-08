@@ -34,7 +34,7 @@ import { MoneyInput } from '@/components/form/money-input';
 import { TablePaginationBar } from '@/components/table/table-pagination-bar';
 import { getAdTopupCardLabel } from '@/lib/ad-topup-card-options';
 import { applyApiErrorsToForm, getApiErrorMessage } from '@/lib/api-error';
-import { canManageProjectCosts } from '@/lib/ownership';
+import { canFundProjectCosts, canManageProjectCosts } from '@/lib/ownership';
 import { calculateAvailableTopupBudget, isManagedBudgetProject } from '@/lib/project-topup-budget';
 import { formatCurrency } from '@/lib/utils';
 import api from '@/services/api/client';
@@ -157,6 +157,7 @@ function InlineCostStatusSelect({
 function CostActionMenu({
   cost,
   canManage,
+  canFund,
   onEdit,
   onDelete,
   onReportCidIncident,
@@ -164,6 +165,7 @@ function CostActionMenu({
 }: {
   cost: ProjectCost;
   canManage: boolean;
+  canFund: boolean;
   onEdit: () => void;
   onDelete: () => void;
   onReportCidIncident: () => void;
@@ -173,47 +175,50 @@ function CostActionMenu({
   const locked = Boolean(cost.reconciledAt);
   const pendingCidIncident = cost.cidIncident?.status === 'pending';
   const canReportCidIncident =
+    canManage &&
     cost.entryType === 'ad_spend' &&
     locked &&
     cost.status !== 'cancelled' &&
     (!cost.cidIncident || pendingCidIncident) &&
     (!cost.cidIsDead || pendingCidIncident);
-  const hasActions = !locked || canReportCidIncident;
+  const canEdit = canManage && !locked && (cost.status === 'pending' || canFund);
+  const canDelete = canFund && !locked && cost.status === 'pending';
+  const hasActions = canEdit || canDelete || canReportCidIncident;
 
   return (
     <>
       <IconButton
         size="small"
-        title={hasActions ? 'Thao tác' : 'Khoản chi đã đối soát'}
+        title={hasActions ? 'Thao tác' : 'Bạn không có thao tác phù hợp với trạng thái này'}
         aria-label={`Thao tác khoản chi ${cost.id}`}
-        disabled={!canManage || !hasActions}
+        disabled={!hasActions}
         onClick={(event) => setAnchorEl(event.currentTarget)}
       >
         <MoreVertRoundedIcon fontSize="small" />
       </IconButton>
       <Menu anchorEl={anchorEl} open={Boolean(anchorEl)} onClose={() => setAnchorEl(null)}>
-        {!locked ? (
-          <>
-            <MenuItem
-              onClick={() => {
-                setAnchorEl(null);
-                onEdit();
-              }}
-            >
-              <EditOutlinedIcon fontSize="small" className="mr-2 text-slate-500" />
-              Chỉnh sửa
-            </MenuItem>
-            <MenuItem
-              className="!text-rose-600"
-              onClick={() => {
-                setAnchorEl(null);
-                onDelete();
-              }}
-            >
-              <DeleteOutlineRoundedIcon fontSize="small" className="mr-2" />
-              Xóa
-            </MenuItem>
-          </>
+        {canEdit ? (
+          <MenuItem
+            onClick={() => {
+              setAnchorEl(null);
+              onEdit();
+            }}
+          >
+            <EditOutlinedIcon fontSize="small" className="mr-2 text-slate-500" />
+            Chỉnh sửa
+          </MenuItem>
+        ) : null}
+        {canDelete ? (
+          <MenuItem
+            className="!text-rose-600"
+            onClick={() => {
+              setAnchorEl(null);
+              onDelete();
+            }}
+          >
+            <DeleteOutlineRoundedIcon fontSize="small" className="mr-2" />
+            Xóa
+          </MenuItem>
         ) : null}
         {canReportCidIncident ? (
           <MenuItem
@@ -227,7 +232,7 @@ function CostActionMenu({
             {pendingCidIncident ? 'Sửa báo cáo CID ngừng' : 'Báo CID ngừng hoạt động'}
           </MenuItem>
         ) : null}
-        {pendingCidIncident ? (
+        {pendingCidIncident && canManage ? (
           <MenuItem
             className="!text-slate-600"
             onClick={() => {
@@ -416,7 +421,6 @@ function getCostDefaults(cost?: ProjectCost | null): ProjectCostFormValues {
   return {
     quotationId: cost?.quotationId ? String(cost.quotationId) : '',
     transactionDate: cost?.transactionDate || todayDateValue(),
-    status: cost?.status || 'pending',
     cid: cost?.cid || '',
     adAccount: cost?.adAccount || '',
     cidIsDead: cost?.cidIsDead === true,
@@ -482,7 +486,6 @@ function CostDialog({
   const selectedQuotationId = watch('quotationId');
   const cidIsDead = watch('cidIsDead');
   const cidSpentAmount = Math.max(0, Number(watch('cidSpentAmount')) || 0);
-  const currentStatus = watch('status');
   const managedBudgetProject = isManagedBudgetProject({
     projectType,
     projectCode,
@@ -492,7 +495,7 @@ function CostDialog({
     ? {
         ...cost,
         quotationId: selectedQuotationId ? Number(selectedQuotationId) : null,
-        status: currentStatus,
+        status: cost.status,
         amountBeforeVat,
         cidIsDead,
         cidSpentAmount,
@@ -636,18 +639,6 @@ function CostDialog({
         )}
       />
 
-      <Controller
-        name="status"
-        control={control}
-        render={({ field }) => (
-          <FormSelectField label="Tình trạng" {...field}>
-            <MenuItem value="pending">{isAdSpend ? 'Chờ nạp' : 'Chờ chi'}</MenuItem>
-            <MenuItem value="completed">{isAdSpend ? 'Đã nạp' : 'Đã chi'}</MenuItem>
-            <MenuItem value="cancelled">Đã hủy</MenuItem>
-          </FormSelectField>
-        )}
-      />
-
       {isAdSpend && managedBudgetProject ? (
         <div
           role="status"
@@ -773,6 +764,7 @@ export function ProjectCostPanel({
   const notify = useAppNotification();
   const currentUser = useAuthStore((state) => state.user);
   const canManage = canManageProjectCosts(currentUser, project);
+  const canFund = canFundProjectCosts(currentUser, project);
   const [page, setPage] = useState(1);
   const [dialogOpen, setDialogOpen] = useState(false);
   const [editingCost, setEditingCost] = useState<ProjectCost | null>(null);
@@ -800,7 +792,6 @@ export function ProjectCostPanel({
         quotationId:
           entryType === 'ad_spend' && values.quotationId ? Number(values.quotationId) : null,
         transactionDate: values.transactionDate || null,
-        status: values.status,
         cid: values.cid.trim() || null,
         adAccount: values.adAccount.trim() || null,
         cidIsDead: entryType === 'ad_spend' ? values.cidIsDead : false,
@@ -907,6 +898,11 @@ export function ProjectCostPanel({
   const openEdit = (cost: ProjectCost) => {
     if (cost.reconciledAt) {
       notify.warning('Khoản chi đã đối soát nên không thể chỉnh sửa.');
+      return;
+    }
+
+    if (cost.status !== 'pending' && !canFund) {
+      notify.warning('Khoản chi đã được Lead xác nhận nên nhân viên không thể chỉnh sửa.');
       return;
     }
 
@@ -1045,7 +1041,7 @@ export function ProjectCostPanel({
                             statusMutation.variables?.cost.id === cost.id
                           }
                           disabled={
-                            !canManage ||
+                            !canFund ||
                             (statusMutation.isPending &&
                               statusMutation.variables?.cost.id === cost.id)
                           }
@@ -1058,6 +1054,7 @@ export function ProjectCostPanel({
                         <CostActionMenu
                           cost={cost}
                           canManage={canManage}
+                          canFund={canFund}
                           onEdit={() => openEdit(cost)}
                           onDelete={() => setDeleteTarget(cost)}
                           onReportCidIncident={() => setCidIncidentTarget(cost)}
@@ -1116,7 +1113,7 @@ export function ProjectCostPanel({
                             statusMutation.variables?.cost.id === cost.id
                           }
                           disabled={
-                            !canManage ||
+                            !canFund ||
                             Boolean(cost.reconciledAt) ||
                             (statusMutation.isPending &&
                               statusMutation.variables?.cost.id === cost.id)
@@ -1144,6 +1141,7 @@ export function ProjectCostPanel({
                         <CostActionMenu
                           cost={cost}
                           canManage={canManage}
+                          canFund={canFund}
                           onEdit={() => openEdit(cost)}
                           onDelete={() => setDeleteTarget(cost)}
                           onReportCidIncident={() => setCidIncidentTarget(cost)}

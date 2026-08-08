@@ -60,7 +60,10 @@ class KpiReportRepository
             ])
             ->get([
                 'id',
+                'project_code',
+                'project_name',
                 'service_id',
+                'project_type',
                 'manager_user_id',
                 'sales_user_id',
                 'customer_id',
@@ -95,7 +98,7 @@ class KpiReportRepository
         }
 
         return PaymentAllocation::query()
-            ->with('payment:id,transaction_date,transaction_at')
+            ->with('payment:id,transaction_date,transaction_at,reference,transaction_content,sender_name')
             ->whereIn('quotation_id', $quotationIds)
             ->get(['id', 'payment_id', 'quotation_id', 'project_id', 'amount', 'allocated_at', 'created_at']);
     }
@@ -129,6 +132,9 @@ class KpiReportRepository
                 'refund_type',
                 'amount',
                 'completed_at',
+                'reason',
+                'reference',
+                'note',
             ]);
     }
 

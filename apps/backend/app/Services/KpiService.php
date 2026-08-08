@@ -17,6 +17,7 @@ use App\Models\User;
 use App\Repositories\KpiReportRepository;
 use App\Repositories\KpiTargetRepository;
 use Carbon\CarbonImmutable;
+use Illuminate\Auth\Access\AuthorizationException;
 use Illuminate\Support\Collection;
 use Illuminate\Validation\ValidationException;
 
@@ -33,8 +34,7 @@ class KpiService extends BaseService
         ?string $periodFrom = null,
         ?string $periodTo = null,
         ?User $viewer = null,
-    ): array
-    {
+    ): array {
         [$rangeStart, $rangeEnd] = $this->periodRange($periodFrom, $periodTo);
         $rangeEndExclusive = $rangeEnd->addMonth();
         $periodStarts = collect();
@@ -95,7 +95,7 @@ class KpiService extends BaseService
             ->pluck('id')
             ->map(fn ($id): int => (int) $id)
             ->all();
-        $firstSuccessfulByProject = $this->firstSuccessfulQuotations($quotations, $allocations);
+        $paidFirstQuotationByProject = $this->paidFirstQuotations($quotations, $allocations);
 
         $periods = $periodStarts->map(fn (CarbonImmutable $periodStart): array => $this->buildMonthlyReport(
             $periodStart->format('Y-m'),
@@ -108,7 +108,7 @@ class KpiService extends BaseService
             $projectMap,
             $projectRootServices,
             $rootServiceIds,
-            $firstSuccessfulByProject,
+            $paidFirstQuotationByProject,
             $targetsByPeriod->get($periodStart->format('Y-m'), collect()),
             $refundsByPeriod->get($periodStart->format('Y-m'), collect()),
             $costsByPeriod->get($periodStart->format('Y-m'), collect()),
@@ -131,6 +131,7 @@ class KpiService extends BaseService
                 'sourceDepositIncluded' => true,
                 'serviceProfitDepositIncluded' => false,
                 'acquisitionProfitDepositIncluded' => true,
+                'acquisitionProfitDepositScope' => 'project_type_k_only',
             ],
             'periods' => $periods,
         ];
@@ -144,6 +145,7 @@ class KpiService extends BaseService
         $targetAmount = (float) $data['targetAmount'];
 
         $this->validateScope($scopeType, $scopeId);
+        $this->authorizeTargetManagement($scopeType, $scopeId);
 
         $target = $this->targets->upsertTarget(
             $scopeType,
@@ -153,6 +155,255 @@ class KpiService extends BaseService
         );
 
         return $this->apiResource($target, KpiTargetResource::class);
+    }
+
+    public function detail(string $period, string $scopeType, int $scopeId, User $viewer): array
+    {
+        $periodStart = $this->periodStart($period);
+        $periodEnd = $periodStart->addMonth();
+        [$scopeName, $serviceRootIds, $scopeUser] = $this->detailScopeContext($scopeType, $scopeId);
+
+        $this->authorizeDetailScope($viewer, $scopeType, $scopeId, $scopeUser);
+
+        $services = $this->reports->services();
+        $projects = $this->reports->activeProjects();
+        $projectIds = $projects->pluck('id');
+        $quotations = $this->reports->quotations($projectIds);
+        $quotationIds = $quotations->pluck('id');
+        $allocations = $this->reports->allocations($quotationIds);
+        $refunds = $this->reports->completedRefunds(
+            $periodStart->toDateTimeString(),
+            $periodEnd->toDateTimeString(),
+            $projectIds,
+            $quotationIds,
+        );
+        $costs = $this->reports->completedCosts(
+            $periodStart->toDateString(),
+            $periodEnd->toDateString(),
+            $projectIds,
+        );
+        $serviceMap = $services->keyBy('id');
+        $projectMap = $projects->keyBy('id');
+        $quotationMap = $quotations->keyBy('id');
+        $projectRootServices = $projects->mapWithKeys(fn (Project $project): array => [
+            $project->id => $this->rootServiceId($project->service_id, $serviceMap),
+        ]);
+        $paidFirstQuotationByProject = $this->paidFirstQuotations($quotations, $allocations);
+        $entries = collect();
+        $implementationBranch = in_array($scopeType, [
+            KpiTarget::SCOPE_SERVICE,
+            KpiTarget::SCOPE_SERVICE_GROUP,
+        ], true) ? 'service' : 'implementation';
+
+        foreach ($allocations->groupBy('quotation_id') as $quotationId => $quotationAllocations) {
+            /** @var Quotation|null $quotation */
+            $quotation = $quotationMap->get($quotationId);
+            /** @var Project|null $project */
+            $project = $quotation ? $projectMap->get($quotation->project_id) : null;
+
+            if (! $quotation || ! $project || ! $this->matchesDetailImplementation(
+                $project,
+                $scopeType,
+                $scopeId,
+                $serviceRootIds,
+                $projectRootServices,
+            )) {
+                continue;
+            }
+
+            $cumulativeAmount = 0.0;
+            $sortedAllocations = $quotationAllocations
+                ->sortBy(fn (PaymentAllocation $allocation): string => $this->allocationEventAt($allocation)->format('Y-m-d H:i:s.u').'-'.str_pad((string) $allocation->id, 20, '0', STR_PAD_LEFT));
+
+            foreach ($sortedAllocations as $allocation) {
+                $before = $cumulativeAmount;
+                $cumulativeAmount += (float) $allocation->amount;
+                $eventAt = $this->allocationEventAt($allocation);
+
+                if ($eventAt->format('Y-m') !== $period) {
+                    continue;
+                }
+
+                $beforeVatAmount = $this->recognizedRevenueBetween($quotation, $before, $cumulativeAmount);
+
+                if ((float) $allocation->amount <= self::MONEY_EPSILON
+                    && $beforeVatAmount <= self::MONEY_EPSILON) {
+                    continue;
+                }
+
+                $entries->push($this->detailEntry(
+                    'allocation-'.$allocation->id,
+                    $implementationBranch,
+                    'received',
+                    'Khoản thu đã phân bổ',
+                    $eventAt,
+                    (float) $allocation->amount,
+                    $beforeVatAmount,
+                    $beforeVatAmount,
+                    $project,
+                    $quotation,
+                    $allocation->payment?->transaction_content
+                        ?: $allocation->payment?->reference
+                        ?: 'Khoản thu #'.$allocation->payment_id,
+                ));
+            }
+        }
+
+        foreach ($costs as $cost) {
+            /** @var ProjectCost $cost */
+            /** @var Project|null $project */
+            $project = $projectMap->get($cost->project_id);
+
+            if (! $project || ! $this->matchesDetailImplementation(
+                $project,
+                $scopeType,
+                $scopeId,
+                $serviceRootIds,
+                $projectRootServices,
+            )) {
+                continue;
+            }
+
+            $amounts = $this->costAmounts($cost);
+            $entries->push($this->detailEntry(
+                'cost-'.$cost->id,
+                $implementationBranch,
+                'cost',
+                'Chi phí thực tế',
+                CarbonImmutable::parse($cost->transaction_date),
+                $amounts['gross'],
+                $amounts['beforeVat'],
+                -$amounts['beforeVat'],
+                $project,
+                $quotationMap->get($cost->quotation_id),
+                $cost->invoice_number
+                    ? 'Hóa đơn '.$cost->invoice_number
+                    : ($cost->cid ? 'CID '.$cost->cid : 'Chi phí #'.$cost->id),
+            ));
+        }
+
+        foreach ($paidFirstQuotationByProject as $projectId => $success) {
+            /** @var Project|null $project */
+            $project = $projectMap->get($projectId);
+
+            if (! $project
+                || $success['paidAt']->format('Y-m') !== $period
+                || ! $this->matchesDetailAcquisition($project, $scopeType, $scopeId)) {
+                continue;
+            }
+
+            /** @var Quotation $quotation */
+            $quotation = $success['quotation'];
+            $beforeVatAmount = $this->acquisitionProfitBeforeVat($project, $quotation);
+            $entries->push($this->detailEntry(
+                'acquisition-'.$quotation->id,
+                'acquisition',
+                'acquisition_credit',
+                'Báo phí đầu đã thu đủ',
+                $success['paidAt'],
+                (float) $quotation->total_amount,
+                $beforeVatAmount,
+                $beforeVatAmount,
+                $project,
+                $quotation,
+                $project->project_type === 'K'
+                    ? 'Phí dịch vụ tháng đầu + cọc'
+                    : 'Lợi nhuận báo phí đầu',
+            ));
+        }
+
+        foreach ($refunds as $refund) {
+            /** @var PaymentRefund $refund */
+            /** @var Quotation|null $quotation */
+            $quotation = $quotationMap->get($refund->quotation_id);
+            $projectId = $refund->project_id ?: $quotation?->project_id;
+            /** @var Project|null $project */
+            $project = $projectMap->get($projectId);
+
+            if (! $project) {
+                continue;
+            }
+
+            if ($this->matchesDetailImplementation(
+                $project,
+                $scopeType,
+                $scopeId,
+                $serviceRootIds,
+                $projectRootServices,
+            )) {
+                $beforeVatAmount = in_array($refund->refund_type, [
+                    PaymentRefund::TYPE_DEPOSIT,
+                    PaymentRefund::TYPE_OVERPAYMENT,
+                ], true)
+                    ? 0.0
+                    : $this->refundBeforeVat($refund, $quotation);
+                $entries->push($this->detailEntry(
+                    'implementation-refund-'.$refund->id,
+                    $implementationBranch,
+                    'refund',
+                    'Hoàn tiền '.$this->refundTypeLabel($refund->refund_type),
+                    CarbonImmutable::parse($refund->completed_at),
+                    (float) $refund->amount,
+                    $beforeVatAmount,
+                    -$beforeVatAmount,
+                    $project,
+                    $quotation,
+                    $refund->reference ?: $refund->reason ?: $refund->note ?: 'Hoàn tiền #'.$refund->id,
+                ));
+            }
+
+            $firstSuccess = $paidFirstQuotationByProject->get($projectId);
+
+            if (! $firstSuccess
+                || (int) $firstSuccess['quotation']->id !== (int) $refund->quotation_id
+                || ! $this->matchesDetailAcquisition($project, $scopeType, $scopeId)) {
+                continue;
+            }
+
+            $beforeVatAmount = $this->acquisitionRefundBeforeVat($project, $refund, $quotation);
+            $entries->push($this->detailEntry(
+                'acquisition-refund-'.$refund->id,
+                'acquisition',
+                'acquisition_refund',
+                'Hoàn tiền '.$this->refundTypeLabel($refund->refund_type),
+                CarbonImmutable::parse($refund->completed_at),
+                (float) $refund->amount,
+                $beforeVatAmount,
+                -$beforeVatAmount,
+                $project,
+                $quotation,
+                $refund->reference ?: $refund->reason ?: $refund->note ?: 'Hoàn tiền #'.$refund->id,
+            ));
+        }
+
+        $entries = $entries
+            ->sortByDesc(fn (array $entry): string => $entry['eventAt'].'-'.$entry['id'])
+            ->values();
+        $branchLabels = $scopeType === KpiTarget::SCOPE_SERVICE
+            || $scopeType === KpiTarget::SCOPE_SERVICE_GROUP
+            ? ['service' => 'Dịch vụ']
+            : [
+                'implementation' => 'Nhánh triển khai',
+                'acquisition' => 'Nhánh phụ trách khách hàng',
+            ];
+        $branches = collect($branchLabels)
+            ->map(function (string $label, string $key) use ($entries): array {
+                $branchEntries = $entries->where('branch', $key)->values();
+
+                return $this->detailBranch($key, $label, $branchEntries);
+            })
+            ->values();
+
+        return [
+            'period' => $period,
+            'scope' => [
+                'type' => $scopeType,
+                'id' => $scopeId,
+                'name' => $scopeName,
+            ],
+            'totals' => $this->detailTotals($entries),
+            'branches' => $branches,
+        ];
     }
 
     private function buildMonthlyReport(
@@ -166,7 +417,7 @@ class KpiService extends BaseService
         Collection $projectMap,
         Collection $projectRootServices,
         array $rootServiceIds,
-        Collection $firstSuccessfulByProject,
+        Collection $paidFirstQuotationByProject,
         Collection $targets,
         Collection $refunds,
         Collection $costs,
@@ -197,7 +448,7 @@ class KpiService extends BaseService
         );
         $this->applyAcquisitionCredits(
             $periodKey,
-            $firstSuccessfulByProject,
+            $paidFirstQuotationByProject,
             $projectMap,
             $departmentActuals,
             $employeeActuals,
@@ -207,7 +458,7 @@ class KpiService extends BaseService
             $quotationMap,
             $projectMap,
             $projectRootServices,
-            $firstSuccessfulByProject,
+            $paidFirstQuotationByProject,
             $serviceActuals,
             $departmentActuals,
             $employeeActuals,
@@ -402,12 +653,12 @@ class KpiService extends BaseService
 
     private function applyAcquisitionCredits(
         string $periodKey,
-        Collection $firstSuccessfulByProject,
+        Collection $paidFirstQuotationByProject,
         Collection $projectMap,
         array &$departmentActuals,
         array &$employeeActuals,
     ): void {
-        foreach ($firstSuccessfulByProject as $projectId => $success) {
+        foreach ($paidFirstQuotationByProject as $projectId => $success) {
             if ($success['paidAt']->format('Y-m') !== $periodKey) {
                 continue;
             }
@@ -420,7 +671,7 @@ class KpiService extends BaseService
             if ($departmentId && isset($departmentActuals[$departmentId])) {
                 $departmentActuals[$departmentId]['acquisitionCreditAmount'] += (float) $quotation->total_amount;
                 $departmentActuals[$departmentId]['acquisitionCreditBeforeVatAmount'] +=
-                    (float) $quotation->subtotal_amount + (float) $quotation->deposit_amount;
+                    $this->acquisitionProfitBeforeVat($project, $quotation);
             }
 
             $salesUserId = $project?->customer?->sales_user_id;
@@ -428,7 +679,7 @@ class KpiService extends BaseService
             if ($salesUserId && isset($employeeActuals[$salesUserId])) {
                 $employeeActuals[$salesUserId]['acquisitionCreditAmount'] += (float) $quotation->total_amount;
                 $employeeActuals[$salesUserId]['acquisitionCreditBeforeVatAmount'] +=
-                    (float) $quotation->subtotal_amount + (float) $quotation->deposit_amount;
+                    $this->acquisitionProfitBeforeVat($project, $quotation);
             }
         }
     }
@@ -438,7 +689,7 @@ class KpiService extends BaseService
         Collection $quotationMap,
         Collection $projectMap,
         Collection $projectRootServices,
-        Collection $firstSuccessfulByProject,
+        Collection $paidFirstQuotationByProject,
         array &$serviceActuals,
         array &$departmentActuals,
         array &$employeeActuals,
@@ -478,7 +729,7 @@ class KpiService extends BaseService
                     $serviceRefundBeforeVatAmount;
             }
 
-            $firstSuccess = $firstSuccessfulByProject->get($projectId);
+            $firstSuccess = $paidFirstQuotationByProject->get($projectId);
 
             if (! $firstSuccess || (int) $firstSuccess['quotation']->id !== (int) $refund->quotation_id) {
                 continue;
@@ -487,10 +738,11 @@ class KpiService extends BaseService
             $acquisitionDepartmentId = $project?->customer?->salesUser?->department_id;
 
             if ($acquisitionDepartmentId && isset($departmentActuals[$acquisitionDepartmentId])) {
-                $acquisitionRefundBeforeVatAmount =
-                    $refund->refund_type === PaymentRefund::TYPE_OVERPAYMENT
-                        ? 0.0
-                        : $this->refundBeforeVat($refund, $quotation);
+                $acquisitionRefundBeforeVatAmount = $this->acquisitionRefundBeforeVat(
+                    $project,
+                    $refund,
+                    $quotation,
+                );
                 $departmentActuals[$acquisitionDepartmentId]['acquisitionRefundAmount'] += $refundAmount;
                 $departmentActuals[$acquisitionDepartmentId]['acquisitionRefundBeforeVatAmount'] +=
                     $acquisitionRefundBeforeVatAmount;
@@ -499,10 +751,11 @@ class KpiService extends BaseService
             $salesUserId = $project?->customer?->sales_user_id;
 
             if ($salesUserId && isset($employeeActuals[$salesUserId])) {
-                $acquisitionRefundBeforeVatAmount =
-                    $refund->refund_type === PaymentRefund::TYPE_OVERPAYMENT
-                        ? 0.0
-                        : $this->refundBeforeVat($refund, $quotation);
+                $acquisitionRefundBeforeVatAmount = $this->acquisitionRefundBeforeVat(
+                    $project,
+                    $refund,
+                    $quotation,
+                );
                 $employeeActuals[$salesUserId]['acquisitionRefundAmount'] += $refundAmount;
                 $employeeActuals[$salesUserId]['acquisitionRefundBeforeVatAmount'] +=
                     $acquisitionRefundBeforeVatAmount;
@@ -510,13 +763,206 @@ class KpiService extends BaseService
         }
     }
 
-    private function firstSuccessfulQuotations(Collection $quotations, Collection $allocations): Collection
+    /** @return array{0: string, 1: array<int>, 2: User|null} */
+    private function detailScopeContext(string $scopeType, int $scopeId): array
+    {
+        if ($scopeType === KpiTarget::SCOPE_SERVICE) {
+            $service = Service::query()
+                ->withTrashed()
+                ->whereKey($scopeId)
+                ->whereNull('parent_id')
+                ->first();
+
+            if ($service) {
+                return [collect([$service->code, $service->name])->filter()->implode(' - '), [$scopeId], null];
+            }
+        }
+
+        if ($scopeType === KpiTarget::SCOPE_SERVICE_GROUP) {
+            $group = Option::query()
+                ->whereKey($scopeId)
+                ->where('group', Option::GROUP_SERVICE_KPI)
+                ->where('is_active', true)
+                ->first();
+
+            if ($group) {
+                $memberIds = collect(($group->meta ?? [])['serviceRootIds'] ?? [])
+                    ->map(fn ($id): int => (int) $id)
+                    ->filter()
+                    ->unique()
+                    ->values()
+                    ->all();
+
+                return [$group->label ?: $group->value ?: $group->key, $memberIds, null];
+            }
+        }
+
+        if ($scopeType === KpiTarget::SCOPE_DEPARTMENT) {
+            $department = Department::query()->find($scopeId);
+
+            if ($department) {
+                return [$department->name, [], null];
+            }
+        }
+
+        if ($scopeType === KpiTarget::SCOPE_EMPLOYEE) {
+            $user = User::query()->withTrashed()->find($scopeId);
+
+            if ($user) {
+                return [collect([$user->code, $user->name])->filter()->implode(' - '), [], $user];
+            }
+        }
+
+        throw ValidationException::withMessages([
+            'scope_id' => ['Đối tượng KPI không tồn tại hoặc không hợp lệ.'],
+        ]);
+    }
+
+    private function authorizeDetailScope(
+        User $viewer,
+        string $scopeType,
+        int $scopeId,
+        ?User $scopeUser,
+    ): void {
+        $viewerScope = $this->viewerScope($viewer);
+
+        if ($viewerScope['level'] === 'all') {
+            return;
+        }
+
+        if ($scopeType === KpiTarget::SCOPE_EMPLOYEE
+            && ($scopeId === (int) $viewer->id
+                || ($viewerScope['level'] === 'department'
+                    && in_array((int) ($scopeUser?->department_id ?? 0), $viewerScope['departmentIds'] ?? [], true)))) {
+            return;
+        }
+
+        if ($scopeType === KpiTarget::SCOPE_DEPARTMENT
+            && $viewerScope['level'] === 'department'
+            && in_array($scopeId, $viewerScope['departmentIds'] ?? [], true)) {
+            return;
+        }
+
+        throw new AuthorizationException('Bạn không có quyền xem dữ liệu đối soát KPI của đối tượng này.');
+    }
+
+    private function matchesDetailImplementation(
+        Project $project,
+        string $scopeType,
+        int $scopeId,
+        array $serviceRootIds,
+        Collection $projectRootServices,
+    ): bool {
+        if (in_array($scopeType, [KpiTarget::SCOPE_SERVICE, KpiTarget::SCOPE_SERVICE_GROUP], true)) {
+            return in_array((int) $projectRootServices->get($project->id), $serviceRootIds, true);
+        }
+
+        if ($scopeType === KpiTarget::SCOPE_DEPARTMENT) {
+            return (int) ($project->managerUser?->department_id ?? 0) === $scopeId;
+        }
+
+        return $scopeType === KpiTarget::SCOPE_EMPLOYEE
+            && (int) $project->manager_user_id === $scopeId;
+    }
+
+    private function matchesDetailAcquisition(Project $project, string $scopeType, int $scopeId): bool
+    {
+        if ($scopeType === KpiTarget::SCOPE_DEPARTMENT) {
+            return (int) ($project->customer?->salesUser?->department_id ?? 0) === $scopeId;
+        }
+
+        return $scopeType === KpiTarget::SCOPE_EMPLOYEE
+            && (int) ($project->customer?->sales_user_id ?? 0) === $scopeId;
+    }
+
+    private function detailEntry(
+        string $id,
+        string $branch,
+        string $kind,
+        string $label,
+        CarbonImmutable $eventAt,
+        float $sourceAmount,
+        float $beforeVatAmount,
+        float $profitImpactAmount,
+        Project $project,
+        ?Quotation $quotation,
+        string $reference,
+    ): array {
+        return [
+            'id' => $id,
+            'branch' => $branch,
+            'kind' => $kind,
+            'label' => $label,
+            'eventAt' => $eventAt->toIso8601String(),
+            'sourceAmount' => $this->money($sourceAmount),
+            'beforeVatAmount' => $this->money($beforeVatAmount),
+            'profitImpactAmount' => $this->money($profitImpactAmount),
+            'reference' => $reference,
+            'project' => [
+                'id' => (int) $project->id,
+                'code' => $project->project_code,
+                'name' => $project->project_name,
+                'type' => $project->project_type === 'N' ? 'O' : $project->project_type,
+            ],
+            'quotation' => $quotation ? [
+                'id' => (int) $quotation->id,
+                'code' => $quotation->quotation_code,
+            ] : null,
+        ];
+    }
+
+    private function detailBranch(string $key, string $label, Collection $entries): array
+    {
+        return [
+            'key' => $key,
+            'label' => $label,
+            'totals' => $this->detailTotals($entries),
+            'entries' => $entries->all(),
+        ];
+    }
+
+    private function detailTotals(Collection $entries): array
+    {
+        return [
+            'receivedAmount' => $this->money((float) $entries
+                ->whereIn('kind', ['received', 'acquisition_credit'])
+                ->sum('sourceAmount')),
+            'costAmount' => $this->money((float) $entries
+                ->where('kind', 'cost')
+                ->sum('sourceAmount')),
+            'refundAmount' => $this->money((float) $entries
+                ->whereIn('kind', ['refund', 'acquisition_refund'])
+                ->sum('sourceAmount')),
+            'profitAmount' => $this->money((float) $entries->sum('profitImpactAmount')),
+        ];
+    }
+
+    private function refundTypeLabel(string $type): string
+    {
+        return match ($type) {
+            PaymentRefund::TYPE_DEPOSIT => 'tiền cọc',
+            PaymentRefund::TYPE_OVERPAYMENT => 'tiền thừa',
+            PaymentRefund::TYPE_COMPENSATION => 'bồi thường',
+            default => 'thanh toán',
+        };
+    }
+
+    public function paidFirstQuotations(Collection $quotations, Collection $allocations): Collection
     {
         $allocationsByQuotation = $allocations->groupBy('quotation_id');
         $successes = collect();
 
-        foreach ($quotations as $quotation) {
+        foreach ($quotations->groupBy('project_id') as $projectId => $projectQuotations) {
             /** @var Quotation $quotation */
+            $quotation = $projectQuotations
+                ->sortBy(fn (Quotation $item): string => ($item->created_at?->format('Y-m-d H:i:s.u') ?? '')
+                    .'-'.str_pad((string) $item->id, 20, '0', STR_PAD_LEFT))
+                ->first();
+
+            if (! $quotation) {
+                continue;
+            }
+
             $totalAmount = (float) $quotation->total_amount;
 
             if ($totalAmount <= self::MONEY_EPSILON) {
@@ -542,19 +988,39 @@ class KpiService extends BaseService
                 continue;
             }
 
-            $current = $successes->get($quotation->project_id);
-
-            if (! $current
-                || $paidAt->lessThan($current['paidAt'])
-                || ($paidAt->equalTo($current['paidAt']) && $quotation->id < $current['quotation']->id)) {
-                $successes->put($quotation->project_id, [
-                    'quotation' => $quotation,
-                    'paidAt' => $paidAt,
-                ]);
-            }
+            $successes->put($projectId, [
+                'quotation' => $quotation,
+                'paidAt' => $paidAt,
+            ]);
         }
 
         return $successes;
+    }
+
+    public function acquisitionProfitBeforeVat(Project $project, Quotation $quotation): float
+    {
+        $depositAmount = strtoupper((string) $project->project_type) === 'K'
+            ? (float) $quotation->deposit_amount
+            : 0.0;
+
+        return $this->money((float) $quotation->subtotal_amount + $depositAmount);
+    }
+
+    public function acquisitionRefundBeforeVat(
+        Project $project,
+        PaymentRefund $refund,
+        ?Quotation $quotation,
+    ): float {
+        if ($refund->refund_type === PaymentRefund::TYPE_OVERPAYMENT) {
+            return 0.0;
+        }
+
+        if ($refund->refund_type === PaymentRefund::TYPE_DEPOSIT
+            && strtoupper((string) $project->project_type) !== 'K') {
+            return 0.0;
+        }
+
+        return $this->refundBeforeVat($refund, $quotation);
     }
 
     private function recognizedRevenueBetween(Quotation $quotation, float $before, float $after): float
@@ -912,6 +1378,42 @@ class KpiService extends BaseService
         }
     }
 
+    private function authorizeTargetManagement(string $scopeType, int $scopeId): void
+    {
+        $viewer = $this->currentUser();
+
+        if (! $viewer) {
+            throw new AuthorizationException('Bạn không có quyền cập nhật kế hoạch KPI.');
+        }
+
+        if ($viewer->hasPermission('kpi.manage_all')) {
+            return;
+        }
+
+        if ($viewer->hasPermission('kpi.manage_department')) {
+            $departmentIds = $viewer->accessibleDepartmentIds();
+            $isDepartmentTarget = $scopeType === KpiTarget::SCOPE_DEPARTMENT
+                && in_array($scopeId, $departmentIds, true);
+            $isEmployeeTarget = $scopeType === KpiTarget::SCOPE_EMPLOYEE
+                && User::query()
+                    ->whereKey($scopeId)
+                    ->whereIn('department_id', $departmentIds)
+                    ->exists();
+
+            if ($isDepartmentTarget || $isEmployeeTarget) {
+                return;
+            }
+        }
+
+        if ($viewer->hasPermission('kpi.manage')
+            && $scopeType === KpiTarget::SCOPE_EMPLOYEE
+            && $scopeId === (int) $viewer->id) {
+            return;
+        }
+
+        throw new AuthorizationException('Bạn chỉ được lập KPI cho nhân sự và phòng ban trong phạm vi quản lý.');
+    }
+
     private function money(float $amount): float
     {
         return round($amount, 2);
@@ -919,15 +1421,20 @@ class KpiService extends BaseService
 
     private function viewerScope(User $viewer): array
     {
-        if ($viewer->hasPermission('kpi.view_all') || $viewer->hasPermission('kpi.manage')) {
+        if ($viewer->hasPermission('kpi.view_all') || $viewer->hasPermission('kpi.manage_all')) {
             return $this->allViewerScope($viewer);
         }
 
-        if ($viewer->hasPermission('kpi.view_department') && $viewer->department_id) {
+        $departmentIds = $viewer->accessibleDepartmentIds();
+
+        if (($viewer->hasPermission('kpi.view_department')
+            || $viewer->hasPermission('kpi.manage_department'))
+            && $departmentIds !== []) {
             return [
                 'level' => 'department',
                 'userId' => (int) $viewer->id,
-                'departmentId' => (int) $viewer->department_id,
+                'departmentId' => $departmentIds[0] ?? null,
+                'departmentIds' => $departmentIds,
             ];
         }
 
@@ -935,6 +1442,7 @@ class KpiService extends BaseService
             'level' => 'own',
             'userId' => (int) $viewer->id,
             'departmentId' => $viewer->department_id ? (int) $viewer->department_id : null,
+            'departmentIds' => $departmentIds,
         ];
     }
 
@@ -944,6 +1452,7 @@ class KpiService extends BaseService
             'level' => 'all',
             'userId' => $viewer ? (int) $viewer->id : null,
             'departmentId' => $viewer?->department_id ? (int) $viewer->department_id : null,
+            'departmentIds' => $viewer?->accessibleDepartmentIds() ?? [],
         ];
     }
 
@@ -961,10 +1470,10 @@ class KpiService extends BaseService
                 if ($scope['level'] === 'department') {
                     $services = collect();
                     $departments = $departments
-                        ->where('id', $scope['departmentId'])
+                        ->whereIn('id', $scope['departmentIds'] ?? [])
                         ->values();
                     $employees = $employees
-                        ->where('departmentId', $scope['departmentId'])
+                        ->whereIn('departmentId', $scope['departmentIds'] ?? [])
                         ->values();
                 } elseif ($scope['level'] === 'own') {
                     $services = collect();

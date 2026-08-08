@@ -83,10 +83,12 @@ class P2PointRepository extends BaseRepository
             return $query;
         }
 
-        if ($user->hasPermission('p2point.view_department') && $user->department_id) {
+        $departmentIds = $user->accessibleDepartmentIds();
+
+        if ($user->hasPermission('p2point.view_department') && $departmentIds !== []) {
             return $query->whereHas(
                 'user',
-                fn (Builder $pointUser) => $pointUser->where('department_id', $user->department_id),
+                fn (Builder $pointUser) => $pointUser->whereIn('department_id', $departmentIds),
             );
         }
 

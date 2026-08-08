@@ -91,9 +91,11 @@ class LeadRepository extends BaseRepository
             return;
         }
 
-        if ($user->hasPermission('lead.view_department') && $user->department_id) {
+        $departmentIds = $user->accessibleDepartmentIds();
+
+        if ($user->hasPermission('lead.view_department') && $departmentIds !== []) {
             $query->whereHas('assignedUser', fn (Builder $assignedUser) => $assignedUser
-                ->where('department_id', $user->department_id));
+                ->whereIn('department_id', $departmentIds));
 
             return;
         }

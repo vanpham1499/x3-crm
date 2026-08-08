@@ -178,7 +178,9 @@ function DepartmentDialog({
                 size="small"
                 className={compactFormFieldClassName}
                 error={Boolean(errors.leaderUserId)}
-                helperText={errors.leaderUserId?.message}
+                helperText={
+                  errors.leaderUserId?.message || 'Một nhân sự có thể Lead nhiều phòng ban.'
+                }
               />
             )}
           />

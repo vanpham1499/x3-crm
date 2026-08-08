@@ -471,9 +471,9 @@ export function QuickQuotationBuilderDialog({
             ref={previewRef}
             className="mx-auto max-w-[1040px] overflow-hidden rounded-xl border border-slate-200 bg-white text-slate-900"
           >
-            <header className="grid gap-5 border-b-4 border-primary px-6 py-5 md:grid-cols-[220px,minmax(0,1fr)] md:items-center">
+            <header className="grid gap-5 border-b-4 border-primary px-6 py-5 md:grid-cols-[240px,minmax(0,1fr)] md:items-center">
               <div className="flex items-center">
-                <Image src={x3salesLogo} alt="X3Sales" className="h-auto w-[160px]" priority />
+                <Image src={x3salesLogo} alt="X3Sales" className="h-auto w-[190px]" priority />
               </div>
               <div className="space-y-1 text-sm leading-5 text-slate-600 md:text-right">
                 <p className="font-extrabold text-slate-950">{companyInfo.companyName}</p>

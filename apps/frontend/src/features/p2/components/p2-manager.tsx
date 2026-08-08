@@ -26,6 +26,7 @@ import { ServerPaginatedAutocomplete } from '@/components/form/server-paginated-
 import { IconTabs } from '@/components/navigation/icon-tabs';
 import { PageHeader } from '@/components/shell/page-header';
 import { AppDataTable } from '@/components/table/app-data-table';
+import { EntityTableLink } from '@/components/table/entity-table-link';
 import { TablePaginationBar } from '@/components/table/table-pagination-bar';
 import { applyApiErrorsToForm } from '@/lib/api-error';
 import { canApproveP2Point, canOpenP2CreateDialog } from '@/lib/ownership';
@@ -501,6 +502,7 @@ export function P2Manager({
               columns={[
                 { key: 'date', label: 'Ngày', className: 'w-[120px]' },
                 { key: 'user', label: 'Nhân viên', className: 'w-[190px]' },
+                { key: 'project', label: 'Dự án', className: 'w-[200px]' },
                 { key: 'category', label: 'Hạng mục', className: 'w-[330px]' },
                 { key: 'score', label: 'Điểm', className: 'w-[100px] text-right' },
                 { key: 'approval', label: 'Trạng thái duyệt', className: 'w-[150px]' },
@@ -510,7 +512,7 @@ export function P2Manager({
               isLoading={isFetching}
               isEmpty={points.length === 0}
               emptyText="Chưa có lịch sử ghi nhận P2"
-              minWidthClassName="min-w-[1206px]"
+              minWidthClassName="min-w-[1406px]"
             >
               {points.map((point) => {
                 const score = Number(point.score) || 0;
@@ -522,6 +524,19 @@ export function P2Manager({
                     </td>
                     <td className="truncate px-3 py-3.5 font-bold text-slate-900">
                       {point.user?.name || '-'}
+                    </td>
+                    <td className="px-3 py-3.5">
+                      {point.project ? (
+                        <EntityTableLink
+                          href={`/projects/${point.project.id}`}
+                          title={point.project.projectCode || ''}
+                          tone="blue"
+                        >
+                          {point.project.projectCode || '-'}
+                        </EntityTableLink>
+                      ) : (
+                        <span className="text-slate-400">Chưa gắn dự án</span>
+                      )}
                     </td>
                     <td className="px-3 py-3.5">
                       <div className="flex min-w-0 items-center gap-2">

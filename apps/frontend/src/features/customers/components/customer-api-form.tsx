@@ -134,7 +134,12 @@ export function CustomerApiForm({
                       disabled={readOnly}
                       error={Boolean(errors.customerName)}
                       helperText={errors.customerName?.message}
-                      onChange={(event) => field.onChange(event.target.value.replace(/\s+/gu, ''))}
+                      value={field.value.toLocaleUpperCase('vi-VN')}
+                      onChange={(event) =>
+                        field.onChange(
+                          event.target.value.replace(/\s+/gu, '').toLocaleUpperCase('vi-VN'),
+                        )
+                      }
                     />
                   )}
                 />

@@ -61,6 +61,7 @@ class QuotationRepository extends BaseRepository
             ->when($filters['contract_id'] ?? null, fn ($query, $value) => $query->where('contract_id', $value))
             ->when($filters['service_id'] ?? null, fn ($query, $value) => $query->where('service_id', $value))
             ->when($filters['status'] ?? null, fn ($query, $value) => $query->where('status', $value))
+            ->when($filters['created_by'] ?? null, fn ($query, $value) => $query->where('created_by', $value))
             ->when(filter_var($filters['allocation_open'] ?? false, FILTER_VALIDATE_BOOLEAN), fn ($query) => $query
                 ->whereNotNull('project_id')
                 ->where('status', Quotation::STATUS_DRAFT)
@@ -74,32 +75,32 @@ class QuotationRepository extends BaseRepository
             return;
         }
 
-        $departmentId = $user->hasPermission('quotation.view_department')
-            ? $user->department_id
-            : null;
+        $departmentIds = $user->hasPermission('quotation.view_department')
+            ? $user->accessibleDepartmentIds()
+            : [];
 
-        if ($departmentId) {
-            $query->where(function (Builder $scope) use ($departmentId): void {
+        if ($departmentIds !== []) {
+            $query->where(function (Builder $scope) use ($departmentIds): void {
                 $scope
-                    ->where(function (Builder $projectScope) use ($departmentId): void {
+                    ->where(function (Builder $projectScope) use ($departmentIds): void {
                         $projectScope
                             ->whereNotNull('project_id')
                             ->whereHas('project', fn (Builder $project) => $project
                                 ->where(fn (Builder $owners) => $owners
-                                    ->whereHas('managerUser', fn (Builder $manager) => $manager->where('department_id', $departmentId))
-                                    ->orWhereHas('salesUser', fn (Builder $sales) => $sales->where('department_id', $departmentId))));
+                                    ->whereHas('managerUser', fn (Builder $manager) => $manager->whereIn('department_id', $departmentIds))
+                                    ->orWhereHas('salesUser', fn (Builder $sales) => $sales->whereIn('department_id', $departmentIds))));
                     })
-                    ->orWhere(function (Builder $customerScope) use ($departmentId): void {
+                    ->orWhere(function (Builder $customerScope) use ($departmentIds): void {
                         $customerScope
                             ->whereNull('project_id')
                             ->whereNotNull('customer_id')
-                            ->whereHas('customer.salesUser', fn (Builder $sales) => $sales->where('department_id', $departmentId));
+                            ->whereHas('customer.salesUser', fn (Builder $sales) => $sales->whereIn('department_id', $departmentIds));
                     })
-                    ->orWhere(function (Builder $leadScope) use ($departmentId): void {
+                    ->orWhere(function (Builder $leadScope) use ($departmentIds): void {
                         $leadScope
                             ->whereNull('project_id')
                             ->whereNull('customer_id')
-                            ->whereHas('lead.assignedUser', fn (Builder $assigned) => $assigned->where('department_id', $departmentId));
+                            ->whereHas('lead.assignedUser', fn (Builder $assigned) => $assigned->whereIn('department_id', $departmentIds));
                     });
             });
 

@@ -108,7 +108,11 @@ export default function KpiPage() {
     <KpiManager
       report={report}
       filters={filters}
-      canManage={hasPermission(currentUser, 'kpi.manage')}
+      canManage={
+        hasPermission(currentUser, 'kpi.manage') ||
+        hasPermission(currentUser, 'kpi.manage_department') ||
+        hasPermission(currentUser, 'kpi.manage_all')
+      }
       isFetching={isFetching}
       isSaving={targetMutation.isPending}
       onFiltersChange={setFilters}

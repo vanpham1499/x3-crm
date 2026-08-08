@@ -12,7 +12,6 @@ import DescriptionRoundedIcon from '@mui/icons-material/DescriptionRounded';
 import MoreVertRoundedIcon from '@mui/icons-material/MoreVertRounded';
 import ReceiptLongRoundedIcon from '@mui/icons-material/ReceiptLongRounded';
 import ReplyRoundedIcon from '@mui/icons-material/ReplyRounded';
-import TuneRoundedIcon from '@mui/icons-material/TuneRounded';
 import VisibilityRoundedIcon from '@mui/icons-material/VisibilityRounded';
 import WorkRoundedIcon from '@mui/icons-material/WorkRounded';
 import { Button, IconButton, Menu, MenuItem } from '@mui/material';
@@ -41,8 +40,6 @@ import type {
   PaymentAllocation,
   PaymentAllocationInput,
   PaymentFilters,
-  PaymentClassificationInput,
-  PaymentReceiptType,
   PaymentRefund,
   PaymentRefundFilters,
   PaymentRefundInput,
@@ -82,16 +79,8 @@ type PaymentManagerProps = {
   onRefund: (paymentId: number, values: PaymentRefundInput) => Promise<Payment>;
   onUpdateRefund: (refundId: number, values: PaymentRefundUpdateInput) => Promise<PaymentRefund>;
   onDeleteRefund: (refundId: number) => Promise<void>;
-  onClassify: (paymentId: number, values: PaymentClassificationInput) => Promise<Payment>;
   onUpdateInvoice: (paymentId: number, invoiceNumber: string | null) => Promise<Payment>;
   onRemoveAllocation: (paymentId: number, allocationId: number) => Promise<Payment>;
-};
-
-const reconciledStatusLabels: Record<string, string> = {
-  unmatched: 'Chưa nhận diện',
-  matched: 'Đã nhận diện nguồn thu',
-  allocated: 'Đã phân bổ',
-  non_customer: 'Không phải khoản thu',
 };
 
 const processingStatusOptions = [
@@ -254,16 +243,6 @@ function paymentQuotations(payment: Payment) {
   return [...quotations.values()];
 }
 
-function paymentProjects(payment: Payment) {
-  const projects = (payment.allocations || [])
-    .map((allocation) => allocation.quotation?.project)
-    .filter((project): project is NonNullable<typeof project> => Boolean(project));
-
-  if (payment.project) projects.unshift(payment.project);
-
-  return [...new Map(projects.map((project) => [project.id, project])).values()];
-}
-
 function canCreateCustomerReturn(payment: Payment) {
   if (payment.receiptType === 'internal' || payment.receiptType === 'other') return false;
 
@@ -377,7 +356,6 @@ function PaymentDetailDialog({
   onClose,
   onAllocate,
   onRefund,
-  onClassify,
   onInvoice,
   onRemoveAllocation,
 }: {
@@ -387,7 +365,6 @@ function PaymentDetailDialog({
   onClose: () => void;
   onAllocate: () => void;
   onRefund: () => void;
-  onClassify: () => void;
   onInvoice: () => void;
   onRemoveAllocation: (allocation: PaymentAllocation) => void;
 }) {
@@ -419,13 +396,6 @@ function PaymentDetailDialog({
             onClick={onInvoice}
           >
             {payment.invoiceNumber ? 'Sửa hóa đơn' : 'Nhập hóa đơn'}
-          </DialogActionButton>
-          <DialogActionButton
-            startIcon={<TuneRoundedIcon />}
-            disabled={isMutating || !canManage}
-            onClick={onClassify}
-          >
-            Phân loại
           </DialogActionButton>
           {canCreateCustomerReturn(payment) ? (
             <DialogActionButton
@@ -508,6 +478,16 @@ function PaymentDetailDialog({
                   >
                     <DeleteOutlineRoundedIcon fontSize="small" />
                   </IconButton>
+                  {allocation.note ? (
+                    <div className="rounded-lg bg-slate-50 px-3 py-2 sm:col-span-3">
+                      <p className="text-[11px] font-bold uppercase tracking-wide text-slate-400">
+                        Ghi chú phân bổ
+                      </p>
+                      <p className="mt-0.5 break-words text-sm font-medium leading-5 text-slate-700">
+                        {allocation.note}
+                      </p>
+                    </div>
+                  ) : null}
                 </div>
               ))}
             </div>
@@ -1185,74 +1165,6 @@ function PaymentInvoiceDialog({
   );
 }
 
-function PaymentClassificationDialog({
-  payment,
-  submitting,
-  onClose,
-  onSubmit,
-}: {
-  payment: Payment | null;
-  submitting: boolean;
-  onClose: () => void;
-  onSubmit: (values: PaymentClassificationInput) => Promise<void>;
-}) {
-  const [receiptType, setReceiptType] = useState<PaymentReceiptType>('customer');
-
-  useEffect(() => {
-    setReceiptType(payment?.receiptType || 'customer');
-  }, [payment]);
-
-  if (!payment) return null;
-
-  const handleSubmit = async (event: FormEvent<HTMLFormElement>) => {
-    event.preventDefault();
-    await onSubmit({ receiptType });
-  };
-
-  return (
-    <AppFormDialog
-      open
-      title="Phân loại giao dịch"
-      maxWidth="sm"
-      submitting={submitting}
-      onClose={onClose}
-      onSubmit={handleSubmit}
-      actions={
-        <>
-          <DialogActionButton disabled={submitting} onClick={onClose}>
-            Hủy
-          </DialogActionButton>
-          <DialogActionButton type="submit" tone="primary" disabled={submitting}>
-            {submitting ? 'Đang lưu...' : 'Lưu phân loại'}
-          </DialogActionButton>
-        </>
-      }
-    >
-      <div className="grid gap-4">
-        <FormSelectField
-          label="Loại giao dịch"
-          value={receiptType}
-          onChange={(event) => setReceiptType(event.target.value as PaymentReceiptType)}
-        >
-          <MenuItem value="customer">Khoản thu khách hàng</MenuItem>
-          <MenuItem value="internal">Chuyển tiền nội bộ</MenuItem>
-          <MenuItem value="other">Khoản tiền khác</MenuItem>
-        </FormSelectField>
-
-        {receiptType === 'customer' ? (
-          <p className="rounded-lg border border-sky-200 bg-sky-50 px-3 py-2.5 text-sm font-medium text-sky-800">
-            Dự án và khách hàng sẽ được xác định tự động từ báo phí khi phân bổ khoản thu.
-          </p>
-        ) : (
-          <p className="rounded-lg border border-amber-200 bg-amber-50 px-3 py-2 text-sm font-medium text-amber-800">
-            Giao dịch sẽ được loại khỏi khoản thu khách hàng và không thể phân bổ báo phí.
-          </p>
-        )}
-      </div>
-    </AppFormDialog>
-  );
-}
-
 export function PaymentManager({
   payments,
   refunds,
@@ -1282,14 +1194,12 @@ export function PaymentManager({
   onRefund,
   onUpdateRefund,
   onDeleteRefund,
-  onClassify,
   onUpdateInvoice,
   onRemoveAllocation,
 }: PaymentManagerProps) {
   const [viewTarget, setViewTarget] = useState<Payment | null>(null);
   const [allocationTarget, setAllocationTarget] = useState<Payment | null>(null);
   const [refundTarget, setRefundTarget] = useState<Payment | null>(null);
-  const [classificationTarget, setClassificationTarget] = useState<Payment | null>(null);
   const [invoiceTarget, setInvoiceTarget] = useState<Payment | null>(null);
   const [removeTarget, setRemoveTarget] = useState<{
     payment: Payment;
@@ -1342,19 +1252,10 @@ export function PaymentManager({
                   onChange={(keyword) => updateFilters({ keyword })}
                 />
                 <CompactSelectField
-                  label="Xử lý dòng tiền"
+                  label="Trạng thái"
                   value={filters.status}
                   options={processingStatusOptions}
                   onChange={(status) => updateFilters({ status })}
-                />
-                <CompactSelectField
-                  label="Đối soát nguồn thu"
-                  value={filters.reconciled_status}
-                  options={Object.entries(reconciledStatusLabels).map(([value, label]) => ({
-                    value,
-                    label,
-                  }))}
-                  onChange={(reconciled_status) => updateFilters({ reconciled_status })}
                 />
                 <FormDatePicker
                   label="Từ ngày"
@@ -1376,13 +1277,17 @@ export function PaymentManager({
                 {
                   key: 'time',
                   label: 'Thời gian',
-                  className: 'sticky left-0 z-20 w-52 bg-slate-100',
+                  className: 'sticky left-0 z-20 w-52 min-w-[13rem] bg-slate-100',
                 },
-                { key: 'amount', label: 'Số tiền', className: 'w-44 text-right' },
+                {
+                  key: 'amount',
+                  label: 'Số tiền',
+                  className:
+                    'sticky left-[13rem] z-20 w-44 min-w-[11rem] bg-slate-100 text-right shadow-[1px_0_0_0_rgb(226_232_240)]',
+                },
                 { key: 'content', label: 'Nội dung chuyển khoản', className: 'w-72' },
                 { key: 'invoice', label: 'Số hóa đơn', className: 'w-44' },
                 { key: 'quotation', label: 'Báo phí', className: 'w-60' },
-                { key: 'project', label: 'Dự án', className: 'w-56' },
                 { key: 'difference', label: 'Chênh lệch', className: 'w-40 text-right' },
                 { key: 'status', label: 'Công nợ / xử lý', className: 'w-40' },
                 { key: 'actions', className: 'w-24' },
@@ -1390,7 +1295,7 @@ export function PaymentManager({
               isLoading={isFetching}
               isEmpty={payments.length === 0}
               emptyText="Chưa có giao dịch thanh toán"
-              minWidthClassName="min-w-[1580px]"
+              minWidthClassName="min-w-[1360px]"
             >
               {paymentGroups.map((group) => {
                 const quotations = [
@@ -1400,15 +1305,7 @@ export function PaymentManager({
                       .map((quotation) => [quotation.quotationId, quotation]),
                   ).values(),
                 ];
-                const projects = [
-                  ...new Map(
-                    group.payments
-                      .flatMap((payment) => paymentProjects(payment))
-                      .map((project) => [project.id, project]),
-                  ).values(),
-                ];
                 const primaryQuotation = quotations[0]?.quotation;
-                const primaryProject = projects[0];
                 const differenceSource = group.key.startsWith('quotation:')
                   ? group.payments.find(
                       (payment) =>
@@ -1438,10 +1335,10 @@ export function PaymentManager({
                           : 'group hover:bg-slate-50/80'
                       }
                     >
-                      <td className="sticky left-0 z-10 bg-white px-3 py-3.5 font-semibold tabular-nums text-slate-800 group-hover:bg-slate-50">
+                      <td className="sticky left-0 z-10 w-52 min-w-[13rem] bg-white px-3 py-3.5 font-semibold tabular-nums text-slate-800 group-hover:bg-slate-50">
                         <span className="whitespace-nowrap">{transferMoment.full}</span>
                       </td>
-                      <td className="px-3 py-3.5 text-right font-extrabold tabular-nums text-emerald-700">
+                      <td className="sticky left-[13rem] z-10 w-44 min-w-[11rem] bg-white px-3 py-3.5 text-right font-extrabold tabular-nums text-emerald-700 shadow-[1px_0_0_0_rgb(226_232_240)] group-hover:bg-slate-50">
                         {formatCurrency(payment.amount)}
                       </td>
                       <td className="px-3 py-3.5">
@@ -1501,27 +1398,6 @@ export function PaymentManager({
                                 {rowSpan} giao dịch
                               </p>
                             ) : null}
-                          </td>
-                          <td rowSpan={rowSpan} className="bg-slate-50/50 px-3 py-3.5 align-middle">
-                            {primaryProject ? (
-                              <div className="flex min-w-0 items-center gap-2">
-                                <EntityTableLink
-                                  href={`/projects/${primaryProject.id}`}
-                                  tone="blue"
-                                >
-                                  {primaryProject.projectCode || '-'}
-                                </EntityTableLink>
-                                {projects.length > 1 ? (
-                                  <span className="shrink-0 rounded-full bg-blue-50 px-2 py-0.5 text-xs font-bold text-blue-700">
-                                    +{projects.length - 1}
-                                  </span>
-                                ) : null}
-                              </div>
-                            ) : (
-                              <span className="whitespace-nowrap text-slate-400">
-                                Chưa xác định dự án
-                              </span>
-                            )}
                           </td>
                           <td
                             rowSpan={rowSpan}
@@ -1638,16 +1514,6 @@ export function PaymentManager({
             Phân bổ báo phí
           </MenuItem>
         ) : null}
-        <MenuItem
-          disabled={!canManagePayments(currentUser)}
-          onClick={() => {
-            setClassificationTarget(activePayment);
-            closeActionMenu();
-          }}
-        >
-          <TuneRoundedIcon fontSize="small" className="mr-2 text-sky-600" />
-          Phân loại giao dịch
-        </MenuItem>
         {activePayment && canCreateCustomerReturn(activePayment) ? (
           <MenuItem
             disabled={!canCreatePaymentRefund(currentUser)}
@@ -1697,7 +1563,6 @@ export function PaymentManager({
         onClose={() => setViewTarget(null)}
         onAllocate={() => setAllocationTarget(viewTarget)}
         onRefund={() => setRefundTarget(viewTarget)}
-        onClassify={() => setClassificationTarget(viewTarget)}
         onInvoice={() => setInvoiceTarget(viewTarget)}
         onRemoveAllocation={(allocation) =>
           viewTarget && setRemoveTarget({ payment: viewTarget, allocation })
@@ -1723,17 +1588,6 @@ export function PaymentManager({
           const updated = await onRefund(refundTarget.id, values);
           applyUpdatedPayment(updated);
           setRefundTarget(null);
-        }}
-      />
-      <PaymentClassificationDialog
-        payment={classificationTarget}
-        submitting={isMutating}
-        onClose={() => setClassificationTarget(null)}
-        onSubmit={async (values) => {
-          if (!classificationTarget) return;
-          const updated = await onClassify(classificationTarget.id, values);
-          applyUpdatedPayment(updated);
-          setClassificationTarget(null);
         }}
       />
       <PaymentInvoiceDialog

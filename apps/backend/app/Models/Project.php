@@ -55,6 +55,11 @@ class Project extends BaseModel
         return $this->belongsTo(Quotation::class);
     }
 
+    public function quotations(): HasMany
+    {
+        return $this->hasMany(Quotation::class)->orderByDesc('created_at');
+    }
+
     public function status(): BelongsTo
     {
         return $this->belongsTo(Status::class);

@@ -1,10 +1,11 @@
 'use client';
 
 import Image from 'next/image';
-import { useEffect, useMemo, useRef, useState } from 'react';
+import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import CheckCircleRoundedIcon from '@mui/icons-material/CheckCircleRounded';
 import EditRoundedIcon from '@mui/icons-material/EditRounded';
 import PhotoCameraRoundedIcon from '@mui/icons-material/PhotoCameraRounded';
+import PictureAsPdfRoundedIcon from '@mui/icons-material/PictureAsPdfRounded';
 import ReceiptLongRoundedIcon from '@mui/icons-material/ReceiptLongRounded';
 import VisibilityRoundedIcon from '@mui/icons-material/VisibilityRounded';
 import { useQuery } from '@tanstack/react-query';
@@ -15,6 +16,7 @@ import { AppDetailDialog } from '@/components/dialog/app-detail-dialog';
 import { useAppNotification } from '@/components/feedback/notification-provider';
 import { MoneyInput } from '@/components/form/money-input';
 import { ImageLightbox } from '@/components/media/image-lightbox';
+import { downloadElementAsPdf } from '@/lib/download-element-pdf';
 import { getMediaPreviewUrl } from '@/lib/media-url';
 import { getQuotationPaymentContent } from '@/lib/quotation-utils';
 import {
@@ -30,6 +32,8 @@ import { QuotationItemsTable, type QuotationTableLine } from './quotation-items-
 type QuotationPreviewDialogProps = {
   quotation: Quotation | null;
   onClose: () => void;
+  autoDownloadPdf?: boolean;
+  onAutoDownloadPdfComplete?: () => void;
 };
 
 type PreviewMode = 'detail' | 'customer';
@@ -352,15 +356,24 @@ function CustomerQuotationTable({ quotation }: { quotation: Quotation }) {
   );
 }
 
-export function QuotationPreviewDialog({ quotation, onClose }: QuotationPreviewDialogProps) {
+export function QuotationPreviewDialog({
+  quotation,
+  onClose,
+  autoDownloadPdf = false,
+  onAutoDownloadPdfComplete,
+}: QuotationPreviewDialogProps) {
   const notify = useAppNotification();
   const customerSheetRef = useRef<HTMLElement | null>(null);
+  const autoDownloadedQuotationIdRef = useRef<number | null>(null);
   const [mode, setMode] = useState<PreviewMode>('detail');
   const [isCopyingImage, setIsCopyingImage] = useState(false);
+  const [isDownloadingPdf, setIsDownloadingPdf] = useState(false);
   const [reconciliationPreviewIndex, setReconciliationPreviewIndex] = useState<number | null>(null);
   const [requestedPaymentAmount, setRequestedPaymentAmount] = useState('');
 
-  const { data: siteProfileOptions = [] } = useQuery<AppOption[]>({
+  const { data: siteProfileOptions = [], isFetching: isFetchingSiteProfile } = useQuery<
+    AppOption[]
+  >({
     queryKey: ['options', SITE_PROFILE_OPTION_GROUP],
     queryFn: () =>
       api
@@ -380,7 +393,64 @@ export function QuotationPreviewDialog({ quotation, onClose }: QuotationPreviewD
   useEffect(() => {
     setMode('detail');
     setRequestedPaymentAmount(quotation ? String(Math.round(payableAmount(quotation))) : '');
+    autoDownloadedQuotationIdRef.current = null;
   }, [quotation]);
+
+  useEffect(() => {
+    if (autoDownloadPdf) setMode('customer');
+  }, [autoDownloadPdf]);
+
+  const downloadCustomerPdf = useCallback(async () => {
+    if (!quotation || !customerSheetRef.current || isDownloadingPdf) return;
+
+    setIsDownloadingPdf(true);
+
+    try {
+      const safeCode = (quotation.quotationCode || `bao-phi-${quotation.id}`)
+        .trim()
+        .replace(/[^\p{L}\p{N}._-]+/gu, '-');
+      await downloadElementAsPdf(customerSheetRef.current, `${safeCode}.pdf`);
+      notify.success('Đã tải file PDF báo phí.');
+    } catch (error) {
+      notify.error(error instanceof Error ? error.message : 'Không thể tạo file PDF báo phí');
+    } finally {
+      setIsDownloadingPdf(false);
+    }
+  }, [isDownloadingPdf, notify, quotation]);
+
+  useEffect(() => {
+    if (!autoDownloadPdf) {
+      autoDownloadedQuotationIdRef.current = null;
+      return;
+    }
+
+    if (
+      !quotation ||
+      mode !== 'customer' ||
+      isFetchingSiteProfile ||
+      isDownloadingPdf ||
+      autoDownloadedQuotationIdRef.current === quotation.id
+    ) {
+      return;
+    }
+
+    const timer = window.setTimeout(() => {
+      if (!customerSheetRef.current) return;
+
+      autoDownloadedQuotationIdRef.current = quotation.id;
+      void downloadCustomerPdf().finally(() => onAutoDownloadPdfComplete?.());
+    }, 80);
+
+    return () => window.clearTimeout(timer);
+  }, [
+    autoDownloadPdf,
+    downloadCustomerPdf,
+    isDownloadingPdf,
+    isFetchingSiteProfile,
+    mode,
+    onAutoDownloadPdfComplete,
+    quotation,
+  ]);
 
   if (!quotation) return null;
 
@@ -397,13 +467,14 @@ export function QuotationPreviewDialog({ quotation, onClose }: QuotationPreviewD
         : 'Báo phí';
   const projectCode = quotation.project?.projectCode || 'Chưa gắn dự án';
   const outstandingPaymentAmount = payableAmount(quotation);
-  const requestedPaymentValue = toNumber(requestedPaymentAmount);
+  const outstandingPaymentLimit = Math.round(outstandingPaymentAmount);
+  const requestedPaymentValue = Math.round(toNumber(requestedPaymentAmount));
   const requestedPaymentError =
-    outstandingPaymentAmount <= 0
+    outstandingPaymentLimit <= 0
       ? ''
       : requestedPaymentValue <= 0
         ? 'Vui lòng nhập số tiền lớn hơn 0.'
-        : requestedPaymentValue > outstandingPaymentAmount + 0.01
+        : requestedPaymentValue > outstandingPaymentLimit
           ? `Không được vượt quá số tiền còn phải thu ${formatCurrency(outstandingPaymentAmount)}.`
           : '';
   const validRequestedPaymentAmount = requestedPaymentError ? null : requestedPaymentValue;
@@ -529,6 +600,13 @@ export function QuotationPreviewDialog({ quotation, onClose }: QuotationPreviewD
               startIcon={<EditRoundedIcon />}
             >
               Chỉnh sửa
+            </DialogActionButton>
+            <DialogActionButton
+              startIcon={<PictureAsPdfRoundedIcon />}
+              disabled={isDownloadingPdf || Boolean(requestedPaymentError)}
+              onClick={() => void downloadCustomerPdf()}
+            >
+              {isDownloadingPdf ? 'Đang tạo PDF...' : 'Tải PDF'}
             </DialogActionButton>
             <DialogActionButton
               tone="primary"
@@ -657,10 +735,10 @@ export function QuotationPreviewDialog({ quotation, onClose }: QuotationPreviewD
                 size="small"
                 label="Số tiền yêu cầu thanh toán lần này"
                 value={requestedPaymentAmount}
-                disabled={outstandingPaymentAmount <= 0}
+                disabled={outstandingPaymentLimit <= 0}
                 error={Boolean(requestedPaymentError)}
                 helperText={
-                  outstandingPaymentAmount <= 0
+                  outstandingPaymentLimit <= 0
                     ? 'Báo phí đã thu đủ.'
                     : requestedPaymentError || 'Chỉ dùng để tạo QR, chưa được tính là đã thu.'
                 }
@@ -677,7 +755,7 @@ export function QuotationPreviewDialog({ quotation, onClose }: QuotationPreviewD
               </div>
 
               <DialogActionButton
-                disabled={outstandingPaymentAmount <= 0}
+                disabled={outstandingPaymentLimit <= 0}
                 onClick={() =>
                   setRequestedPaymentAmount(String(Math.round(outstandingPaymentAmount)))
                 }
@@ -691,9 +769,9 @@ export function QuotationPreviewDialog({ quotation, onClose }: QuotationPreviewD
             ref={customerSheetRef}
             className="mx-auto max-w-[1040px] overflow-hidden rounded-xl border border-slate-200 bg-white text-slate-900"
           >
-            <header className="grid gap-5 border-b-4 border-primary px-6 py-5 md:grid-cols-[220px,minmax(0,1fr)] md:items-center">
+            <header className="grid gap-5 border-b-4 border-primary px-6 py-5 md:grid-cols-[240px,minmax(0,1fr)] md:items-center">
               <div className="flex items-center">
-                <Image src={x3salesLogo} alt="X3Sales" className="h-auto w-[160px]" priority />
+                <Image src={x3salesLogo} alt="X3Sales" className="h-auto w-[190px]" priority />
               </div>
               <div className="space-y-1 text-sm leading-5 text-slate-600 md:text-right">
                 <p className="font-extrabold text-slate-950">{companyInfo.companyName}</p>

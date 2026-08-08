@@ -129,7 +129,9 @@ export default function EditProjectPage() {
     queryKey: ['project-costs', 'by-project', id],
     queryFn: () =>
       api
-        .get<ProjectCost[]>('/project-costs', { params: { project_id: id } })
+        .get<ProjectCost[]>('/project-costs', {
+          params: { project_id: id, context: 'project_finance' },
+        })
         .then((response) => response.data),
   });
 
@@ -261,7 +263,7 @@ export default function EditProjectPage() {
     {
       label: 'Còn phải thu',
       value: outstanding,
-      className: 'text-amber-700',
+      className: 'text-rose-700',
       note: 'Nhân sự lưu ý để thu',
     },
     {

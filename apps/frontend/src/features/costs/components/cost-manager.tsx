@@ -64,18 +64,6 @@ const ENTRY_TYPE_LABELS: Record<ProjectCostEntryType, string> = {
   partner_cost: 'Chi phí đối tác',
 };
 
-const ACCEPTANCE_LABELS: Record<string, string> = {
-  pending: 'Chờ nghiệm thu',
-  accepted: 'Đã nghiệm thu',
-  not_required: 'Không yêu cầu',
-};
-
-const INVOICE_LABELS: Record<string, string> = {
-  pending: 'Chờ hóa đơn',
-  received: 'Đã nhận hóa đơn',
-  not_required: 'Không yêu cầu',
-};
-
 const RECONCILIATION_RESULT_OPTIONS: { value: ProjectCostReconciliationResult; label: string }[] = [
   { value: 'matched', label: 'Khớp chuẩn' },
   { value: 'unmatched', label: 'Chưa khớp' },
@@ -159,9 +147,7 @@ function costSummary(cost: ProjectCost) {
       .join(' · ');
   }
 
-  return [optionLabel(cost.partnerOption), ACCEPTANCE_LABELS[cost.acceptanceStatus || '']]
-    .filter((value) => value && value !== '-')
-    .join(' · ');
+  return optionLabel(cost.partnerOption);
 }
 
 function DetailRow({ label, value }: { label: string; value?: string | null }) {
@@ -361,20 +347,7 @@ function CostDetailDialog({
                 ) : null}
               </>
             ) : (
-              <>
-                <DetailRow label="Đối tác" value={optionLabel(cost.partnerOption)} />
-                <DetailRow
-                  label="Nghiệm thu"
-                  value={ACCEPTANCE_LABELS[cost.acceptanceStatus || ''] || '-'}
-                />
-                <DetailRow
-                  label="Hóa đơn đầu vào"
-                  value={INVOICE_LABELS[cost.inputInvoiceStatus || ''] || '-'}
-                />
-                <DetailRow label="VAT" value={`${Number(cost.vatRate) || 0}%`} />
-                <DetailRow label="Tiền VAT" value={formatCurrency(cost.vatAmount)} />
-                <DetailRow label="Giảm trừ" value={formatCurrency(cost.discountAmount)} />
-              </>
+              <DetailRow label="Đối tác" value={optionLabel(cost.partnerOption)} />
             )}
             {cost.adjustments?.length ? (
               <DetailRow
@@ -702,8 +675,8 @@ export function CostManager({
               label="Trạng thái"
               value={filters.status}
               options={[
-                { value: 'pending', label: 'Chờ xử lý' },
-                { value: 'completed', label: 'Hoàn thành' },
+                { value: 'pending', label: 'Chờ nạp / chờ chi' },
+                { value: 'completed', label: 'Đã nạp / đã chi' },
                 { value: 'cancelled', label: 'Đã hủy' },
               ]}
               onChange={(status) =>
@@ -723,8 +696,8 @@ export function CostManager({
                 })
               }
             />
-            <CompactSelectField
-              label="Số dư"
+            {/* <CompactSelectField
+              label="Trạng thái"
               value={filters.balance_status}
               options={[
                 { value: 'pending', label: 'Chờ xác nhận' },
@@ -736,7 +709,7 @@ export function CostManager({
                   balance_status: balance_status as ProjectCostFilters['balance_status'],
                 })
               }
-            />
+            /> */}
             <FormDatePicker
               label="Từ ngày"
               value={filters.date_from}
@@ -759,13 +732,14 @@ export function CostManager({
             { key: 'amount', label: 'Chi phí', className: 'w-52 text-right' },
             { key: 'detail', label: 'Chi tiết', className: 'w-80' },
             { key: 'project', label: 'Dự án', className: 'w-56' },
-            { key: 'processing', label: 'Xử lý', className: 'w-40 text-center' },
+            { key: 'status', label: 'Trạng thái chi', className: 'w-36 text-center' },
+            { key: 'processing', label: 'Đối soát', className: 'w-40 text-center' },
             { key: 'actions', className: 'w-20' },
           ]}
           isLoading={isFetching}
           isEmpty={costs.length === 0}
           emptyText="Chưa có chi phí dự án"
-          minWidthClassName="min-w-[1080px]"
+          minWidthClassName="min-w-[1220px]"
         >
           {costGroups.flatMap((group) => {
             const firstCost = group.costs[0];
@@ -868,7 +842,18 @@ export function CostManager({
                     </td>
                   ) : null}
                   <td className="px-3 py-3.5 text-center">
-                    {cost.cidIncident?.status === 'pending' && cost.canApprove ? (
+                    <span
+                      className={`inline-flex whitespace-nowrap rounded-md px-2 py-1 text-xs font-bold ring-1 ${statusClass(cost.status)}`}
+                    >
+                      {costStatusLabel(cost)}
+                    </span>
+                  </td>
+                  <td className="px-3 py-3.5 text-center">
+                    {cost.status !== 'completed' ? (
+                      <span className="text-xs font-semibold text-slate-400">
+                        {cost.status === 'cancelled' ? 'Không đối soát' : 'Chờ Lead xác nhận'}
+                      </span>
+                    ) : cost.cidIncident?.status === 'pending' && cost.canApprove ? (
                       <button
                         type="button"
                         className="inline-flex items-center gap-1 whitespace-nowrap rounded-md bg-amber-50 px-2 py-1 text-xs font-bold text-amber-700 ring-1 ring-amber-200 transition hover:bg-amber-100"
@@ -901,12 +886,6 @@ export function CostManager({
                       >
                         <CheckCircleRoundedIcon className="!text-[16px]" />
                         Đã khớp
-                      </span>
-                    ) : cost.status === 'cancelled' ? (
-                      <span
-                        className={`inline-flex whitespace-nowrap rounded-md px-2 py-1 text-xs font-bold ring-1 ${statusClass(cost.status)}`}
-                      >
-                        {costStatusLabel(cost)}
                       </span>
                     ) : cost.canApprove ? (
                       <button
@@ -987,7 +966,7 @@ export function CostManager({
                 Xác nhận CID ngừng
               </MenuItem>
             ) : null}
-            {activeCost.canApprove && activeCost.status !== 'cancelled' ? (
+            {activeCost.canApprove && activeCost.status === 'completed' ? (
               <MenuItem
                 onClick={() => {
                   openReconcileDialog(activeCost);

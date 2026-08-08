@@ -3,6 +3,7 @@
 namespace App\Repositories;
 
 use App\Models\PaymentRefund;
+use App\Models\User;
 use Illuminate\Contracts\Pagination\LengthAwarePaginator;
 use Illuminate\Database\Eloquent\Builder;
 
@@ -15,19 +16,26 @@ class PaymentRefundRepository extends BaseRepository
         return PaymentRefund::class;
     }
 
-    public function findPaginated(array $filters, int $perPage, int $page): LengthAwarePaginator
-    {
-        return $this->filteredQuery($filters)->paginate($perPage, ['*'], 'page', $page);
+    public function findPaginated(
+        array $filters,
+        int $perPage,
+        int $page,
+        ?User $user = null,
+    ): LengthAwarePaginator {
+        return $this->filteredQuery($filters, $user)->paginate($perPage, ['*'], 'page', $page);
     }
 
-    private function filteredQuery(array $filters): Builder
+    private function filteredQuery(array $filters, ?User $user = null): Builder
     {
         $keyword = trim((string) ($filters['keyword'] ?? ''));
         $dateFrom = $filters['date_from'] ?? null;
         $dateTo = $filters['date_to'] ?? null;
 
-        return $this->query()
-            ->with($this->relations())
+        $query = $this->query()->with($this->relations());
+
+        $this->applyViewScope($query, $user);
+
+        return $query
             ->when($keyword !== '', fn ($query) => $query->where(function ($query) use ($keyword): void {
                 $query
                     ->where('recipient_name', 'ilike', "%{$keyword}%")
@@ -67,6 +75,63 @@ class PaymentRefundRepository extends BaseRepository
             }))
             ->orderByRaw('COALESCE(completed_at, scheduled_at) DESC NULLS LAST')
             ->orderByDesc('created_at');
+    }
+
+    private function applyViewScope(Builder $query, ?User $user): void
+    {
+        if (
+            ! $user
+            || $user->hasPermission('payment.view_all')
+            || $user->hasPermission('payment.manage')
+        ) {
+            return;
+        }
+
+        $projectRelations = [
+            'project',
+            'quotation.project',
+            'allocation.project',
+            'allocation.quotation.project',
+            'payment.project',
+            'payment.quotation.project',
+            'payment.allocations.project',
+            'payment.allocations.quotation.project',
+        ];
+
+        $departmentIds = $user->accessibleDepartmentIds();
+
+        $query->where(function (Builder $scope) use ($departmentIds, $projectRelations, $user): void {
+            $scope->whereHas('payment', function (Builder $payment): void {
+                $payment
+                    ->where('receipt_type', 'customer')
+                    ->where(function (Builder $status): void {
+                        $status
+                            ->where('reconciled_status', 'unmatched')
+                            ->orWhere(function (Builder $legacy): void {
+                                $legacy->whereNull('reconciled_status')->where('status', 'unmatched');
+                            });
+                    })
+                    ->whereNull('quotation_id')
+                    ->whereNull('project_id')
+                    ->whereDoesntHave('allocations');
+            });
+
+            foreach ($projectRelations as $relation) {
+                if ($user->hasPermission('payment.view_department') && $departmentIds !== []) {
+                    $scope->orWhereHas(
+                        $relation.'.managerUser',
+                        fn (Builder $manager) => $manager->whereIn('department_id', $departmentIds),
+                    );
+
+                    continue;
+                }
+
+                $scope->orWhereHas(
+                    $relation,
+                    fn (Builder $project) => $project->where('manager_user_id', $user->id),
+                );
+            }
+        });
     }
 
     public function relations(): array

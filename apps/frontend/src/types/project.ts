@@ -38,6 +38,7 @@ export type ProjectItem = {
   note?: string | null;
   customer?: ProjectCustomerSummary | null;
   quotation?: Pick<Quotation, 'id' | 'quotationCode'> | null;
+  quotations?: Pick<Quotation, 'id' | 'quotationCode'>[];
   service?: ServiceItem | null;
   statusOption?: AppOption | null;
   managerUser?: ProjectUserSummary | null;

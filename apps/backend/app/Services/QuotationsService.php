@@ -277,6 +277,7 @@ class QuotationsService extends BaseService
             'accountReconciliationImageUrls' => 'account_reconciliation_image_urls',
             'validUntil' => 'valid_until',
             'allocationOpen' => 'allocation_open',
+            'createdById' => 'created_by',
         ];
 
         foreach ($map as $from => $to) {

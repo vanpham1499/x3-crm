@@ -21,7 +21,9 @@ class UserRepository extends BaseRepository
         $roleId = $filters['role_id'] ?? null;
         $isActive = $filters['is_active'] ?? null;
         $id = $filters['id'] ?? null;
+        $includeId = $filters['include_id'] ?? null;
         $departmentId = $filters['department_id'] ?? null;
+        $departmentIds = $filters['department_ids'] ?? [];
 
         return $this->query()
             ->when($keyword !== '', function ($query) use ($keyword): void {
@@ -35,6 +37,10 @@ class UserRepository extends BaseRepository
             ->when($roleId, fn ($query) => $query->where('role_id', $roleId))
             ->when($id, fn ($query) => $query->whereKey($id))
             ->when($departmentId, fn ($query) => $query->where('department_id', $departmentId))
+            ->when($departmentIds !== [], fn ($query) => $query->where(function ($scope) use ($departmentIds, $includeId): void {
+                $scope->whereIn('department_id', $departmentIds)
+                    ->when($includeId, fn ($scope) => $scope->orWhereKey($includeId));
+            }))
             ->when($isActive !== null && $isActive !== '', function ($query) use ($isActive): void {
                 $query->where('is_active', filter_var($isActive, FILTER_VALIDATE_BOOLEAN));
             })

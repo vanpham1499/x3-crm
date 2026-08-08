@@ -77,11 +77,13 @@ class ProjectRepository extends BaseRepository
             return;
         }
 
-        if ($user->hasPermission('project.view_department') && $user->department_id) {
-            $query->where(function (Builder $scope) use ($user): void {
+        $departmentIds = $user->accessibleDepartmentIds();
+
+        if ($user->hasPermission('project.view_department') && $departmentIds !== []) {
+            $query->where(function (Builder $scope) use ($departmentIds): void {
                 $scope
-                    ->whereHas('managerUser', fn (Builder $manager) => $manager->where('department_id', $user->department_id))
-                    ->orWhereHas('salesUser', fn (Builder $sales) => $sales->where('department_id', $user->department_id));
+                    ->whereHas('managerUser', fn (Builder $manager) => $manager->whereIn('department_id', $departmentIds))
+                    ->orWhereHas('salesUser', fn (Builder $sales) => $sales->whereIn('department_id', $departmentIds));
             });
 
             return;
@@ -104,7 +106,7 @@ class ProjectRepository extends BaseRepository
     {
         /** @var Project|null $project */
         $project = $this->query()
-            ->with(['customer', 'quotation', 'service', 'statusOption', 'managerUser', 'salesUser', 'createdBy', 'weeklySetting.reportOwner', 'timelines.createdBy'])
+            ->with(['customer', 'quotation', 'quotations', 'service', 'statusOption', 'managerUser', 'salesUser', 'createdBy', 'weeklySetting.reportOwner', 'timelines.createdBy'])
             ->whereKey($id)
             ->first();
 

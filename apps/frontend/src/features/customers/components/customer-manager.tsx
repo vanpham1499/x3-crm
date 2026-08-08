@@ -115,7 +115,11 @@ function InfoPill({
 
 function getCustomerIdentity(customer: Customer) {
   const customerCode = customer.customerCode?.trim();
-  const customerName = customer.customerName?.trim() || customer.companyName?.trim() || '';
+  const customerName = (
+    customer.customerName?.trim() ||
+    customer.companyName?.trim() ||
+    ''
+  ).toLocaleUpperCase('vi-VN');
 
   if (!customerCode) return customerName || '-';
   if (!customerName || customerCode.toLowerCase().includes(customerName.toLowerCase())) {
@@ -471,7 +475,6 @@ export function CustomerManager({
             },
             { key: 'type', label: 'Loại', className: 'w-36' },
             { key: 'phone', label: 'Số điện thoại', className: 'w-36' },
-            { key: 'email', label: 'Email', className: 'w-56' },
             { key: 'company', label: 'Tên công ty / cá nhân', className: 'w-48' },
             { key: 'sales', label: 'Người phụ trách', className: 'w-44' },
             { key: 'created', label: 'Người tạo', className: 'w-40' },
@@ -480,7 +483,7 @@ export function CustomerManager({
           isLoading={isFetching}
           isEmpty={customers.length === 0}
           emptyText="Không có dữ liệu khách hàng"
-          minWidthClassName="min-w-[1480px]"
+          minWidthClassName="min-w-[1260px]"
         >
           {customers.map((customer) => {
             const customerIdentity = getCustomerIdentity(customer);
@@ -502,11 +505,6 @@ export function CustomerManager({
                 <td className="px-3 py-4 text-slate-700">
                   <span className="block truncate" title={customer.phone || ''}>
                     {customer.phone || '-'}
-                  </span>
-                </td>
-                <td className="px-3 py-4 text-slate-700">
-                  <span className="block truncate" title={customer.email || ''}>
-                    {customer.email || '-'}
                   </span>
                 </td>
                 <td className="px-3 py-4 text-slate-700">

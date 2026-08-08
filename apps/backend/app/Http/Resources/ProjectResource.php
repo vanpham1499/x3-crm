@@ -42,6 +42,12 @@ class ProjectResource extends JsonResource
                 'id' => $this->quotation->id,
                 'quotationCode' => $this->quotation->quotation_code,
             ] : null),
+            'quotations' => $this->whenLoaded('quotations', fn () => $this->quotations
+                ->map(fn ($quotation) => [
+                    'id' => $quotation->id,
+                    'quotationCode' => $quotation->quotation_code,
+                ])
+                ->values()),
             'service' => $this->whenLoaded('service', fn () => $this->service ? new ServiceResource($this->service) : null),
             'statusOption' => $this->whenLoaded('statusOption', fn () => $this->statusOption ? new OptionResource($this->statusOption) : null),
             'managerUser' => $this->whenLoaded('managerUser', fn () => $this->managerUser ? [

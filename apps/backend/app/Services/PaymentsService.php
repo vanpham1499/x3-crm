@@ -11,6 +11,7 @@ use App\Repositories\PaymentRefundRepository;
 use App\Repositories\PaymentRepository;
 use App\Support\QuotationReference;
 use Carbon\Carbon;
+use Illuminate\Auth\Access\AuthorizationException;
 use Illuminate\Database\Eloquent\Collection;
 use Illuminate\Validation\ValidationException;
 
@@ -27,7 +28,10 @@ class PaymentsService extends BaseService
 
     public function findAll(array $filters = [])
     {
-        $payments = $this->payments->findAll($this->normalizeKeys($filters));
+        $payments = $this->payments->findAll(
+            $this->normalizeKeys($filters),
+            $this->currentUser(),
+        );
         $this->paymentAllocations->appendCollectionContext($payments);
 
         return $this->apiCollection($payments, PaymentResource::class);
@@ -35,7 +39,12 @@ class PaymentsService extends BaseService
 
     public function findPaginated(array $filters, int $perPage, int $page): array
     {
-        $paginator = $this->payments->findPaginated($this->normalizeKeys($filters), $perPage, $page);
+        $paginator = $this->payments->findPaginated(
+            $this->normalizeKeys($filters),
+            $perPage,
+            $page,
+            $this->currentUser(),
+        );
         $this->paymentAllocations->appendCollectionContext($paginator->getCollection());
 
         return $this->apiPaginatedCollection($paginator, PaymentResource::class);
@@ -43,7 +52,7 @@ class PaymentsService extends BaseService
 
     public function findOne(string $id): array
     {
-        $payment = $this->payments->findWithRelationsOrFail($id);
+        $payment = $this->payments->findWithRelationsOrFail($id, $this->currentUser());
         $this->paymentAllocations->appendCollectionContext(new Collection([$payment]));
 
         return $this->apiResource($payment, PaymentResource::class);
@@ -51,7 +60,12 @@ class PaymentsService extends BaseService
 
     public function findRefundsPaginated(array $filters, int $perPage, int $page): array
     {
-        $paginator = $this->refunds->findPaginated($this->normalizeKeys($filters), $perPage, $page);
+        $paginator = $this->refunds->findPaginated(
+            $this->normalizeKeys($filters),
+            $perPage,
+            $page,
+            $this->currentUser(),
+        );
 
         return $this->apiPaginatedCollection($paginator, PaymentRefundResource::class);
     }
@@ -214,6 +228,8 @@ class PaymentsService extends BaseService
     public function allocate(string $id, array $data): array
     {
         $this->authorize('allocate', Payment::class);
+        $this->payments->findWithRelationsOrFail($id, $this->currentUser());
+        $this->authorizeAllocationTargets($data['allocations'] ?? []);
         $this->paymentAllocations->allocate($id, $data['allocations'] ?? [], auth()->id());
         $this->syncPaymentNotifications($id);
 
@@ -223,6 +239,7 @@ class PaymentsService extends BaseService
     public function removeAllocation(string $paymentId, string $allocationId): array
     {
         $this->authorize('allocate', Payment::class);
+        $this->payments->findWithRelationsOrFail($paymentId, $this->currentUser());
         $this->paymentAllocations->removeAllocation($paymentId, $allocationId, auth()->id());
         $this->syncPaymentNotifications($paymentId);
 
@@ -232,6 +249,7 @@ class PaymentsService extends BaseService
     public function refund(string $id, array $data): array
     {
         $this->authorize('createRefund', Payment::class);
+        $this->payments->findWithRelationsOrFail($id, $this->currentUser());
         $refund = $this->paymentAllocations->refund($id, $data, auth()->id());
         $this->syncRefundNotifications($refund);
         $this->syncPaymentNotifications($id);
@@ -258,15 +276,6 @@ class PaymentsService extends BaseService
         $this->syncPaymentNotifications($refund->payment_id);
 
         return ['message' => 'Đã xóa khoản hoàn và tính lại công nợ'];
-    }
-
-    public function classify(string $id, array $data): array
-    {
-        $this->authorize('manage', Payment::class);
-        $this->paymentAllocations->classify($id, $this->normalizeKeys($data));
-        $this->syncPaymentNotifications($id);
-
-        return $this->paymentResource($this->payments->findWithRelationsOrFail($id));
     }
 
     public function updateInvoice(string $id, array $data): array
@@ -390,8 +399,6 @@ class PaymentsService extends BaseService
         $recipientIds = $this->paymentRecipientIds($payment)
             ->push($refund->created_by)
             ->push($refund->project?->manager_user_id)
-            ->push($refund->project?->sales_user_id)
-            ->push($refund->customer?->sales_user_id)
             ->filter()
             ->unique()
             ->values();
@@ -418,18 +425,12 @@ class PaymentsService extends BaseService
     {
         $ids = collect([
             $payment->project?->manager_user_id,
-            $payment->project?->sales_user_id,
-            $payment->customer?->sales_user_id,
-            $payment->lead?->assigned_user_id,
         ]);
 
         foreach ($payment->allocations as $allocation) {
             $quotation = $allocation->quotation;
             $ids->push(
                 $quotation?->project?->manager_user_id,
-                $quotation?->project?->sales_user_id,
-                $quotation?->customer?->sales_user_id,
-                $quotation?->lead?->assigned_user_id,
             );
         }
 
@@ -502,6 +503,40 @@ class PaymentsService extends BaseService
         }
 
         return $data;
+    }
+
+    private function authorizeAllocationTargets(array $entries): void
+    {
+        $user = $this->currentUser();
+        $quotationIds = collect($entries)
+            ->map(fn (array $entry): int => (int) ($entry['quotation_id'] ?? $entry['quotationId'] ?? 0))
+            ->filter()
+            ->unique();
+
+        foreach ($quotationIds as $quotationId) {
+            $quotation = $this->quotations
+                ->findModel((string) $quotationId)
+                ->loadMissing('project.managerUser');
+
+            if (
+                $user
+                && (
+                    $user->hasPermission('payment.view_all')
+                    || $user->hasPermission('payment.manage')
+                    || (int) $quotation->project?->manager_user_id === (int) $user->id
+                    || (
+                        $user->hasPermission('payment.view_department')
+                        && $user->canAccessDepartment($quotation->project?->managerUser?->department_id)
+                    )
+                )
+            ) {
+                continue;
+            }
+
+            throw new AuthorizationException(
+                'Bạn chỉ được phân bổ khoản thu vào báo phí thuộc dự án mình quản lý.',
+            );
+        }
     }
 
     private function normalizeKeys(array $data): array

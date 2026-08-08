@@ -119,6 +119,7 @@ export type ProjectCost = {
   partnerOption?: AppOption | null;
   adjustments?: ProjectCostAdjustment[];
   canManage?: boolean;
+  canFund?: boolean;
   canApprove?: boolean;
   createdAt?: string;
   updatedAt?: string;
@@ -152,7 +153,6 @@ export type ProjectCostCidIncidentInput = {
 export type ProjectCostFormValues = {
   quotationId: string;
   transactionDate: string;
-  status: ProjectCostStatus;
   cid: string;
   adAccount: string;
   cidIsDead: boolean;

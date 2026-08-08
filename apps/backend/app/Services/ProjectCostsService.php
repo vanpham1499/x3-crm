@@ -7,7 +7,9 @@ use App\Models\Project;
 use App\Models\ProjectCost;
 use App\Models\ProjectCostAdjustment;
 use App\Models\ProjectCostCidIncident;
+use App\Models\User;
 use App\Repositories\ProjectCostRepository;
+use Illuminate\Auth\Access\AuthorizationException;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Validation\ValidationException;
 
@@ -21,32 +23,60 @@ class ProjectCostsService extends BaseService
 
     public function findAll(array $filters = [])
     {
-        return $this->apiCollection($this->costs->findAll($this->normalizeKeys($filters)), ProjectCostResource::class);
+        $filters = $this->normalizeKeys($filters);
+        $user = auth()->user();
+
+        if (! $user) {
+            throw new AuthorizationException;
+        }
+
+        if (($filters['context'] ?? null) === 'project_finance' && ! empty($filters['project_id'])) {
+            $project = Project::query()->findOrFail($filters['project_id']);
+            $this->authorize('view', $project);
+
+            return $this->apiCollection($this->costs->findAll($filters), ProjectCostResource::class);
+        }
+
+        $this->ensureCanOpenCostPage($user);
+
+        return $this->apiCollection($this->costs->findAll($filters, $user), ProjectCostResource::class);
     }
 
     public function findPaginated(array $filters, int $perPage, int $page): array
     {
+        $user = auth()->user();
+
+        if (! $user) {
+            throw new AuthorizationException;
+        }
+
+        $this->ensureCanOpenCostPage($user);
+
         return $this->apiPaginatedCollection(
-            $this->costs->findPaginated($this->normalizeKeys($filters), $perPage, $page),
+            $this->costs->findPaginated($this->normalizeKeys($filters), $perPage, $page, $user),
             ProjectCostResource::class,
         );
     }
 
     public function findOne(string $id): array
     {
-        return $this->apiResource($this->costs->findWithRelationsOrFail($id), ProjectCostResource::class);
+        $cost = $this->costs->findWithRelationsOrFail($id);
+        $this->authorize('view', $cost);
+
+        return $this->apiResource($cost, ProjectCostResource::class);
     }
 
     public function create(array $data): array
     {
         return $this->transaction(function () use ($data): array {
             $data = $this->preparePayload($data);
+            $data['status'] = ProjectCost::STATUS_PENDING;
             $project = Project::query()->findOrFail($data['project_id']);
             $this->authorize('manageProject', [ProjectCost::class, $project]);
             /** @var ProjectCost $cost */
             $cost = $this->costs->create($data);
             $cost = $this->costs->findWithRelationsOrFail((string) $cost->id);
-            $this->notifyCostApprovers($cost);
+            $this->notifyCostWorkflow($cost);
 
             return $this->apiResource($cost, ProjectCostResource::class);
         });
@@ -58,9 +88,32 @@ class ProjectCostsService extends BaseService
             /** @var ProjectCost $existing */
             $existing = $this->costs->findForUpdateOrFail($id);
             $existing->load('project.managerUser', 'project.salesUser');
-            $this->authorize('manage', $existing);
             $this->ensureNotReconciled($existing);
-            $data = $this->preparePayload($data, $existing);
+            $normalized = $this->normalizeKeys($data);
+            $hasStatus = array_key_exists('status', $normalized);
+            $statusChanged = $hasStatus && $normalized['status'] !== $existing->status;
+            $businessFields = array_diff(array_keys($normalized), ['status']);
+
+            if ($businessFields !== []) {
+                $this->authorize('manage', $existing);
+
+                if (
+                    $existing->status !== ProjectCost::STATUS_PENDING
+                    && ! auth()->user()?->can('fund', $existing)
+                ) {
+                    throw ValidationException::withMessages([
+                        'cost' => ['Chỉ Lead được sửa khoản chi sau khi đã xác nhận nạp/chi.'],
+                    ]);
+                }
+            }
+
+            if ($statusChanged) {
+                $this->authorize('fund', $existing);
+            } elseif ($businessFields === []) {
+                $this->authorize('manage', $existing);
+            }
+
+            $data = $this->preparePayload($normalized, $existing);
 
             if ((string) $data['project_id'] !== (string) $existing->project_id) {
                 $project = Project::query()->findOrFail($data['project_id']);
@@ -69,7 +122,7 @@ class ProjectCostsService extends BaseService
 
             $this->costs->update($id, $data);
             $cost = $this->costs->findWithRelationsOrFail($id);
-            $this->notifyCostApprovers($cost);
+            $this->notifyCostWorkflow($cost);
 
             return $this->apiResource($cost, ProjectCostResource::class);
         });
@@ -80,9 +133,11 @@ class ProjectCostsService extends BaseService
         return $this->transaction(function () use ($id): array {
             $cost = $this->costs->findForUpdateOrFail($id);
             $cost->load('project.managerUser', 'project.salesUser');
-            $this->authorize('manage', $cost);
+            $this->authorize('fund', $cost);
             $this->ensureNotReconciled($cost);
+            $this->ensurePendingForDelete($cost);
             $this->notifications->resolve('project_cost', $cost->id, [
+                'cost_funding_required',
                 'cost_reconciliation_required',
                 'cost_reconciliation_unmatched',
             ]);
@@ -98,6 +153,7 @@ class ProjectCostsService extends BaseService
             $cost = $this->costs->findForUpdateOrFail($id);
             $cost->load('project.managerUser', 'project.salesUser');
             $this->authorize('approve', $cost);
+            $this->ensureReadyForReconciliation($cost);
             $cost->load('adjustments');
             $data = $this->normalizeKeys($data);
             $adjustments = $data['adjustments'] ?? [];
@@ -109,7 +165,6 @@ class ProjectCostsService extends BaseService
             $invoiceNumber = trim((string) ($data['invoice_number'] ?? '')) ?: null;
 
             $updates = [
-                'status' => $isMatched ? ProjectCost::STATUS_COMPLETED : ProjectCost::STATUS_PENDING,
                 'invoice_number' => $invoiceNumber,
                 'reconciliation_result' => $result,
                 'invoice_status' => $invoiceNumber
@@ -129,11 +184,11 @@ class ProjectCostsService extends BaseService
 
             if ($isMatched) {
                 $cost->loadMissing('project');
-                $recipients = $this->notificationRecipients->usersWithPermission([
+                $recipients = $this->notificationRecipients->authorizedUsers([
                     $cost->created_by,
                     $cost->project?->manager_user_id,
                     $cost->project?->sales_user_id,
-                ], 'cost.view');
+                ], 'view', $cost);
                 $this->notifications->send($recipients, [
                     'module' => 'cost',
                     'event_key' => 'cost_reconciled',
@@ -142,16 +197,16 @@ class ProjectCostsService extends BaseService
                     'severity' => 'success',
                     'entity_type' => 'project_cost',
                     'entity_id' => $cost->id,
-                    'action_url' => '/costs',
+                    'action_url' => '/projects/'.$cost->project_id.'?tab=finance',
                     'dedupe_key' => 'cost_reconciled:'.$cost->id.':'.$cost->updated_at?->format('YmdHisu'),
                 ]);
             } else {
                 $cost->loadMissing('project');
-                $recipients = $this->notificationRecipients->usersWithPermission([
+                $recipients = $this->notificationRecipients->authorizedUsers([
                     $cost->created_by,
                     $cost->project?->manager_user_id,
                     $cost->project?->sales_user_id,
-                ], 'cost.view');
+                ], 'view', $cost);
                 $this->notifications->send($recipients, [
                     'module' => 'cost',
                     'event_key' => 'cost_reconciliation_unmatched',
@@ -161,7 +216,7 @@ class ProjectCostsService extends BaseService
                     'severity' => 'error',
                     'entity_type' => 'project_cost',
                     'entity_id' => $cost->id,
-                    'action_url' => '/costs',
+                    'action_url' => '/projects/'.$cost->project_id.'?tab=finance',
                     'dedupe_key' => 'cost_reconciliation_unmatched:'.$cost->id.':'.$cost->updated_at?->format('YmdHisu'),
                 ]);
             }
@@ -173,17 +228,39 @@ class ProjectCostsService extends BaseService
         });
     }
 
-    private function notifyCostApprovers(ProjectCost $cost): void
+    private function notifyCostWorkflow(ProjectCost $cost): void
     {
-        if ($cost->status !== ProjectCost::STATUS_PENDING) {
+        $this->notifications->resolve('project_cost', $cost->id, [
+            'cost_funding_required',
+            'cost_reconciliation_required',
+            'cost_reconciliation_unmatched',
+        ]);
+
+        if ($cost->status === ProjectCost::STATUS_CANCELLED) {
             return;
         }
 
         $cost->loadMissing('project');
-        $this->notifications->resolve('project_cost', $cost->id, [
-            'cost_reconciliation_required',
-            'cost_reconciliation_unmatched',
-        ]);
+
+        if ($cost->status === ProjectCost::STATUS_PENDING) {
+            $this->notifications->send($this->notificationRecipients->projectCostFunders($cost), [
+                'module' => 'cost',
+                'event_key' => 'cost_funding_required',
+                'title' => $cost->entry_type === ProjectCost::TYPE_AD_SPEND
+                    ? 'Có yêu cầu nạp ngân sách đang chờ duyệt'
+                    : 'Có khoản chi đang chờ duyệt',
+                'message' => $cost->project?->project_name,
+                'kind' => 'action',
+                'severity' => 'warning',
+                'entity_type' => 'project_cost',
+                'entity_id' => $cost->id,
+                'action_url' => '/projects/'.$cost->project_id.'?tab=finance',
+                'dedupe_key' => 'cost_funding_required:'.$cost->id.':'.$cost->updated_at?->format('YmdHisu'),
+            ]);
+
+            return;
+        }
+
         $this->notifications->send($this->notificationRecipients->projectCostApprovers($cost), [
             'module' => 'cost',
             'event_key' => 'cost_reconciliation_required',
@@ -456,6 +533,41 @@ class ProjectCostsService extends BaseService
         throw ValidationException::withMessages([
             'cost' => ['Khoản chi đã được đối soát nên không thể chỉnh sửa hoặc xóa.'],
         ]);
+    }
+
+    private function ensureReadyForReconciliation(ProjectCost $cost): void
+    {
+        if ($cost->status === ProjectCost::STATUS_COMPLETED) {
+            return;
+        }
+
+        throw ValidationException::withMessages([
+            'cost' => ['Lead phải xác nhận khoản ngân sách đã nạp/đã chi trước khi kế toán đối soát.'],
+        ]);
+    }
+
+    private function ensurePendingForDelete(ProjectCost $cost): void
+    {
+        if ($cost->status === ProjectCost::STATUS_PENDING) {
+            return;
+        }
+
+        throw ValidationException::withMessages([
+            'cost' => ['Chỉ có thể xóa yêu cầu còn chờ; khoản đã nạp/đã chi phải chuyển sang Đã hủy.'],
+        ]);
+    }
+
+    private function ensureCanOpenCostPage(User $user): void
+    {
+        if (
+            $user->hasPermission('cost.view')
+            || $user->hasPermission('cost.view_department')
+            || $user->hasPermission('cost.view_all')
+        ) {
+            return;
+        }
+
+        throw new AuthorizationException('Bạn không có quyền mở trang Chi phí.');
     }
 
     private function ensureCidIncidentEligible(ProjectCost $cost): void

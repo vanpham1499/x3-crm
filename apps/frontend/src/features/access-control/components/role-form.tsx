@@ -287,6 +287,9 @@ export function RoleForm({
                         ids: number[],
                         scope?: 'own' | 'department' | 'all',
                       ) => {
+                        // Cost actions are also used inside Project Finance. They must
+                        // remain selectable without opening the centralized Costs page.
+                        if (module === 'cost') return uniqueIds(ids);
                         if (!pagePermission) return uniqueIds(ids);
 
                         const nextIds = [...ids, pagePermission.id];
@@ -353,9 +356,14 @@ export function RoleForm({
                                           return;
                                         }
 
-                                        const moduleIds = modulePermissions.map(
-                                          (permission) => permission.id,
-                                        );
+                                        const moduleIds =
+                                          module === 'cost'
+                                            ? [
+                                                pagePermission.id,
+                                                pageDepartmentPermission?.id,
+                                                pageAllPermission?.id,
+                                              ].filter((id): id is number => Boolean(id))
+                                            : modulePermissions.map((permission) => permission.id);
                                         field.onChange(
                                           field.value.filter((id) => !moduleIds.includes(id)),
                                         );

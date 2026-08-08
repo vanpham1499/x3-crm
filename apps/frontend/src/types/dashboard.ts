@@ -15,6 +15,7 @@ export type DashboardScope = {
   userId: number;
   userName: string;
   departmentId?: number | null;
+  departmentIds?: number[];
   departmentName?: string | null;
   targetLabel: string;
 };
@@ -171,6 +172,7 @@ export type DashboardReport = {
     sourceDepositIncluded: true;
     serviceProfitDepositIncluded: false;
     acquisitionProfitDepositIncluded: true;
+    acquisitionProfitDepositScope: 'project_type_k_only';
   };
   summary: DashboardSummary;
   operations: DashboardOperations;

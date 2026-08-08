@@ -24,8 +24,8 @@ class UserNotificationsService extends BaseService
                 ->where('kind', UserNotification::KIND_ACTION)
                 ->whereNull('resolved_at'))
             ->with('actor:id,code,name')
-            ->orderByRaw("CASE WHEN kind = 'action' AND resolved_at IS NULL THEN 0 ELSE 1 END")
-            ->latest()
+            ->orderByDesc('created_at')
+            ->orderByDesc('id')
             ->paginate($perPage, ['*'], 'page', $page);
 
         return $this->paginated($paginator);

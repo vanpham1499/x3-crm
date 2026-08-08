@@ -16,6 +16,7 @@ class UsersService extends BaseService
         'lead',
         'customer',
         'project',
+        'quotation',
         'meeting',
         'weeklyreport',
         'p2point',
@@ -43,11 +44,11 @@ class UsersService extends BaseService
                 $hasDepartmentScope = collect(self::DATA_SCOPE_ACTIONS)
                     ->contains(fn (string $action): bool => $currentUser->hasPermission("{$module}.{$action}_department"));
 
-                if (
-                    $currentUser->department_id
-                    && $hasDepartmentScope
-                ) {
-                    $filters['department_id'] = $currentUser->department_id;
+                $departmentIds = $currentUser->accessibleDepartmentIds();
+
+                if ($departmentIds !== [] && $hasDepartmentScope) {
+                    $filters['department_ids'] = $departmentIds;
+                    $filters['include_id'] = $currentUser->id;
                 } else {
                     $filters['id'] = $currentUser->id;
                 }

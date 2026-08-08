@@ -4,6 +4,7 @@ namespace App\Repositories;
 
 use App\Models\ProjectCost;
 use App\Models\ProjectCostCidIncident;
+use App\Models\User;
 use Illuminate\Contracts\Pagination\LengthAwarePaginator;
 use Illuminate\Database\Eloquent\Builder;
 use Illuminate\Database\Eloquent\Collection;
@@ -19,20 +20,20 @@ class ProjectCostRepository extends BaseRepository
         return ProjectCost::class;
     }
 
-    public function findAll(array $filters = []): Collection
+    public function findAll(array $filters = [], ?User $user = null): Collection
     {
-        return $this->filteredQuery($filters)->get();
+        return $this->filteredQuery($filters, $user)->get();
     }
 
-    public function findPaginated(array $filters, int $perPage, int $page): LengthAwarePaginator
+    public function findPaginated(array $filters, int $perPage, int $page, User $user): LengthAwarePaginator
     {
         if (! filter_var($filters['group_by_project'] ?? false, FILTER_VALIDATE_BOOL)) {
-            return $this->filteredQuery($filters)
+            return $this->filteredQuery($filters, $user)
                 ->paginate($perPage, ['*'], 'page', $page);
         }
 
         $groupPaginator = DB::query()
-            ->fromSub($this->filteredQuery($filters)->toBase(), 'ordered_costs')
+            ->fromSub($this->filteredQuery($filters, $user)->toBase(), 'ordered_costs')
             ->select('project_group_id')
             ->selectRaw('MAX(project_group_latest_at) AS project_group_latest_at')
             ->groupBy('project_group_id')
@@ -48,7 +49,7 @@ class ProjectCostRepository extends BaseRepository
         }
 
         $costIds = DB::query()
-            ->fromSub($this->filteredQuery($filters)->toBase(), 'ordered_costs')
+            ->fromSub($this->filteredQuery($filters, $user)->toBase(), 'ordered_costs')
             ->whereIn('project_group_id', $groupIds)
             ->orderByDesc('project_group_latest_at')
             ->orderByDesc('project_group_id')
@@ -101,7 +102,7 @@ class ProjectCostRepository extends BaseRepository
         return $cost;
     }
 
-    private function filteredQuery(array $filters): Builder
+    private function filteredQuery(array $filters, ?User $user = null): Builder
     {
         $keyword = trim((string) ($filters['keyword'] ?? $filters['search'] ?? ''));
         $dateFrom = $filters['date_from'] ?? null;
@@ -145,6 +146,10 @@ class ProjectCostRepository extends BaseRepository
             ->when($dateFrom, fn ($query) => $query->whereDate('transaction_date', '>=', $dateFrom))
             ->when($dateTo, fn ($query) => $query->whereDate('transaction_date', '<=', $dateTo));
 
+        if ($user) {
+            $this->applyVisibilityScope($query, $user);
+        }
+
         if (! filter_var($filters['group_by_project'] ?? false, FILTER_VALIDATE_BOOL)) {
             return $query
                 ->orderByRaw('transaction_date DESC NULLS LAST')
@@ -159,6 +164,37 @@ class ProjectCostRepository extends BaseRepository
             ->orderByDesc('project_group_id')
             ->orderByRaw('transaction_date DESC NULLS LAST')
             ->orderByDesc('created_at');
+    }
+
+    private function applyVisibilityScope(Builder $query, User $user): void
+    {
+        if ($user->hasPermission('cost.view_all')) {
+            return;
+        }
+
+        $departmentIds = $user->accessibleDepartmentIds();
+
+        if ($user->hasPermission('cost.view_department') && $departmentIds !== []) {
+            $query->where(function (Builder $scope) use ($departmentIds, $user): void {
+                $scope
+                    ->where('created_by', $user->id)
+                    ->orWhereHas('project', fn (Builder $project) => $project
+                        ->whereHas('managerUser', fn (Builder $manager) => $manager
+                            ->whereIn('department_id', $departmentIds))
+                        ->orWhereHas('salesUser', fn (Builder $sales) => $sales
+                            ->whereIn('department_id', $departmentIds)));
+            });
+
+            return;
+        }
+
+        $query->where(function (Builder $scope) use ($user): void {
+            $scope
+                ->where('created_by', $user->id)
+                ->orWhereHas('project', fn (Builder $project) => $project
+                    ->where('manager_user_id', $user->id)
+                    ->orWhere('sales_user_id', $user->id));
+        });
     }
 
     private function relations(): array

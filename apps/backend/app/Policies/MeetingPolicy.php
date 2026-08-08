@@ -84,23 +84,23 @@ class MeetingPolicy
 
     private function belongsToDepartmentScope(User $user, Meeting $meeting): bool
     {
-        if (! $user->department_id) {
+        $departmentIds = $user->accessibleDepartmentIds();
+
+        if ($departmentIds === []) {
             return false;
         }
 
-        $departmentId = $user->department_id;
-
         return Meeting::query()
             ->whereKey($meeting->id)
-            ->where(function (Builder $query) use ($departmentId): void {
+            ->where(function (Builder $query) use ($departmentIds): void {
                 $query
-                    ->whereHas('organizer', fn (Builder $organizer) => $organizer->where('department_id', $departmentId))
-                    ->orWhereHas('participants', fn (Builder $participants) => $participants->where('users.department_id', $departmentId))
-                    ->orWhereHas('lead.assignedUser', fn (Builder $assigned) => $assigned->where('department_id', $departmentId))
-                    ->orWhereHas('customer.salesUser', fn (Builder $sales) => $sales->where('department_id', $departmentId))
-                    ->orWhereHas('project.managerUser', fn (Builder $manager) => $manager->where('department_id', $departmentId))
-                    ->orWhereHas('project.salesUser', fn (Builder $sales) => $sales->where('department_id', $departmentId))
-                    ->orWhereHas('createdBy', fn (Builder $creator) => $creator->where('department_id', $departmentId));
+                    ->whereHas('organizer', fn (Builder $organizer) => $organizer->whereIn('department_id', $departmentIds))
+                    ->orWhereHas('participants', fn (Builder $participants) => $participants->whereIn('users.department_id', $departmentIds))
+                    ->orWhereHas('lead.assignedUser', fn (Builder $assigned) => $assigned->whereIn('department_id', $departmentIds))
+                    ->orWhereHas('customer.salesUser', fn (Builder $sales) => $sales->whereIn('department_id', $departmentIds))
+                    ->orWhereHas('project.managerUser', fn (Builder $manager) => $manager->whereIn('department_id', $departmentIds))
+                    ->orWhereHas('project.salesUser', fn (Builder $sales) => $sales->whereIn('department_id', $departmentIds))
+                    ->orWhereHas('createdBy', fn (Builder $creator) => $creator->whereIn('department_id', $departmentIds));
             })
             ->exists();
     }

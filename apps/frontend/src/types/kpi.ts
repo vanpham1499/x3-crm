@@ -78,6 +78,7 @@ export type KpiReport = {
     level: 'own' | 'department' | 'all';
     userId: number | null;
     departmentId: number | null;
+    departmentIds?: number[];
   };
   calculationBasis: {
     currency: 'VND';
@@ -87,6 +88,7 @@ export type KpiReport = {
     sourceDepositIncluded: true;
     serviceProfitDepositIncluded: false;
     acquisitionProfitDepositIncluded: true;
+    acquisitionProfitDepositScope: 'project_type_k_only';
   };
   periods: KpiMonthlyReport[];
 };
@@ -105,4 +107,49 @@ export type KpiTargetPayload = {
   scopeType: KpiScopeType;
   scopeId: number;
   targetAmount: number;
+};
+
+export type KpiDetailTotals = {
+  receivedAmount: number;
+  costAmount: number;
+  refundAmount: number;
+  profitAmount: number;
+};
+
+export type KpiDetailEntry = {
+  id: string;
+  branch: 'service' | 'implementation' | 'acquisition';
+  kind: 'received' | 'cost' | 'refund' | 'acquisition_credit' | 'acquisition_refund';
+  label: string;
+  eventAt: string;
+  sourceAmount: number;
+  beforeVatAmount: number;
+  profitImpactAmount: number;
+  reference: string;
+  project: {
+    id: number;
+    code?: string | null;
+    name?: string | null;
+    type?: string | null;
+  };
+  quotation?: {
+    id: number;
+    code?: string | null;
+  } | null;
+};
+
+export type KpiDetailReport = {
+  period: string;
+  scope: {
+    type: KpiScopeType;
+    id: number;
+    name: string;
+  };
+  totals: KpiDetailTotals;
+  branches: Array<{
+    key: 'service' | 'implementation' | 'acquisition';
+    label: string;
+    totals: KpiDetailTotals;
+    entries: KpiDetailEntry[];
+  }>;
 };

@@ -19,6 +19,7 @@ import { IconButton, Menu, MenuItem, Tooltip } from '@mui/material';
 import { SummaryMetricCard } from '@/components/data-display/summary-metric-card';
 import { ConfirmDialog } from '@/components/feedback/confirm-dialog';
 import { CompactSearchField } from '@/components/form/compact-search-field';
+import { OptionStatusBadge } from '@/components/data-display/option-status-badge';
 import { CompactSelectField } from '@/components/form/compact-select-field';
 import { ListFilterBar } from '@/components/form/list-filter-bar';
 import { AppDataTable } from '@/components/table/app-data-table';
@@ -106,13 +107,6 @@ function progressStatusClass(status: string) {
   if (status === 'rejected') return 'bg-rose-50 text-rose-700 ring-rose-200';
   if (status === 'draft') return 'bg-amber-50 text-amber-700 ring-amber-200';
   return 'bg-slate-100 text-slate-600 ring-slate-200';
-}
-
-function conditionClass(condition?: string | null) {
-  if (condition === 'Tốt') return 'bg-emerald-50 text-emerald-700 ring-emerald-200';
-  if (condition === 'Rủi ro') return 'bg-rose-50 text-rose-700 ring-rose-200';
-  if (condition === 'Cần theo dõi') return 'bg-amber-50 text-amber-700 ring-amber-200';
-  return 'bg-slate-100 text-slate-500 ring-slate-200';
 }
 
 export function WeeklyReportSummary({
@@ -358,11 +352,13 @@ export function WeeklyReportBoard({
                   </span>
                 </td>
                 <td className="px-3 py-3.5">
-                  <span
-                    className={`inline-flex rounded-full px-2 py-1 text-xs font-bold ring-1 ${conditionClass(row.weeklyCondition)}`}
-                  >
-                    {row.weeklyCondition || 'Chưa đánh giá'}
-                  </span>
+                  <OptionStatusBadge
+                    label={row.weeklyCondition}
+                    emptyLabel="Chưa đánh giá"
+                    option={weeklyConditionOptions.find(
+                      (option) => option.label === row.weeklyCondition,
+                    )}
+                  />
                 </td>
                 <td className="px-3 py-3.5">
                   <div className="flex items-center justify-end gap-1">

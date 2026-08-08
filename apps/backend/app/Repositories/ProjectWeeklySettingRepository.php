@@ -128,13 +128,14 @@ class ProjectWeeklySettingRepository extends BaseRepository
             return;
         }
 
-        if ($user->hasPermission('weeklyreport.view_department') && $user->department_id) {
-            $departmentId = $user->department_id;
-            $query->where(function (Builder $scope) use ($departmentId): void {
+        $departmentIds = $user->accessibleDepartmentIds();
+
+        if ($user->hasPermission('weeklyreport.view_department') && $departmentIds !== []) {
+            $query->where(function (Builder $scope) use ($departmentIds): void {
                 $scope
-                    ->whereHas('reportOwner', fn (Builder $owner) => $owner->where('department_id', $departmentId))
-                    ->orWhereHas('project.managerUser', fn (Builder $manager) => $manager->where('department_id', $departmentId))
-                    ->orWhereHas('project.salesUser', fn (Builder $sales) => $sales->where('department_id', $departmentId));
+                    ->whereHas('reportOwner', fn (Builder $owner) => $owner->whereIn('department_id', $departmentIds))
+                    ->orWhereHas('project.managerUser', fn (Builder $manager) => $manager->whereIn('department_id', $departmentIds))
+                    ->orWhereHas('project.salesUser', fn (Builder $sales) => $sales->whereIn('department_id', $departmentIds));
             });
 
             return;

@@ -135,6 +135,28 @@ Set-Location ../..
 
 ## 5. Kết nối database VPS từ máy local
 
+Thay toàn bộ database và ảnh upload local bằng dữ liệu production hiện tại:
+
+```powershell
+# CẢNH BÁO: xóa database và ảnh upload local sau khi bản tải về đã được kiểm tra.
+npm run sync:production-data
+```
+
+Lệnh hỏi mật khẩu SSH ở chế độ ẩn, stream database/uploads trực tiếp về máy nên không tạo file backup
+trên VPS. Database production được restore thử vào database tạm trước khi thay database local; file
+trung gian được dọn sau khi hoàn tất. Những lần chạy backend sau đó chỉ tự migrate và bỏ qua seeder
+mẫu khi còn `tooling/backups/last-production-sync.json`.
+
+Nếu chủ động muốn chạy seeder trên snapshot này:
+
+```powershell
+$env:FORCE_LOCAL_SEED = '1'
+npm run dev:backend
+Remove-Item Env:FORCE_LOCAL_SEED
+```
+
+Chỉ kết nối trực tiếp database VPS mà không sao chép dữ liệu:
+
 Mở tunnel và giữ cửa sổ PowerShell này hoạt động:
 
 ```powershell

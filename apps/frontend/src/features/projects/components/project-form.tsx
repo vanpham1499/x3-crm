@@ -317,61 +317,65 @@ export function ProjectForm({
               </div>
             </div>
 
-            <div className="grid gap-4 md:grid-cols-2">
-              <FormInputField
-                label="Link báo cáo tổng khách hàng theo dõi"
-                placeholder="https://docs.google.com/..."
-                disabled={readOnly}
-                slotProps={{
-                  input: {
-                    endAdornment: (
-                      <ExternalLinkAdornment
-                        value={customerTrackingReportLinkValue}
-                        ariaLabel="Mở link báo cáo tổng khách hàng trong tab mới"
-                      />
-                    ),
-                  },
-                }}
-                {...register('customerTrackingReportLink')}
-              />
+            <FormInputField
+              label="Link báo cáo tổng hợp"
+              placeholder="https://docs.google.com/..."
+              disabled={readOnly}
+              slotProps={{
+                input: {
+                  endAdornment: (
+                    <ExternalLinkAdornment
+                      value={customerTrackingReportLinkValue}
+                      ariaLabel="Mở link báo cáo tổng hợp trong tab mới"
+                    />
+                  ),
+                },
+              }}
+              {...register('customerTrackingReportLink')}
+            />
 
+            <div className="grid items-stretch gap-4 md:grid-cols-2">
               <FormInputField
+                multiline
+                minRows={4}
+                maxRows={4}
                 label="Tài khoản Admin Web"
                 placeholder="Tài khoản hoặc thông tin đăng nhập"
                 disabled={readOnly}
+                className="h-full [&_.MuiInputBase-root]:h-full"
                 {...register('adminWebAccount')}
               />
-            </div>
 
-            <div className="grid gap-4 md:grid-cols-2">
-              <Controller
-                name="startDate"
-                control={control}
-                rules={{ required: 'Vui lòng chọn ngày bắt đầu dự án' }}
-                render={({ field }) => (
-                  <FormDatePicker
-                    label="Ngày bắt đầu "
-                    value={field.value}
-                    required
-                    disabled={readOnly}
-                    error={Boolean(errors.startDate)}
-                    helperText={errors.startDate?.message}
-                    onChange={field.onChange}
-                  />
-                )}
-              />
-              <Controller
-                name="endDate"
-                control={control}
-                render={({ field }) => (
-                  <FormDatePicker
-                    label="Ngày kết thúc"
-                    value={field.value}
-                    disabled={readOnly}
-                    onChange={field.onChange}
-                  />
-                )}
-              />
+              <div className="grid h-full gap-4 md:grid-rows-2">
+                <Controller
+                  name="startDate"
+                  control={control}
+                  rules={{ required: 'Vui lòng chọn ngày bắt đầu dự án' }}
+                  render={({ field }) => (
+                    <FormDatePicker
+                      label="Ngày bắt đầu "
+                      value={field.value}
+                      required
+                      disabled={readOnly}
+                      error={Boolean(errors.startDate)}
+                      helperText={errors.startDate?.message}
+                      onChange={field.onChange}
+                    />
+                  )}
+                />
+                <Controller
+                  name="endDate"
+                  control={control}
+                  render={({ field }) => (
+                    <FormDatePicker
+                      label="Ngày kết thúc"
+                      value={field.value}
+                      disabled={readOnly}
+                      onChange={field.onChange}
+                    />
+                  )}
+                />
+              </div>
             </div>
 
             <FormInputField

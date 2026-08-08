@@ -81,6 +81,7 @@ export type Quotation = {
 export type QuotationFilters = {
   keyword: string;
   status: string;
+  created_by: string;
 };
 
 export type QuotationLineFormValue = {

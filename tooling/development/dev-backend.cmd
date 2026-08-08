@@ -4,6 +4,7 @@ setlocal EnableExtensions EnableDelayedExpansion
 set "REPO_ROOT=%~dp0..\.."
 set "BACKEND_ROOT=%REPO_ROOT%\apps\backend"
 set "TOOLING_ROOT=%REPO_ROOT%\tooling"
+set "PRODUCTION_SYNC_MARKER=%TOOLING_ROOT%\backups\last-production-sync.json"
 set "PHP=%PHP_PATH%"
 if "%PHP%"=="" set "PHP=D:\laragon\bin\php\php-8.4.4\php.exe"
 
@@ -48,9 +49,21 @@ if not "%SKIP_DB_SETUP%"=="1" (
   if /I "!ACTIVE_DB_PROFILE!"=="server" (
     echo [dev:backend] DB_PROFILE=server - skipping automatic migrations and seeders.
   ) else (
-    echo [dev:backend] Running migrations and seeders on !ACTIVE_DB_PROFILE! database...
-    "%PHP%" -d extension=pdo_pgsql -d extension=pgsql artisan migrate --seed --force
+    echo [dev:backend] Running migrations on !ACTIVE_DB_PROFILE! database...
+    "%PHP%" -d extension=pdo_pgsql -d extension=pgsql artisan migrate --force
     if errorlevel 1 exit /b %errorlevel%
+
+    if "!FORCE_LOCAL_SEED!"=="1" (
+      echo [dev:backend] FORCE_LOCAL_SEED=1 - running seeders explicitly...
+      "%PHP%" -d extension=pdo_pgsql -d extension=pgsql artisan db:seed --force
+      if errorlevel 1 exit /b %errorlevel%
+    ) else if exist "!PRODUCTION_SYNC_MARKER!" (
+      echo [dev:backend] Production snapshot detected - skipping sample seeders.
+    ) else (
+      echo [dev:backend] Running seeders on local development database...
+      "%PHP%" -d extension=pdo_pgsql -d extension=pgsql artisan db:seed --force
+      if errorlevel 1 exit /b %errorlevel%
+    )
   )
 )
 

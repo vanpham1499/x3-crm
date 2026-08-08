@@ -284,6 +284,7 @@ export default function WeeklyReportsPage() {
             embedded
             reports={reportsPage?.data || []}
             projects={projects}
+            weeklyConditionOptions={weeklyConditionOptions}
             filters={historyFilters}
             isFetching={isHistoryFetching}
             page={historyMeta.currentPage}

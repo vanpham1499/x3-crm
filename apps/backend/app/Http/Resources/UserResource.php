@@ -16,6 +16,14 @@ class UserResource extends JsonResource
             'email' => $this->email,
             'roleId' => $this->role_id,
             'departmentId' => $this->department_id,
+            'ledDepartmentIds' => $this->when(
+                $this->relationLoaded('ledDepartments'),
+                fn (): array => $this->ledDepartments
+                    ->pluck('id')
+                    ->map(fn ($departmentId): int => (int) $departmentId)
+                    ->values()
+                    ->all(),
+            ),
             'role' => $this->role,
             'phone' => $this->phone,
             'avatar' => $this->avatar,

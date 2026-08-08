@@ -11,6 +11,7 @@ import SendRoundedIcon from '@mui/icons-material/SendRounded';
 import VisibilityOutlinedIcon from '@mui/icons-material/VisibilityOutlined';
 import { IconButton, Menu, MenuItem, Tooltip } from '@mui/material';
 import { ConfirmDialog } from '@/components/feedback/confirm-dialog';
+import { OptionStatusBadge } from '@/components/data-display/option-status-badge';
 import { CompactAutocompleteField } from '@/components/form/compact-autocomplete-field';
 import { CompactSelectField } from '@/components/form/compact-select-field';
 import { ListFilterBar } from '@/components/form/list-filter-bar';
@@ -25,6 +26,7 @@ import {
 } from '@/lib/ownership';
 import { formatDate } from '@/lib/utils';
 import type { ProjectItem } from '@/types/project';
+import type { AppOption } from '@/types/option';
 import type { User } from '@/types/user';
 import type { WeeklyReport, WeeklyReportFilters } from '@/types/weekly-report';
 import { WeeklyReportCustomerPreviewDialog } from './weekly-report-customer-preview-dialog';
@@ -34,6 +36,7 @@ type WeeklyReportManagerProps = {
   embedded?: boolean;
   reports: WeeklyReport[];
   projects: ProjectItem[];
+  weeklyConditionOptions: AppOption[];
   filters: WeeklyReportFilters;
   isFetching: boolean;
   isDeleting: boolean;
@@ -68,17 +71,11 @@ function statusClass(status?: string | null) {
   return 'bg-amber-50 text-amber-700 ring-amber-200';
 }
 
-function conditionClass(condition?: string | null) {
-  if (condition === 'Tốt') return 'bg-emerald-50 text-emerald-700 ring-emerald-200';
-  if (condition === 'Rủi ro') return 'bg-rose-50 text-rose-700 ring-rose-200';
-  if (condition === 'Cần theo dõi') return 'bg-amber-50 text-amber-700 ring-amber-200';
-  return 'bg-slate-100 text-slate-500 ring-slate-200';
-}
-
 export function WeeklyReportManager({
   embedded = false,
   reports,
   projects,
+  weeklyConditionOptions,
   filters,
   isFetching,
   isDeleting,
@@ -185,11 +182,13 @@ export function WeeklyReportManager({
               {report.reporter?.name || '-'}
             </td>
             <td className="px-3 py-3.5">
-              <span
-                className={`inline-flex max-w-full truncate rounded-full px-2 py-1 text-xs font-bold ring-1 ${conditionClass(report.weeklyCondition)}`}
-              >
-                {report.weeklyCondition || 'Chưa đánh giá'}
-              </span>
+              <OptionStatusBadge
+                label={report.weeklyCondition}
+                emptyLabel="Chưa đánh giá"
+                option={weeklyConditionOptions.find(
+                  (option) => option.label === report.weeklyCondition,
+                )}
+              />
             </td>
             <td className="px-3 py-3.5">
               <span

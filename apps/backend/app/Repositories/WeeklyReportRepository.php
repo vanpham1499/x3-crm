@@ -92,14 +92,14 @@ class WeeklyReportRepository extends BaseRepository
             return $query;
         }
 
-        if ($user->hasPermission('weeklyreport.view_department') && $user->department_id) {
-            $departmentId = $user->department_id;
+        $departmentIds = $user->accessibleDepartmentIds();
 
-            return $query->where(function (Builder $scope) use ($departmentId): void {
+        if ($user->hasPermission('weeklyreport.view_department') && $departmentIds !== []) {
+            return $query->where(function (Builder $scope) use ($departmentIds): void {
                 $scope
-                    ->whereHas('reporter', fn (Builder $reporter) => $reporter->where('department_id', $departmentId))
-                    ->orWhereHas('project.managerUser', fn (Builder $manager) => $manager->where('department_id', $departmentId))
-                    ->orWhereHas('project.salesUser', fn (Builder $sales) => $sales->where('department_id', $departmentId));
+                    ->whereHas('reporter', fn (Builder $reporter) => $reporter->whereIn('department_id', $departmentIds))
+                    ->orWhereHas('project.managerUser', fn (Builder $manager) => $manager->whereIn('department_id', $departmentIds))
+                    ->orWhereHas('project.salesUser', fn (Builder $sales) => $sales->whereIn('department_id', $departmentIds));
             });
         }
 

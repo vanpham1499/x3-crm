@@ -152,7 +152,7 @@ class CustomersService extends BaseService
         }
 
         if (array_key_exists('customer_name', $data) && is_string($data['customer_name'])) {
-            $data['customer_name'] = trim($data['customer_name']);
+            $data['customer_name'] = mb_strtoupper(trim($data['customer_name']), 'UTF-8');
         }
 
         if (array_key_exists('company_name', $data) && is_string($data['company_name'])) {

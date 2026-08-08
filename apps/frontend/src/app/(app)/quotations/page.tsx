@@ -11,15 +11,17 @@ import api from '@/services/api/client';
 import { useAuthStore } from '@/stores/auth-store';
 import type { PaginatedResponse } from '@/types/pagination';
 import type { Quotation, QuotationFilters } from '@/types/quotation';
+import type { User } from '@/types/user';
 
 const QUOTATIONS_PAGE_SIZE = 10;
 const QUOTATIONS_LIST_QUERY_KEY = ['quotations', 'list'] as const;
-const DEFAULT_QUOTATION_FILTERS: QuotationFilters = { keyword: '', status: '' };
+const DEFAULT_QUOTATION_FILTERS: QuotationFilters = { keyword: '', status: '', created_by: '' };
 
 function quotationParams(filters: QuotationFilters) {
   return {
     keyword: filters.keyword.trim() || undefined,
     status: filters.status || undefined,
+    created_by: filters.created_by || undefined,
   };
 }
 
@@ -33,6 +35,12 @@ export default function QuotationsPage() {
       queryKey: QUOTATIONS_LIST_QUERY_KEY,
       pageSize: QUOTATIONS_PAGE_SIZE,
     });
+
+  const { data: creators = [] } = useQuery<User[]>({
+    queryKey: ['users', 'quotation-filter-options'],
+    queryFn: () =>
+      api.get<User[]>('/users/lookup?context=quotation').then((response) => response.data),
+  });
 
   const {
     data: quotationsPage,
@@ -96,6 +104,7 @@ export default function QuotationsPage() {
       isFetching={isFetching}
       isDeleting={deleteMutation.isPending}
       currentUser={currentUser}
+      creators={creators}
       onPageChange={setPage}
       onPageSizeChange={setPageSize}
       onFiltersChange={onFiltersChange}
