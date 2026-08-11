@@ -16,6 +16,7 @@ import { FormSelectField } from '@/components/form/form-select-field';
 import { MoneyInput } from '@/components/form/money-input';
 import { ServerPaginatedAutocomplete } from '@/components/form/server-paginated-autocomplete';
 import { applyApiErrorsToForm } from '@/lib/api-error';
+import { formatCustomerIdentity } from '@/lib/customer-utils';
 import { projectStatusRequiresWeeklyReport } from '@/lib/option-utils';
 import { generateProjectCode, getProjectDefaults, getRootServiceCode } from '@/lib/project-utils';
 import { flattenServices } from '@/lib/service-utils';
@@ -43,9 +44,7 @@ type ProjectFormProps = {
 };
 
 function customerLabel(customer: ProjectCustomerSummary) {
-  return [customer.customerCode, customer.customerName || customer.companyName]
-    .filter(Boolean)
-    .join(' - ');
+  return formatCustomerIdentity(customer);
 }
 
 function userLabel(user: User) {
@@ -290,7 +289,7 @@ export function ProjectForm({
                       endAdornment: (
                         <ExternalLinkAdornment
                           value={planLinkValue}
-                          ariaLabel="Mở link plan trong tab mới"
+                          ariaLabel="Mở Link Driver khách hàng trong tab mới"
                         />
                       ),
                     },

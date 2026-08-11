@@ -11,7 +11,6 @@ import HistoryRoundedIcon from '@mui/icons-material/HistoryRounded';
 import InfoRoundedIcon from '@mui/icons-material/InfoRounded';
 import LinkRoundedIcon from '@mui/icons-material/LinkRounded';
 import MoreVertRoundedIcon from '@mui/icons-material/MoreVertRounded';
-import VisibilityRoundedIcon from '@mui/icons-material/VisibilityRounded';
 import { IconButton, Menu, MenuItem } from '@mui/material';
 import { DialogActionButton } from '@/components/actions/dialog-action-button';
 import { AppDetailDialog } from '@/components/dialog/app-detail-dialog';
@@ -24,11 +23,12 @@ import { ListFilterBar } from '@/components/form/list-filter-bar';
 import { IconTabs } from '@/components/navigation/icon-tabs';
 import { PageHeader } from '@/components/shell/page-header';
 import { AppDataTable } from '@/components/table/app-data-table';
-import { EntityTableLink } from '@/components/table/entity-table-link';
+import { EntityTableButton } from '@/components/table/entity-table-link';
 import { ServiceTableCell } from '@/components/table/service-table-cell';
 import { TablePaginationBar } from '@/components/table/table-pagination-bar';
 import { UserDateTimeCell } from '@/components/table/user-date-time-cell';
 import { EntityTimelineList } from '@/components/timeline/entity-timeline-list';
+import { formatCustomerIdentity } from '@/lib/customer-utils';
 import { formatProjectDate, getProjectExternalUrl } from '@/lib/project-utils';
 import { getOptionColor } from '@/lib/option-utils';
 import { flattenServices } from '@/lib/service-utils';
@@ -99,12 +99,7 @@ function InlineProjectStatusSelect({
 }
 
 function projectCustomerIdentity(project: ProjectItem) {
-  const customer = project.customer;
-  if (!customer) return '-';
-
-  return [customer.customerCode, customer.customerName || customer.companyName]
-    .filter(Boolean)
-    .join(' - ');
+  return formatCustomerIdentity(project.customer);
 }
 
 function projectServiceIdentity(project: ProjectItem) {
@@ -117,7 +112,7 @@ function ProjectDetailRow({ label, value }: { label: string; value?: string | nu
   const displayValue = value === null || value === undefined || value === '' ? '-' : value;
 
   return (
-    <div className="grid grid-cols-[128px_minmax(0,1fr)] gap-3 text-sm">
+    <div className="grid grid-cols-[160px_minmax(0,1fr)] gap-3 text-sm">
       <dt className="font-semibold text-slate-500">{label}</dt>
       <dd className="min-w-0 break-words font-semibold text-slate-800">{displayValue}</dd>
     </div>
@@ -257,8 +252,8 @@ function ProjectViewDialog({
           <div role="tabpanel" aria-label="Liên kết dự án" className="p-4">
             <section className="rounded-xl border border-slate-200 bg-white p-5">
               <div className="grid gap-x-8 gap-y-4 md:grid-cols-2">
-                <div className="grid grid-cols-[128px_minmax(0,1fr)] gap-3 text-sm">
-                  <span className="font-semibold text-slate-500">Plan</span>
+                <div className="grid grid-cols-[160px_minmax(0,1fr)] gap-3 text-sm">
+                  <span className="font-semibold text-slate-500">Link Driver khách hàng</span>
                   {project.planLink ? (
                     <a
                       href={getProjectExternalUrl(project.planLink)}
@@ -273,7 +268,7 @@ function ProjectViewDialog({
                     <span className="font-semibold text-slate-800">-</span>
                   )}
                 </div>
-                <div className="grid grid-cols-[128px_minmax(0,1fr)] gap-3 text-sm">
+                <div className="grid grid-cols-[160px_minmax(0,1fr)] gap-3 text-sm">
                   <span className="font-semibold text-slate-500">Link BC tổng hợp</span>
                   {project.customerTrackingReportLink ? (
                     <a
@@ -294,7 +289,7 @@ function ProjectViewDialog({
               </div>
 
               <div className="mt-5 border-t border-slate-100 pt-5">
-                <div className="grid grid-cols-[128px_minmax(0,1fr)] gap-3 text-sm">
+                <div className="grid grid-cols-[160px_minmax(0,1fr)] gap-3 text-sm">
                   <span className="font-semibold text-slate-500">Danh sách báo phí</span>
                   {linkedQuotations.length > 0 ? (
                     <div className="flex min-w-0 flex-wrap gap-2">
@@ -397,11 +392,6 @@ export function ProjectManager({
     setViewTab(0);
   };
 
-  const viewActiveProject = () => {
-    if (activeProject) viewProject(activeProject);
-    closeActionMenu();
-  };
-
   return (
     <div className="min-h-[calc(100vh-72px)] w-full bg-slate-50/60 p-6">
       <PageHeader
@@ -471,7 +461,7 @@ export function ProjectManager({
             { key: 'startDate', label: 'Bắt đầu', className: 'w-32' },
             { key: 'endDate', label: 'Kết thúc', className: 'w-32' },
             { key: 'created', label: 'Người tạo', className: 'w-[150px]' },
-            { key: 'actions', className: 'w-28' },
+            { key: 'actions', className: 'w-20' },
           ]}
           isLoading={isFetching}
           isEmpty={projects.length === 0}
@@ -483,12 +473,13 @@ export function ProjectManager({
               <tr key={project.id} className="group hover:bg-slate-50/80">
                 <td className="sticky left-0 z-10 bg-white px-3 py-4 group-hover:bg-slate-50">
                   <div className="min-w-0">
-                    <EntityTableLink
-                      href={`/projects/${project.id}`}
+                    <EntityTableButton
                       title={project.projectCode || project.projectName}
+                      ariaLabel={`Xem chi tiết dự án ${project.projectCode || project.projectName}`}
+                      onClick={() => viewProject(project)}
                     >
                       {project.projectCode || '-'}
-                    </EntityTableLink>
+                    </EntityTableButton>
                   </div>
                 </td>
                 <td className="px-3 py-4">
@@ -496,9 +487,9 @@ export function ProjectManager({
                     <Link
                       href={`/customers/${project.customer.id}`}
                       className="block truncate font-semibold text-slate-800 transition-colors hover:text-primary"
-                      title={project.customer.customerName || project.customer.companyName || ''}
+                      title={formatCustomerIdentity(project.customer, '')}
                     >
-                      {project.customer.customerName || project.customer.companyName || '-'}
+                      {formatCustomerIdentity(project.customer)}
                     </Link>
                   ) : (
                     <span className="text-slate-500">-</span>
@@ -534,14 +525,6 @@ export function ProjectManager({
                 <td className="py-4">
                   <div className="flex items-center justify-end gap-1 pr-3">
                     <IconButton
-                      size="small"
-                      title="Xem chi tiết dự án"
-                      aria-label={`Xem chi tiết dự án ${project.projectCode || project.projectName}`}
-                      onClick={() => viewProject(project)}
-                    >
-                      <VisibilityRoundedIcon fontSize="small" />
-                    </IconButton>
-                    <IconButton
                       component={Link}
                       href={`/projects/${project.id}`}
                       size="small"
@@ -576,10 +559,6 @@ export function ProjectManager({
         />
 
         <Menu anchorEl={menuAnchorEl} open={Boolean(menuAnchorEl)} onClose={closeActionMenu}>
-          <MenuItem onClick={viewActiveProject}>
-            <VisibilityRoundedIcon fontSize="small" className="mr-2 text-slate-500" />
-            Xem chi tiết
-          </MenuItem>
           <MenuItem
             component={Link}
             href={activeProject ? `/projects/${activeProject.id}` : '/projects'}

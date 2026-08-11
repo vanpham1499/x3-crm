@@ -19,6 +19,7 @@ import { ProjectFinancePanel } from '@/features/projects/components/project-fina
 import { ProjectForm } from '@/features/projects/components/project-form';
 import { AD_TOPUP_CARD_OPTION_GROUP } from '@/lib/ad-topup-card-options';
 import { getApiErrorMessage } from '@/lib/api-error';
+import { formatCustomerIdentity } from '@/lib/customer-utils';
 import { canEditProject } from '@/lib/ownership';
 import {
   calculateAvailableTopupBudget,
@@ -311,7 +312,7 @@ export default function EditProjectPage() {
             </span>
           </div>
           <div className="mt-3 flex flex-wrap gap-x-5 gap-y-1 text-sm font-semibold text-slate-600">
-            <span>{project.customer?.customerName || project.customer?.companyName || '-'}</span>
+            <span>{formatCustomerIdentity(project.customer)}</span>
             <span>
               {[project.service?.code, project.service?.name].filter(Boolean).join(' · ') || '-'}
             </span>

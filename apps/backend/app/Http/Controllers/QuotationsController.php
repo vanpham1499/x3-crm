@@ -23,6 +23,7 @@ class QuotationsController extends Controller
             'contractId' => $request->query('contract_id'),
             'serviceId' => $request->query('service_id'),
             'status' => $request->query('status'),
+            'createdById' => $request->query('created_by'),
             'allocationOpen' => $request->query('allocation_open'),
         ];
 

@@ -3,9 +3,8 @@
 import { useState } from 'react';
 import Link from 'next/link';
 import AddRoundedIcon from '@mui/icons-material/AddRounded';
-import VisibilityRoundedIcon from '@mui/icons-material/VisibilityRounded';
-import { IconButton } from '@mui/material';
 import { TabActionButton } from '@/components/actions/tab-action-button';
+import { EntityTableButton } from '@/components/table/entity-table-link';
 import { TablePaginationBar } from '@/components/table/table-pagination-bar';
 import { QuotationPreviewDialog } from '@/features/quotations/components/quotation-preview-dialog';
 import { getPaymentDisplayStatus } from '@/lib/payment-display-status';
@@ -153,13 +152,10 @@ export function ProjectFinancePanel({
             <table className="w-full min-w-[560px] table-fixed text-left text-sm">
               <thead className="border-y border-slate-200 bg-slate-100 text-sm font-bold text-slate-700">
                 <tr>
-                  <th className="w-[42%] px-4 py-3">Báo phí</th>
-                  <th className="w-[19%] px-3 py-3 text-right">Tổng báo</th>
-                  <th className="w-[19%] px-3 py-3 text-right">Đã thu / trả</th>
-                  <th className="w-[15%] px-3 py-3 text-right">Còn thu</th>
-                  <th className="w-[8%] px-2 py-3">
-                    <span className="sr-only">Tác vụ</span>
-                  </th>
+                  <th className="w-[46%] px-4 py-3">Báo phí</th>
+                  <th className="w-[20%] px-3 py-3 text-right">Tổng báo</th>
+                  <th className="w-[20%] px-3 py-3 text-right">Đã thu / trả</th>
+                  <th className="w-[14%] px-3 py-3 text-right">Còn thu</th>
                 </tr>
               </thead>
               <tbody className="divide-y divide-slate-100">
@@ -183,12 +179,13 @@ export function ProjectFinancePanel({
                     <tr key={quotation.id} className="hover:bg-slate-50/70">
                       <td className="min-w-0 px-4 py-3">
                         <div className="flex min-w-0 items-center gap-2">
-                          <Link
-                            href={`/quotations/${quotation.id}`}
-                            className="truncate font-bold text-emerald-700 hover:underline"
+                          <EntityTableButton
+                            title={quotation.quotationCode || `#${quotation.id}`}
+                            ariaLabel={`Xem chi tiết báo phí ${quotation.quotationCode || quotation.id}`}
+                            onClick={() => setPreviewTarget(quotation)}
                           >
                             {quotation.quotationCode || `#${quotation.id}`}
-                          </Link>
+                          </EntityTableButton>
                           <span className="shrink-0 rounded bg-slate-100 px-1.5 py-0.5 text-[11px] font-bold text-slate-500">
                             {paymentStatusLabel}
                           </span>
@@ -225,16 +222,6 @@ export function ProjectFinancePanel({
                         className={`px-3 py-3 text-right font-bold tabular-nums ${remaining > 0 ? 'text-rose-700' : 'text-slate-500'}`}
                       >
                         <span className="whitespace-nowrap">{formatCurrency(remaining)}</span>
-                      </td>
-                      <td className="px-2 py-3 text-right">
-                        <IconButton
-                          size="small"
-                          title="Xem chi tiết báo phí"
-                          aria-label={`Xem chi tiết báo phí ${quotation.quotationCode || quotation.id}`}
-                          onClick={() => setPreviewTarget(quotation)}
-                        >
-                          <VisibilityRoundedIcon fontSize="small" />
-                        </IconButton>
                       </td>
                     </tr>
                   );

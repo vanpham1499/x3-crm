@@ -182,8 +182,15 @@ export function WeeklyReportForm({
   }, [report, reportDueDate]);
 
   const submitForm = async () => {
+    const normalizedWeeklyCondition = weeklyCondition.trim();
+
+    if (!normalizedWeeklyCondition) {
+      setFieldErrors({ weeklyCondition: 'Vui lòng chọn tình trạng tuần.' });
+      return;
+    }
+
     const payload: Record<string, unknown> = {
-      weeklyCondition: weeklyCondition.trim() || null,
+      weeklyCondition: normalizedWeeklyCondition,
       weeklySpendAmount: Number(weeklySpendAmount) || 0,
       averageWeeklyBudget: Number(averageWeeklyBudget) || 0,
       remainingAccountBudget: Number(remainingAccountBudget) || 0,
@@ -291,12 +298,20 @@ export function WeeklyReportForm({
               <FormSelectField
                 label="Tình trạng tuần"
                 value={weeklyCondition}
+                required
                 disabled={isReadOnly}
                 error={Boolean(fieldErrors.weeklyCondition)}
                 helperText={fieldErrors.weeklyCondition}
-                onChange={(event) => setWeeklyCondition(event.target.value)}
+                onChange={(event) => {
+                  setWeeklyCondition(event.target.value);
+                  if (fieldErrors.weeklyCondition) {
+                    setFieldErrors((current) => ({ ...current, weeklyCondition: '' }));
+                  }
+                }}
               >
-                <MenuItem value="">Chưa đánh giá</MenuItem>
+                <MenuItem value="" disabled>
+                  Chọn tình trạng tuần
+                </MenuItem>
                 {selectableWeeklyConditions.map((option) => (
                   <MenuItem key={option.id} value={option.label} disabled={!option.isActive}>
                     <span className="flex min-w-0 items-center gap-2">

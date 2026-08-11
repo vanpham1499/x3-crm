@@ -12,6 +12,7 @@ import { FormSection } from '@/components/form/form-section';
 import { FormSelectField } from '@/components/form/form-select-field';
 import { ServerPaginatedAutocomplete } from '@/components/form/server-paginated-autocomplete';
 import { getApiFieldErrors } from '@/lib/api-error';
+import { formatCustomerIdentity } from '@/lib/customer-utils';
 import type { Customer } from '@/types/customer';
 import type { Lead } from '@/types/lead';
 import type { Meeting, MeetingPayload, MeetingRelatedType, MeetingType } from '@/types/meeting';
@@ -58,7 +59,7 @@ function relatedLabel(
 
   if (relatedType === 'customer') {
     const customer = related as Customer;
-    return [customer.customerCode, customer.customerName].filter(Boolean).join(' - ');
+    return formatCustomerIdentity(customer);
   }
 
   const project = related as ProjectItem;
@@ -283,9 +284,7 @@ export function MeetingFormDialog({
                 required
                 error={Boolean(fieldErrors.related || fieldErrors.customerId)}
                 helperText={fieldErrors.related || fieldErrors.customerId}
-                getOptionLabel={(option) =>
-                  [option.customerCode, option.customerName].filter(Boolean).join(' - ')
-                }
+                getOptionLabel={(option) => formatCustomerIdentity(option)}
                 onChange={(value) => handleRelatedChange(value, 'customer')}
               />
             ) : (

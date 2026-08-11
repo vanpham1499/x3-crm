@@ -8,6 +8,7 @@ import { ContentLoading } from '@/components/shell/content-loading';
 import { CustomerManager } from '@/features/customers/components/customer-manager';
 import { useServerListState } from '@/hooks/use-server-list-state';
 import { getApiErrorMessage } from '@/lib/api-error';
+import { formatCustomerIdentity } from '@/lib/customer-utils';
 import api from '@/services/api/client';
 import { useAuthStore } from '@/stores/auth-store';
 import type { Customer, CustomerFilters } from '@/types/customer';
@@ -142,7 +143,7 @@ export default function CustomersPage() {
       <ConfirmDialog
         open={Boolean(deleteTarget)}
         title="Xóa khách hàng?"
-        description={`Bạn có chắc muốn xóa khách hàng "${deleteTarget?.customerName || deleteTarget?.customerCode || ''}"?`}
+        description={`Bạn có chắc muốn xóa khách hàng "${formatCustomerIdentity(deleteTarget, '')}"?`}
         confirmText="Xóa khách hàng"
         loading={deleteMutation.isPending}
         onClose={() => setDeleteTarget(null)}

@@ -16,7 +16,7 @@ import { CompactAutocompleteField } from '@/components/form/compact-autocomplete
 import { CompactSelectField } from '@/components/form/compact-select-field';
 import { ListFilterBar } from '@/components/form/list-filter-bar';
 import { AppDataTable } from '@/components/table/app-data-table';
-import { EntityTableLink } from '@/components/table/entity-table-link';
+import { EntityTableButton, EntityTableLink } from '@/components/table/entity-table-link';
 import { TablePaginationBar } from '@/components/table/table-pagination-bar';
 import {
   canApproveWeeklyReport,
@@ -148,92 +148,97 @@ export function WeeklyReportManager({
 
       <AppDataTable
         columns={[
+          { key: 'report', label: 'Nhân sự / Kỳ dữ liệu', className: 'w-[300px]' },
           { key: 'project', label: 'Dự án', className: 'w-[260px]' },
-          { key: 'period', label: 'Kỳ dữ liệu', className: 'w-[220px]' },
           { key: 'due', label: 'Hạn báo cáo', className: 'w-[150px]' },
-          { key: 'reporter', label: 'Người thực hiện', className: 'w-[180px]' },
           { key: 'condition', label: 'Tình trạng tuần', className: 'w-[160px]' },
           { key: 'status', label: 'Tiến độ', className: 'w-[130px]' },
-          { key: 'actions', className: 'w-[132px]' },
+          { key: 'actions', className: 'w-24' },
         ]}
         isLoading={isFetching}
         isEmpty={reports.length === 0}
         emptyText="Chưa có báo cáo tuần"
-        minWidthClassName="min-w-[1150px]"
+        minWidthClassName="min-w-[1132px]"
       >
-        {reports.map((report) => (
-          <tr key={report.id} className="hover:bg-slate-50/80">
-            <td className="px-3 py-3.5">
-              <EntityTableLink
-                href={`/weekly-reports/${report.id}`}
-                tone="blue"
-                title={report.project?.projectCode || undefined}
-              >
-                {report.project?.projectCode || `Dự án #${report.projectId}`}
-              </EntityTableLink>
-            </td>
-            <td className="whitespace-nowrap px-3 py-3.5 font-medium text-slate-700">
-              {formatDate(report.weekStartDate)} – {formatDate(report.weekEndDate)}
-            </td>
-            <td className="whitespace-nowrap px-3 py-3.5 font-medium text-slate-700">
-              {report.dueDate ? formatDate(report.dueDate) : '-'}
-            </td>
-            <td className="truncate px-3 py-3.5 font-medium text-slate-700">
-              {report.reporter?.name || '-'}
-            </td>
-            <td className="px-3 py-3.5">
-              <OptionStatusBadge
-                label={report.weeklyCondition}
-                emptyLabel="Chưa đánh giá"
-                option={weeklyConditionOptions.find(
-                  (option) => option.label === report.weeklyCondition,
-                )}
-              />
-            </td>
-            <td className="px-3 py-3.5">
-              <span
-                className={`inline-flex rounded-full px-2 py-1 text-xs font-bold ring-1 ${statusClass(report.status)}`}
-              >
-                {STATUS_LABELS[report.status] || report.status}
-              </span>
-            </td>
-            <td className="px-3 py-3.5 text-right">
-              <div className="flex items-center justify-end gap-1">
-                <Tooltip title="Bản gửi khách">
-                  <IconButton
-                    size="small"
-                    aria-label={`Mở bản gửi khách ${report.project?.projectCode || report.id}`}
-                    onClick={() => setCustomerPreviewTarget(report)}
-                  >
-                    <VisibilityOutlinedIcon fontSize="small" />
-                  </IconButton>
-                </Tooltip>
-                {canUpdateWeeklyReport(currentUser, report) ? (
-                  <Tooltip title="Chỉnh sửa báo cáo">
+        {reports.map((report) => {
+          const reporterLabel = report.reporter?.name || '-';
+          const periodLabel = `${formatDate(report.weekStartDate)} – ${formatDate(report.weekEndDate)}`;
+
+          return (
+            <tr key={report.id} className="hover:bg-slate-50/80">
+              <td className="px-3 py-3.5">
+                <EntityTableButton
+                  tone="neutral"
+                  title={`${reporterLabel} · ${periodLabel}`}
+                  className="group"
+                  ariaLabel={`Mở bản gửi khách ${report.project?.projectCode || report.id}`}
+                  onClick={() => setCustomerPreviewTarget(report)}
+                >
+                  <span className="block truncate text-slate-900">{reporterLabel}</span>
+                  <span className="mt-1 block truncate text-xs font-medium tabular-nums text-slate-500 transition-colors group-hover:text-primary/70">
+                    {periodLabel}
+                  </span>
+                </EntityTableButton>
+              </td>
+              <td className="px-3 py-3.5">
+                <EntityTableLink
+                  href={`/projects/${report.projectId}`}
+                  tone="blue"
+                  title={report.project?.projectCode || undefined}
+                >
+                  {report.project?.projectCode || `Dự án #${report.projectId}`}
+                </EntityTableLink>
+              </td>
+              <td className="whitespace-nowrap px-3 py-3.5 font-medium text-slate-700">
+                {report.dueDate ? formatDate(report.dueDate) : '-'}
+              </td>
+              <td className="px-3 py-3.5">
+                <OptionStatusBadge
+                  label={report.weeklyCondition}
+                  emptyLabel="Chưa đánh giá"
+                  option={weeklyConditionOptions.find(
+                    (option) => option.label === report.weeklyCondition,
+                  )}
+                />
+              </td>
+              <td className="px-3 py-3.5">
+                <span
+                  className={`inline-flex rounded-full px-2 py-1 text-xs font-bold ring-1 ${statusClass(report.status)}`}
+                >
+                  {STATUS_LABELS[report.status] || report.status}
+                </span>
+              </td>
+              <td className="px-3 py-3.5 text-right">
+                <div className="flex items-center justify-end gap-1">
+                  {canUpdateWeeklyReport(currentUser, report) ? (
+                    <Tooltip title="Chỉnh sửa báo cáo">
+                      <IconButton
+                        component={Link}
+                        href={`/weekly-reports/${report.id}`}
+                        size="small"
+                        color={
+                          ['draft', 'rejected'].includes(report.status) ? 'primary' : 'default'
+                        }
+                        aria-label={`Chỉnh sửa báo cáo ${report.project?.projectCode || report.id}`}
+                      >
+                        <EditRoundedIcon fontSize="small" />
+                      </IconButton>
+                    </Tooltip>
+                  ) : null}
+                  <Tooltip title="Tác vụ">
                     <IconButton
-                      component={Link}
-                      href={`/weekly-reports/${report.id}`}
                       size="small"
-                      color={['draft', 'rejected'].includes(report.status) ? 'primary' : 'default'}
-                      aria-label={`Chỉnh sửa báo cáo ${report.project?.projectCode || report.id}`}
+                      aria-label={`Tác vụ báo cáo ${report.project?.projectCode || report.id}`}
+                      onClick={(event) => openActionMenu(event, report)}
                     >
-                      <EditRoundedIcon fontSize="small" />
+                      <MoreVertRoundedIcon fontSize="small" />
                     </IconButton>
                   </Tooltip>
-                ) : null}
-                <Tooltip title="Tác vụ">
-                  <IconButton
-                    size="small"
-                    aria-label={`Tác vụ báo cáo ${report.project?.projectCode || report.id}`}
-                    onClick={(event) => openActionMenu(event, report)}
-                  >
-                    <MoreVertRoundedIcon fontSize="small" />
-                  </IconButton>
-                </Tooltip>
-              </div>
-            </td>
-          </tr>
-        ))}
+                </div>
+              </td>
+            </tr>
+          );
+        })}
       </AppDataTable>
 
       <TablePaginationBar

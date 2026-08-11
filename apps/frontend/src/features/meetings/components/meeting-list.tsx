@@ -8,12 +8,12 @@ import EditRoundedIcon from '@mui/icons-material/EditRounded';
 import EventAvailableRoundedIcon from '@mui/icons-material/EventAvailableRounded';
 import MoreVertRoundedIcon from '@mui/icons-material/MoreVertRounded';
 import PersonOffOutlinedIcon from '@mui/icons-material/PersonOffOutlined';
-import VisibilityOutlinedIcon from '@mui/icons-material/VisibilityOutlined';
 import { IconButton, Menu, MenuItem, Tooltip } from '@mui/material';
 import dayjs from 'dayjs';
 import { AppDataTable } from '@/components/table/app-data-table';
-import { EntityTableLink } from '@/components/table/entity-table-link';
+import { EntityTableButton, EntityTableLink } from '@/components/table/entity-table-link';
 import { TablePaginationBar } from '@/components/table/table-pagination-bar';
+import { formatCustomerIdentity } from '@/lib/customer-utils';
 import type { Meeting } from '@/types/meeting';
 
 type MeetingListProps = {
@@ -71,10 +71,7 @@ function relatedInfo(meeting: Meeting) {
 
   if (meeting.customer) {
     return {
-      label:
-        meeting.customer.customerCode ||
-        meeting.customer.customerName ||
-        `Khách hàng #${meeting.customer.id}`,
+      label: formatCustomerIdentity(meeting.customer, `Khách hàng #${meeting.customer.id}`),
       href: `/customers/${meeting.customer.id}`,
     };
   }
@@ -129,7 +126,7 @@ export function MeetingList({
           { key: 'organizer', label: 'Người phụ trách', className: 'w-[180px]' },
           { key: 'type', label: 'Hình thức', className: 'w-[120px]' },
           { key: 'status', label: 'Trạng thái', className: 'w-[145px]' },
-          { key: 'actions', className: 'w-[132px]' },
+          { key: 'actions', className: 'w-24' },
         ]}
         isLoading={isFetching}
         isEmpty={meetings.length === 0}
@@ -151,14 +148,15 @@ export function MeetingList({
                 </span>
               </td>
               <td className="px-3 py-3.5">
-                <button
-                  type="button"
-                  className="block max-w-full truncate text-left font-bold text-slate-900 hover:text-primary"
+                <EntityTableButton
+                  tone="neutral"
+                  className="text-slate-900"
                   title={meeting.subject}
+                  ariaLabel={`Xem lịch hẹn ${meeting.subject}`}
                   onClick={() => onView(meeting)}
                 >
                   {meeting.subject}
-                </button>
+                </EntityTableButton>
                 <span className="mt-1 block text-xs font-semibold text-slate-400">
                   {meeting.meetingCode}
                 </span>
@@ -183,15 +181,6 @@ export function MeetingList({
               </td>
               <td className="px-3 py-3.5 text-right">
                 <div className="flex items-center justify-end gap-1">
-                  <Tooltip title="Xem lịch hẹn">
-                    <IconButton
-                      size="small"
-                      aria-label={`Xem lịch hẹn ${meeting.meetingCode || meeting.id}`}
-                      onClick={() => onView(meeting)}
-                    >
-                      <VisibilityOutlinedIcon fontSize="small" />
-                    </IconButton>
-                  </Tooltip>
                   <Tooltip title="Chỉnh sửa lịch hẹn">
                     <span>
                       <IconButton

@@ -6,7 +6,6 @@ import AddRoundedIcon from '@mui/icons-material/AddRounded';
 import DeleteRoundedIcon from '@mui/icons-material/DeleteRounded';
 import EditRoundedIcon from '@mui/icons-material/EditRounded';
 import MoreVertRoundedIcon from '@mui/icons-material/MoreVertRounded';
-import VisibilityRoundedIcon from '@mui/icons-material/VisibilityRounded';
 import { Avatar, IconButton, Menu, MenuItem } from '@mui/material';
 import { DialogActionButton } from '@/components/actions/dialog-action-button';
 import { AppDetailDialog } from '@/components/dialog/app-detail-dialog';
@@ -15,6 +14,7 @@ import { CompactSelectField } from '@/components/form/compact-select-field';
 import { ListFilterBar } from '@/components/form/list-filter-bar';
 import { PageHeader } from '@/components/shell/page-header';
 import { AppDataTable } from '@/components/table/app-data-table';
+import { EntityTableButton } from '@/components/table/entity-table-link';
 import { TablePaginationBar } from '@/components/table/table-pagination-bar';
 import { usePagination } from '@/hooks/use-pagination';
 import { getMediaPreviewUrl } from '@/lib/media-url';
@@ -207,7 +207,7 @@ export function UserList({
             { key: 'status', label: 'Trạng thái', className: 'w-36' },
             { key: 'created', label: 'Ngày tạo', className: 'w-36' },
             { key: 'updated', label: 'Cập nhật', className: 'w-36' },
-            { key: 'actions', className: 'w-32' },
+            { key: 'actions', className: 'w-24' },
           ]}
           isLoading={isFetching}
           isEmpty={pageItems.length === 0}
@@ -217,9 +217,14 @@ export function UserList({
           {pageItems.map((user) => (
             <tr key={user.id} className="group hover:bg-slate-50/80">
               <td className="sticky left-0 z-10 bg-white px-3 py-4 font-bold text-slate-900 group-hover:bg-slate-50">
-                <span className="block truncate" title={user.code || ''}>
+                <EntityTableButton
+                  title={user.code || ''}
+                  tone="neutral"
+                  ariaLabel={`Xem chi tiết nhân viên ${user.code || user.name || user.id}`}
+                  onClick={() => setViewTarget(user)}
+                >
                   {user.code || '-'}
-                </span>
+                </EntityTableButton>
               </td>
               <td className="px-3 py-4">
                 <div className="flex min-w-0 items-center gap-3">
@@ -260,14 +265,6 @@ export function UserList({
               <td className="py-4">
                 <div className="flex items-center justify-end gap-1 pr-3">
                   <IconButton
-                    size="small"
-                    aria-label="Xem chi tiết nhân viên"
-                    title="Xem chi tiết nhân viên"
-                    onClick={() => setViewTarget(user)}
-                  >
-                    <VisibilityRoundedIcon fontSize="small" />
-                  </IconButton>
-                  <IconButton
                     component={Link}
                     href={`/users/${user.id}`}
                     size="small"
@@ -301,15 +298,6 @@ export function UserList({
       </section>
 
       <Menu anchorEl={menuAnchorEl} open={Boolean(menuAnchorEl)} onClose={closeActionMenu}>
-        <MenuItem
-          onClick={() => {
-            setViewTarget(activeUser);
-            closeActionMenu();
-          }}
-        >
-          <VisibilityRoundedIcon fontSize="small" className="mr-2 text-slate-500" />
-          Xem chi tiết
-        </MenuItem>
         <MenuItem
           component={Link}
           href={activeUser ? `/users/${activeUser.id}` : '/users'}

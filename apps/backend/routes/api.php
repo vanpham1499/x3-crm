@@ -174,6 +174,7 @@ Route::middleware(['auth:sanctum', 'active'])->group(function (): void {
 
     Route::middleware('permission:meeting.view')->group(function (): void {
         Route::get('/meetings/summary', [MeetingsController::class, 'summary']);
+        Route::get('/meetings/organizers', [MeetingsController::class, 'organizers']);
         Route::get('/meetings', [MeetingsController::class, 'index']);
         Route::post('/meetings', [MeetingsController::class, 'store'])->middleware('permission:meeting.create');
         Route::get('/meetings/{id}', [MeetingsController::class, 'show']);

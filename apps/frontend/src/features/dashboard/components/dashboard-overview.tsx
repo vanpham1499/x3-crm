@@ -37,6 +37,7 @@ import type {
   DashboardServiceRow,
 } from '@/types/dashboard';
 import { DashboardPeriodFilterBar } from './dashboard-period-filters';
+import { LeadReportSection } from './lead-report-section';
 
 type DashboardOverviewProps = {
   report: DashboardReport;
@@ -1329,6 +1330,8 @@ function ScopedDashboardOverview({
           )}
         </div>
       </div>
+
+      <LeadReportSection report={report.leadReport} />
     </div>
   );
 }
@@ -1507,6 +1510,8 @@ export function DashboardOverview({
           <AnalysisSection report={report} isFetching={isFetching} />
         </div>
       </div>
+
+      <LeadReportSection report={report.leadReport} />
     </div>
   );
 }

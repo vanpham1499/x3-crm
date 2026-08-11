@@ -54,6 +54,7 @@ export default function PaymentsPage() {
   const queryClient = useQueryClient();
   const notify = useAppNotification();
   const currentUser = useAuthStore((state) => state.user);
+  const [isExporting, setIsExporting] = useState(false);
 
   useEffect(() => {
     setActiveTab(searchParams.get('tab') === 'refunds' ? 'refunds' : 'incoming');
@@ -253,6 +254,20 @@ export default function PaymentsPage() {
     onError: (error) => notify.error(getApiErrorMessage(error, 'Không thể hủy phân bổ')),
   });
 
+  const exportPayments = async () => {
+    setIsExporting(true);
+
+    try {
+      const { exportPaymentsWorkbook } = await import('@/features/payments/lib/export-payments');
+      await exportPaymentsWorkbook(requestFilters, requestRefundFilters);
+      notify.success('Đã xuất file Excel thanh toán.');
+    } catch (error) {
+      notify.error(getApiErrorMessage(error, 'Không thể xuất file Excel thanh toán.'));
+    } finally {
+      setIsExporting(false);
+    }
+  };
+
   if (isLoading || (activeTab === 'refunds' && isRefundsLoading)) {
     return <ContentLoading />;
   }
@@ -274,6 +289,7 @@ export default function PaymentsPage() {
       refundPageSize={refundPageSize}
       isFetching={isFetching}
       isRefundsFetching={isRefundsFetching}
+      isExporting={isExporting}
       isMutating={
         allocateMutation.isPending ||
         refundMutation.isPending ||
@@ -290,6 +306,7 @@ export default function PaymentsPage() {
       onRefundPageChange={setRefundPage}
       onRefundPageSizeChange={setRefundPageSize}
       onRefundFiltersChange={onRefundFiltersChange}
+      onExport={() => void exportPayments()}
       onAllocate={(paymentId, allocations) =>
         allocateMutation.mutateAsync({ paymentId, allocations })
       }

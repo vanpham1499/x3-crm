@@ -11,7 +11,6 @@ import InfoRoundedIcon from '@mui/icons-material/InfoRounded';
 import LanguageRoundedIcon from '@mui/icons-material/LanguageRounded';
 import LinkRoundedIcon from '@mui/icons-material/LinkRounded';
 import MoreVertRoundedIcon from '@mui/icons-material/MoreVertRounded';
-import VisibilityRoundedIcon from '@mui/icons-material/VisibilityRounded';
 import WorkRoundedIcon from '@mui/icons-material/WorkRounded';
 import { IconButton, Menu, MenuItem } from '@mui/material';
 import { DialogActionButton } from '@/components/actions/dialog-action-button';
@@ -24,9 +23,10 @@ import { ImageLightbox } from '@/components/media/image-lightbox';
 import { IconTabs } from '@/components/navigation/icon-tabs';
 import { PageHeader } from '@/components/shell/page-header';
 import { AppDataTable } from '@/components/table/app-data-table';
-import { EntityTableLink } from '@/components/table/entity-table-link';
+import { EntityTableButton } from '@/components/table/entity-table-link';
 import { TablePaginationBar } from '@/components/table/table-pagination-bar';
 import { UserDateTimeCell } from '@/components/table/user-date-time-cell';
+import { formatCustomerIdentity } from '@/lib/customer-utils';
 import { canCreateProjectForCustomer, canDeleteCustomer, canEditCustomer } from '@/lib/ownership';
 import { getMediaPreviewUrl } from '@/lib/media-url';
 import { getOptionColor } from '@/lib/option-utils';
@@ -111,22 +111,6 @@ function InfoPill({
       <span className="truncate">{value || '-'}</span>
     </span>
   );
-}
-
-function getCustomerIdentity(customer: Customer) {
-  const customerCode = customer.customerCode?.trim();
-  const customerName = (
-    customer.customerName?.trim() ||
-    customer.companyName?.trim() ||
-    ''
-  ).toLocaleUpperCase('vi-VN');
-
-  if (!customerCode) return customerName || '-';
-  if (!customerName || customerCode.toLowerCase().includes(customerName.toLowerCase())) {
-    return customerCode;
-  }
-
-  return `${customerCode}.${customerName}`;
 }
 
 function CustomerDetailRow({ label, value }: { label: string; value?: string | number | null }) {
@@ -225,8 +209,8 @@ function CustomerViewDialog({
   return (
     <AppDetailDialog
       open
-      title={customer.customerName || customer.companyName || 'Khách hàng'}
-      eyebrow={customer.customerCode || `Customer #${customer.id}`}
+      title={formatCustomerIdentity(customer, 'Khách hàng')}
+      eyebrow="Khách hàng"
       loading={isLoading}
       onClose={onClose}
       actions={
@@ -264,7 +248,7 @@ function CustomerViewDialog({
           <div role="tabpanel" aria-label="Thông tin khách hàng" className="p-4">
             <section className="rounded-xl border border-slate-200 bg-white p-5">
               <dl className="grid gap-x-8 gap-y-4 md:grid-cols-2">
-                <CustomerDetailRow label="Tên khách hàng" value={customer.customerName} />
+                <CustomerDetailRow label="Khách hàng" value={formatCustomerIdentity(customer)} />
                 <CustomerDetailRow label="Tên công ty / cá nhân" value={customer.companyName} />
                 <CustomerDetailRow label="Số điện thoại" value={customer.phone} />
                 <CustomerDetailRow label="Email liên hệ" value={customer.email} />
@@ -397,11 +381,6 @@ export function CustomerManager({
     setViewTab(0);
   };
 
-  const viewActiveCustomer = () => {
-    if (activeCustomer) viewCustomer(activeCustomer);
-    closeActionMenu();
-  };
-
   const createProjectForActiveCustomer = () => {
     if (activeCustomer) router.push(`/projects/new?customerId=${activeCustomer.id}`);
     closeActionMenu();
@@ -478,7 +457,7 @@ export function CustomerManager({
             { key: 'company', label: 'Tên công ty / cá nhân', className: 'w-48' },
             { key: 'sales', label: 'Người phụ trách', className: 'w-44' },
             { key: 'created', label: 'Người tạo', className: 'w-40' },
-            { key: 'actions', className: 'w-36' },
+            { key: 'actions', className: 'w-32' },
           ]}
           isLoading={isFetching}
           isEmpty={customers.length === 0}
@@ -486,14 +465,18 @@ export function CustomerManager({
           minWidthClassName="min-w-[1260px]"
         >
           {customers.map((customer) => {
-            const customerIdentity = getCustomerIdentity(customer);
+            const customerIdentity = formatCustomerIdentity(customer);
 
             return (
               <tr key={customer.id} className="group hover:bg-slate-50/80">
                 <td className="sticky left-0 z-10 bg-white px-3 py-4 group-hover:bg-slate-50">
-                  <EntityTableLink href={`/customers/${customer.id}`} title={customerIdentity}>
+                  <EntityTableButton
+                    title={customerIdentity}
+                    ariaLabel={`Xem chi tiết khách hàng ${customerIdentity}`}
+                    onClick={() => viewCustomer(customer)}
+                  >
                     {customerIdentity}
-                  </EntityTableLink>
+                  </EntityTableButton>
                 </td>
                 <td className="px-3 py-4">
                   <InfoPill
@@ -527,13 +510,6 @@ export function CustomerManager({
                 <td className="py-4">
                   <div className="flex items-center justify-end gap-1 pr-3">
                     <IconButton
-                      size="small"
-                      title="Xem chi tiết khách hàng"
-                      onClick={() => viewCustomer(customer)}
-                    >
-                      <VisibilityRoundedIcon fontSize="small" />
-                    </IconButton>
-                    <IconButton
                       component={Link}
                       href={`/customers/${customer.id}`}
                       size="small"
@@ -566,10 +542,6 @@ export function CustomerManager({
         </AppDataTable>
 
         <Menu anchorEl={menuAnchorEl} open={Boolean(menuAnchorEl)} onClose={closeActionMenu}>
-          <MenuItem onClick={viewActiveCustomer}>
-            <VisibilityRoundedIcon fontSize="small" className="mr-2 text-slate-500" />
-            Xem chi tiết
-          </MenuItem>
           <MenuItem
             onClick={editActiveCustomer}
             disabled={!activeCustomer || !canEditCustomer(currentUser, activeCustomer)}

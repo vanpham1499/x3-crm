@@ -5,6 +5,7 @@ import BusinessOutlinedIcon from '@mui/icons-material/BusinessOutlined';
 import ContactPhoneOutlinedIcon from '@mui/icons-material/ContactPhoneOutlined';
 import ManageAccountsOutlinedIcon from '@mui/icons-material/ManageAccountsOutlined';
 import { TabActionButton } from '@/components/actions/tab-action-button';
+import { formatCustomerIdentity } from '@/lib/customer-utils';
 import type { Customer } from '@/types/customer';
 
 type CustomerDetail = {
@@ -67,8 +68,7 @@ export function ProjectCustomerPanel({ customer }: { customer?: Customer | null 
     );
   }
 
-  const customerName = customer.customerName || customer.companyName || '-';
-  const customerIdentity = [customer.customerCode, customerName].filter(Boolean).join('.');
+  const customerIdentity = formatCustomerIdentity(customer);
   const customerType = customer.customerTypeOption?.label || customer.customerType;
   const salesUser = customer.salesUser;
   const salesLabel = [salesUser?.code, salesUser?.name].filter(Boolean).join(' - ');

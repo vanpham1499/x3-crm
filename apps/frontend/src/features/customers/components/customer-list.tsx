@@ -18,6 +18,7 @@ import {
   CUSTOMER_ALL_STATUS,
   CUSTOMER_STATUS_TABS,
   CustomerPillTone,
+  formatCustomerIdentity,
   getCustomerLink,
   getCustomerPillToneClass,
   getCustomerSearchText,
@@ -296,7 +297,7 @@ export function CustomerList({
                       <div className="w-[316px] rounded-xl border border-slate-100 bg-white p-3 shadow-sm group-hover:border-slate-200">
                         <div className="flex min-w-0 items-center gap-2">
                           <p className="truncate font-semibold text-slate-950">
-                            {customer.customerCode || '-'}
+                            {formatCustomerIdentity(customer)}
                           </p>
                           {customer.phone && (
                             <span className="inline-flex shrink-0 items-center gap-1 rounded-full bg-sky-50 px-1.5 py-0.5 text-[11px] font-bold text-sky-700 ring-1 ring-sky-100">

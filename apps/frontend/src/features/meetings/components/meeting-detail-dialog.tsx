@@ -9,6 +9,7 @@ import PersonOffOutlinedIcon from '@mui/icons-material/PersonOffOutlined';
 import dayjs from 'dayjs';
 import { DialogActionButton } from '@/components/actions/dialog-action-button';
 import { AppDetailDialog } from '@/components/dialog/app-detail-dialog';
+import { formatCustomerIdentity } from '@/lib/customer-utils';
 import type { Meeting } from '@/types/meeting';
 
 type MeetingDetailDialogProps = {
@@ -52,9 +53,7 @@ function relatedLabel(meeting: Meeting) {
   }
 
   if (meeting.customer) {
-    return [meeting.customer.customerCode, meeting.customer.customerName]
-      .filter(Boolean)
-      .join(' - ');
+    return formatCustomerIdentity(meeting.customer);
   }
 
   return [meeting.lead?.leadCode, meeting.lead?.customerName].filter(Boolean).join(' - ');

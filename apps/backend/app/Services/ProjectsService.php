@@ -578,7 +578,7 @@ class ProjectsService extends BaseService
     private function displayFieldValue(Project $project, string $field): string
     {
         return match ($field) {
-            'customer_id' => $project->customer?->customer_name ?: $this->emptyValue(),
+            'customer_id' => $project->customer?->displayLabel($this->emptyValue()) ?: $this->emptyValue(),
             'service_id' => $project->service?->name ?: $this->emptyValue(),
             'status_option_id' => $this->displayOption($project->statusOption),
             'manager_user_id' => $project->managerUser?->name ?: $this->emptyValue(),

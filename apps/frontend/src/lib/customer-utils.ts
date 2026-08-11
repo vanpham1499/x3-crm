@@ -6,6 +6,29 @@ export const CUSTOMER_STATUS_TABS = [CUSTOMER_ALL_STATUS, 'Fail', 'Theo dõi', '
 
 export type CustomerPillTone = 'blue' | 'violet' | 'slate';
 
+type CustomerIdentitySource = {
+  customerCode?: string | null;
+  customerName?: string | null;
+  companyName?: string | null;
+};
+
+export function formatCustomerIdentity(customer?: CustomerIdentitySource | null, fallback = '-') {
+  if (!customer) return fallback;
+
+  const code = customer.customerCode?.trim().toLocaleUpperCase('vi-VN') || '';
+  const name = (customer.customerName || customer.companyName || '')
+    .trim()
+    .toLocaleUpperCase('vi-VN');
+
+  if (!code) return name || fallback;
+  if (!name || name === code) return name || code;
+
+  const escapedCode = code.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
+  const nameWithoutLegacyCode = name.replace(new RegExp(`^${escapedCode}(?:[-.·\\s]+)`, 'u'), '');
+
+  return nameWithoutLegacyCode ? `${code}-${nameWithoutLegacyCode}` : code;
+}
+
 export function getCustomerStatusClass(status: string) {
   if (status === '4.CHỐT') return 'bg-emerald-100 text-emerald-800 ring-1 ring-emerald-200';
   if (status === 'Theo dõi') return 'bg-amber-100 text-amber-800 ring-1 ring-amber-200';

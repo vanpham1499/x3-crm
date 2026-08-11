@@ -9,8 +9,21 @@ function quotationBudget(quotation: Quotation) {
 function quotationBudgetWithVat(quotation: Quotation) {
   const budget = quotationBudget(quotation);
   const vatRate = Math.max(0, Number(quotation.vatRate) || 0);
+  const extraTopupBudget = (quotation.items || []).reduce((sum, item) => {
+    if (item.metadata?.countsTowardTopupBudget !== true) return sum;
 
-  return budget + Math.round((budget * vatRate) / 100);
+    if (item.amountAfterVat !== null && item.amountAfterVat !== undefined) {
+      const amountAfterVat = Number(item.amountAfterVat);
+      if (Number.isFinite(amountAfterVat)) return sum + amountAfterVat;
+    }
+
+    const amountBeforeVat = Number(item.amountBeforeVat) || 0;
+    const itemVatRate = Math.max(0, Number(item.vatRate) || 0);
+
+    return sum + amountBeforeVat + Math.round((amountBeforeVat * itemVatRate) / 100);
+  }, 0);
+
+  return budget + Math.round((budget * vatRate) / 100) + extraTopupBudget;
 }
 
 function topupBudgetUsed(cost: ProjectCost) {

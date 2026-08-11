@@ -40,6 +40,10 @@ class UpdateQuotationRequest extends BaseRequest
             'validUntil' => ['sometimes', 'nullable', 'date'],
             'note' => ['sometimes', 'nullable', 'string'],
             'metadata' => ['sometimes', 'nullable', 'array'],
+            'topup_budget_item_ids' => ['sometimes', 'array'],
+            'topup_budget_item_ids.*' => ['integer'],
+            'topupBudgetItemIds' => ['sometimes', 'array'],
+            'topupBudgetItemIds.*' => ['integer'],
             'items' => ['sometimes', 'nullable', 'array'],
             'items.*.service_id' => ['nullable', 'integer', Rule::exists('services', 'id')->whereNull('deleted_at')],
             'items.*.serviceId' => ['nullable', 'integer', Rule::exists('services', 'id')->whereNull('deleted_at')],
@@ -62,6 +66,7 @@ class UpdateQuotationRequest extends BaseRequest
             'items.*.sort_order' => ['nullable', 'integer', 'min:0'],
             'items.*.sortOrder' => ['nullable', 'integer', 'min:0'],
             'items.*.metadata' => ['nullable', 'array'],
+            'items.*.metadata.countsTowardTopupBudget' => ['sometimes', 'boolean'],
         ];
     }
 }

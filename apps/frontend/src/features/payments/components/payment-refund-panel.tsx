@@ -23,7 +23,9 @@ import { ListFilterBar } from '@/components/form/list-filter-bar';
 import { MoneyInput } from '@/components/form/money-input';
 import { AppDataTable } from '@/components/table/app-data-table';
 import { EntityTableLink } from '@/components/table/entity-table-link';
+import { isInteractiveTableTarget } from '@/components/table/row-interaction';
 import { TablePaginationBar } from '@/components/table/table-pagination-bar';
+import { formatCustomerIdentity } from '@/lib/customer-utils';
 import type {
   PaymentRefund,
   PaymentRefundFilters,
@@ -474,7 +476,14 @@ export function PaymentRefundPanel({
         minWidthClassName="min-w-[1580px]"
       >
         {refunds.map((refund) => (
-          <tr key={refund.id} className="hover:bg-slate-50/80">
+          <tr
+            key={refund.id}
+            className="cursor-pointer hover:bg-slate-50/80"
+            onClick={(event) => {
+              if (isInteractiveTableTarget(event.target)) return;
+              setViewTarget(refund);
+            }}
+          >
             <td className="whitespace-nowrap px-3 py-3.5 font-semibold tabular-nums text-slate-700">
               {formatDate(
                 refund.status === 'completed'
@@ -496,11 +505,9 @@ export function PaymentRefundPanel({
               {refund.customer ? (
                 <span
                   className="block truncate font-bold text-slate-900"
-                  title={refund.customer.customerName || ''}
+                  title={formatCustomerIdentity(refund.customer, '')}
                 >
-                  {[refund.customer.customerCode, refund.customer.customerName]
-                    .filter(Boolean)
-                    .join(' · ')}
+                  {formatCustomerIdentity(refund.customer)}
                 </span>
               ) : (
                 <span className="text-slate-400">Chưa xác định</span>

@@ -74,6 +74,20 @@ class MeetingsService extends BaseService
         ];
     }
 
+    public function organizerOptions(): Collection
+    {
+        $this->authorize('viewAny', Meeting::class);
+
+        return $this->meetings
+            ->findVisibleOrganizers($this->requiredUser())
+            ->map(fn (User $user): array => [
+                'id' => $user->id,
+                'code' => $user->code,
+                'name' => $user->name,
+            ])
+            ->values();
+    }
+
     public function findOne(string $id): array
     {
         $meeting = $this->meetings->findVisibleOrFail($this->requiredUser(), $id);

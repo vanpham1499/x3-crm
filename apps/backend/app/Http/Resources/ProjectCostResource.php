@@ -2,6 +2,7 @@
 
 namespace App\Http\Resources;
 
+use App\Support\ProjectTopupBudgetCalculator;
 use Illuminate\Http\Request;
 use Illuminate\Http\Resources\Json\JsonResource;
 
@@ -10,6 +11,9 @@ class ProjectCostResource extends JsonResource
     public function toArray(Request $request): array
     {
         $cidIncident = $this->relationLoaded('cidIncident') ? $this->cidIncident : null;
+        $topupBudget = $this->relationLoaded('project') && $this->project
+            ? ProjectTopupBudgetCalculator::calculate($this->project)
+            : null;
 
         return [
             'id' => $this->id,
@@ -58,6 +62,7 @@ class ProjectCostResource extends JsonResource
                 'projectCode' => $this->project->project_code,
                 'projectName' => $this->project->project_name,
                 'projectType' => $this->project->project_type,
+                'availableTopupBudget' => $topupBudget['availableBudget'] ?? null,
                 'customer' => $this->project->relationLoaded('customer') && $this->project->customer ? [
                     'id' => $this->project->customer->id,
                     'customerCode' => $this->project->customer->customer_code,

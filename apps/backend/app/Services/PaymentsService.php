@@ -448,7 +448,7 @@ class PaymentsService extends BaseService
 
         return implode(' · ', array_filter([
             number_format((float) $payment->amount, 0, ',', '.').' đ',
-            $projectNames ?: $payment->customer?->customer_name,
+            $projectNames ?: $payment->customer?->displayLabel(''),
             $payment->sender_name,
         ]));
     }
@@ -457,7 +457,7 @@ class PaymentsService extends BaseService
     {
         return implode(' · ', array_filter([
             number_format((float) $refund->amount, 0, ',', '.').' đ',
-            $refund->project?->project_name ?: $refund->customer?->customer_name,
+            $refund->project?->project_name ?: $refund->customer?->displayLabel(''),
             $refund->reason,
         ]));
     }

@@ -14,6 +14,7 @@ import x3salesLogo from '@assets/logos/x3sales-logo.svg';
 import { DialogActionButton } from '@/components/actions/dialog-action-button';
 import { AppDetailDialog } from '@/components/dialog/app-detail-dialog';
 import { useAppNotification } from '@/components/feedback/notification-provider';
+import { formatCustomerIdentity } from '@/lib/customer-utils';
 import { getMediaPreviewUrl } from '@/lib/media-url';
 import { formatDate } from '@/lib/utils';
 import api from '@/services/api/client';
@@ -75,7 +76,7 @@ export function WeeklyReportCustomerPreviewDialog({
   const projectName =
     currentReport.project?.projectName || currentReport.project?.projectCode || 'Báo cáo tuần';
   const projectCode = currentReport.project?.projectCode || `Báo cáo #${currentReport.id}`;
-  const customerName = currentReport.customer?.customerName || 'Khách hàng';
+  const customerName = formatCustomerIdentity(currentReport.customer, 'Khách hàng');
   const imageAttachments = (currentReport.attachments || []).filter(
     (attachment) => !attachment.mimeType || attachment.mimeType.startsWith('image/'),
   );
@@ -213,7 +214,7 @@ export function WeeklyReportCustomerPreviewDialog({
 
             <section className="overflow-hidden rounded-xl border border-slate-200">
               <h3 className="border-b border-slate-200 bg-slate-100 px-5 py-3 text-base font-black uppercase text-slate-950">
-                2. Chỉ tiêu tuần qua
+                2. Chi tiêu tuần qua
               </h3>
               <div className="grid grid-cols-4 gap-4 p-5">
                 <MetricCard

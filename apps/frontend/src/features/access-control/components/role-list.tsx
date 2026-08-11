@@ -7,7 +7,6 @@ import DeleteRoundedIcon from '@mui/icons-material/DeleteRounded';
 import EditRoundedIcon from '@mui/icons-material/EditRounded';
 import MoreVertRoundedIcon from '@mui/icons-material/MoreVertRounded';
 import SecurityRoundedIcon from '@mui/icons-material/SecurityRounded';
-import VisibilityRoundedIcon from '@mui/icons-material/VisibilityRounded';
 import { Checkbox, IconButton, Menu, MenuItem } from '@mui/material';
 import { DialogActionButton } from '@/components/actions/dialog-action-button';
 import { AppDetailDialog } from '@/components/dialog/app-detail-dialog';
@@ -15,6 +14,7 @@ import { CompactSearchField } from '@/components/form/compact-search-field';
 import { ListFilterBar } from '@/components/form/list-filter-bar';
 import { PageHeader } from '@/components/shell/page-header';
 import { AppDataTable } from '@/components/table/app-data-table';
+import { EntityTableButton } from '@/components/table/entity-table-link';
 import { TablePaginationBar } from '@/components/table/table-pagination-bar';
 import { usePagination } from '@/hooks/use-pagination';
 import { getPermissionModuleLabel, groupPermissionsByModule } from '@/lib/access-control-utils';
@@ -224,7 +224,7 @@ export function RoleList({
             { key: 'permissions', label: 'Số quyền', className: 'w-32' },
             { key: 'created', label: 'Ngày tạo', className: 'w-36' },
             { key: 'updated', label: 'Cập nhật', className: 'w-36' },
-            { key: 'actions', className: 'w-32' },
+            { key: 'actions', className: 'w-24' },
           ]}
           isLoading={isFetching}
           isEmpty={roles.length === 0}
@@ -260,9 +260,15 @@ export function RoleList({
                     <span className="inline-flex h-9 w-9 shrink-0 items-center justify-center rounded-lg bg-primary/10 text-primary">
                       <SecurityRoundedIcon className="!text-[19px]" />
                     </span>
-                    <p className="truncate font-bold text-slate-950" title={role.name || ''}>
+                    <EntityTableButton
+                      title={role.name || ''}
+                      tone="neutral"
+                      className="min-w-0 text-slate-950"
+                      ariaLabel={`Xem chi tiết vai trò ${role.name || role.id}`}
+                      onClick={() => setViewTarget(role)}
+                    >
                       {role.name || '-'}
-                    </p>
+                    </EntityTableButton>
                   </div>
                 </td>
                 <td className="px-3 py-4">
@@ -279,14 +285,6 @@ export function RoleList({
                 <td className="px-3 py-4 text-slate-500">{formatDate(role.updatedAt || '')}</td>
                 <td className="py-4">
                   <div className="flex items-center justify-end gap-1 pr-3">
-                    <IconButton
-                      size="small"
-                      aria-label="Xem chi tiết vai trò"
-                      title="Xem chi tiết vai trò"
-                      onClick={() => setViewTarget(role)}
-                    >
-                      <VisibilityRoundedIcon fontSize="small" />
-                    </IconButton>
                     <IconButton
                       component={Link}
                       href={`/users/roles/${role.id}`}
@@ -322,15 +320,6 @@ export function RoleList({
       </section>
 
       <Menu anchorEl={menuAnchorEl} open={Boolean(menuAnchorEl)} onClose={closeActionMenu}>
-        <MenuItem
-          onClick={() => {
-            setViewTarget(activeRole);
-            closeActionMenu();
-          }}
-        >
-          <VisibilityRoundedIcon fontSize="small" className="mr-2 text-slate-500" />
-          Xem chi tiết
-        </MenuItem>
         <MenuItem
           component={Link}
           href={activeRole ? `/users/roles/${activeRole.id}` : '/users/roles'}

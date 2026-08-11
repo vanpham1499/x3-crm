@@ -46,6 +46,11 @@ class MeetingsController extends Controller
         return $this->success($this->meetings->summary());
     }
 
+    public function organizers(): JsonResponse
+    {
+        return $this->success($this->meetings->organizerOptions());
+    }
+
     public function show(string $id): JsonResponse
     {
         return $this->success($this->meetings->findOne($id));

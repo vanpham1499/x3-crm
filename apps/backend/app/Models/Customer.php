@@ -83,6 +83,28 @@ class Customer extends BaseModel
         return $user->sharesDepartmentWith($this->salesUser);
     }
 
+    public function displayLabel(string $fallback = '-'): string
+    {
+        $code = mb_strtoupper(trim((string) $this->customer_code), 'UTF-8');
+        $name = mb_strtoupper(trim((string) ($this->customer_name ?: $this->company_name)), 'UTF-8');
+
+        if ($code === '') {
+            return $name !== '' ? $name : $fallback;
+        }
+
+        if ($name === '' || $name === $code) {
+            return $name !== '' ? $name : $code;
+        }
+
+        $nameWithoutLegacyCode = preg_replace(
+            '/^'.preg_quote($code, '/').'[-.·\s]+/u',
+            '',
+            $name,
+        ) ?? $name;
+
+        return $nameWithoutLegacyCode !== '' ? $code.'-'.$nameWithoutLegacyCode : $code;
+    }
+
     public function projects(): HasMany
     {
         return $this->hasMany(Project::class);

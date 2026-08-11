@@ -105,6 +105,7 @@ export type ProjectCost = {
     projectCode?: string | null;
     projectName?: string | null;
     projectType?: string | null;
+    availableTopupBudget?: string | number | null;
     customer?: {
       id: number;
       customerCode?: string | null;

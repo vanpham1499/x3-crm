@@ -3,9 +3,9 @@
 import Image from 'next/image';
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import CheckCircleRoundedIcon from '@mui/icons-material/CheckCircleRounded';
+import DownloadRoundedIcon from '@mui/icons-material/DownloadRounded';
 import EditRoundedIcon from '@mui/icons-material/EditRounded';
 import PhotoCameraRoundedIcon from '@mui/icons-material/PhotoCameraRounded';
-import PictureAsPdfRoundedIcon from '@mui/icons-material/PictureAsPdfRounded';
 import ReceiptLongRoundedIcon from '@mui/icons-material/ReceiptLongRounded';
 import VisibilityRoundedIcon from '@mui/icons-material/VisibilityRounded';
 import { useQuery } from '@tanstack/react-query';
@@ -16,6 +16,7 @@ import { AppDetailDialog } from '@/components/dialog/app-detail-dialog';
 import { useAppNotification } from '@/components/feedback/notification-provider';
 import { MoneyInput } from '@/components/form/money-input';
 import { ImageLightbox } from '@/components/media/image-lightbox';
+import { formatCustomerIdentity } from '@/lib/customer-utils';
 import { downloadElementAsPdf } from '@/lib/download-element-pdf';
 import { getMediaPreviewUrl } from '@/lib/media-url';
 import { getQuotationPaymentContent } from '@/lib/quotation-utils';
@@ -456,7 +457,9 @@ export function QuotationPreviewDialog({
 
   const reconciliationImages = quotation.accountReconciliationImageUrls || [];
   const partyName =
-    quotation.customer?.customerName || quotation.lead?.customerName || 'Chưa xác định khách hàng';
+    (quotation.customer ? formatCustomerIdentity(quotation.customer, '') : '') ||
+    quotation.lead?.customerName ||
+    'Chưa xác định khách hàng';
   const statusLabel =
     quotation.status === 'refunded'
       ? Number(quotation.compensationAmount) > 0
@@ -602,7 +605,7 @@ export function QuotationPreviewDialog({
               Chỉnh sửa
             </DialogActionButton>
             <DialogActionButton
-              startIcon={<PictureAsPdfRoundedIcon />}
+              startIcon={<DownloadRoundedIcon />}
               disabled={isDownloadingPdf || Boolean(requestedPaymentError)}
               onClick={() => void downloadCustomerPdf()}
             >

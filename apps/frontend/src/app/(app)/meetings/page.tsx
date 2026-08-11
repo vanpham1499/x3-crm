@@ -61,6 +61,8 @@ type SaveIntent = {
   payload: MeetingPayload;
 };
 
+type MeetingOrganizerOption = Pick<User, 'id' | 'code' | 'name'>;
+
 function conflictMessages(error: unknown): string[] {
   const conflicts = (error as { response?: { data?: { errors?: { conflicts?: unknown } } } })
     ?.response?.data?.errors?.conflicts;
@@ -131,6 +133,12 @@ export default function MeetingsPage() {
     queryKey: ['users', 'meeting-options'],
     queryFn: () =>
       api.get<User[]>('/users/lookup?context=meeting').then((response) => response.data),
+  });
+
+  const { data: organizerUsers = [] } = useQuery<MeetingOrganizerOption[]>({
+    queryKey: ['meetings', 'organizer-options'],
+    queryFn: () =>
+      api.get<MeetingOrganizerOption[]>('/meetings/organizers').then((response) => response.data),
   });
 
   const { data: departments = [] } = useQuery<Department[]>({
@@ -405,12 +413,10 @@ export default function MeetingsPage() {
             <CompactAutocompleteField
               label="Người phụ trách"
               value={filters.organizerUserId}
-              options={users
-                .filter((user) => user.isActive !== false)
-                .map((user) => ({
-                  value: String(user.id),
-                  label: [user.code, user.name].filter(Boolean).join(' - '),
-                }))}
+              options={organizerUsers.map((user) => ({
+                value: String(user.id),
+                label: [user.code, user.name].filter(Boolean).join(' - '),
+              }))}
               onChange={(value) => updateFilter('organizerUserId', value)}
             />
           </div>

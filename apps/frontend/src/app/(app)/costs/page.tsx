@@ -1,6 +1,6 @@
 'use client';
 
-import { useEffect } from 'react';
+import { useEffect, useState } from 'react';
 import { keepPreviousData, useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import { useAppNotification } from '@/components/feedback/notification-provider';
 import { CostManager } from '@/features/costs/components/cost-manager';
@@ -12,6 +12,7 @@ import type {
   ProjectCost,
   ProjectCostFilters,
   ProjectCostReconciliationInput,
+  ProjectCostStatus,
 } from '@/types/project-cost';
 
 const COSTS_PAGE_SIZE = 10;
@@ -44,6 +45,7 @@ function costParams(filters: ProjectCostFilters) {
 export default function CostsPage() {
   const queryClient = useQueryClient();
   const notify = useAppNotification();
+  const [isExporting, setIsExporting] = useState(false);
   const { filters, requestFilters, page, pageSize, setPage, setPageSize, onFiltersChange } =
     useServerListState<ProjectCostFilters>({
       initialFilters: DEFAULT_COST_FILTERS,
@@ -134,6 +136,46 @@ export default function CostsPage() {
       notify.error(getApiErrorMessage(error, 'Không thể xác nhận báo cáo CID ngừng')),
   });
 
+  const statusMutation = useMutation({
+    mutationFn: ({ cost, status }: { cost: ProjectCost; status: ProjectCostStatus }) =>
+      api
+        .patch<ProjectCost>(`/project-costs/${cost.id}`, { status })
+        .then((response) => response.data),
+    onSuccess: (updatedCost) => {
+      queryClient.setQueriesData<PaginatedResponse<ProjectCost>>(
+        { queryKey: COSTS_LIST_QUERY_KEY },
+        (currentPage) =>
+          currentPage
+            ? {
+                ...currentPage,
+                data: currentPage.data.map((cost) =>
+                  cost.id === updatedCost.id ? updatedCost : cost,
+                ),
+              }
+            : currentPage,
+      );
+      void queryClient.invalidateQueries({ queryKey: ['project-costs'] });
+      void queryClient.invalidateQueries({ queryKey: ['projects'] });
+      notify.success('Cập nhật trạng thái chi thành công');
+    },
+    onError: (error) =>
+      notify.error(getApiErrorMessage(error, 'Không thể cập nhật trạng thái chi')),
+  });
+
+  const exportCosts = async () => {
+    setIsExporting(true);
+
+    try {
+      const { exportCostsWorkbook } = await import('@/features/costs/lib/export-costs');
+      await exportCostsWorkbook(requestFilters);
+      notify.success('Đã xuất file Excel chi phí.');
+    } catch (error) {
+      notify.error(getApiErrorMessage(error, 'Không thể xuất file Excel chi phí.'));
+    } finally {
+      setIsExporting(false);
+    }
+  };
+
   return (
     <CostManager
       costs={costs}
@@ -143,13 +185,19 @@ export default function CostsPage() {
       totalPages={pagination.lastPage}
       totalItems={pagination.total}
       isFetching={isFetching || isLoading}
+      isExporting={isExporting}
       onFiltersChange={onFiltersChange}
       onPageChange={setPage}
       onPageSizeChange={setPageSize}
+      onExport={() => void exportCosts()}
       isReconciling={reconcileMutation.isPending}
       isConfirmingCid={confirmCidMutation.isPending}
+      updatingStatusCostId={
+        statusMutation.isPending ? statusMutation.variables?.cost.id || null : null
+      }
       onReconcile={(costId, payload) => reconcileMutation.mutateAsync({ costId, payload })}
       onConfirmCid={(costId) => confirmCidMutation.mutateAsync(costId)}
+      onStatusChange={(cost, status) => statusMutation.mutate({ cost, status })}
     />
   );
 }

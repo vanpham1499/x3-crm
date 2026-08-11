@@ -10,6 +10,7 @@ import { ContentLoading } from '@/components/shell/content-loading';
 import { PageHeader } from '@/components/shell/page-header';
 import { CustomerApiForm } from '@/features/customers/components/customer-api-form';
 import { buildCustomerPayload, customerToFormValues } from '@/lib/customer-form-utils';
+import { formatCustomerIdentity } from '@/lib/customer-utils';
 import { getApiErrorMessage } from '@/lib/api-error';
 import { canEditCustomer } from '@/lib/ownership';
 import api from '@/services/api/client';
@@ -79,11 +80,11 @@ export default function EditCustomerPage() {
   return (
     <div className="flex min-h-[calc(100vh-72px)] flex-col bg-slate-50/60 px-6 pt-6">
       <PageHeader
-        title={customer.customerName || customer.companyName}
+        title={formatCustomerIdentity(customer, 'Khách hàng')}
         currentLabel="Hồ sơ"
         eyebrow={
           <span className="rounded-md bg-slate-100 px-2 py-1 text-xs font-bold text-slate-600">
-            Customer {customer.customerCode}
+            Customer
           </span>
         }
       />

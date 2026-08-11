@@ -286,7 +286,7 @@ class LeadsService extends BaseService
     {
         $data = $this->normalizeProjectKeys($data);
         $serviceId = $data['service_id'] ?? $quotation?->service_id;
-        $projectName = $data['project_name'] ?? $this->quotationProjectName($quotation) ?? (($customer['customerName'] ?? $lead->customer_name).' - '.($quotation?->service_name ?? 'Project'));
+        $projectName = $data['project_name'] ?? $this->quotationProjectName($quotation) ?? (($customer['customerName'] ?? $lead->customer_name) . ' - ' . ($quotation?->service_name ?? 'Project'));
 
         if (! $serviceId) {
             throw new ConflictHttpException('Cần service_id hoặc quotation có service để tạo project');
@@ -296,7 +296,7 @@ class LeadsService extends BaseService
             'customer_id' => $customer['id'],
             'quotation_id' => $quotation?->id,
             'service_id' => $serviceId,
-            'project_name' => ($customer['customerName'] ?? $lead->customer_name).' - '.($quotation?->service_name ?? 'Dự án'),
+            'project_name' => ($customer['customerName'] ?? $lead->customer_name) . ' - ' . ($quotation?->service_name ?? 'Dự án'),
             'sales_user_id' => $lead->assigned_user_id,
             'note' => $lead->note,
         ], $data, [
@@ -396,7 +396,7 @@ class LeadsService extends BaseService
             return [];
         }
 
-        return array_values(array_unique(array_filter($rawIds, fn ($id) => is_string($id) && $id !== '')));
+        return array_values(array_unique(array_filter($rawIds, fn($id) => is_string($id) && $id !== '')));
     }
 
     private function loadLeadRelations(Lead $lead): Lead
@@ -416,11 +416,11 @@ class LeadsService extends BaseService
                 'module' => 'lead',
                 'event_key' => $eventKey,
                 'title' => $eventKey === 'lead_assigned' ? 'Bạn được phân công Lead mới' : 'Lead được phân công lại cho bạn',
-                'message' => trim(($lead->lead_code ? $lead->lead_code.' · ' : '').$lead->customer_name),
+                'message' => trim(($lead->lead_code ? $lead->lead_code . ' · ' : '') . $lead->customer_name),
                 'severity' => 'info',
                 'entity_type' => 'lead',
                 'entity_id' => $lead->id,
-                'action_url' => '/leads/'.$lead->id,
+                'action_url' => '/leads/' . $lead->id,
                 'dedupe_key' => implode(':', [$eventKey, $lead->id, $lead->assigned_user_id, $lead->updated_at?->format('YmdHisu')]),
             ],
         );
@@ -532,7 +532,7 @@ class LeadsService extends BaseService
             'phone' => 'Số điện thoại',
             'website' => 'Website',
             'industry' => 'Ngành nghề text',
-            'plan_link' => 'Link plan',
+            'plan_link' => 'Link Driver khách hàng',
             'zalo_group' => 'Nhóm Zalo',
             'note' => 'Note',
             'closed_date' => 'Ngày đóng',
@@ -587,7 +587,7 @@ class LeadsService extends BaseService
     private function formatOptionCollection(Collection $options): string
     {
         $labels = $options
-            ->map(fn (Option $option): string => $option->label)
+            ->map(fn(Option $option): string => $option->label)
             ->filter()
             ->values()
             ->all();

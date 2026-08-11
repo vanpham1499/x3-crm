@@ -469,13 +469,13 @@ Nguyên tắc hiện tại:
 
 Seeder tạo năm Role:
 
-| Role         | Mô tả             | Số quyền seed | Phạm vi mặc định                                               |
-| ------------ | ----------------- | ------------: | -------------------------------------------------------------- |
-| `ADMIN`      | Quản trị hệ thống |           134 | Tất cả permission hiện có                                      |
-| `LEADER`     | Trưởng nhóm       |            79 | Bộ quyền cơ sở, quản lý dữ liệu và lập KPI trong phòng ban     |
-| `EMPLOYEE`   | Nhân sự           |            41 | Bộ quyền cơ sở, thao tác dữ liệu trong phạm vi sở hữu          |
-| `SALES`      | Sales             |            41 | Hiện giống hoàn toàn `EMPLOYEE`                                |
-| `ACCOUNTANT` | Kế toán           |            48 | Bộ quyền cơ sở, quyền Payment và đối soát mọi chi phí           |
+| Role         | Mô tả             | Số quyền seed | Phạm vi mặc định                                           |
+| ------------ | ----------------- | ------------: | ---------------------------------------------------------- |
+| `ADMIN`      | Quản trị hệ thống |           134 | Tất cả permission hiện có                                  |
+| `LEADER`     | Trưởng nhóm       |            79 | Bộ quyền cơ sở, quản lý dữ liệu và lập KPI trong phòng ban |
+| `EMPLOYEE`   | Nhân sự           |            41 | Bộ quyền cơ sở, thao tác dữ liệu trong phạm vi sở hữu      |
+| `SALES`      | Sales             |            41 | Hiện giống hoàn toàn `EMPLOYEE`                            |
+| `ACCOUNTANT` | Kế toán           |            48 | Bộ quyền cơ sở, quyền Payment và đối soát mọi chi phí      |
 
 Bộ quyền cơ sở gồm:
 
@@ -505,139 +505,139 @@ nhận CID trên mọi Project nhưng không được sửa dữ liệu gốc c�
 Ký hiệu Role: `A` = ADMIN, `L` = LEADER, `E` = EMPLOYEE, `S` = SALES,
 `K` = ACCOUNTANT. Cột “Kiểm tra backend” mô tả code đang chạy, không phải thiết kế mong muốn.
 
-| Code                               | Ý nghĩa                                     | Role seed     | Kiểm tra backend hiện tại                                                   |
-| ---------------------------------- | ------------------------------------------- | ------------- | --------------------------------------------------------------------------- |
-| `dashboard.view`                   | Mở Dashboard                                | A, L, E, S, K | API Dashboard và route/menu frontend                                        |
-| `payment.view`                     | Xem khoản mồ côi và thanh toán dự án mình quản lý | A, L, E, S, K | Scope cơ sở của API Payment/Refund và route/menu frontend               |
-| `payment.view_department`          | Xem thanh toán dự án trong phòng ban        | A, L          | Theo phòng ban của manager Project; vẫn thấy khoản mồ côi                   |
-| `payment.view_all`                 | Xem mọi khoản thanh toán                    | A, K          | Bỏ qua scope Project; tự đi kèm `payment.manage`                            |
-| `cost.view`                        | Xem chi phí của mình                        | A, L, K       | Mở `/costs`; xem khoản mình tạo hoặc Project mình phụ trách                  |
-| `cost.view_department`             | Xem chi phí trong phòng ban                 | A, L          | Theo phòng ban của manager/sales Project                                    |
-| `cost.view_all`                    | Xem mọi chi phí                             | A, K          | Bỏ qua scope Project                                                        |
-| `cost.manage`                      | Nạp, cập nhật chi phí                       | A, L, E, S    | Tạo/sửa yêu cầu `pending` trong tab Tài chính Project mình phụ trách         |
-| `cost.manage_department`           | Nạp, cập nhật chi phí trong phòng ban       | A, L          | Theo phòng ban của manager/sales Project                                    |
-| `cost.manage_all`                  | Nạp, cập nhật mọi chi phí                   | A             | Bỏ qua scope Project                                                        |
-| `cost.fund`                        | Xác nhận đã nạp/đã chi                      | A, L          | Chuyển trạng thái khoản chi Project mình phụ trách                           |
-| `cost.fund_department`             | Xác nhận đã nạp/đã chi trong phòng ban      | A, L          | Lead xác nhận khoản chi trong phòng ban                                     |
-| `cost.fund_all`                    | Xác nhận mọi khoản đã nạp/đã chi            | A             | Bỏ qua scope Project                                                        |
-| `cost.approve`                     | Đối soát chi phí                            | A, K          | Policy kiểm tra manager/sales của Project cha                               |
-| `cost.approve_department`          | Đối soát chi phí trong phòng ban            | -             | Theo phòng ban của manager/sales Project                                    |
-| `cost.approve_all`                 | Đối soát mọi chi phí                        | A, K          | Bỏ qua scope Project                                                        |
-| `media.view`                       | Xem ảnh mình tải lên                        | A, L, E, S, K | Query Media, route guard/menu frontend                                      |
-| `media.view_department`            | Xem ảnh do phòng ban tải lên                | L             | Theo phòng ban của `uploaded_by`                                            |
-| `media.view_all`                   | Xem toàn bộ Thư viện                        | A             | Bỏ qua scope người tải                                                      |
-| `media.create`                     | Tải ảnh vào Thư viện                        | A, L, E, S, K | Route upload và nút thêm ảnh frontend                                       |
-| `media.update`                     | Đổi tên ảnh mình tải                        | A, L, E, S, K | `AttachmentPolicy::update`                                                  |
-| `media.update_department`          | Đổi tên ảnh trong phòng ban                 | L             | Theo phòng ban người tải                                                    |
-| `media.update_all`                 | Đổi tên mọi ảnh                             | A             | Bỏ qua scope người tải                                                      |
-| `media.delete`                     | Xóa ảnh mình tải                            | A, L, E, S, K | `AttachmentPolicy::delete`; vẫn kiểm tra ảnh đang được sử dụng              |
-| `media.delete_department`          | Xóa ảnh trong phòng ban                     | L             | Theo phòng ban người tải                                                    |
-| `media.delete_all`                 | Xóa mọi ảnh                                 | A             | Bỏ qua scope người tải                                                      |
-| `department.view`                  | Mở trang Phòng ban                          | A, L          | API đọc Department và route/menu frontend                                   |
-| `option.view`                      | Mở trang Danh mục chung                     | A             | Chỉ route/menu frontend; GET Options là dữ liệu dùng chung                  |
-| `service.view`                     | Mở trang Dịch vụ                            | A             | Chỉ route/menu frontend; GET Services là dữ liệu dùng chung                 |
-| `partner.view`                     | Mở trang Đối tác                            | A             | Chỉ route/menu frontend; dữ liệu đọc từ GET Options dùng chung              |
-| `bankaccount.view`                 | Mở trang Ngân hàng                          | A             | Chỉ route/menu frontend; dữ liệu đọc từ GET Options dùng chung              |
-| `adtopupcard.view`                 | Mở trang Thẻ nạp quảng cáo                  | A             | Chỉ route/menu frontend; dữ liệu đọc từ GET Options dùng chung              |
-| `p2category.view`                  | Mở trang Hạng mục P2                        | A             | Chỉ route/menu frontend; dữ liệu đọc từ GET Options dùng chung              |
-| `user.lookup`                      | Tra cứu nhân sự trong form                  | A, L, E, S, K | `GET /api/users/lookup`; có `context` để giới hạn theo scope module         |
-| `department.lookup`                | Tra cứu phòng ban trong form                | A, L, E, S, K | `GET /api/departments/lookup`; không mở page Phòng ban                      |
-| `customer.lookup`                  | Tra cứu Customer trong form Dự án           | A, L, E, S, K | `GET /api/customers/lookup`; scope theo quyền Dự án, không mở page Customer |
-| `user.view`                        | Xem nhân sự                                 | A, L          | List/detail/stats User và route/menu frontend                               |
-| `user.create`                      | Tạo nhân sự/Department                      | A             | Route middleware                                                            |
-| `user.update`                      | Cập nhật nhân sự/Department                 | A             | Route middleware                                                            |
-| `user.delete`                      | Xóa nhân sự/Department                      | A             | Route middleware                                                            |
-| `role.view`                        | Xem Role                                    | A             | Bao nhóm route Role; Permission có quyền xem riêng                          |
-| `role.create`                      | Tạo Role                                    | A             | Cần đồng thời `role.view`                                                   |
-| `role.update`                      | Đổi tên/mô tả Role                          | A             | Cần đồng thời `role.view`                                                   |
-| `role.delete`                      | Soft-delete Role                            | A             | Cần đồng thời `role.view`                                                   |
-| `role.permission.update`           | Thay toàn bộ permission của Role            | A             | Cần đồng thời `role.view`                                                   |
-| `permission.view`                  | Xem danh sách Permission                    | A             | API Permission và route/menu frontend                                       |
-| `lead.view`                        | Xem Lead được giao                          | A, L, E, S, K | Query list/detail, Policy và route guard/menu frontend                      |
-| `lead.view_department`             | Xem Lead trong phòng ban                    | L             | `assignedUser.department_id` bằng phòng ban user                            |
-| `lead.view_all`                    | Xem mọi Lead                                | A             | Bỏ qua scope query                                                          |
-| `lead.create`                      | Tạo Lead                                    | A, L, E, S, K | `LeadPolicy::create`                                                        |
-| `lead.update`                      | Sửa Lead được giao                          | A, L, E, S, K | `LeadPolicy::update` + `assigned_user_id`                                   |
-| `lead.update_department`           | Sửa Lead trong phòng ban                    | L             | Policy kiểm tra phòng ban của người phụ trách                               |
-| `lead.update_all`                  | Sửa mọi Lead                                | A             | `LeadPolicy::update`, bỏ qua ownership                                      |
-| `lead.delete`                      | Xóa Lead được giao                          | A, L, E, S, K | `LeadPolicy::delete` + `assigned_user_id`                                   |
-| `lead.delete_department`           | Xóa Lead trong phòng ban                    | L             | Policy kiểm tra phòng ban của người phụ trách                               |
-| `lead.delete_all`                  | Xóa mọi Lead                                | A             | `LeadPolicy::delete`, bỏ qua ownership                                      |
-| `customer.view`                    | Xem Customer mình phụ trách                 | A, L, E, S, K | Query list/detail, Policy và route guard/menu frontend                      |
-| `customer.view_department`         | Xem Customer trong phòng ban                | L             | Theo phòng ban của `sales_user_id`                                          |
-| `customer.view_all`                | Xem mọi Customer                            | A             | Bỏ qua scope query                                                          |
-| `customer.create`                  | Tạo Customer                                | A, L, E, S, K | `CustomerPolicy::create` khi không đi từ Lead                               |
-| `customer.update`                  | Sửa Customer mình phụ trách                 | A, L, E, S, K | `CustomerPolicy::update` + `sales_user_id`                                  |
-| `customer.update_department`       | Sửa Customer trong phòng ban                | L             | Policy kiểm tra phòng ban của sales phụ trách                               |
-| `customer.update_all`              | Sửa mọi Customer                            | A             | Bỏ qua ownership; cho tạo Project dưới mọi Customer                         |
-| `customer.delete`                  | Xóa Customer mình phụ trách                 | A, L, E, S, K | `CustomerPolicy::delete` + `sales_user_id`                                  |
-| `customer.delete_department`       | Xóa Customer trong phòng ban                | L             | Policy kiểm tra phòng ban của sales phụ trách                               |
-| `customer.delete_all`              | Xóa mọi Customer                            | A             | `CustomerPolicy::delete`, bỏ qua ownership                                  |
-| `project.view`                     | Xem Project mình quản lý/phụ trách sales    | A, L, E, S, K | Query list/detail, Policy và route guard/menu frontend                      |
-| `project.view_department`          | Xem Project trong phòng ban                 | L             | Manager hoặc sales thuộc cùng phòng ban                                     |
-| `project.view_all`                 | Xem mọi Project                             | A             | Bỏ qua scope query                                                          |
-| `project.create`                   | Tạo Project                                 | A, L, E, S, K | Cần scope phù hợp trên Customer cha                                         |
-| `project.update`                   | Sửa Project mình quản lý/phụ trách sales    | A, L, E, S, K | `manager_user_id` hoặc `sales_user_id`                                      |
-| `project.update_department`        | Sửa Project trong phòng ban                 | L             | Manager hoặc sales thuộc cùng phòng ban                                     |
-| `project.update_all`               | Sửa mọi Project                             | A             | Bỏ qua ownership                                                            |
-| `project.delete`                   | Xóa Project mình quản lý/phụ trách sales    | A, L, E, S, K | `manager_user_id` hoặc `sales_user_id`                                      |
-| `project.delete_department`        | Xóa Project trong phòng ban                 | L             | Manager hoặc sales thuộc cùng phòng ban                                     |
-| `project.delete_all`               | Xóa mọi Project                             | A             | Bỏ qua ownership                                                            |
-| `quotation.view`                   | Xem Báo phí thuộc dữ liệu mình phụ trách    | A, L, E, S, K | Scope kế thừa Project → Customer → Lead                                     |
-| `quotation.view_department`        | Xem Báo phí trong phòng ban                 | L             | Scope kế thừa Project → Customer → Lead                                     |
-| `quotation.view_all`               | Xem mọi Báo phí                             | A             | Bỏ qua scope query                                                          |
-| `quotation.create`                 | Tạo Báo phí                                 | A, L, E, S, K | Phải có quyền xem parent Project/Customer/Lead                              |
-| `quotation.update`                 | Sửa Báo phí thuộc dữ liệu mình phụ trách    | A, L, E, S, K | Theo Project, Customer hoặc Lead cha                                        |
-| `quotation.update_department`      | Sửa Báo phí trong phòng ban                 | L             | Theo phòng ban của parent ưu tiên                                           |
-| `quotation.update_all`             | Sửa mọi Báo phí                             | A             | Bỏ qua ownership                                                            |
-| `quotation.delete`                 | Xóa Báo phí thuộc dữ liệu mình phụ trách    | A, L, E, S, K | Theo Project, Customer hoặc Lead cha                                        |
-| `quotation.delete_department`      | Xóa Báo phí trong phòng ban                 | L             | Theo phòng ban của parent ưu tiên                                           |
-| `quotation.delete_all`             | Xóa mọi Báo phí                             | A             | Bỏ qua ownership                                                            |
-| `weeklyreport.view`                | Xem báo cáo mình lập/Project mình phụ trách | A, L, E, S, K | Scope list/detail và bảng lịch báo cáo                                      |
-| `weeklyreport.view_department`     | Xem báo cáo tuần trong phòng ban            | L             | Theo người báo cáo hoặc manager/sales Project                               |
-| `weeklyreport.view_all`            | Xem mọi báo cáo tuần                        | A             | Bỏ qua scope dữ liệu                                                        |
-| `weeklyreport.create`              | Tạo báo cáo tuần                            | A, L, E, S, K | Project phải thuộc phạm vi xem của user                                     |
-| `weeklyreport.update`              | Sửa/gửi/đính kèm báo cáo thuộc phạm vi mình | A, L, E, S, K | Policy dùng chung cho sửa, submit và attachment                             |
-| `weeklyreport.update_department`   | Sửa báo cáo trong phòng ban                 | L             | Theo người báo cáo hoặc Project                                             |
-| `weeklyreport.update_all`          | Sửa mọi báo cáo tuần                        | A             | Bỏ qua scope dữ liệu                                                        |
-| `weeklyreport.delete`              | Xóa báo cáo thuộc phạm vi mình              | A, L, E, S, K | `WeeklyReportPolicy::delete`                                                |
-| `weeklyreport.delete_department`   | Xóa báo cáo trong phòng ban                 | L             | Theo người báo cáo hoặc Project                                             |
-| `weeklyreport.delete_all`          | Xóa mọi báo cáo tuần                        | A             | Bỏ qua scope dữ liệu                                                        |
-| `weeklyreport.approve`             | Duyệt báo cáo Project mình quản lý          | A, L, E, S, K | Không cho tự duyệt báo cáo của mình                                         |
-| `weeklyreport.approve_department`  | Duyệt báo cáo trong phòng ban               | L             | Không cho tự duyệt                                                          |
-| `weeklyreport.approve_all`         | Duyệt mọi báo cáo tuần                      | A             | Bỏ qua scope Project                                                        |
-| `meeting.view`                     | Xem lịch hẹn liên quan đến mình             | A, L, E, S, K | Người tạo, tổ chức, tham gia hoặc phụ trách đối tượng liên quan             |
-| `meeting.view_department`          | Xem lịch hẹn trong phòng ban                | L             | Theo người tổ chức/tham gia và đối tượng liên quan                          |
-| `meeting.view_all`                 | Xem mọi lịch hẹn                            | A             | Bỏ qua scope dữ liệu                                                        |
-| `meeting.create`                   | Tạo lịch hẹn                                | A, L, E, S, K | Route middleware và `MeetingPolicy::create`                                 |
-| `meeting.update`                   | Sửa/chuyển trạng thái lịch liên quan        | A, L, E, S, K | `MeetingPolicy::update`                                                     |
-| `meeting.update_department`        | Sửa lịch hẹn trong phòng ban                | L             | Policy kiểm tra toàn bộ quan hệ của lịch                                    |
-| `meeting.update_all`               | Sửa mọi lịch hẹn                            | A             | Bỏ qua scope dữ liệu                                                        |
-| `meeting.delete`                   | Xóa lịch hẹn liên quan                      | A, L, E, S, K | `MeetingPolicy::delete`                                                     |
-| `meeting.delete_department`        | Xóa lịch hẹn trong phòng ban                | L             | Policy kiểm tra toàn bộ quan hệ của lịch                                    |
-| `meeting.delete_all`               | Xóa mọi lịch hẹn                            | A             | Bỏ qua scope dữ liệu                                                        |
-| `p2point.view`                     | Xem điểm P2 của mình                        | A, L, E, S, K | Scope theo người được ghi nhận P2                                           |
-| `p2point.view_department`          | Xem điểm P2 trong phòng ban                 | L             | Theo phòng ban người được ghi nhận                                          |
-| `p2point.view_all`                 | Xem mọi điểm P2                             | A             | Bỏ qua scope người được ghi nhận                                            |
-| `p2point.create`                   | Ghi P2 cho Project mình quản lý             | A, L, E, S, K | `P2PointPolicy::create`, Project bắt buộc thuộc manager                     |
-| `p2point.create_department`        | Ghi P2 trong phòng ban                      | L             | Người nhận và Project phải thuộc phòng ban                                  |
-| `p2point.create_all`               | Ghi P2 không cần Project/ownership          | A             | Bỏ qua giới hạn Project                                                     |
-| `p2point.update/delete`            | Sửa/xóa P2 thuộc phạm vi mình               | A, L, E, S, K | Người tạo hoặc manager Project                                              |
-| `p2point.update/delete_department` | Sửa/xóa P2 trong phòng ban                  | L             | Theo phòng ban người nhận                                                   |
-| `p2point.update/delete_all`        | Sửa/xóa mọi điểm P2                         | A             | Bỏ qua scope dữ liệu                                                        |
-| `p2point.approve`                  | Duyệt P2 của Project mình quản lý           | A, L, E, S, K | `P2PointPolicy::approve`                                                    |
-| `p2point.approve_department`       | Duyệt P2 trong phòng ban                    | L             | Theo phòng ban người nhận                                                   |
-| `p2point.approve_all`              | Duyệt mọi điểm P2                           | A             | Bỏ qua giới hạn Project                                                     |
-| `kpi.view`                         | Xem KPI của chính mình                      | A, L, E, S, K | Mở page/API; response chỉ có dòng nhân sự của user                           |
-| `kpi.view_department`              | Xem KPI trong phòng ban                     | L             | Trả phòng ban chính, các team đang Lead và nhân sự thuộc các phòng ban đó    |
-| `kpi.view_all`                     | Xem toàn bộ KPI                             | A             | Trả KPI dịch vụ, mọi phòng ban và mọi nhân sự                               |
-| `kpi.manage`                       | Lập KPI của mình                           | L             | Chỉ cập nhật kế hoạch nhân sự của chính user                                 |
-| `kpi.manage_department`            | Lập KPI trong phòng ban                    | L             | Phòng ban chính, các team đang Lead và nhân sự thuộc các phòng ban đó        |
-| `kpi.manage_all`                   | Lập toàn bộ KPI                            | A             | Dịch vụ/nhóm dịch vụ, mọi phòng ban và mọi nhân sự                           |
-| `payment.allocate`                 | Phân bổ/hủy phân bổ Payment vào Báo phí     | A, K          | Quyền hành động độc lập; Project/Customer suy ra từ Báo phí                 |
-| `payment.refund.create`            | Tạo khoản trả khách                         | A, K          | Chỉ tạo mới; cập nhật/hoàn tất/hủy khoản trả vẫn dùng `payment.manage`      |
-| `payment.manage`                   | Quản trị nghiệp vụ kế toán Payment          | A, K          | Phân loại, hóa đơn, sửa giao dịch và quản lý khoản trả đã tạo               |
-| `option.manage`                    | Quản lý Options và Services                 | A             | Route middleware cho create/update/delete/reorder                           |
+| Code                               | Ý nghĩa                                           | Role seed     | Kiểm tra backend hiện tại                                                   |
+| ---------------------------------- | ------------------------------------------------- | ------------- | --------------------------------------------------------------------------- |
+| `dashboard.view`                   | Mở Dashboard                                      | A, L, E, S, K | API Dashboard và route/menu frontend                                        |
+| `payment.view`                     | Xem khoản mồ côi và thanh toán dự án mình quản lý | A, L, E, S, K | Scope cơ sở của API Payment/Refund và route/menu frontend                   |
+| `payment.view_department`          | Xem thanh toán dự án trong phòng ban              | A, L          | Theo phòng ban của manager Project; vẫn thấy khoản mồ côi                   |
+| `payment.view_all`                 | Xem mọi khoản thanh toán                          | A, K          | Bỏ qua scope Project; tự đi kèm `payment.manage`                            |
+| `cost.view`                        | Xem chi phí của mình                              | A, L, K       | Mở `/costs`; xem khoản mình tạo hoặc Project mình phụ trách                 |
+| `cost.view_department`             | Xem chi phí trong phòng ban                       | A, L          | Theo phòng ban của manager/sales Project                                    |
+| `cost.view_all`                    | Xem mọi chi phí                                   | A, K          | Bỏ qua scope Project                                                        |
+| `cost.manage`                      | Nạp, cập nhật chi phí                             | A, L, E, S    | Tạo/sửa yêu cầu `pending` trong tab Tài chính Project mình phụ trách        |
+| `cost.manage_department`           | Nạp, cập nhật chi phí trong phòng ban             | A, L          | Theo phòng ban của manager/sales Project                                    |
+| `cost.manage_all`                  | Nạp, cập nhật mọi chi phí                         | A             | Bỏ qua scope Project                                                        |
+| `cost.fund`                        | Xác nhận đã nạp/đã chi                            | A, L          | Chuyển trạng thái khoản chi Project mình phụ trách                          |
+| `cost.fund_department`             | Xác nhận đã nạp/đã chi trong phòng ban            | A, L          | Lead xác nhận khoản chi trong phòng ban                                     |
+| `cost.fund_all`                    | Xác nhận mọi khoản đã nạp/đã chi                  | A             | Bỏ qua scope Project                                                        |
+| `cost.approve`                     | Đối soát chi phí                                  | A, K          | Policy kiểm tra manager/sales của Project cha                               |
+| `cost.approve_department`          | Đối soát chi phí trong phòng ban                  | -             | Theo phòng ban của manager/sales Project                                    |
+| `cost.approve_all`                 | Đối soát mọi chi phí                              | A, K          | Bỏ qua scope Project                                                        |
+| `media.view`                       | Xem ảnh mình tải lên                              | A, L, E, S, K | Query Media, route guard/menu frontend                                      |
+| `media.view_department`            | Xem ảnh do phòng ban tải lên                      | L             | Theo phòng ban của `uploaded_by`                                            |
+| `media.view_all`                   | Xem toàn bộ Thư viện                              | A             | Bỏ qua scope người tải                                                      |
+| `media.create`                     | Tải ảnh vào Thư viện                              | A, L, E, S, K | Route upload và nút thêm ảnh frontend                                       |
+| `media.update`                     | Đổi tên ảnh mình tải                              | A, L, E, S, K | `AttachmentPolicy::update`                                                  |
+| `media.update_department`          | Đổi tên ảnh trong phòng ban                       | L             | Theo phòng ban người tải                                                    |
+| `media.update_all`                 | Đổi tên mọi ảnh                                   | A             | Bỏ qua scope người tải                                                      |
+| `media.delete`                     | Xóa ảnh mình tải                                  | A, L, E, S, K | `AttachmentPolicy::delete`; vẫn kiểm tra ảnh đang được sử dụng              |
+| `media.delete_department`          | Xóa ảnh trong phòng ban                           | L             | Theo phòng ban người tải                                                    |
+| `media.delete_all`                 | Xóa mọi ảnh                                       | A             | Bỏ qua scope người tải                                                      |
+| `department.view`                  | Mở trang Phòng ban                                | A, L          | API đọc Department và route/menu frontend                                   |
+| `option.view`                      | Mở trang Danh mục chung                           | A             | Chỉ route/menu frontend; GET Options là dữ liệu dùng chung                  |
+| `service.view`                     | Mở trang Dịch vụ                                  | A             | Chỉ route/menu frontend; GET Services là dữ liệu dùng chung                 |
+| `partner.view`                     | Mở trang Đối tác                                  | A             | Chỉ route/menu frontend; dữ liệu đọc từ GET Options dùng chung              |
+| `bankaccount.view`                 | Mở trang Ngân hàng                                | A             | Chỉ route/menu frontend; dữ liệu đọc từ GET Options dùng chung              |
+| `adtopupcard.view`                 | Mở trang Thẻ nạp quảng cáo                        | A             | Chỉ route/menu frontend; dữ liệu đọc từ GET Options dùng chung              |
+| `p2category.view`                  | Mở trang Hạng mục P2                              | A             | Chỉ route/menu frontend; dữ liệu đọc từ GET Options dùng chung              |
+| `user.lookup`                      | Tra cứu nhân sự trong form                        | A, L, E, S, K | `GET /api/users/lookup`; có `context` để giới hạn theo scope module         |
+| `department.lookup`                | Tra cứu phòng ban trong form                      | A, L, E, S, K | `GET /api/departments/lookup`; không mở page Phòng ban                      |
+| `customer.lookup`                  | Tra cứu Customer trong form Dự án                 | A, L, E, S, K | `GET /api/customers/lookup`; scope theo quyền Dự án, không mở page Customer |
+| `user.view`                        | Xem nhân sự                                       | A, L          | List/detail/stats User và route/menu frontend                               |
+| `user.create`                      | Tạo nhân sự/Department                            | A             | Route middleware                                                            |
+| `user.update`                      | Cập nhật nhân sự/Department                       | A             | Route middleware                                                            |
+| `user.delete`                      | Xóa nhân sự/Department                            | A             | Route middleware                                                            |
+| `role.view`                        | Xem Role                                          | A             | Bao nhóm route Role; Permission có quyền xem riêng                          |
+| `role.create`                      | Tạo Role                                          | A             | Cần đồng thời `role.view`                                                   |
+| `role.update`                      | Đổi tên/mô tả Role                                | A             | Cần đồng thời `role.view`                                                   |
+| `role.delete`                      | Soft-delete Role                                  | A             | Cần đồng thời `role.view`                                                   |
+| `role.permission.update`           | Thay toàn bộ permission của Role                  | A             | Cần đồng thời `role.view`                                                   |
+| `permission.view`                  | Xem danh sách Permission                          | A             | API Permission và route/menu frontend                                       |
+| `lead.view`                        | Xem Lead được giao                                | A, L, E, S, K | Query list/detail, Policy và route guard/menu frontend                      |
+| `lead.view_department`             | Xem Lead trong phòng ban                          | L             | `assignedUser.department_id` bằng phòng ban user                            |
+| `lead.view_all`                    | Xem mọi Lead                                      | A             | Bỏ qua scope query                                                          |
+| `lead.create`                      | Tạo Lead                                          | A, L, E, S, K | `LeadPolicy::create`                                                        |
+| `lead.update`                      | Sửa Lead được giao                                | A, L, E, S, K | `LeadPolicy::update` + `assigned_user_id`                                   |
+| `lead.update_department`           | Sửa Lead trong phòng ban                          | L             | Policy kiểm tra phòng ban của người phụ trách                               |
+| `lead.update_all`                  | Sửa mọi Lead                                      | A             | `LeadPolicy::update`, bỏ qua ownership                                      |
+| `lead.delete`                      | Xóa Lead được giao                                | A, L, E, S, K | `LeadPolicy::delete` + `assigned_user_id`                                   |
+| `lead.delete_department`           | Xóa Lead trong phòng ban                          | L             | Policy kiểm tra phòng ban của người phụ trách                               |
+| `lead.delete_all`                  | Xóa mọi Lead                                      | A             | `LeadPolicy::delete`, bỏ qua ownership                                      |
+| `customer.view`                    | Xem Customer mình phụ trách                       | A, L, E, S, K | Query list/detail, Policy và route guard/menu frontend                      |
+| `customer.view_department`         | Xem Customer trong phòng ban                      | L             | Theo phòng ban của `sales_user_id`                                          |
+| `customer.view_all`                | Xem mọi Customer                                  | A             | Bỏ qua scope query                                                          |
+| `customer.create`                  | Tạo Customer                                      | A, L, E, S, K | `CustomerPolicy::create` khi không đi từ Lead                               |
+| `customer.update`                  | Sửa Customer mình phụ trách                       | A, L, E, S, K | `CustomerPolicy::update` + `sales_user_id`                                  |
+| `customer.update_department`       | Sửa Customer trong phòng ban                      | L             | Policy kiểm tra phòng ban của sales phụ trách                               |
+| `customer.update_all`              | Sửa mọi Customer                                  | A             | Bỏ qua ownership; cho tạo Project dưới mọi Customer                         |
+| `customer.delete`                  | Xóa Customer mình phụ trách                       | A, L, E, S, K | `CustomerPolicy::delete` + `sales_user_id`                                  |
+| `customer.delete_department`       | Xóa Customer trong phòng ban                      | L             | Policy kiểm tra phòng ban của sales phụ trách                               |
+| `customer.delete_all`              | Xóa mọi Customer                                  | A             | `CustomerPolicy::delete`, bỏ qua ownership                                  |
+| `project.view`                     | Xem Project mình quản lý/phụ trách sales          | A, L, E, S, K | Query list/detail, Policy và route guard/menu frontend                      |
+| `project.view_department`          | Xem Project trong phòng ban                       | L             | Manager hoặc sales thuộc cùng phòng ban                                     |
+| `project.view_all`                 | Xem mọi Project                                   | A             | Bỏ qua scope query                                                          |
+| `project.create`                   | Tạo Project                                       | A, L, E, S, K | Cần scope phù hợp trên Customer cha                                         |
+| `project.update`                   | Sửa Project mình quản lý/phụ trách sales          | A, L, E, S, K | `manager_user_id` hoặc `sales_user_id`                                      |
+| `project.update_department`        | Sửa Project trong phòng ban                       | L             | Manager hoặc sales thuộc cùng phòng ban                                     |
+| `project.update_all`               | Sửa mọi Project                                   | A             | Bỏ qua ownership                                                            |
+| `project.delete`                   | Xóa Project mình quản lý/phụ trách sales          | A, L, E, S, K | `manager_user_id` hoặc `sales_user_id`                                      |
+| `project.delete_department`        | Xóa Project trong phòng ban                       | L             | Manager hoặc sales thuộc cùng phòng ban                                     |
+| `project.delete_all`               | Xóa mọi Project                                   | A             | Bỏ qua ownership                                                            |
+| `quotation.view`                   | Xem Báo phí thuộc dữ liệu mình phụ trách          | A, L, E, S, K | Scope kế thừa Project → Customer → Lead                                     |
+| `quotation.view_department`        | Xem Báo phí trong phòng ban                       | L             | Scope kế thừa Project → Customer → Lead                                     |
+| `quotation.view_all`               | Xem mọi Báo phí                                   | A             | Bỏ qua scope query                                                          |
+| `quotation.create`                 | Tạo Báo phí                                       | A, L, E, S, K | Phải có quyền xem parent Project/Customer/Lead                              |
+| `quotation.update`                 | Sửa Báo phí thuộc dữ liệu mình phụ trách          | A, L, E, S, K | Theo Project, Customer hoặc Lead cha                                        |
+| `quotation.update_department`      | Sửa Báo phí trong phòng ban                       | L             | Theo phòng ban của parent ưu tiên                                           |
+| `quotation.update_all`             | Sửa mọi Báo phí                                   | A             | Bỏ qua ownership                                                            |
+| `quotation.delete`                 | Xóa Báo phí thuộc dữ liệu mình phụ trách          | A, L, E, S, K | Theo Project, Customer hoặc Lead cha                                        |
+| `quotation.delete_department`      | Xóa Báo phí trong phòng ban                       | L             | Theo phòng ban của parent ưu tiên                                           |
+| `quotation.delete_all`             | Xóa mọi Báo phí                                   | A             | Bỏ qua ownership                                                            |
+| `weeklyreport.view`                | Xem báo cáo mình lập/Project mình phụ trách       | A, L, E, S, K | Scope list/detail và bảng lịch báo cáo                                      |
+| `weeklyreport.view_department`     | Xem báo cáo tuần trong phòng ban                  | L             | Theo người báo cáo hoặc manager/sales Project                               |
+| `weeklyreport.view_all`            | Xem mọi báo cáo tuần                              | A             | Bỏ qua scope dữ liệu                                                        |
+| `weeklyreport.create`              | Tạo báo cáo tuần                                  | A, L, E, S, K | Project phải thuộc phạm vi xem của user                                     |
+| `weeklyreport.update`              | Sửa/gửi/đính kèm báo cáo thuộc phạm vi mình       | A, L, E, S, K | Policy dùng chung cho sửa, submit và attachment                             |
+| `weeklyreport.update_department`   | Sửa báo cáo trong phòng ban                       | L             | Theo người báo cáo hoặc Project                                             |
+| `weeklyreport.update_all`          | Sửa mọi báo cáo tuần                              | A             | Bỏ qua scope dữ liệu                                                        |
+| `weeklyreport.delete`              | Xóa báo cáo thuộc phạm vi mình                    | A, L, E, S, K | `WeeklyReportPolicy::delete`                                                |
+| `weeklyreport.delete_department`   | Xóa báo cáo trong phòng ban                       | L             | Theo người báo cáo hoặc Project                                             |
+| `weeklyreport.delete_all`          | Xóa mọi báo cáo tuần                              | A             | Bỏ qua scope dữ liệu                                                        |
+| `weeklyreport.approve`             | Duyệt báo cáo Project mình quản lý                | A, L, E, S, K | Không cho tự duyệt báo cáo của mình                                         |
+| `weeklyreport.approve_department`  | Duyệt báo cáo trong phòng ban                     | L             | Không cho tự duyệt                                                          |
+| `weeklyreport.approve_all`         | Duyệt mọi báo cáo tuần                            | A             | Bỏ qua scope Project                                                        |
+| `meeting.view`                     | Xem lịch hẹn liên quan đến mình                   | A, L, E, S, K | Người tạo, tổ chức, tham gia hoặc phụ trách đối tượng liên quan             |
+| `meeting.view_department`          | Xem lịch hẹn trong phòng ban                      | L             | Theo người tổ chức/tham gia và đối tượng liên quan                          |
+| `meeting.view_all`                 | Xem mọi lịch hẹn                                  | A             | Bỏ qua scope dữ liệu                                                        |
+| `meeting.create`                   | Tạo lịch hẹn                                      | A, L, E, S, K | Route middleware và `MeetingPolicy::create`                                 |
+| `meeting.update`                   | Sửa/chuyển trạng thái lịch liên quan              | A, L, E, S, K | `MeetingPolicy::update`                                                     |
+| `meeting.update_department`        | Sửa lịch hẹn trong phòng ban                      | L             | Policy kiểm tra toàn bộ quan hệ của lịch                                    |
+| `meeting.update_all`               | Sửa mọi lịch hẹn                                  | A             | Bỏ qua scope dữ liệu                                                        |
+| `meeting.delete`                   | Xóa lịch hẹn liên quan                            | A, L, E, S, K | `MeetingPolicy::delete`                                                     |
+| `meeting.delete_department`        | Xóa lịch hẹn trong phòng ban                      | L             | Policy kiểm tra toàn bộ quan hệ của lịch                                    |
+| `meeting.delete_all`               | Xóa mọi lịch hẹn                                  | A             | Bỏ qua scope dữ liệu                                                        |
+| `p2point.view`                     | Xem điểm P2 của mình                              | A, L, E, S, K | Scope theo người được ghi nhận P2                                           |
+| `p2point.view_department`          | Xem điểm P2 trong phòng ban                       | L             | Theo phòng ban người được ghi nhận                                          |
+| `p2point.view_all`                 | Xem mọi điểm P2                                   | A             | Bỏ qua scope người được ghi nhận                                            |
+| `p2point.create`                   | Ghi P2 cho Project mình quản lý                   | A, L, E, S, K | `P2PointPolicy::create`, Project bắt buộc thuộc manager                     |
+| `p2point.create_department`        | Ghi P2 trong phòng ban                            | L             | Người nhận và Project phải thuộc phòng ban                                  |
+| `p2point.create_all`               | Ghi P2 không cần Project/ownership                | A             | Bỏ qua giới hạn Project                                                     |
+| `p2point.update/delete`            | Sửa/xóa P2 thuộc phạm vi mình                     | A, L, E, S, K | Người tạo hoặc manager Project                                              |
+| `p2point.update/delete_department` | Sửa/xóa P2 trong phòng ban                        | L             | Theo phòng ban người nhận                                                   |
+| `p2point.update/delete_all`        | Sửa/xóa mọi điểm P2                               | A             | Bỏ qua scope dữ liệu                                                        |
+| `p2point.approve`                  | Duyệt P2 của Project mình quản lý                 | A, L, E, S, K | `P2PointPolicy::approve`                                                    |
+| `p2point.approve_department`       | Duyệt P2 trong phòng ban                          | L             | Theo phòng ban người nhận                                                   |
+| `p2point.approve_all`              | Duyệt mọi điểm P2                                 | A             | Bỏ qua giới hạn Project                                                     |
+| `kpi.view`                         | Xem KPI của chính mình                            | A, L, E, S, K | Mở page/API; response chỉ có dòng nhân sự của user                          |
+| `kpi.view_department`              | Xem KPI trong phòng ban                           | L             | Trả phòng ban chính, các team đang Lead và nhân sự thuộc các phòng ban đó   |
+| `kpi.view_all`                     | Xem toàn bộ KPI                                   | A             | Trả KPI dịch vụ, mọi phòng ban và mọi nhân sự                               |
+| `kpi.manage`                       | Lập KPI của mình                                  | L             | Chỉ cập nhật kế hoạch nhân sự của chính user                                |
+| `kpi.manage_department`            | Lập KPI trong phòng ban                           | L             | Phòng ban chính, các team đang Lead và nhân sự thuộc các phòng ban đó       |
+| `kpi.manage_all`                   | Lập toàn bộ KPI                                   | A             | Dịch vụ/nhóm dịch vụ, mọi phòng ban và mọi nhân sự                          |
+| `payment.allocate`                 | Phân bổ/hủy phân bổ Payment vào Báo phí           | A, K          | Quyền hành động độc lập; Project/Customer suy ra từ Báo phí                 |
+| `payment.refund.create`            | Tạo khoản trả khách                               | A, K          | Chỉ tạo mới; cập nhật/hoàn tất/hủy khoản trả vẫn dùng `payment.manage`      |
+| `payment.manage`                   | Quản trị nghiệp vụ kế toán Payment                | A, K          | Phân loại, hóa đơn, sửa giao dịch và quản lý khoản trả đã tạo               |
+| `option.manage`                    | Quản lý Options và Services                       | A             | Route middleware cho create/update/delete/reorder                           |
 
 ### Phạm vi sở hữu bản ghi
 
@@ -778,24 +778,24 @@ Không cần logout/login lại, nhưng UI đang mở có thể chưa đổi cho
 
 Route guard frontend hiện tại:
 
-| Route                                      | Permission                                          |
-| ------------------------------------------ | --------------------------------------------------- |
-| `/dashboard`                               | `dashboard.view`                                    |
-| `/leads`                                   | `lead.view`                                         |
-| `/customers`                               | `customer.view`                                     |
-| `/projects`                                | `project.view`                                      |
-| `/settings/services`, `/settings/partners` | `service.view` / `partner.view`                     |
-| `/meetings`                                | `meeting.view`; nút tạo cần thêm `meeting.create`   |
-| `/quotations`                              | `quotation.view`                                    |
-| `/payments`                                | `payment.view`; action dùng quyền Payment tương ứng |
-| `/costs`                                   | `cost.view`                                         |
-| `/weekly-reports`                          | `weeklyreport.view`                                 |
-| `/p2-points`                               | `p2point.view`                                      |
+| Route                                      | Permission                                                            |
+| ------------------------------------------ | --------------------------------------------------------------------- |
+| `/dashboard`                               | `dashboard.view`                                                      |
+| `/leads`                                   | `lead.view`                                                           |
+| `/customers`                               | `customer.view`                                                       |
+| `/projects`                                | `project.view`                                                        |
+| `/settings/services`, `/settings/partners` | `service.view` / `partner.view`                                       |
+| `/meetings`                                | `meeting.view`; nút tạo cần thêm `meeting.create`                     |
+| `/quotations`                              | `quotation.view`                                                      |
+| `/payments`                                | `payment.view`; action dùng quyền Payment tương ứng                   |
+| `/costs`                                   | `cost.view`                                                           |
+| `/weekly-reports`                          | `weeklyreport.view`                                                   |
+| `/p2-points`                               | `p2point.view`                                                        |
 | `/kpi`                                     | `kpi.view`; sửa kế hoạch dùng `kpi.manage`, `_department` hoặc `_all` |
-| `/media-library`                           | `media.view`                                        |
-| `/users`, `/users/departments`             | `user.view` / `department.view`                     |
-| `/users/roles`, `/users/permissions`       | `role.view` / `permission.view`                     |
-| Các page con `/settings`                   | Quyền `.view` riêng của từng page                   |
+| `/media-library`                           | `media.view`                                                          |
+| `/users`, `/users/departments`             | `user.view` / `department.view`                                       |
+| `/users/roles`, `/users/permissions`       | `role.view` / `permission.view`                                       |
+| Các page con `/settings`                   | Quyền `.view` riêng của từng page                                     |
 
 ### Giới hạn phân quyền còn lại
 
@@ -868,6 +868,11 @@ hàng`.
 - Form tạo/sửa Customer viết hoa `Tên khách hàng` ngay khi nhập; danh sách cũng luôn hiển
   thị tên dạng chữ hoa, kể cả với dữ liệu cũ. Backend tiếp tục chuẩn hóa Unicode sang chữ hoa
   trước khi lưu để các luồng gọi API trực tiếp cũng đồng nhất.
+- Mọi nhãn nhận diện Customer trên giao diện dùng duy nhất format
+  `<MÃ KHÁCH HÀNG>-<TÊN KHÁCH HÀNG VIẾT HOA>`, không có khoảng trắng quanh dấu gạch nối; ví dụ
+  `078-CONGLUAT-C.THẢO`. Quy tắc dùng chung cho bảng, bộ chọn, popup, Project, Lịch hẹn, Báo phí,
+  Thanh toán/hoàn tiền, Báo cáo tuần và Thư viện. Đây chỉ là format hiển thị: form vẫn lưu riêng
+  `customer_code` và `customer_name`, còn tên pháp nhân/hóa đơn không bị ghép mã.
 - Danh sách Customer không hiển thị cột Email; Email vẫn được lưu và hiển thị trong
   form/hồ sơ chi tiết.
 - Trường Website của Customer có thể lưu liên kết Website, Google Map hoặc Fanpage; form phải hiển
@@ -961,6 +966,10 @@ số lượng, đơn giá và chi phí đối tác/thực hiện.
 - Mã này là nội dung chuyển khoản VietQR và không được đổi sau khi phát hành.
 - Form có các dòng động: nội dung, đơn vị tính, số lượng/số lần, đơn giá, thành tiền. Nếu root
   service có auto pricing, frontend thêm các dòng ngân sách, phí quản lý và setup theo config.
+- Với Project loại `M`, mỗi hạng mục nhập thêm có checkbox `Tính vào số tiền có thể nạp`. Lựa chọn
+  được snapshot tại `quotation_items.metadata.countsTowardTopupBudget`; khi bật, toàn bộ
+  `amount_after_vat` của hạng mục được cộng vào hạn mức nạp của Project. Ngân sách tự động vẫn lấy
+  từ `quotations.metadata.budget` và không bị cộng trùng với các hạng mục khóa.
 - Gói setup mặc định trên form thêm mới là `Không tính phí setup`. Khi chỉnh sửa, hệ thống giữ lựa
   chọn đã lưu; báo phí cũ chưa có metadata gói setup cũng dùng mặc định không tính phí.
 - Loại Project `O` và dữ liệu cũ `N` đều hiển thị thống nhất là `Không chọn` trên form Báo phí.
@@ -976,8 +985,9 @@ số lượng, đơn giá và chi phí đối tác/thực hiện.
 - Form không cho người dùng tự chọn trạng thái. Backend tính lại trạng thái theo sổ phân bổ và hoàn
   tiền.
 - Khi tổng phân bổ gốc đạt tổng phải thu với sai số tối đa `0,01`, dữ liệu nghiệp vụ của Báo phí bị
-  khóa; chỉ `Ghi chú` còn được sửa. Hủy phân bổ có thể mở khóa nếu tổng nhận xuống dưới mức phải
-  thu. Hoàn tiền không xóa chứng từ thu gốc và không tự mở khóa lịch sử.
+  khóa; chỉ `Ghi chú` và cờ hạng mục `Tính vào số tiền có thể nạp` còn được sửa vì cờ này không làm
+  thay đổi tổng tiền khách phải thanh toán. Hủy phân bổ có thể mở khóa nếu tổng nhận xuống dưới mức
+  phải thu. Hoàn tiền không xóa chứng từ thu gốc và không tự mở khóa lịch sử.
 - Báo phí đã có phân bổ không được đổi tổng tiền hoặc xóa.
 - Trong `Bản gửi khách`, nhân sự chọn `Số tiền yêu cầu thanh toán lần này`; giá trị mặc định bằng
   `Còn phải thu`, phải lớn hơn `0` và không được vượt công nợ hiện tại. Giá trị này chỉ dùng để đóng
@@ -986,8 +996,13 @@ số lượng, đơn giá và chi phí đối tác/thực hiện.
   bằng đúng `Còn phải thu` không bị báo vượt do phần thập phân ẩn. Chỉ webhook hoặc thao tác
   Payment thực tế mới ghi nhận tiền đã nhận.
 - Logo X3Sales trong popup tạo nhanh và `Bản gửi khách` dùng cùng kích thước lớn. Mỗi dòng Báo phí
-  có action `Tải PDF`; file PDF được render trực tiếp từ chính vùng `Bản gửi khách` nên giữ nguyên
-  logo, thông tin khách hàng, bảng hạng mục, QR và ghi chú như bản xem trước.
+  có action `Tải PDF` với icon tải xuống; file PDF được render trực tiếp từ chính vùng
+  `Bản gửi khách` nên giữ nguyên logo, thông tin khách hàng, bảng hạng mục, QR và ghi chú như bản
+  xem trước.
+- Nút `Xuất Excel` ở header danh sách tải toàn bộ Báo phí thuộc scope quyền và bộ lọc hiện tại,
+  không chỉ trang đang xem. Workbook gồm sheet `Tổng hợp báo phí` chứa đầy đủ Project, Customer,
+  dịch vụ, trạng thái, công nợ, VAT, cọc, người tạo và metadata nghiệp vụ chính; sheet `Hạng mục báo
+  phí` chứa từng dòng, số lượng, đơn giá, VAT và cờ tính vào số tiền có thể nạp.
 
 ### 4. Hợp đồng
 
@@ -1046,6 +1061,13 @@ Tiền chưa phân bổ = Tiền nhận
 - Bảng tiền nhận không hiển thị cột Dự án; hai cột `Thời gian` và `Số tiền` được ghim cố định khi
   cuộn ngang. Ghi chú của từng dòng phân bổ được hiển thị ngay trong popup chi tiết khoản thu, dưới
   Báo phí tương ứng.
+- Click vào vùng nội dung của một dòng tiền nhận hoặc tiền hoàn sẽ mở popup chi tiết đang dùng bởi
+  icon mắt. Click vào Số hóa đơn, liên kết Báo phí/Dự án hoặc nút tác vụ vẫn giữ hành vi riêng và
+  không làm mở popup chi tiết ngoài ý muốn.
+- Nút `Xuất Excel` ở header tải toàn bộ dữ liệu trong scope quyền theo bộ lọc hiện tại của cả hai tab,
+  không phụ thuộc trang phân trang đang mở. Workbook gồm `Tiền nhận vào`, `Phân bổ báo phí` và `Tiền
+  hoàn ra`; các sheet giữ số tiền/ngày giờ ở đúng kiểu dữ liệu và gồm cả nội dung trong popup như
+  ghi chú phân bổ, người nhận, tài khoản, lý do, tham chiếu và số hóa đơn.
 
 #### Hoàn tiền
 
@@ -1103,6 +1125,9 @@ Lợi nhuận thực nhận của Project = Đã nhận
   `cost.view_department` và `cost.view_all`.
 - Backend luôn ép khoản mới về `pending`. Chỉ `cost.fund*` được đổi trạng thái; chỉ khoản `completed`
   mới xuất hiện nút đối soát cho kế toán. Gọi API trực tiếp không thể bỏ qua thứ tự này.
+- Tại `/costs`, người có quyền `cost.fund*` đổi trực tiếp `Trạng thái chi` trên từng dòng giữa
+  `Chờ nạp/Chờ chi`, `Đã nạp/Đã chi` và `Đã hủy`. Khoản đã đối soát hiển thị trạng thái tĩnh và bị
+  khóa đổi để bảo toàn dữ liệu kế toán.
 - `entryType=ad_spend` cho nhóm 2.1; `entryType=partner_cost` cho nhóm 2.2.
 - Backend tính tổng, không tin tổng do frontend gửi:
   - 2.1: ngân sách nạp theo tổng số tiền đã nhập;
@@ -1114,6 +1139,9 @@ Lợi nhuận thực nhận của Project = Đã nhận
 - Một khoản chi có thể gắn Báo phí để đối chiếu theo kỳ nhưng không bắt buộc.
 - `/costs` là sổ đối soát tập trung, group theo Project và hỗ trợ keyword, loại, trạng thái, đã
   khớp/chưa khớp và khoảng ngày.
+- Cột `Dự án` tại `/costs` hiển thị thêm hạn mức `Có thể nạp`; nếu hạn mức nhỏ hơn `0`, giao diện
+  hiển thị rõ `Đang âm` cùng giá trị tuyệt đối. Công thức dùng chung với summary Project:
+  `Ngân sách báo phí gồm VAT + các hạng mục được đánh dấu gồm VAT - chi phí nạp completed thực tế`.
 - Popup đối soát chỉ có hai kết quả: `Khớp chuẩn` và `Chưa khớp`. Hai kết quả chỉ cập nhật dữ liệu
   đối soát; trạng thái `completed` do Lead xác nhận được giữ nguyên để phản ánh tiền đã thực chi.
 - Người có quyền duyệt có thể nhấn lại trạng thái `Đã khớp` để mở popup, sửa thông tin hoặc chuyển
@@ -1127,6 +1155,10 @@ Lợi nhuận thực nhận của Project = Đã nhận
 - Sau khi lưu đối soát, frontend cập nhật ngay record API trả về vào cache danh sách trước khi
   refetch để không mở lại dữ liệu cũ. Cột `Chi tiết` hiển thị thêm số hóa đơn và ghi chú đối soát;
   nội dung dài được rút gọn trên bảng và vẫn xem đầy đủ qua tooltip/popup chi tiết.
+- Nút `Xuất Excel` tại `/costs` tải toàn bộ khoản chi thuộc scope quyền và bộ lọc hiện tại, không chỉ
+  nhóm Project đang phân trang. Workbook gồm `Tổng hợp chi phí`, `Điều chỉnh chi phí` và `Sự kiện
+  CID`, bao gồm số tiền có thể nạp, dòng tiền/chi phí thực tế, số dư, kết quả và ghi chú đối soát,
+  hóa đơn, người xử lý cùng dữ liệu CID đã báo/xác nhận.
 
 Với chi phí nạp quảng cáo:
 
@@ -1172,7 +1204,9 @@ Giao diện theo đúng format chung của CRM:
 2. tab `Lịch tháng` và `Danh sách`;
 3. bộ lọc từ khóa, người phụ trách, phòng ban, hình thức và trạng thái dùng `ListFilterBar`; các
    filter rộng `220px`, riêng search co giãn để chiếm phần chiều ngang còn lại trên tablet/desktop
-   và tất cả tự giãn toàn chiều rộng trên màn hình nhỏ;
+   và tất cả tự giãn toàn chiều rộng trên màn hình nhỏ; option `Người phụ trách` được lấy từ những
+   người đang phụ trách ít nhất một lịch mà user hiện tại có quyền xem, nên mọi Role dùng được filter
+   nhưng không nhìn thấy nhân sự ngoài scope lịch hẹn;
 4. lịch tháng bắt đầu từ Thứ 2, hiển thị đủ 42 ngày bằng các ô compact cao cố định `84px`; mỗi
    lịch hiển thị trực tiếp bằng giờ và tiêu đề, tối đa ba lịch trong một ô; bấm ngày để tạo lịch,
    bấm lịch để xem chi tiết;
@@ -1242,6 +1276,8 @@ sửa/xóa/chuyển trạng thái kiểm tra `MeetingPolicy`. API chính:
 - `GET /api/meetings`: danh sách; nếu có `page`/`per_page` thì trả phân trang, nếu không thì trả mảng
   cho lịch tháng; hỗ trợ filter và khoảng ngày;
 - `GET /api/meetings/summary`: bốn chỉ số tổng quan;
+- `GET /api/meetings/organizers`: danh sách người phụ trách lấy theo scope lịch hẹn của user hiện tại,
+  dùng riêng cho filter và không phụ thuộc quyền mở trang Nhân sự;
 - `POST /api/meetings`, `GET/PUT/PATCH/DELETE /api/meetings/{id}`;
 - `POST /api/meetings/{id}/confirm`;
 - `POST /api/meetings/{id}/complete`;
@@ -1355,13 +1391,21 @@ channel bằng Sanctum. Phase này chưa gửi email, Web Push hoặc Zalo.
 - Hạn đúng ngày là `Đến hạn hôm nay`; từ ngày kế tiếp mới là `Quá hạn`.
 - Báo cáo được nộp sau hạn mang tag `Nộp muộn` màu đỏ; `Quá hạn` cũng dùng màu đỏ, còn
   `Đến hạn hôm nay` dùng màu vàng để phân biệt mức độ.
+- Cả `Theo dõi tuần` và `Lịch sử báo cáo` đặt cột `Nhân sự / Kỳ dữ liệu` ở đầu bảng, hiển thị
+  nhân sự trên dòng chính và khoảng dữ liệu ở dòng phụ. Khi báo cáo đã tồn tại, nhấn vào cụm này
+  mở popup `Bản gửi khách`; khi chưa có báo cáo và user có quyền lập, nhấn vào sẽ mở form tạo đúng
+  Project/kỳ. User không có quyền lập chỉ thấy thông tin lịch. Cột `Dự án` luôn đứng thứ hai và liên
+  kết tới hồ sơ Project.
 - Trong bảng theo dõi và lịch sử, action tạo/mở báo cáo dùng nút chỉ có icon theo chuẩn các trang
   danh sách khác; tooltip và `aria-label` giữ đầy đủ ý nghĩa. Các tác vụ phụ vẫn nằm trong menu ba
-  chấm. Với báo cáo đã tồn tại, icon mắt mở `Bản gửi khách` và luôn đứng đầu; icon chỉnh sửa đứng
-  kế tiếp để đi vào trang báo cáo.
+  chấm. Không hiển thị icon mắt `Bản gửi khách` riêng vì thao tác này đã nằm ở cột đầu; icon chỉnh
+  sửa vẫn đi vào trang báo cáo.
 - Tiêu đề màn tạo/chỉnh sửa lấy trực tiếp từ tên Project, không có ô nhập tiêu đề riêng. Form dùng
   đúng bố cục của Báo phí: lưới `5/7`, cột trái là thông tin báo cáo và chỉ tiêu, cột phải là tổng
   quan bằng hình ảnh cùng đánh giá/phương án triển khai.
+- `Tình trạng tuần` là trường bắt buộc khi tạo hoặc cập nhật báo cáo. Form dùng validation MUI và
+  hiển thị lỗi ngay dưới field; API cũng yêu cầu một trong `weeklyCondition`/`weekly_condition` để
+  chặn payload gọi trực tiếp. Báo cáo cũ chưa có giá trị vẫn đọc được nhưng phải chọn trước khi lưu.
 - Bốn chỉ tiêu tiền do người lập báo cáo nhập bằng `MoneyInput`:
   - `weeklySpendAmount` / `weekly_spend_amount`: Chi phí;
   - `averageWeeklyBudget` / `average_weekly_budget`: Ngân sách trung bình/tuần, khi tạo mới mặc định
@@ -1495,6 +1539,11 @@ tất, hoàn tiền và lần ghi nhận Báo phí đầu; mỗi dòng có ngày
 và `Nhánh phụ trách khách hàng`; các liên kết Project/Báo phí mở đúng màn hình nguồn để kiểm tra.
 Popup chỉ hiển thị nhánh có ít nhất một phát sinh; nhánh không có dữ liệu bị ẩn hoàn toàn, không
 render header hoặc bảng trống.
+- Riêng tab `Theo nhân sự` có nút `Xuất Excel` trên thanh lọc. File xuất toàn bộ nhân sự thuộc phạm
+  vi quyền và toàn bộ các tháng đang lọc, không chỉ các dòng đang nhìn thấy. Workbook gồm sheet
+  `Tổng hợp KPI` chứa kế hoạch, tổng nguồn có VAT, lợi nhuận trước VAT, từng nhánh và tỷ lệ hoàn
+  thành; sheet `Chi tiết đối soát` chứa đầy đủ từng phát sinh đang có trong popup, gồm thời gian,
+  Project, Báo phí/tham chiếu, số nguồn có VAT và tác động lợi nhuận trước VAT.
 Backend áp dụng lại phạm vi `own/department/all` khi trả chi tiết, nên người dùng không thể dùng API
 đối soát để xem dữ liệu ngoài phạm vi KPI được cấp.
 
@@ -1769,6 +1818,18 @@ API `GET /api/dashboard?period_from=YYYY-MM&period_to=YYYY-MM` yêu cầu `dashb
 
 - `operations.leads/customers/projects` là tổng quan vận hành; `projects.statuses` giữ màu đã cấu
   hình tại Options;
+- `leadReport` là báo cáo Lead chuyên sâu và chỉ khác `null` khi user có **đủ cả bốn** quyền
+  `lead.view`, `lead.create`, `lead.update`, `lead.delete`. Backend vẫn áp dụng scope Lead cao nhất
+  của role (`view_all`, `view_department`, `view`); có đủ bộ quyền thao tác không làm mở rộng phạm
+  vi dữ liệu. Frontend kiểm tra lại cùng bộ quyền trước khi render section;
+- báo cáo Lead lấy tháng theo `leads.occurred_date`, nhân sự theo `assigned_user_id` hiện tại và trạng
+  thái hiện tại theo Option `lead_status`. Nhãn/màu trạng thái lấy động từ Settings, không hard-code;
+  `leadReport.periods` dùng cho xu hướng tổng Lead, còn `leadReport.employees[].values/statusSeries`
+  dùng cho so sánh nhân sự và cơ cấu trạng thái từng tháng. Chỉ nhân sự có phát sinh trong kỳ mới
+  được trả về; Lead chưa phân công được gom vào nhóm `Chưa phân công` để tổng số luôn đối soát được;
+- section Báo cáo Lead dùng nền kem nhạt và lưới card hai cột theo mẫu báo cáo cũ: line chart xu hướng,
+  grouped bar theo nhân sự và stacked bar trạng thái theo từng nhân sự. Giá trị khác `0` hiển thị trực
+  tiếp trên điểm/cột/thanh, đồng thời vẫn giữ tooltip và nhãn màu để đối soát;
 - `operations.meetings/weeklyReports` là các hàng đợi công việc hiện tại và có thể là `null` nếu
   user thiếu quyền xem module;
 - `scope.level` là `all`, `department` hoặc `own`; kèm user/phòng ban và tên mốc kế hoạch để
@@ -1802,34 +1863,34 @@ API `GET /api/dashboard?period_from=YYYY-MM&period_to=YYYY-MM` yêu cầu `dashb
 
 Các route authenticated nằm trong `apps/frontend/src/app/(app)`.
 
-| Nhóm           | Route chính                                                      | Vai trò                                                                                 |
-| -------------- | ---------------------------------------------------------------- | --------------------------------------------------------------------------------------- |
-| Auth           | `/login`, `/forgot-password`                                     | Đăng nhập và khôi phục truy cập                                                         |
-| Dashboard      | `/dashboard`                                                     | Trung tâm điều hành Lead, Customer, Project, công việc, tài chính và KPI                |
-| Lead           | `/leads`, `/leads/new`, `/leads/[id]`                            | CRUD, quick view, timeline, chuyển Customer                                             |
-| Customer       | `/customers`, `/customers/new`, `/customers/[id]`                | Hồ sơ khách hàng từ Lead, mở Project                                                    |
-| Project        | `/projects`, `/projects/new`, `/projects/[id]`                   | Hồ sơ trung tâm, quick view có lịch sử và bốn tab nghiệp vụ                             |
-| Lịch hẹn       | `/meetings`                                                      | Lịch tháng, danh sách, người tham gia, kết quả và hành động tiếp                        |
-| Báo phí        | `/quotations`, `/quotations/new`, `/quotations/[id]`             | Báo phí, VietQR, công nợ                                                                |
-| Redirect cũ    | `/projects/quotes`                                               | Chuyển sang `/quotations`                                                               |
-| Thanh toán     | `/payments`                                                      | Tiền nhận, phân bổ, hoàn tiền, hóa đơn đầu ra                                           |
-| Chi phí        | `/costs`                                                         | Đối soát chi phí và sự kiện CID                                                         |
-| Báo cáo tuần   | `/weekly-reports`, `/weekly-reports/new`, `/weekly-reports/[id]` | Điều phối và vòng đời báo cáo                                                           |
-| KPI            | `/kpi`                                                           | Kế hoạch, Lợi nhuận, Hoàn thành theo dịch vụ và phòng ban                               |
-| Điểm P2        | `/p2-points`                                                     | Điểm cộng/trừ P2 và duyệt                                                               |
-| Thư viện       | `/media-library`                                                 | Media dùng chung                                                                        |
-| User           | `/users`, `/users/new`, `/users/[id]`                            | Tài khoản nhân viên                                                                     |
-| Phòng ban      | `/users/departments`                                             | CRUD phòng ban                                                                          |
-| Vai trò        | `/users/roles`, `/users/roles/new`, `/users/roles/[id]`          | Role và gán permission                                                                  |
-| Permission     | `/users/permissions`                                             | Danh sách permission; chưa có UI CRUD                                                   |
-| Cài đặt        | `/settings`                                                      | Trang tổng các cấu hình user được phép truy cập                                         |
-| Dịch vụ        | `/settings/services`                                             | Cây dịch vụ và cấu hình Báo phí root service                                            |
-| Đối tác        | `/settings/partners`                                             | Option đối tác                                                                          |
-| Ngân hàng      | `/settings/bank-accounts`                                        | Tài khoản nhận tiền công ty                                                             |
-| Thẻ nạp QC     | `/settings/ad-topup-cards`                                       | Nguồn chi/nạp quảng cáo                                                                 |
-| Hạng mục P2    | `/settings/p2-categories`                                        | Danh mục điểm P2                                                                        |
-| Danh mục chung | `/settings/options`                                              | Option theo group, kéo thả thứ tự                                                       |
-| Hồ sơ cá nhân  | Avatar tại header; `/profile` giữ tương thích                    | Drawer sửa tên, điện thoại, avatar, mật khẩu và đăng xuất; mã, email, role chỉ đọc       |
+| Nhóm           | Route chính                                                      | Vai trò                                                                            |
+| -------------- | ---------------------------------------------------------------- | ---------------------------------------------------------------------------------- |
+| Auth           | `/login`, `/forgot-password`                                     | Đăng nhập và khôi phục truy cập                                                    |
+| Dashboard      | `/dashboard`                                                     | Trung tâm điều hành Lead, Customer, Project, công việc, tài chính và KPI           |
+| Lead           | `/leads`, `/leads/new`, `/leads/[id]`                            | CRUD, quick view, timeline, chuyển Customer                                        |
+| Customer       | `/customers`, `/customers/new`, `/customers/[id]`                | Hồ sơ khách hàng từ Lead, mở Project                                               |
+| Project        | `/projects`, `/projects/new`, `/projects/[id]`                   | Hồ sơ trung tâm, quick view có lịch sử và bốn tab nghiệp vụ                        |
+| Lịch hẹn       | `/meetings`                                                      | Lịch tháng, danh sách, người tham gia, kết quả và hành động tiếp                   |
+| Báo phí        | `/quotations`, `/quotations/new`, `/quotations/[id]`             | Báo phí, VietQR, công nợ                                                           |
+| Redirect cũ    | `/projects/quotes`                                               | Chuyển sang `/quotations`                                                          |
+| Thanh toán     | `/payments`                                                      | Tiền nhận, phân bổ, hoàn tiền, hóa đơn đầu ra                                      |
+| Chi phí        | `/costs`                                                         | Đối soát chi phí và sự kiện CID                                                    |
+| Báo cáo tuần   | `/weekly-reports`, `/weekly-reports/new`, `/weekly-reports/[id]` | Điều phối và vòng đời báo cáo                                                      |
+| KPI            | `/kpi`                                                           | Kế hoạch, Lợi nhuận, Hoàn thành theo dịch vụ và phòng ban                          |
+| Điểm P2        | `/p2-points`                                                     | Điểm cộng/trừ P2 và duyệt                                                          |
+| Thư viện       | `/media-library`                                                 | Media dùng chung                                                                   |
+| User           | `/users`, `/users/new`, `/users/[id]`                            | Tài khoản nhân viên                                                                |
+| Phòng ban      | `/users/departments`                                             | CRUD phòng ban                                                                     |
+| Vai trò        | `/users/roles`, `/users/roles/new`, `/users/roles/[id]`          | Role và gán permission                                                             |
+| Permission     | `/users/permissions`                                             | Danh sách permission; chưa có UI CRUD                                              |
+| Cài đặt        | `/settings`                                                      | Trang tổng các cấu hình user được phép truy cập                                    |
+| Dịch vụ        | `/settings/services`                                             | Cây dịch vụ và cấu hình Báo phí root service                                       |
+| Đối tác        | `/settings/partners`                                             | Option đối tác                                                                     |
+| Ngân hàng      | `/settings/bank-accounts`                                        | Tài khoản nhận tiền công ty                                                        |
+| Thẻ nạp QC     | `/settings/ad-topup-cards`                                       | Nguồn chi/nạp quảng cáo                                                            |
+| Hạng mục P2    | `/settings/p2-categories`                                        | Danh mục điểm P2                                                                   |
+| Danh mục chung | `/settings/options`                                              | Option theo group, kéo thả thứ tự                                                  |
+| Hồ sơ cá nhân  | Avatar tại header; `/profile` giữ tương thích                    | Drawer sửa tên, điện thoại, avatar, mật khẩu và đăng xuất; mã, email, role chỉ đọc |
 
 ## Tổng quan API
 
@@ -1983,6 +2044,12 @@ cả migration, Service, Resource và frontend type/helper; không chỉ sửa g
 - Toolbar search/filter của các màn danh sách dùng
   `src/components/form/list-filter-bar.tsx`: filter rộng `220px`, search co giãn để chiếm phần chiều
   ngang còn lại trên tablet/desktop; tất cả full width trên mobile và tự xuống dòng khi thiếu chỗ.
+- Với bảng có popup chi tiết, tên hoặc mã chính của bản ghi là thao tác xem mặc định: nhấn trực tiếp
+  sẽ mở popup và giữ nguyên filter/trạng thái danh sách. Không hiển thị thêm icon con mắt hoặc mục
+  `Xem chi tiết` trùng lặp trong menu; icon bút chì vẫn mở form chỉnh sửa. Quy tắc áp dụng cho Lead,
+  Customer, Project, Lịch hẹn, Báo phí, Chi phí, Nhân sự, Vai trò và bảng Báo phí trong tab Tài chính
+  Project. Thanh toán và Báo cáo tuần giữ hành vi riêng; icon con mắt đối soát KPI vẫn được giữ vì
+  đây là drill-down nguồn dữ liệu, không phải thao tác xem bản ghi thông thường.
 - Trạng thái trong bảng Lead và Dự án dùng chung
   `src/components/form/inline-status-select.tsx`: badge nền/viền theo màu option, luôn có chấm màu
   kèm nhãn trạng thái và giữ thao tác đổi trạng thái ngay tại bảng.

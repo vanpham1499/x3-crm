@@ -14,7 +14,6 @@ import LanguageRoundedIcon from '@mui/icons-material/LanguageRounded';
 import MoreVertRoundedIcon from '@mui/icons-material/MoreVertRounded';
 import OpenInNewRoundedIcon from '@mui/icons-material/OpenInNewRounded';
 import PersonAddAlt1RoundedIcon from '@mui/icons-material/PersonAddAlt1Rounded';
-import VisibilityRoundedIcon from '@mui/icons-material/VisibilityRounded';
 import WorkRoundedIcon from '@mui/icons-material/WorkRounded';
 import { IconButton, Menu, MenuItem, Tooltip } from '@mui/material';
 import { DialogActionButton } from '@/components/actions/dialog-action-button';
@@ -29,7 +28,7 @@ import { ListFilterBar } from '@/components/form/list-filter-bar';
 import { IconTabs } from '@/components/navigation/icon-tabs';
 import { PageHeader } from '@/components/shell/page-header';
 import { AppDataTable } from '@/components/table/app-data-table';
-import { EntityTableLink } from '@/components/table/entity-table-link';
+import { EntityTableButton } from '@/components/table/entity-table-link';
 import { TablePaginationBar } from '@/components/table/table-pagination-bar';
 import { UserDateTimeCell } from '@/components/table/user-date-time-cell';
 import { EntityTimelineList } from '@/components/timeline/entity-timeline-list';
@@ -459,11 +458,6 @@ export function LeadManager({
     setViewTab(tab);
   };
 
-  const viewActiveLead = () => {
-    if (activeLead) viewLead(activeLead);
-    closeActionMenu();
-  };
-
   const deleteActiveLead = () => {
     if (activeLead) setDeleteTarget(activeLead);
     closeActionMenu();
@@ -623,9 +617,13 @@ export function LeadManager({
             return (
               <tr key={lead.id} className="group h-16 hover:bg-slate-50/80">
                 <td className="sticky left-0 z-10 bg-white px-3 py-4 align-middle group-hover:bg-slate-50">
-                  <EntityTableLink href={`/leads/${lead.id}`} title={leadIdentity}>
+                  <EntityTableButton
+                    title={leadIdentity}
+                    ariaLabel={`Xem chi tiết lead ${leadIdentity}`}
+                    onClick={() => viewLead(lead)}
+                  >
                     {leadIdentity}
-                  </EntityTableLink>
+                  </EntityTableButton>
                 </td>
                 <td className="px-3 py-4 text-center align-middle">
                   <InlineLeadStatusSelect
@@ -683,13 +681,6 @@ export function LeadManager({
                 </td>
                 <td className="px-3 py-4 align-middle">
                   <div className="flex items-center justify-end gap-0.5 pr-1">
-                    <IconButton
-                      size="small"
-                      title="Xem chi tiết lead"
-                      onClick={() => viewLead(lead)}
-                    >
-                      <VisibilityRoundedIcon fontSize="small" />
-                    </IconButton>
                     {lead.convertedCustomerId ? (
                       <IconButton
                         component={Link}
@@ -734,10 +725,6 @@ export function LeadManager({
         </AppDataTable>
 
         <Menu anchorEl={menuAnchorEl} open={Boolean(menuAnchorEl)} onClose={closeActionMenu}>
-          <MenuItem onClick={viewActiveLead}>
-            <VisibilityRoundedIcon fontSize="small" className="mr-2 text-slate-500" />
-            Xem chi tiết
-          </MenuItem>
           <MenuItem
             onClick={openCustomerForActiveLead}
             disabled={

@@ -6,14 +6,15 @@ import type { MouseEvent } from 'react';
 import CampaignRoundedIcon from '@mui/icons-material/CampaignRounded';
 import CheckCircleOutlineRoundedIcon from '@mui/icons-material/CheckCircleOutlineRounded';
 import CheckCircleRoundedIcon from '@mui/icons-material/CheckCircleRounded';
+import DownloadRoundedIcon from '@mui/icons-material/DownloadRounded';
 import HandshakeRoundedIcon from '@mui/icons-material/HandshakeRounded';
 import MoreVertRoundedIcon from '@mui/icons-material/MoreVertRounded';
 import OpenInNewRoundedIcon from '@mui/icons-material/OpenInNewRounded';
-import VisibilityRoundedIcon from '@mui/icons-material/VisibilityRounded';
 import WarningAmberRoundedIcon from '@mui/icons-material/WarningAmberRounded';
 import WorkRoundedIcon from '@mui/icons-material/WorkRounded';
-import { IconButton, Menu, MenuItem } from '@mui/material';
+import { CircularProgress, IconButton, Menu, MenuItem } from '@mui/material';
 import { DialogActionButton } from '@/components/actions/dialog-action-button';
+import { PrimaryActionButton } from '@/components/actions/primary-action-button';
 import { AppDetailDialog } from '@/components/dialog/app-detail-dialog';
 import { AppFormDialog } from '@/components/dialog/app-form-dialog';
 import { CompactSearchField } from '@/components/form/compact-search-field';
@@ -21,10 +22,11 @@ import { CompactSelectField } from '@/components/form/compact-select-field';
 import { FormDatePicker } from '@/components/form/form-date-picker';
 import { FormInputField } from '@/components/form/form-input-field';
 import { FormSelectField } from '@/components/form/form-select-field';
+import { InlineStatusSelect } from '@/components/form/inline-status-select';
 import { ListFilterBar } from '@/components/form/list-filter-bar';
 import { PageHeader } from '@/components/shell/page-header';
 import { AppDataTable } from '@/components/table/app-data-table';
-import { EntityTableLink } from '@/components/table/entity-table-link';
+import { EntityTableButton, EntityTableLink } from '@/components/table/entity-table-link';
 import { TablePaginationBar } from '@/components/table/table-pagination-bar';
 import { getAdTopupCardLabel } from '@/lib/ad-topup-card-options';
 import type {
@@ -45,13 +47,17 @@ type CostManagerProps = {
   totalPages: number;
   totalItems: number;
   isFetching: boolean;
+  isExporting: boolean;
   isReconciling: boolean;
   isConfirmingCid: boolean;
+  updatingStatusCostId: number | null;
   onFiltersChange: (filters: ProjectCostFilters) => void;
   onPageChange: (page: number) => void;
   onPageSizeChange: (pageSize: number) => void;
+  onExport: () => void;
   onReconcile: (costId: number, payload: ProjectCostReconciliationInput) => Promise<ProjectCost>;
   onConfirmCid: (costId: number) => Promise<ProjectCost>;
+  onStatusChange: (cost: ProjectCost, status: ProjectCostStatus) => void;
 };
 
 type CostGroup = {
@@ -129,6 +135,35 @@ function costStatusLabel(cost: ProjectCost) {
 
   if (cost.status === 'cancelled') return 'Đã hủy';
   return cost.entryType === 'ad_spend' ? 'Chờ nạp' : 'Chờ chi';
+}
+
+function costStatusColor(status: ProjectCostStatus) {
+  if (status === 'completed') return '#059669';
+  if (status === 'cancelled') return '#e11d48';
+
+  return '#d97706';
+}
+
+function costStatusOptions(cost: ProjectCost) {
+  const isAdSpend = cost.entryType === 'ad_spend';
+
+  return [
+    {
+      value: 'pending',
+      label: isAdSpend ? 'Chờ nạp' : 'Chờ chi',
+      color: costStatusColor('pending'),
+    },
+    {
+      value: 'completed',
+      label: isAdSpend ? 'Đã nạp' : 'Đã chi',
+      color: costStatusColor('completed'),
+    },
+    {
+      value: 'cancelled',
+      label: 'Đã hủy',
+      color: costStatusColor('cancelled'),
+    },
+  ];
 }
 
 function entryTypeClass(entryType: ProjectCostEntryType) {
@@ -609,13 +644,17 @@ export function CostManager({
   totalPages,
   totalItems,
   isFetching,
+  isExporting,
   isReconciling,
   isConfirmingCid,
+  updatingStatusCostId,
   onFiltersChange,
   onPageChange,
   onPageSizeChange,
+  onExport,
   onReconcile,
   onConfirmCid,
+  onStatusChange,
 }: CostManagerProps) {
   const [viewTarget, setViewTarget] = useState<ProjectCost | null>(null);
   const [activeCost, setActiveCost] = useState<ProjectCost | null>(null);
@@ -649,7 +688,26 @@ export function CostManager({
 
   return (
     <div className="min-h-[calc(100vh-72px)] w-full bg-slate-50/60 p-6">
-      <PageHeader title="Chi phí" />
+      <PageHeader
+        title="Chi phí"
+        actions={
+          <PrimaryActionButton
+            tone="secondary"
+            startIcon={
+              isExporting ? (
+                <CircularProgress size={16} color="inherit" />
+              ) : (
+                <DownloadRoundedIcon fontSize="small" />
+              )
+            }
+            disabled={isExporting || totalItems === 0}
+            title="Xuất toàn bộ chi phí và dữ liệu đối soát theo bộ lọc hiện tại"
+            onClick={onExport}
+          >
+            {isExporting ? 'Đang xuất...' : 'Xuất Excel'}
+          </PrimaryActionButton>
+        }
+      />
 
       <section className="w-full overflow-hidden rounded-2xl border border-slate-200 bg-white shadow-sm">
         <div className="border-slate-200 p-4">
@@ -734,7 +792,7 @@ export function CostManager({
             { key: 'project', label: 'Dự án', className: 'w-56' },
             { key: 'status', label: 'Trạng thái chi', className: 'w-36 text-center' },
             { key: 'processing', label: 'Đối soát', className: 'w-40 text-center' },
-            { key: 'actions', className: 'w-20' },
+            { key: 'actions', className: 'w-14' },
           ]}
           isLoading={isFetching}
           isEmpty={costs.length === 0}
@@ -745,6 +803,9 @@ export function CostManager({
             const firstCost = group.costs[0];
             const project = firstCost?.project;
             const rowSpan = group.costs.length;
+            const availableTopupBudget = Number(project?.availableTopupBudget) || 0;
+            const hasTopupBudget =
+              project?.availableTopupBudget !== null && project?.availableTopupBudget !== undefined;
 
             return group.costs.map((cost, rowIndex) => {
               const isFirstRow = rowIndex === 0;
@@ -794,12 +855,15 @@ export function CostManager({
                   </td>
                   <td className="px-3 py-3.5">
                     <div className="min-w-0">
-                      <p
-                        className="truncate whitespace-nowrap text-sm font-semibold text-slate-700"
+                      <EntityTableButton
+                        tone="neutral"
+                        className="w-full whitespace-nowrap text-sm text-slate-700"
                         title={costSummary(cost)}
+                        ariaLabel={`Xem chi tiết chi phí ${costSummary(cost) || cost.id}`}
+                        onClick={() => setViewTarget(cost)}
                       >
                         {costSummary(cost) || '-'}
-                      </p>
+                      </EntityTableButton>
                       {cost.invoiceNumber ? (
                         <p
                           className="mt-1 truncate text-xs font-semibold text-blue-700"
@@ -823,30 +887,59 @@ export function CostManager({
                       rowSpan={rowSpan}
                       className="border-l border-slate-100 bg-slate-50/50 px-3 py-3.5 align-middle"
                     >
-                      <div className="flex min-w-0 items-center gap-2">
-                        {project ? (
-                          <EntityTableLink href={`/projects/${project.id}`} tone="blue">
-                            {project.projectCode || `Dự án #${cost.projectId}`}
-                          </EntityTableLink>
-                        ) : (
-                          <span className="font-semibold text-slate-500">
-                            Dự án #{cost.projectId}
-                          </span>
-                        )}
-                        {rowSpan > 1 ? (
-                          <span className="shrink-0 rounded-full bg-blue-50 px-2 py-0.5 text-xs font-bold text-blue-700">
-                            {rowSpan} khoản
-                          </span>
+                      <div className="flex min-w-0 flex-col gap-1.5">
+                        <div className="flex min-w-0 items-center gap-2">
+                          {project ? (
+                            <EntityTableLink href={`/projects/${project.id}`} tone="blue">
+                              {project.projectCode || `Dự án #${cost.projectId}`}
+                            </EntityTableLink>
+                          ) : (
+                            <span className="font-semibold text-slate-500">
+                              Dự án #{cost.projectId}
+                            </span>
+                          )}
+                          {rowSpan > 1 ? (
+                            <span className="shrink-0 rounded-full bg-blue-50 px-2 py-0.5 text-xs font-bold text-blue-700">
+                              {rowSpan} khoản
+                            </span>
+                          ) : null}
+                        </div>
+                        {hasTopupBudget ? (
+                          <p
+                            className={`whitespace-nowrap text-xs font-bold tabular-nums ${
+                              availableTopupBudget < 0 ? 'text-rose-700' : 'text-emerald-700'
+                            }`}
+                          >
+                            {availableTopupBudget < 0 ? 'Đang âm: ' : 'Có thể nạp: '}
+                            {formatCurrency(Math.abs(availableTopupBudget))}
+                          </p>
                         ) : null}
                       </div>
                     </td>
                   ) : null}
                   <td className="px-3 py-3.5 text-center">
-                    <span
-                      className={`inline-flex whitespace-nowrap rounded-md px-2 py-1 text-xs font-bold ring-1 ${statusClass(cost.status)}`}
-                    >
-                      {costStatusLabel(cost)}
-                    </span>
+                    {cost.canFund && !cost.reconciledAt ? (
+                      <InlineStatusSelect
+                        value={cost.status}
+                        label={costStatusLabel(cost)}
+                        color={costStatusColor(cost.status)}
+                        options={costStatusOptions(cost)}
+                        ariaLabel={`Đổi trạng thái chi phí ${costSummary(cost) || cost.id}`}
+                        disabled={updatingStatusCostId === cost.id}
+                        onChange={(status) => onStatusChange(cost, status as ProjectCostStatus)}
+                      />
+                    ) : (
+                      <span
+                        className={`inline-flex whitespace-nowrap rounded-md px-2 py-1 text-xs font-bold ring-1 ${statusClass(cost.status)}`}
+                        title={
+                          cost.reconciledAt
+                            ? 'Khoản chi đã đối soát nên trạng thái được khóa'
+                            : undefined
+                        }
+                      >
+                        {costStatusLabel(cost)}
+                      </span>
+                    )}
                   </td>
                   <td className="px-3 py-3.5 text-center">
                     {cost.status !== 'completed' ? (
@@ -908,14 +1001,6 @@ export function CostManager({
                     <div className="flex items-center justify-end gap-1 pr-3">
                       <IconButton
                         size="small"
-                        title="Xem chi tiết"
-                        aria-label={`Xem chi tiết chi phí ${cost.id}`}
-                        onClick={() => setViewTarget(cost)}
-                      >
-                        <VisibilityRoundedIcon fontSize="small" />
-                      </IconButton>
-                      <IconButton
-                        size="small"
                         title="Tác vụ"
                         aria-label={`Tác vụ chi phí ${cost.id}`}
                         onClick={(event) => openActionMenu(event, cost)}
@@ -943,15 +1028,6 @@ export function CostManager({
       </section>
 
       <Menu anchorEl={menuAnchorEl} open={Boolean(menuAnchorEl)} onClose={closeActionMenu}>
-        <MenuItem
-          onClick={() => {
-            setViewTarget(activeCost);
-            closeActionMenu();
-          }}
-        >
-          <VisibilityRoundedIcon fontSize="small" className="mr-2 text-slate-500" />
-          Xem chi tiết
-        </MenuItem>
         {activeCost ? (
           <>
             {activeCost.cidIncident?.status === 'pending' && activeCost.canApprove ? (

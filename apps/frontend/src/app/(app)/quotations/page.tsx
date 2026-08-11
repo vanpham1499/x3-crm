@@ -1,6 +1,6 @@
 'use client';
 
-import { useEffect } from 'react';
+import { useEffect, useState } from 'react';
 import { keepPreviousData, useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import { useAppNotification } from '@/components/feedback/notification-provider';
 import { ContentLoading } from '@/components/shell/content-loading';
@@ -29,6 +29,7 @@ export default function QuotationsPage() {
   const queryClient = useQueryClient();
   const notify = useAppNotification();
   const currentUser = useAuthStore((state) => state.user);
+  const [isExporting, setIsExporting] = useState(false);
   const { filters, requestFilters, page, pageSize, setPage, setPageSize, onFiltersChange } =
     useServerListState<QuotationFilters>({
       initialFilters: DEFAULT_QUOTATION_FILTERS,
@@ -89,6 +90,21 @@ export default function QuotationsPage() {
     },
   });
 
+  const exportQuotations = async () => {
+    setIsExporting(true);
+
+    try {
+      const { exportQuotationsWorkbook } =
+        await import('@/features/quotations/lib/export-quotations');
+      await exportQuotationsWorkbook(requestFilters);
+      notify.success('Đã xuất file Excel báo phí.');
+    } catch (error) {
+      notify.error(getApiErrorMessage(error, 'Không thể xuất file Excel báo phí.'));
+    } finally {
+      setIsExporting(false);
+    }
+  };
+
   if (isLoading) {
     return <ContentLoading />;
   }
@@ -103,11 +119,13 @@ export default function QuotationsPage() {
       pageSize={pageSize}
       isFetching={isFetching}
       isDeleting={deleteMutation.isPending}
+      isExporting={isExporting}
       currentUser={currentUser}
       creators={creators}
       onPageChange={setPage}
       onPageSizeChange={setPageSize}
       onFiltersChange={onFiltersChange}
+      onExport={() => void exportQuotations()}
       onDelete={(quotation) => deleteMutation.mutate(quotation)}
     />
   );

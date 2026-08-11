@@ -23,7 +23,7 @@ import { OptionStatusBadge } from '@/components/data-display/option-status-badge
 import { CompactSelectField } from '@/components/form/compact-select-field';
 import { ListFilterBar } from '@/components/form/list-filter-bar';
 import { AppDataTable } from '@/components/table/app-data-table';
-import { EntityTableLink } from '@/components/table/entity-table-link';
+import { EntityTableButton, EntityTableLink } from '@/components/table/entity-table-link';
 import { TablePaginationBar } from '@/components/table/table-pagination-bar';
 import {
   canApproveWeeklyReport,
@@ -296,26 +296,63 @@ export function WeeklyReportBoard({
 
         <AppDataTable
           columns={[
+            { key: 'report', label: 'Nhân sự / Kỳ dữ liệu', className: 'w-[300px]' },
             { key: 'project', label: 'Dự án', className: 'w-[250px]' },
-            { key: 'sales', label: 'Nhân sự', className: 'w-[180px]' },
             { key: 'due', label: 'Hạn báo cáo', className: 'w-[240px]' },
-            { key: 'period', label: 'Kỳ dữ liệu', className: 'w-[190px]' },
             { key: 'progress', label: 'Tiến độ', className: 'w-[130px]' },
             { key: 'condition', label: 'Tình trạng tuần', className: 'w-[150px]' },
-            { key: 'actions', className: 'w-[132px]' },
+            { key: 'actions', className: 'w-24' },
           ]}
           isLoading={isFetching}
           isEmpty={rows.length === 0}
           emptyText="Không có dự án phù hợp trong kỳ này"
-          minWidthClassName="min-w-[1272px]"
+          minWidthClassName="min-w-[1200px]"
         >
           {rows.map((row) => {
             const report = row.report;
             const editHref = report ? `/weekly-reports/${report.id}` : '';
             const createHref = `/weekly-reports/new?projectId=${row.projectId}&weekStart=${weekStart}`;
             const projectLabel = row.project.projectCode || `Dự án #${row.projectId}`;
+            const ownerLabel =
+              [row.reportOwner?.code, row.reportOwner?.name].filter(Boolean).join(' - ') || '-';
+            const periodLabel = `${formatDate(row.periodStartDate)} – ${formatDate(row.periodEndDate)}`;
             return (
               <tr key={row.settingId} className="hover:bg-slate-50/80">
+                <td className="px-3 py-3.5">
+                  {report ? (
+                    <EntityTableButton
+                      tone="neutral"
+                      title={`${ownerLabel} · ${periodLabel}`}
+                      className="group"
+                      ariaLabel={`Mở bản gửi khách ${projectLabel}`}
+                      onClick={() => setCustomerPreviewTarget(report)}
+                    >
+                      <span className="block truncate text-slate-900">{ownerLabel}</span>
+                      <span className="mt-1 block truncate text-xs font-medium tabular-nums text-slate-500 transition-colors group-hover:text-primary/70">
+                        {periodLabel}
+                      </span>
+                    </EntityTableButton>
+                  ) : canAuthor ? (
+                    <EntityTableLink
+                      href={createHref}
+                      tone="neutral"
+                      title={`${ownerLabel} · ${periodLabel}`}
+                      className="group"
+                    >
+                      <span className="block truncate text-slate-900">{ownerLabel}</span>
+                      <span className="mt-1 block truncate text-xs font-medium tabular-nums text-slate-500 transition-colors group-hover:text-primary/70">
+                        {periodLabel}
+                      </span>
+                    </EntityTableLink>
+                  ) : (
+                    <div title={`${ownerLabel} · ${periodLabel}`}>
+                      <p className="truncate font-bold text-slate-900">{ownerLabel}</p>
+                      <p className="mt-1 truncate text-xs font-medium tabular-nums text-slate-500">
+                        {periodLabel}
+                      </p>
+                    </div>
+                  )}
+                </td>
                 <td className="px-3 py-3.5">
                   <EntityTableLink
                     href={`/projects/${row.projectId}`}
@@ -324,10 +361,6 @@ export function WeeklyReportBoard({
                   >
                     {row.project.projectCode || `Dự án #${row.projectId}`}
                   </EntityTableLink>
-                </td>
-                <td className="whitespace-nowrap px-3 py-3.5 font-semibold text-slate-700">
-                  {[row.reportOwner?.code, row.reportOwner?.name].filter(Boolean).join(' - ') ||
-                    '-'}
                 </td>
                 <td className="whitespace-nowrap px-3 py-3.5">
                   <div className="flex items-center gap-2">
@@ -340,9 +373,6 @@ export function WeeklyReportBoard({
                       {getReportWeekdayLabel(row.reportWeekday)} · {formatDate(row.dueDate)}
                     </span>
                   </div>
-                </td>
-                <td className="whitespace-nowrap px-3 py-3.5 font-medium text-slate-700">
-                  {formatDate(row.periodStartDate)} – {formatDate(row.periodEndDate)}
                 </td>
                 <td className="px-3 py-3.5">
                   <span
@@ -380,15 +410,6 @@ export function WeeklyReportBoard({
                       </Tooltip>
                     ) : (
                       <>
-                        <Tooltip title="Bản gửi khách">
-                          <IconButton
-                            size="small"
-                            aria-label={`Mở bản gửi khách ${projectLabel}`}
-                            onClick={() => setCustomerPreviewTarget(report)}
-                          >
-                            <VisibilityOutlinedIcon fontSize="small" />
-                          </IconButton>
-                        </Tooltip>
                         {canUpdateWeeklyReport(currentUser, report) ? (
                           <Tooltip title="Chỉnh sửa báo cáo">
                             <IconButton

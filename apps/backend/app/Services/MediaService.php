@@ -262,7 +262,7 @@ class MediaService extends BaseService
                         'type' => 'customer',
                         'typeLabel' => 'Khách hàng',
                         'entityId' => $customer->id,
-                        'label' => trim($customer->customer_code.'.'.$customer->customer_name, '.'),
+                        'label' => $customer->displayLabel(),
                         'href' => "/customers/{$customer->id}",
                     ]);
                 }

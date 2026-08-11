@@ -91,4 +91,5 @@ export type QuotationLineFormValue = {
   quantity: string;
   unitPrice: string;
   locked?: boolean;
+  countsTowardTopupBudget?: boolean;
 };

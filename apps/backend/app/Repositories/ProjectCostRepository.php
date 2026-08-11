@@ -203,6 +203,8 @@ class ProjectCostRepository extends BaseRepository
             'project.customer',
             'project.managerUser:id,department_id',
             'project.salesUser:id,department_id',
+            'project.quotations.items',
+            'project.costs.cidIncident',
             'quotation',
             'bankAccountOption',
             'partnerOption',

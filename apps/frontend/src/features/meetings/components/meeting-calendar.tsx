@@ -4,6 +4,7 @@ import ChevronLeftRoundedIcon from '@mui/icons-material/ChevronLeftRounded';
 import ChevronRightRoundedIcon from '@mui/icons-material/ChevronRightRounded';
 import { IconButton, LinearProgress, Tooltip } from '@mui/material';
 import dayjs, { type Dayjs } from 'dayjs';
+import { formatCustomerIdentity } from '@/lib/customer-utils';
 import type { Meeting } from '@/types/meeting';
 
 type MeetingCalendarProps = {
@@ -34,7 +35,7 @@ function meetingLabel(meeting: Meeting) {
   return (
     meeting.subject ||
     meeting.project?.projectCode ||
-    meeting.customer?.customerName ||
+    (meeting.customer ? formatCustomerIdentity(meeting.customer) : '') ||
     meeting.lead?.customerName
   );
 }

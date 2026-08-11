@@ -84,16 +84,23 @@ class QuotationsService extends BaseService
 
             if ($this->isPaymentLocked($currentQuotation)) {
                 $requestedData = $this->normalizeKeys($data);
-                $blockedFields = array_diff(array_keys($requestedData), ['note']);
+                $blockedFields = array_diff(array_keys($requestedData), ['note', 'topup_budget_item_ids']);
 
                 if ($blockedFields !== []) {
                     throw ValidationException::withMessages([
-                        'quotation' => ['Báo phí đã thu đủ nên đã được khóa. Chỉ có thể chỉnh sửa ghi chú.'],
+                        'quotation' => ['Báo phí đã thu đủ nên đã được khóa. Chỉ có thể chỉnh sửa ghi chú và hạng mục tính vào ngân sách nạp.'],
                     ]);
                 }
 
                 if (array_key_exists('note', $requestedData)) {
                     $this->quotations->update($id, ['note' => $requestedData['note']]);
+                }
+
+                if (array_key_exists('topup_budget_item_ids', $requestedData)) {
+                    $this->syncTopupBudgetItems(
+                        $currentQuotation,
+                        (array) $requestedData['topup_budget_item_ids'],
+                    );
                 }
 
                 return $this->apiResource(
@@ -102,6 +109,7 @@ class QuotationsService extends BaseService
                 );
             }
 
+            unset($data['topupBudgetItemIds'], $data['topup_budget_item_ids']);
             $hasItems = array_key_exists('items', $data);
             $items = $data['items'] ?? [];
             unset($data['items']);
@@ -278,6 +286,7 @@ class QuotationsService extends BaseService
             'validUntil' => 'valid_until',
             'allocationOpen' => 'allocation_open',
             'createdById' => 'created_by',
+            'topupBudgetItemIds' => 'topup_budget_item_ids',
         ];
 
         foreach ($map as $from => $to) {
@@ -509,6 +518,22 @@ class QuotationsService extends BaseService
         foreach ($items as $item) {
             $quotation->items()->create($item);
         }
+    }
+
+    private function syncTopupBudgetItems(Quotation $quotation, array $itemIds): void
+    {
+        $selectedIds = collect($itemIds)
+            ->map(fn ($itemId): int => (int) $itemId)
+            ->filter(fn (int $itemId): bool => $itemId > 0)
+            ->unique()
+            ->values()
+            ->all();
+
+        $quotation->items()->get()->each(function ($item) use ($selectedIds): void {
+            $metadata = is_array($item->metadata) ? $item->metadata : [];
+            $metadata['countsTowardTopupBudget'] = in_array((int) $item->id, $selectedIds, true);
+            $item->update(['metadata' => $metadata]);
+        });
     }
 
     private function generateQuotationCode(array $data): string

@@ -5,7 +5,7 @@ import AddRoundedIcon from '@mui/icons-material/AddRounded';
 import DeleteRoundedIcon from '@mui/icons-material/DeleteRounded';
 import LockRoundedIcon from '@mui/icons-material/LockRounded';
 import SaveRoundedIcon from '@mui/icons-material/SaveRounded';
-import { Autocomplete, IconButton, MenuItem } from '@mui/material';
+import { Autocomplete, Checkbox, FormControlLabel, IconButton, MenuItem } from '@mui/material';
 import { useQuery } from '@tanstack/react-query';
 import { TabActionButton } from '@/components/actions/tab-action-button';
 import { FormActionBar } from '@/components/form/form-action-bar';
@@ -22,6 +22,7 @@ import {
   getCompanyBankAccounts,
   getDefaultCompanyBankAccount,
 } from '@/lib/company-bank-account-options';
+import { formatCustomerIdentity } from '@/lib/customer-utils';
 import { getQuotationPaymentContent } from '@/lib/quotation-utils';
 import {
   SERVICE_QUOTE_CONFIG_GROUP,
@@ -283,6 +284,7 @@ export function QuotationForm({
           unit: getLineUnit(item),
           quantity: String(item.quantity ?? '1'),
           unitPrice: String(item.unitPrice ?? '0'),
+          countsTowardTopupBudget: item.metadata?.countsTowardTopupBudget === true,
         })) || [];
 
     setManualLines(
@@ -420,6 +422,7 @@ export function QuotationForm({
               unit: line.unit,
               locked: Boolean(line.locked),
               excludedFromTotal: line.excludedFromTotal,
+              countsTowardTopupBudget: Boolean(line.countsTowardTopupBudget),
             },
           };
         }),
@@ -431,7 +434,16 @@ export function QuotationForm({
 
     try {
       setFieldErrors({});
-      await onSubmit(isPaymentLocked ? { note: note.trim() || null } : payload);
+      await onSubmit(
+        isPaymentLocked
+          ? {
+              note: note.trim() || null,
+              topupBudgetItemIds: manualLines
+                .filter((line) => line.countsTowardTopupBudget)
+                .map((line) => line.id),
+            }
+          : payload,
+      );
     } catch (error) {
       setFieldErrors(getApiFieldErrors(error));
     }
@@ -496,13 +508,7 @@ export function QuotationForm({
                     Khách hàng
                   </dt>
                   <dd className="mt-1 truncate text-sm font-bold text-slate-800">
-                    {[
-                      selectedProject.customer?.customerCode,
-                      selectedProject.customer?.customerName ||
-                        selectedProject.customer?.companyName,
-                    ]
-                      .filter(Boolean)
-                      .join(' · ') || '-'}
+                    {formatCustomerIdentity(selectedProject.customer)}
                   </dd>
                 </div>
                 <div className="min-w-0 border-slate-200 px-3 py-2.5 md:border-x">
@@ -689,6 +695,33 @@ export function QuotationForm({
                     <DeleteRoundedIcon fontSize="small" />
                   </IconButton>
                 </div>
+                {projectType === 'M' ? (
+                  <div className="mt-1 flex min-h-11 flex-wrap items-center gap-x-2 pl-0.5">
+                    <FormControlLabel
+                      className="!m-0"
+                      control={
+                        <Checkbox
+                          size="small"
+                          checked={Boolean(line.countsTowardTopupBudget)}
+                          disabled={isSubmitting}
+                          onChange={(event) =>
+                            updateLine(line.id, {
+                              countsTowardTopupBudget: event.target.checked,
+                            })
+                          }
+                        />
+                      }
+                      label={
+                        <span className="text-sm font-semibold text-slate-700">
+                          Tính vào số tiền có thể nạp
+                        </span>
+                      }
+                    />
+                    <span className="text-xs font-medium text-slate-500">
+                      Cộng giá trị sau VAT của hạng mục.
+                    </span>
+                  </div>
+                ) : null}
               </div>
             ))}
 
@@ -728,7 +761,11 @@ export function QuotationForm({
       <FormActionBar
         cancelHref="/quotations"
         submitLabel={
-          isPaymentLocked ? 'Lưu ghi chú' : mode === 'edit' ? 'Lưu thay đổi' : 'Tạo báo phí'
+          isPaymentLocked
+            ? 'Lưu ghi chú và ngân sách'
+            : mode === 'edit'
+              ? 'Lưu thay đổi'
+              : 'Tạo báo phí'
         }
         isSubmitting={isSubmitting || isUploadingReconciliationImages}
         submitDisabled={missingRequiredProject || isUploadingReconciliationImages}

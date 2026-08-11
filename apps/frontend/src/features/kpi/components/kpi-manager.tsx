@@ -4,6 +4,7 @@ import { type ReactElement, useState } from 'react';
 import AccountBalanceWalletOutlinedIcon from '@mui/icons-material/AccountBalanceWalletOutlined';
 import CorporateFareRoundedIcon from '@mui/icons-material/CorporateFareRounded';
 import DonutLargeRoundedIcon from '@mui/icons-material/DonutLargeRounded';
+import DownloadRoundedIcon from '@mui/icons-material/DownloadRounded';
 import EditRoundedIcon from '@mui/icons-material/EditRounded';
 import FlagOutlinedIcon from '@mui/icons-material/FlagOutlined';
 import PeopleAltRoundedIcon from '@mui/icons-material/PeopleAltRounded';
@@ -13,11 +14,13 @@ import RoomServiceRoundedIcon from '@mui/icons-material/RoomServiceRounded';
 import TrendingDownRoundedIcon from '@mui/icons-material/TrendingDownRounded';
 import TrendingUpRoundedIcon from '@mui/icons-material/TrendingUpRounded';
 import VisibilityRoundedIcon from '@mui/icons-material/VisibilityRounded';
-import { IconButton, LinearProgress, MenuItem, Tooltip } from '@mui/material';
+import { CircularProgress, IconButton, LinearProgress, MenuItem, Tooltip } from '@mui/material';
 import { Controller, useForm } from 'react-hook-form';
 import { DialogActionButton } from '@/components/actions/dialog-action-button';
+import { PrimaryActionButton } from '@/components/actions/primary-action-button';
 import { SummaryMetricCard } from '@/components/data-display/summary-metric-card';
 import { AppFormDialog } from '@/components/dialog/app-form-dialog';
+import { useAppNotification } from '@/components/feedback/notification-provider';
 import { CompactMonthPicker } from '@/components/form/compact-month-picker';
 import { CompactYearPicker } from '@/components/form/compact-year-picker';
 import { FormSelectField } from '@/components/form/form-select-field';
@@ -31,7 +34,7 @@ import {
   KpiDetailDialog,
   type KpiDetailDialogState,
 } from '@/features/kpi/components/kpi-detail-dialog';
-import { applyApiErrorsToForm } from '@/lib/api-error';
+import { applyApiErrorsToForm, getApiErrorMessage } from '@/lib/api-error';
 import { formatCurrency } from '@/lib/utils';
 import type {
   DepartmentKpiRow,
@@ -265,9 +268,11 @@ function TargetDialog({
 function PeriodFilters({
   filters,
   onChange,
+  actions,
 }: {
   filters: KpiPeriodFilters;
   onChange: (filters: KpiPeriodFilters) => void;
+  actions?: ReactElement;
 }) {
   const update = (next: Partial<KpiPeriodFilters>) => onChange({ ...filters, ...next });
 
@@ -352,6 +357,12 @@ function PeriodFilters({
           </div>
         </>
       )}
+
+      {actions ? (
+        <div data-list-filter-action className="flex min-h-14 items-end justify-end">
+          {actions}
+        </div>
+      ) : null}
     </ListFilterBar>
   );
 }
@@ -812,9 +823,14 @@ export function KpiManager({
   onFiltersChange,
   onSaveTarget,
 }: KpiManagerProps) {
+  const notify = useAppNotification();
   const [activeTab, setActiveTab] = useState(0);
   const [targetDialog, setTargetDialog] = useState<TargetDialogState | null>(null);
   const [detailDialog, setDetailDialog] = useState<KpiDetailDialogState | null>(null);
+  const [exportProgress, setExportProgress] = useState<{
+    completed: number;
+    total: number;
+  } | null>(null);
   const tabs: Array<{ scope: KpiTabScope; label: string; icon: ReactElement }> =
     report.viewerScope.level === 'all'
       ? [
@@ -856,6 +872,23 @@ export function KpiManager({
           ];
   const selectedTab = tabs[activeTab] ?? tabs[0];
   const scope = selectedTab.scope;
+  const employeeExportCount = report.periods.reduce(
+    (total, period) => total + period.employees.length,
+    0,
+  );
+  const exportEmployees = async () => {
+    setExportProgress({ completed: 0, total: employeeExportCount });
+
+    try {
+      const { exportEmployeeKpiWorkbook } = await import('@/features/kpi/lib/export-employee-kpi');
+      await exportEmployeeKpiWorkbook(report, setExportProgress);
+      notify.success('Đã xuất file Excel KPI nhân sự.');
+    } catch (error) {
+      notify.error(getApiErrorMessage(error, 'Không thể xuất file Excel KPI nhân sự.'));
+    } finally {
+      setExportProgress(null);
+    }
+  };
   const summary = aggregateSummary(report.periods, scope);
   const scopeLabel =
     scope === 'services' ? 'dịch vụ' : scope === 'departments' ? 'phòng ban' : 'nhân sự';
@@ -926,7 +959,31 @@ export function KpiManager({
           items={tabs.map(({ label, icon }) => ({ label, icon }))}
         />
 
-        <PeriodFilters filters={filters} onChange={onFiltersChange} />
+        <PeriodFilters
+          filters={filters}
+          onChange={onFiltersChange}
+          actions={
+            scope === 'employees' ? (
+              <PrimaryActionButton
+                tone="secondary"
+                startIcon={
+                  exportProgress ? (
+                    <CircularProgress size={16} color="inherit" />
+                  ) : (
+                    <DownloadRoundedIcon fontSize="small" />
+                  )
+                }
+                disabled={isFetching || Boolean(exportProgress) || employeeExportCount === 0}
+                title="Xuất toàn bộ KPI nhân sự và dữ liệu đối soát trong kỳ đang chọn"
+                onClick={() => void exportEmployees()}
+              >
+                {exportProgress
+                  ? `Đang xuất ${exportProgress.completed}/${exportProgress.total}`
+                  : 'Xuất Excel'}
+              </PrimaryActionButton>
+            ) : undefined
+          }
+        />
 
         <ComparisonTable periods={report.periods} scope={scope} isFetching={isFetching} />
 

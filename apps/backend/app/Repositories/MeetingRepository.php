@@ -53,6 +53,20 @@ class MeetingRepository extends BaseRepository
         return $this->visibleQuery($user);
     }
 
+    public function findVisibleOrganizers(User $user): Collection
+    {
+        $organizerIds = $this->visibleQuery($user)
+            ->whereNotNull('organizer_user_id')
+            ->distinct()
+            ->pluck('organizer_user_id');
+
+        return User::query()
+            ->whereIn('id', $organizerIds)
+            ->where('is_active', true)
+            ->orderBy('code')
+            ->get();
+    }
+
     public function conflictingMeetings(
         array $userIds,
         string $startsAt,

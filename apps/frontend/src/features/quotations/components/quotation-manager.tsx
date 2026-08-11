@@ -4,11 +4,10 @@ import Link from 'next/link';
 import AddRoundedIcon from '@mui/icons-material/AddRounded';
 import CalculateRoundedIcon from '@mui/icons-material/CalculateRounded';
 import DeleteRoundedIcon from '@mui/icons-material/DeleteRounded';
+import DownloadRoundedIcon from '@mui/icons-material/DownloadRounded';
 import EditRoundedIcon from '@mui/icons-material/EditRounded';
 import MoreVertRoundedIcon from '@mui/icons-material/MoreVertRounded';
-import PictureAsPdfRoundedIcon from '@mui/icons-material/PictureAsPdfRounded';
-import VisibilityRoundedIcon from '@mui/icons-material/VisibilityRounded';
-import { IconButton, Menu, MenuItem } from '@mui/material';
+import { CircularProgress, IconButton, Menu, MenuItem } from '@mui/material';
 import { useState, type MouseEvent } from 'react';
 import { PrimaryActionButton } from '@/components/actions/primary-action-button';
 import { ConfirmDialog } from '@/components/feedback/confirm-dialog';
@@ -18,7 +17,7 @@ import { CompactSelectField } from '@/components/form/compact-select-field';
 import { ListFilterBar } from '@/components/form/list-filter-bar';
 import { PageHeader } from '@/components/shell/page-header';
 import { AppDataTable } from '@/components/table/app-data-table';
-import { EntityTableLink } from '@/components/table/entity-table-link';
+import { EntityTableButton, EntityTableLink } from '@/components/table/entity-table-link';
 import { TablePaginationBar } from '@/components/table/table-pagination-bar';
 import { UserDateTimeCell } from '@/components/table/user-date-time-cell';
 import { canCreateQuotation, canDeleteQuotation, canEditQuotation } from '@/lib/ownership';
@@ -37,11 +36,13 @@ type QuotationManagerProps = {
   pageSize: number;
   isFetching: boolean;
   isDeleting: boolean;
+  isExporting: boolean;
   currentUser: User | null;
   creators: User[];
   onPageChange: (page: number) => void;
   onPageSizeChange: (pageSize: number) => void;
   onFiltersChange: (filters: QuotationFilters) => void;
+  onExport: () => void;
   onDelete: (quotation: Quotation) => void;
 };
 
@@ -84,11 +85,13 @@ export function QuotationManager({
   pageSize,
   isFetching,
   isDeleting,
+  isExporting,
   currentUser,
   creators,
   onPageChange,
   onPageSizeChange,
   onFiltersChange,
+  onExport,
   onDelete,
 }: QuotationManagerProps) {
   const [menuAnchorEl, setMenuAnchorEl] = useState<HTMLElement | null>(null);
@@ -133,6 +136,21 @@ export function QuotationManager({
         title="Báo phí"
         actions={
           <div className="flex flex-wrap items-center gap-2">
+            <PrimaryActionButton
+              tone="secondary"
+              startIcon={
+                isExporting ? (
+                  <CircularProgress size={16} color="inherit" />
+                ) : (
+                  <DownloadRoundedIcon fontSize="small" />
+                )
+              }
+              disabled={isExporting || totalItems === 0}
+              title="Xuất toàn bộ báo phí và hạng mục theo bộ lọc hiện tại"
+              onClick={onExport}
+            >
+              {isExporting ? 'Đang xuất...' : 'Xuất Excel'}
+            </PrimaryActionButton>
             <PrimaryActionButton
               tone="secondary"
               startIcon={<CalculateRoundedIcon />}
@@ -197,7 +215,7 @@ export function QuotationManager({
             { key: 'paid', label: 'Thực thu / hoàn', className: 'w-60 text-right' },
             { key: 'status', label: 'Trạng thái / Thanh toán', className: 'w-56' },
             { key: 'created', label: 'Người tạo', className: 'w-[150px]' },
-            { key: 'actions', className: 'w-40' },
+            { key: 'actions', className: 'w-32' },
           ]}
           isLoading={isFetching}
           isEmpty={quotations.length === 0}
@@ -213,12 +231,13 @@ export function QuotationManager({
             return (
               <tr key={quotation.id} className="group hover:bg-slate-50/80">
                 <td className="sticky left-0 z-10 bg-white px-3 py-4 group-hover:bg-slate-50">
-                  <EntityTableLink
-                    href={`/quotations/${quotation.id}`}
+                  <EntityTableButton
                     title={quotation.quotationCode || ''}
+                    ariaLabel={`Xem chi tiết báo phí ${quotation.quotationCode || quotation.id}`}
+                    onClick={() => openPreview(quotation)}
                   >
                     {quotation.quotationCode || '-'}
-                  </EntityTableLink>
+                  </EntityTableButton>
                 </td>
                 <td className="px-3 py-4">
                   {quotation.project ? (
@@ -289,14 +308,6 @@ export function QuotationManager({
                 <td className="py-4">
                   <div className="flex items-center justify-end gap-1 pr-3">
                     <IconButton
-                      size="small"
-                      title="Xem chi tiết báo phí"
-                      aria-label={`Xem chi tiết báo phí ${quotation.quotationCode || quotation.id}`}
-                      onClick={() => openPreview(quotation)}
-                    >
-                      <VisibilityRoundedIcon fontSize="small" />
-                    </IconButton>
-                    <IconButton
                       component={Link}
                       href={`/quotations/${quotation.id}`}
                       size="small"
@@ -312,7 +323,7 @@ export function QuotationManager({
                       aria-label={`Tải PDF báo phí ${quotation.quotationCode || quotation.id}`}
                       onClick={() => downloadPdf(quotation)}
                     >
-                      <PictureAsPdfRoundedIcon fontSize="small" />
+                      <DownloadRoundedIcon fontSize="small" />
                     </IconButton>
                     <IconButton
                       size="small"
@@ -341,15 +352,6 @@ export function QuotationManager({
 
       <Menu anchorEl={menuAnchorEl} open={Boolean(menuAnchorEl)} onClose={closeActionMenu}>
         <MenuItem
-          onClick={() => {
-            if (activeQuotation) openPreview(activeQuotation);
-            closeActionMenu();
-          }}
-        >
-          <VisibilityRoundedIcon fontSize="small" className="mr-2 text-slate-500" />
-          Xem chi tiết
-        </MenuItem>
-        <MenuItem
           component={Link}
           href={activeQuotation ? `/quotations/${activeQuotation.id}` : '/quotations'}
           onClick={closeActionMenu}
@@ -365,7 +367,7 @@ export function QuotationManager({
             closeActionMenu();
           }}
         >
-          <PictureAsPdfRoundedIcon fontSize="small" className="mr-2 text-slate-500" />
+          <DownloadRoundedIcon fontSize="small" className="mr-2 text-slate-500" />
           Tải PDF
         </MenuItem>
         <MenuItem

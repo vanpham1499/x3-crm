@@ -9,13 +9,15 @@ import CallReceivedRoundedIcon from '@mui/icons-material/CallReceivedRounded';
 import CallSplitRoundedIcon from '@mui/icons-material/CallSplitRounded';
 import DeleteOutlineRoundedIcon from '@mui/icons-material/DeleteOutlineRounded';
 import DescriptionRoundedIcon from '@mui/icons-material/DescriptionRounded';
+import DownloadRoundedIcon from '@mui/icons-material/DownloadRounded';
 import MoreVertRoundedIcon from '@mui/icons-material/MoreVertRounded';
 import ReceiptLongRoundedIcon from '@mui/icons-material/ReceiptLongRounded';
 import ReplyRoundedIcon from '@mui/icons-material/ReplyRounded';
 import VisibilityRoundedIcon from '@mui/icons-material/VisibilityRounded';
 import WorkRoundedIcon from '@mui/icons-material/WorkRounded';
-import { Button, IconButton, Menu, MenuItem } from '@mui/material';
+import { Button, CircularProgress, IconButton, Menu, MenuItem } from '@mui/material';
 import { DialogActionButton } from '@/components/actions/dialog-action-button';
+import { PrimaryActionButton } from '@/components/actions/primary-action-button';
 import { AppDetailDialog } from '@/components/dialog/app-detail-dialog';
 import { AppFormDialog } from '@/components/dialog/app-form-dialog';
 import { ConfirmDialog } from '@/components/feedback/confirm-dialog';
@@ -34,6 +36,7 @@ import { PageHeader } from '@/components/shell/page-header';
 import { IconTabs } from '@/components/navigation/icon-tabs';
 import { AppDataTable } from '@/components/table/app-data-table';
 import { EntityTableLink } from '@/components/table/entity-table-link';
+import { isInteractiveTableTarget } from '@/components/table/row-interaction';
 import { TablePaginationBar } from '@/components/table/table-pagination-bar';
 import type {
   Payment,
@@ -66,6 +69,7 @@ type PaymentManagerProps = {
   refundPageSize: number;
   isFetching: boolean;
   isRefundsFetching: boolean;
+  isExporting: boolean;
   isMutating: boolean;
   currentUser: User | null;
   onTabChange: (tab: 'incoming' | 'refunds') => void;
@@ -75,6 +79,7 @@ type PaymentManagerProps = {
   onRefundPageChange: (page: number) => void;
   onRefundPageSizeChange: (pageSize: number) => void;
   onRefundFiltersChange: (filters: PaymentRefundFilters) => void;
+  onExport: () => void;
   onAllocate: (paymentId: number, allocations: PaymentAllocationInput[]) => Promise<Payment>;
   onRefund: (paymentId: number, values: PaymentRefundInput) => Promise<Payment>;
   onUpdateRefund: (refundId: number, values: PaymentRefundUpdateInput) => Promise<PaymentRefund>;
@@ -1181,6 +1186,7 @@ export function PaymentManager({
   refundPageSize,
   isFetching,
   isRefundsFetching,
+  isExporting,
   isMutating,
   currentUser,
   onTabChange,
@@ -1190,6 +1196,7 @@ export function PaymentManager({
   onRefundPageChange,
   onRefundPageSizeChange,
   onRefundFiltersChange,
+  onExport,
   onAllocate,
   onRefund,
   onUpdateRefund,
@@ -1229,7 +1236,26 @@ export function PaymentManager({
 
   return (
     <div className="min-h-[calc(100vh-72px)] w-full bg-slate-50/60 p-6">
-      <PageHeader title="Thanh toán" />
+      <PageHeader
+        title="Thanh toán"
+        actions={
+          <PrimaryActionButton
+            tone="secondary"
+            startIcon={
+              isExporting ? (
+                <CircularProgress size={16} color="inherit" />
+              ) : (
+                <DownloadRoundedIcon fontSize="small" />
+              )
+            }
+            disabled={isExporting}
+            title="Xuất toàn bộ khoản thu, phân bổ và hoàn tiền theo bộ lọc hiện tại"
+            onClick={onExport}
+          >
+            {isExporting ? 'Đang xuất...' : 'Xuất Excel'}
+          </PrimaryActionButton>
+        }
+      />
 
       <section className="w-full overflow-hidden rounded-2xl border border-slate-200 bg-white shadow-sm">
         <IconTabs
@@ -1329,10 +1355,14 @@ export function PaymentManager({
                   return (
                     <tr
                       key={payment.id}
+                      onClick={(event) => {
+                        if (isInteractiveTableTarget(event.target)) return;
+                        setViewTarget(payment);
+                      }}
                       className={
                         isFirstRow
-                          ? 'group border-t-2 border-slate-200 first:border-t-0 hover:bg-slate-50/80'
-                          : 'group hover:bg-slate-50/80'
+                          ? 'group cursor-pointer border-t-2 border-slate-200 first:border-t-0 hover:bg-slate-50/80'
+                          : 'group cursor-pointer hover:bg-slate-50/80'
                       }
                     >
                       <td className="sticky left-0 z-10 w-52 min-w-[13rem] bg-white px-3 py-3.5 font-semibold tabular-nums text-slate-800 group-hover:bg-slate-50">

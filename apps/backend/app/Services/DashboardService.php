@@ -23,6 +23,24 @@ class DashboardService extends BaseService
 {
     private const MONEY_EPSILON = 0.01;
 
+    private const LEAD_REPORT_PERMISSIONS = [
+        'lead.view',
+        'lead.create',
+        'lead.update',
+        'lead.delete',
+    ];
+
+    private const LEAD_REPORT_FALLBACK_COLORS = [
+        '#00a878',
+        '#0b7db3',
+        '#f59e0b',
+        '#8b5cf6',
+        '#ec4899',
+        '#14b8a6',
+        '#f97316',
+        '#64748b',
+    ];
+
     public function __construct(
         private readonly KpiService $kpi,
         private readonly KpiReportRepository $reports,
@@ -159,6 +177,7 @@ class DashboardService extends BaseService
                 ),
             ],
             'operations' => $operations,
+            'leadReport' => $this->leadReport($rangeStart, $rangeEnd, $currentUser),
             'trend' => $this->buildTrend(
                 $rangeStart,
                 $rangeEnd,
@@ -186,6 +205,184 @@ class DashboardService extends BaseService
             'departments' => $departments,
             'employees' => $employees,
             'updatedAt' => CarbonImmutable::now()->toIso8601String(),
+        ];
+    }
+
+    private function leadReport(
+        CarbonImmutable $rangeStart,
+        CarbonImmutable $rangeEnd,
+        User $currentUser,
+    ): ?array {
+        foreach (self::LEAD_REPORT_PERMISSIONS as $permission) {
+            if (! $currentUser->hasPermission($permission)) {
+                return null;
+            }
+        }
+
+        $periodKeys = collect();
+        $periodLabels = [];
+        $cursor = $rangeStart;
+
+        while (! $cursor->greaterThan($rangeEnd)) {
+            $period = $cursor->format('Y-m');
+            $periodKeys->push($period);
+            $periodLabels[$period] = 'T'.$cursor->format('m/Y');
+            $cursor = $cursor->addMonth();
+        }
+
+        $leads = $this->scopedLeadQuery($currentUser)
+            ->whereNotNull('occurred_date')
+            ->where('occurred_date', '>=', $rangeStart->toDateString())
+            ->where('occurred_date', '<', $rangeEnd->addMonth()->toDateString())
+            ->get(['id', 'occurred_date', 'assigned_user_id', 'status_option_id']);
+        $users = User::withTrashed()
+            ->whereIn('id', $leads->pluck('assigned_user_id')->filter()->unique())
+            ->get(['id', 'code', 'name', 'is_active', 'deleted_at'])
+            ->keyBy('id');
+        $statusOptions = Option::withTrashed()
+            ->where('group', Option::GROUP_LEAD_STATUS)
+            ->whereIn('id', $leads->pluck('status_option_id')->filter()->unique())
+            ->orderBy('sort_order')
+            ->orderBy('label')
+            ->get(['id', 'key', 'label', 'meta', 'sort_order'])
+            ->values();
+        $statusDefinitions = [];
+
+        foreach ($statusOptions as $index => $statusOption) {
+            $configuredColor = is_array($statusOption->meta)
+                ? ($statusOption->meta['color'] ?? null)
+                : null;
+            $statusDefinitions[(int) $statusOption->id] = [
+                'statusId' => (int) $statusOption->id,
+                'key' => $statusOption->key,
+                'label' => $statusOption->label,
+                'color' => is_string($configuredColor) && trim($configuredColor) !== ''
+                    ? $configuredColor
+                    : self::LEAD_REPORT_FALLBACK_COLORS[$index % count(self::LEAD_REPORT_FALLBACK_COLORS)],
+                'order' => (int) $statusOption->sort_order,
+            ];
+        }
+
+        $statusDefinitions[0] = [
+            'statusId' => 0,
+            'key' => null,
+            'label' => 'Chưa có trạng thái',
+            'color' => '#94a3b8',
+            'order' => PHP_INT_MAX,
+        ];
+        $monthlyTotals = array_fill_keys($periodKeys->all(), 0);
+        $employeeBuckets = [];
+
+        foreach ($leads as $lead) {
+            $period = $lead->occurred_date?->format('Y-m');
+
+            if (! $period || ! array_key_exists($period, $monthlyTotals)) {
+                continue;
+            }
+
+            $monthlyTotals[$period]++;
+            $employeeId = (int) ($lead->assigned_user_id ?? 0);
+            $user = $employeeId > 0 ? $users->get($employeeId) : null;
+
+            if (! isset($employeeBuckets[$employeeId])) {
+                $employeeBuckets[$employeeId] = [
+                    'id' => $employeeId,
+                    'code' => $user?->code,
+                    'name' => $user?->name ?: 'Chưa phân công',
+                    'isActive' => $user ? (bool) $user->is_active : null,
+                    'isDeleted' => $user ? $user->deleted_at !== null : false,
+                    'total' => 0,
+                    'monthly' => array_fill_keys($periodKeys->all(), 0),
+                    'statuses' => [],
+                ];
+            }
+
+            $statusId = (int) ($lead->status_option_id ?? 0);
+
+            if (! isset($statusDefinitions[$statusId])) {
+                $fallbackIndex = count($statusDefinitions) % count(self::LEAD_REPORT_FALLBACK_COLORS);
+                $statusDefinitions[$statusId] = [
+                    'statusId' => $statusId,
+                    'key' => null,
+                    'label' => 'Trạng thái #'.$statusId,
+                    'color' => self::LEAD_REPORT_FALLBACK_COLORS[$fallbackIndex],
+                    'order' => PHP_INT_MAX - 1,
+                ];
+            }
+
+            $employeeBuckets[$employeeId]['total']++;
+            $employeeBuckets[$employeeId]['monthly'][$period]++;
+
+            if (! isset($employeeBuckets[$employeeId]['statuses'][$statusId])) {
+                $employeeBuckets[$employeeId]['statuses'][$statusId] = array_fill_keys(
+                    $periodKeys->all(),
+                    0,
+                );
+            }
+
+            $employeeBuckets[$employeeId]['statuses'][$statusId][$period]++;
+        }
+
+        $employees = collect($employeeBuckets)
+            ->sort(function (array $left, array $right): int {
+                $byTotal = $right['total'] <=> $left['total'];
+
+                return $byTotal !== 0
+                    ? $byTotal
+                    : strcasecmp((string) $left['name'], (string) $right['name']);
+            })
+            ->map(function (array $employee) use ($periodKeys, $statusDefinitions): array {
+                $statusSeries = collect($employee['statuses'])
+                    ->map(function (array $values, int|string $statusId) use ($periodKeys, $statusDefinitions): array {
+                        $definition = $statusDefinitions[(int) $statusId];
+
+                        return [
+                            'statusId' => $definition['statusId'],
+                            'key' => $definition['key'],
+                            'label' => $definition['label'],
+                            'color' => $definition['color'],
+                            'order' => $definition['order'],
+                            'total' => array_sum($values),
+                            'values' => $periodKeys
+                                ->map(fn (string $period): int => (int) ($values[$period] ?? 0))
+                                ->all(),
+                        ];
+                    })
+                    ->filter(fn (array $series): bool => $series['total'] > 0)
+                    ->sortBy('order')
+                    ->map(function (array $series): array {
+                        unset($series['order']);
+
+                        return $series;
+                    })
+                    ->values()
+                    ->all();
+
+                return [
+                    'id' => $employee['id'],
+                    'code' => $employee['code'],
+                    'name' => $employee['name'],
+                    'isActive' => $employee['isActive'],
+                    'isDeleted' => $employee['isDeleted'],
+                    'total' => $employee['total'],
+                    'values' => $periodKeys
+                        ->map(fn (string $period): int => (int) ($employee['monthly'][$period] ?? 0))
+                        ->all(),
+                    'statusSeries' => $statusSeries,
+                ];
+            })
+            ->values()
+            ->all();
+
+        return [
+            'periods' => $periodKeys
+                ->map(fn (string $period): array => [
+                    'period' => $period,
+                    'label' => $periodLabels[$period],
+                    'total' => (int) ($monthlyTotals[$period] ?? 0),
+                ])
+                ->all(),
+            'employees' => $employees,
         ];
     }
 
