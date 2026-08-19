@@ -36,7 +36,6 @@ import { PageHeader } from '@/components/shell/page-header';
 import { IconTabs } from '@/components/navigation/icon-tabs';
 import { AppDataTable } from '@/components/table/app-data-table';
 import { EntityTableLink } from '@/components/table/entity-table-link';
-import { isInteractiveTableTarget } from '@/components/table/row-interaction';
 import { TablePaginationBar } from '@/components/table/table-pagination-bar';
 import type {
   Payment,
@@ -1355,14 +1354,10 @@ export function PaymentManager({
                   return (
                     <tr
                       key={payment.id}
-                      onClick={(event) => {
-                        if (isInteractiveTableTarget(event.target)) return;
-                        setViewTarget(payment);
-                      }}
                       className={
                         isFirstRow
-                          ? 'group cursor-pointer border-t-2 border-slate-200 first:border-t-0 hover:bg-slate-50/80'
-                          : 'group cursor-pointer hover:bg-slate-50/80'
+                          ? 'group border-t-2 border-slate-200 first:border-t-0 hover:bg-slate-50/80'
+                          : 'group hover:bg-slate-50/80'
                       }
                     >
                       <td className="sticky left-0 z-10 w-52 min-w-[13rem] bg-white px-3 py-3.5 font-semibold tabular-nums text-slate-800 group-hover:bg-slate-50">
@@ -1506,6 +1501,7 @@ export function PaymentManager({
             onFiltersChange={onRefundFiltersChange}
             onUpdate={onUpdateRefund}
             onDelete={onDeleteRefund}
+            onUpdateInvoice={onUpdateInvoice}
           />
         )}
       </section>

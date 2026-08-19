@@ -79,7 +79,7 @@ class MeetingsService extends BaseService
         $this->authorize('viewAny', Meeting::class);
 
         return $this->meetings
-            ->findVisibleOrganizers($this->requiredUser())
+            ->findAssignableUsers($this->requiredUser())
             ->map(fn (User $user): array => [
                 'id' => $user->id,
                 'code' => $user->code,
@@ -102,6 +102,7 @@ class MeetingsService extends BaseService
 
         return $this->transaction(function () use ($data): array {
             [$payload, $participantIds, $guests, $allowConflict] = $this->preparePayload($data);
+            $this->assertAssignableUsers($payload['organizer_user_id'], $participantIds);
             $this->assertNoConflict(
                 $payload['organizer_user_id'],
                 $participantIds,
@@ -138,6 +139,7 @@ class MeetingsService extends BaseService
             $beforeRecipientIds = $this->meetingRecipientIds($meeting);
 
             [$payload, $participantIds, $guests, $allowConflict] = $this->preparePayload($data);
+            $this->assertAssignableUsers($payload['organizer_user_id'], $participantIds, $meeting);
             $this->assertNoConflict(
                 $payload['organizer_user_id'],
                 $participantIds,
@@ -385,6 +387,40 @@ class MeetingsService extends BaseService
             'startsAt' => ['Có nhân sự đang trùng lịch. Hãy kiểm tra hoặc xác nhận vẫn tạo lịch.'],
             'conflicts' => $labels,
         ]);
+    }
+
+    private function assertAssignableUsers(
+        int $organizerId,
+        array $participantIds,
+        ?Meeting $existingMeeting = null,
+    ): void {
+        $allowedIds = $this->meetings
+            ->findAssignableUsers($this->requiredUser())
+            ->pluck('id')
+            ->map(fn ($id): int => (int) $id);
+
+        if ($existingMeeting) {
+            $allowedIds = $allowedIds
+                ->push((int) $existingMeeting->organizer_user_id)
+                ->merge($existingMeeting->participants()->pluck('users.id')->map(fn ($id): int => (int) $id));
+        }
+
+        $allowedIds = $allowedIds->filter()->unique()->values();
+
+        if (! $allowedIds->contains($organizerId)) {
+            throw ValidationException::withMessages([
+                'organizerUserId' => ['Người phụ trách không thuộc phạm vi nhân sự bạn được quản lý.'],
+            ]);
+        }
+
+        $invalidParticipant = collect($participantIds)
+            ->first(fn (int $participantId): bool => ! $allowedIds->contains($participantId));
+
+        if ($invalidParticipant !== null) {
+            throw ValidationException::withMessages([
+                'participantUserIds' => ['Người tham gia không thuộc phạm vi nhân sự bạn được quản lý.'],
+            ]);
+        }
     }
 
     private function syncPeople(Meeting $meeting, array $participantIds, array $guests): void

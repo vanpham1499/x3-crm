@@ -501,12 +501,13 @@ function CostDialog({
         cidSpentAmount,
       }
     : null;
-  const { customerBudget, availableBudget } = calculateAvailableTopupBudget({
-    quotations,
-    costs,
-    quotationId: selectedQuotationId,
-    editingCost: draftEditingCost,
-  });
+  const { customerBudget, paidBudget, creditBudget, usedBudget, availableBudget } =
+    calculateAvailableTopupBudget({
+      quotations,
+      costs,
+      quotationId: selectedQuotationId,
+      editingCost: draftEditingCost,
+    });
 
   const closeDialog = () => {
     reset();
@@ -643,20 +644,30 @@ function CostDialog({
         <div
           role="status"
           aria-live="polite"
-          className={`md:col-span-2 flex min-h-9 items-center justify-between gap-3 rounded-md border px-3 py-1.5 ${
+          className={`md:col-span-2 flex min-h-12 items-center justify-between gap-3 rounded-md border px-3 py-2 ${
             availableBudget < 0 ? 'border-rose-200 bg-rose-50/70' : 'border-sky-200 bg-sky-50/70'
           }`}
         >
-          <span
-            className={`inline-flex items-center gap-1.5 text-xs font-semibold ${
+          <div
+            className={`flex min-w-0 items-start gap-1.5 text-xs font-semibold ${
               availableBudget < 0 ? 'text-rose-700' : 'text-sky-700'
             }`}
           >
-            <InfoOutlinedIcon className="shrink-0 !text-[16px]" />
-            {customerBudget > 0
-              ? 'Ngân sách còn có thể nạp'
-              : 'Chưa có ngân sách khách trong báo phí'}
-          </span>
+            <InfoOutlinedIcon className="mt-0.5 shrink-0 !text-[16px]" />
+            <span className="min-w-0">
+              <span className="block">
+                {customerBudget > 0
+                  ? 'Ngân sách còn có thể nạp'
+                  : 'Chưa có tiền đã thu hoặc hạn mức nợ được duyệt'}
+              </span>
+              {customerBudget > 0 ? (
+                <span className="mt-0.5 block truncate font-medium text-slate-500">
+                  Đã thu {formatCurrency(paidBudget)} · Nợ {formatCurrency(creditBudget)} · Đã nạp{' '}
+                  {formatCurrency(usedBudget)}
+                </span>
+              ) : null}
+            </span>
+          </div>
           {customerBudget > 0 ? (
             <strong
               className={`whitespace-nowrap text-sm font-extrabold tabular-nums ${

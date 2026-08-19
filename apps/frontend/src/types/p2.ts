@@ -67,13 +67,19 @@ export type P2PointOverview = {
   pendingCount: number;
 };
 
+export type P2PeriodMode = 'month' | 'quarter' | 'year' | 'range';
+
 export type P2PointFilters = {
+  mode: P2PeriodMode;
+  month: string;
+  quarter: string;
+  year: string;
+  periodFrom: string;
+  periodTo: string;
   userId: string;
   category: string;
   type: string;
   approvalStatus: string;
-  dateFrom: string;
-  dateTo: string;
 };
 
 export type P2PointFormValues = {

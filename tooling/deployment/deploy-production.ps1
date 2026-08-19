@@ -234,6 +234,51 @@ docker compose ps
         throw "Deployment did not become healthy at $($healthUrls -join ', ')."
     }
 
+    Write-Step 'Waiting for Reverb health check'
+    Invoke-Remote @"
+set -euo pipefail
+cd '$RemoteDir'
+reverb_healthy=false
+for attempt in `$(seq 1 30); do
+    reverb_id=`$(docker compose ps -q reverb)
+    if [ -n "`$reverb_id" ] \
+        && [ "`$(docker inspect -f '{{.State.Running}}' "`$reverb_id")" = "true" ] \
+        && docker compose exec -T nginx nc -z -w 2 reverb 8080; then
+        reverb_healthy=true
+        break
+    fi
+    sleep 2
+done
+if [ "`$reverb_healthy" != "true" ]; then
+    docker compose ps reverb nginx
+    docker compose logs --tail=100 reverb
+    exit 1
+fi
+"@
+
+    Write-Step 'Verifying public WebSocket handshake'
+    $webSocketHealthUrl = "$PublicUrl/app/x3crm-production-key?protocol=7&client=js&version=8.6.0&flash=false"
+    $webSocketOrigin = "$($PublicUri.Scheme)://$($PublicUri.Authority)"
+    $webSocketHealthy = $false
+    for ($attempt = 1; $attempt -le 10; $attempt++) {
+        $webSocketResponse = & curl.exe -sS -i --http1.1 --max-time 3 `
+            -H "Origin: $webSocketOrigin" `
+            -H 'Connection: Upgrade' `
+            -H 'Upgrade: websocket' `
+            -H 'Sec-WebSocket-Version: 13' `
+            -H 'Sec-WebSocket-Key: dGhlIHNhbXBsZSBub25jZQ==' `
+            $webSocketHealthUrl 2>$null
+        if (($webSocketResponse -join "`n") -match '101 Switching Protocols' `
+            -and ($webSocketResponse -join "`n") -match 'pusher:connection_established') {
+            $webSocketHealthy = $true
+            break
+        }
+        Start-Sleep -Seconds 2
+    }
+    if (-not $webSocketHealthy) {
+        throw "WebSocket handshake did not become healthy at $webSocketHealthUrl."
+    }
+
     Write-Step 'Verifying containers and migrations'
     Invoke-Remote @"
 set -euo pipefail

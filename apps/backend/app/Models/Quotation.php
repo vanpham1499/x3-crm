@@ -30,6 +30,11 @@ class Quotation extends BaseModel
         'vat_amount',
         'total_amount',
         'deposit_amount',
+        'topup_credit_enabled',
+        'topup_credit_limit',
+        'topup_credit_note',
+        'topup_credit_approved_by',
+        'topup_credit_approved_at',
         'account_reconciliation_image_urls',
         'valid_until',
         'note',
@@ -45,6 +50,9 @@ class Quotation extends BaseModel
         'vat_amount' => 'decimal:2',
         'total_amount' => 'decimal:2',
         'deposit_amount' => 'decimal:2',
+        'topup_credit_enabled' => 'boolean',
+        'topup_credit_limit' => 'decimal:2',
+        'topup_credit_approved_at' => 'datetime',
         'account_reconciliation_image_urls' => 'array',
         'valid_until' => 'date',
         'metadata' => 'array',
@@ -91,6 +99,11 @@ class Quotation extends BaseModel
     public function paymentRefunds(): HasMany
     {
         return $this->hasMany(PaymentRefund::class);
+    }
+
+    public function topupCreditApprovedBy(): BelongsTo
+    {
+        return $this->belongsTo(User::class, 'topup_credit_approved_by');
     }
 
     public function items(): HasMany

@@ -4,6 +4,7 @@ namespace App\Http\Resources;
 
 use App\Models\PaymentRefund;
 use App\Models\Quotation;
+use App\Support\ProjectTopupBudgetCalculator;
 use App\Support\QuotationReference;
 use Illuminate\Http\Request;
 use Illuminate\Http\Resources\Json\JsonResource;
@@ -64,6 +65,7 @@ class QuotationResource extends JsonResource
             default => Quotation::STATUS_DRAFT,
         };
         $isPaymentLocked = $totalAmount > 0.01 && $grossPaidAmount >= $totalAmount - 0.01;
+        $topupBudget = ProjectTopupBudgetCalculator::calculateQuotation($this->resource);
 
         return [
             'id' => $this->id,
@@ -95,6 +97,16 @@ class QuotationResource extends JsonResource
             'isFullyRefunded' => $isFullyRefunded,
             'isPaymentLocked' => $isPaymentLocked,
             'depositAmount' => $usesNonTaxableDeposit ? $this->deposit_amount : 0,
+            'topupCreditEnabled' => (bool) $this->topup_credit_enabled,
+            'topupCreditLimit' => $this->topup_credit_limit,
+            'topupCreditNote' => $this->topup_credit_note,
+            'topupCreditApprovedAt' => $this->topup_credit_approved_at?->toISOString(),
+            'topupEligibleAmount' => $topupBudget['eligibleBudget'],
+            'topupPaidBudget' => $topupBudget['paidBudget'],
+            'topupCreditBudget' => $topupBudget['creditBudget'],
+            'topupReleasedBudget' => $topupBudget['releasedBudget'],
+            'topupUsablePaidAmount' => $topupBudget['usablePaidAmount'],
+            'topupHeldDepositAmount' => $topupBudget['heldDepositAmount'],
             'accountReconciliationImageUrls' => $this->account_reconciliation_image_urls ?? [],
             'validUntil' => $this->valid_until?->toDateString(),
             'note' => $this->note,
@@ -131,8 +143,14 @@ class QuotationResource extends JsonResource
                 'name' => $this->createdBy->name,
                 'email' => $this->createdBy->email,
             ] : null),
+            'topupCreditApprovedBy' => $this->whenLoaded('topupCreditApprovedBy', fn () => $this->topupCreditApprovedBy ? [
+                'id' => $this->topupCreditApprovedBy->id,
+                'code' => $this->topupCreditApprovedBy->code,
+                'name' => $this->topupCreditApprovedBy->name,
+            ] : null),
             'canUpdate' => (bool) ($request->user()?->can('update', $this->resource) ?? false),
             'canDelete' => (bool) ($request->user()?->can('delete', $this->resource) ?? false),
+            'canApproveTopupCredit' => (bool) ($request->user()?->hasPermission('quotation.approve_topup_credit') ?? false),
             'createdAt' => $this->created_at?->toISOString(),
             'updatedAt' => $this->updated_at?->toISOString(),
         ];

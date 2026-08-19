@@ -106,6 +106,11 @@ export type ProjectCost = {
     projectName?: string | null;
     projectType?: string | null;
     availableTopupBudget?: string | number | null;
+    eligibleTopupBudget?: string | number | null;
+    paidTopupBudget?: string | number | null;
+    creditTopupBudget?: string | number | null;
+    releasedTopupBudget?: string | number | null;
+    usedTopupBudget?: string | number | null;
     customer?: {
       id: number;
       customerCode?: string | null;

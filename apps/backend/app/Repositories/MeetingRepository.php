@@ -53,16 +53,34 @@ class MeetingRepository extends BaseRepository
         return $this->visibleQuery($user);
     }
 
-    public function findVisibleOrganizers(User $user): Collection
+    public function findAssignableUsers(User $user): Collection
     {
-        $organizerIds = $this->visibleQuery($user)
-            ->whereNotNull('organizer_user_id')
-            ->distinct()
-            ->pluck('organizer_user_id');
+        $query = User::query()->where('is_active', true);
 
-        return User::query()
-            ->whereIn('id', $organizerIds)
-            ->where('is_active', true)
+        $hasAllScope = collect(['view', 'create', 'update', 'delete'])
+            ->contains(fn (string $action): bool => $user->hasPermission("meeting.{$action}_all"));
+
+        if ($hasAllScope) {
+            return $query->orderBy('code')->get();
+        }
+
+        $hasDepartmentScope = collect(['view', 'create', 'update', 'delete'])
+            ->contains(fn (string $action): bool => $user->hasPermission("meeting.{$action}_department"));
+        $departmentIds = $user->accessibleDepartmentIds();
+
+        if ($hasDepartmentScope && $departmentIds !== []) {
+            return $query
+                ->where(function (Builder $scope) use ($departmentIds, $user): void {
+                    $scope
+                        ->whereIn('department_id', $departmentIds)
+                        ->orWhere('users.id', $user->id);
+                })
+                ->orderBy('code')
+                ->get();
+        }
+
+        return $query
+            ->whereKey($user->id)
             ->orderBy('code')
             ->get();
     }

@@ -71,7 +71,7 @@ class ProjectsService extends BaseService
             unset($data['monthly_budget']);
             unset($data['project_code']);
             $this->validateQuotationLink($data);
-            $data['project_type'] = $data['project_type'] ?? 'K';
+            $data['project_type'] = $data['project_type'] ?? 'O';
             $data['start_date'] = $data['start_date'] ?? now()->toDateString();
             $data['project_code'] = $this->buildProjectCode($data) ?? $this->generateProjectCode();
             $data['project_code'] = $this->ensureUniqueProjectCode($data['project_code']);

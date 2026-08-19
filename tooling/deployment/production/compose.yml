@@ -133,7 +133,7 @@ services:
       REVERB_SCHEME: http
       REVERB_SERVER_HOST: 0.0.0.0
       REVERB_SERVER_PORT: 8080
-      REVERB_ALLOWED_ORIGINS: https://crm.x3sales.com
+      REVERB_ALLOWED_ORIGINS: crm.x3sales.com
     command: sh -lc "exec php artisan reverb:start --host=0.0.0.0 --port=8080"
     logging: *default-logging
 

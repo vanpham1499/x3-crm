@@ -6,7 +6,7 @@ function quotationBudget(quotation: Quotation) {
   return Number.isFinite(budget) && budget > 0 ? budget : 0;
 }
 
-function quotationBudgetWithVat(quotation: Quotation) {
+export function calculateQuotationEligibleTopupBudget(quotation: Quotation) {
   const budget = quotationBudget(quotation);
   const vatRate = Math.max(0, Number(quotation.vatRate) || 0);
   const extraTopupBudget = (quotation.items || []).reduce((sum, item) => {
@@ -24,6 +24,37 @@ function quotationBudgetWithVat(quotation: Quotation) {
   }, 0);
 
   return budget + Math.round((budget * vatRate) / 100) + extraTopupBudget;
+}
+
+function quotationTopupBreakdown(quotation: Quotation) {
+  const hasServerEligibleBudget =
+    quotation.topupEligibleAmount !== null &&
+    quotation.topupEligibleAmount !== undefined &&
+    Number.isFinite(Number(quotation.topupEligibleAmount));
+  const eligibleBudget = hasServerEligibleBudget
+    ? Number(quotation.topupEligibleAmount)
+    : calculateQuotationEligibleTopupBudget(quotation);
+  const grossPaidAmount = Math.max(0, Number(quotation.grossPaidAmount) || 0);
+  const refundedAmount = Math.max(0, Number(quotation.refundedAmount) || 0);
+  const depositRefundedAmount = Math.max(0, Number(quotation.depositRefundedAmount) || 0);
+  const heldDepositAmount = Math.max(
+    0,
+    Math.min(Math.max(0, Number(quotation.depositAmount) || 0), grossPaidAmount) -
+      depositRefundedAmount,
+  );
+  const usablePaidAmount = Math.max(0, grossPaidAmount - refundedAmount - heldDepositAmount);
+  const paidBudget = Math.min(eligibleBudget, usablePaidAmount);
+  const remainingEligibleBudget = Math.max(0, eligibleBudget - paidBudget);
+  const creditBudget = quotation.topupCreditEnabled
+    ? Math.min(remainingEligibleBudget, Math.max(0, Number(quotation.topupCreditLimit) || 0))
+    : 0;
+
+  return {
+    eligibleBudget,
+    paidBudget,
+    creditBudget,
+    releasedBudget: paidBudget + creditBudget,
+  };
 }
 
 function topupBudgetUsed(cost: ProjectCost) {
@@ -91,10 +122,11 @@ export function calculateAvailableTopupBudget({
   const scopedQuotations = normalizedQuotationId
     ? quotations.filter((quotation) => String(quotation.id) === normalizedQuotationId)
     : quotations;
-  const customerBudget = scopedQuotations.reduce(
-    (sum, quotation) => sum + quotationBudgetWithVat(quotation),
-    0,
-  );
+  const quotationBudgets = scopedQuotations.map(quotationTopupBreakdown);
+  const eligibleBudget = quotationBudgets.reduce((sum, item) => sum + item.eligibleBudget, 0);
+  const paidBudget = quotationBudgets.reduce((sum, item) => sum + item.paidBudget, 0);
+  const creditBudget = quotationBudgets.reduce((sum, item) => sum + item.creditBudget, 0);
+  const customerBudget = paidBudget + creditBudget;
   const savedUsedBudget = costs
     .filter(
       (cost) =>
@@ -108,7 +140,11 @@ export function calculateAvailableTopupBudget({
   const usedBudget = savedUsedBudget + editingCostUsed;
 
   return {
+    eligibleBudget,
+    paidBudget,
+    creditBudget,
     customerBudget,
+    releasedBudget: customerBudget,
     usedBudget,
     availableBudget: customerBudget - usedBudget,
   };

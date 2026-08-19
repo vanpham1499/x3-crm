@@ -9,7 +9,9 @@ use App\Models\Project;
 use App\Models\Quotation;
 use App\Repositories\PaymentRepository;
 use App\Repositories\QuotationRepository;
+use App\Support\ProjectTopupBudgetCalculator;
 use App\Support\QuotationReference;
+use Illuminate\Auth\Access\AuthorizationException;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Str;
 use Illuminate\Validation\ValidationException;
@@ -65,14 +67,16 @@ class QuotationsService extends BaseService
             );
             $data = $this->applyItemTotals($data, $items);
             $data = $this->applyServiceDefaults($data);
+            $data = $this->prepareTopupCreditData($data);
             $data['quotation_code'] = $this->generateQuotationCode($data);
             $data['status'] = Quotation::STATUS_DRAFT;
 
             /** @var Quotation $quotation */
             $quotation = $this->quotations->create($data);
             $this->syncItems($quotation, $items);
+            $this->validateTopupCreditLimit($quotation->refresh());
 
-            return $this->apiResource($quotation->load(['lead', 'customer', 'project', 'contract', 'service', 'items.service', 'paymentAllocations', 'paymentRefunds', 'createdBy']), QuotationResource::class);
+            return $this->apiResource($quotation->load(['lead', 'customer', 'project', 'contract', 'service', 'items.service', 'paymentAllocations', 'paymentRefunds', 'createdBy', 'topupCreditApprovedBy']), QuotationResource::class);
         });
     }
 
@@ -130,6 +134,7 @@ class QuotationsService extends BaseService
             );
             $data = $hasItems ? $this->applyItemTotals($data, $items) : $data;
             $data = $this->applyServiceDefaults($data);
+            $data = $this->prepareTopupCreditData($data, $currentQuotation);
 
             $allocatedAmount = (float) $currentQuotation->paymentAllocations->sum('amount');
 
@@ -146,9 +151,10 @@ class QuotationsService extends BaseService
             if ($hasItems) {
                 $this->syncItems($quotation, $items);
             }
+            $this->validateTopupCreditLimit($quotation->refresh());
             $this->paymentAllocations->reconcileQuotation($id);
 
-            return $this->apiResource($quotation->refresh()->load(['lead', 'customer', 'project', 'contract', 'service', 'items.service', 'paymentAllocations', 'paymentRefunds', 'createdBy']), QuotationResource::class);
+            return $this->apiResource($quotation->refresh()->load(['lead', 'customer', 'project', 'contract', 'service', 'items.service', 'paymentAllocations', 'paymentRefunds', 'createdBy', 'topupCreditApprovedBy']), QuotationResource::class);
         });
     }
 
@@ -282,6 +288,9 @@ class QuotationsService extends BaseService
             'vatAmount' => 'vat_amount',
             'totalAmount' => 'total_amount',
             'depositAmount' => 'deposit_amount',
+            'topupCreditEnabled' => 'topup_credit_enabled',
+            'topupCreditLimit' => 'topup_credit_limit',
+            'topupCreditNote' => 'topup_credit_note',
             'accountReconciliationImageUrls' => 'account_reconciliation_image_urls',
             'validUntil' => 'valid_until',
             'allocationOpen' => 'allocation_open',
@@ -297,6 +306,81 @@ class QuotationsService extends BaseService
         }
 
         return $data;
+    }
+
+    private function prepareTopupCreditData(array $data, ?Quotation $currentQuotation = null): array
+    {
+        $creditFields = [
+            'topup_credit_enabled',
+            'topup_credit_limit',
+            'topup_credit_note',
+        ];
+        $hasCreditData = collect($creditFields)->contains(fn (string $field): bool => array_key_exists($field, $data));
+
+        if (! $hasCreditData) {
+            return $data;
+        }
+
+        $currentEnabled = (bool) ($currentQuotation?->topup_credit_enabled ?? false);
+        $currentLimit = round((float) ($currentQuotation?->topup_credit_limit ?? 0), 2);
+        $currentNote = trim((string) ($currentQuotation?->topup_credit_note ?? ''));
+        $enabled = array_key_exists('topup_credit_enabled', $data)
+            ? filter_var($data['topup_credit_enabled'], FILTER_VALIDATE_BOOLEAN)
+            : $currentEnabled;
+        $limit = $enabled
+            ? round(max(0, (float) ($data['topup_credit_limit'] ?? $currentLimit)), 2)
+            : 0.0;
+        $note = $enabled
+            ? trim((string) ($data['topup_credit_note'] ?? $currentNote))
+            : '';
+        $changed = $enabled !== $currentEnabled
+            || abs($limit - $currentLimit) > 0.01
+            || $note !== $currentNote;
+
+        if ($changed && ! $this->currentUser()?->hasPermission('quotation.approve_topup_credit')) {
+            throw new AuthorizationException('Bạn không có quyền duyệt hạn mức nợ để nạp ngân sách.');
+        }
+
+        if ($enabled && $limit <= 0.01) {
+            throw ValidationException::withMessages([
+                'topupCreditLimit' => ['Hạn mức nợ được phép nạp phải lớn hơn 0.'],
+            ]);
+        }
+
+        if ($enabled && $note === '') {
+            throw ValidationException::withMessages([
+                'topupCreditNote' => ['Vui lòng nhập lý do cho phép nạp trước khi thu tiền.'],
+            ]);
+        }
+
+        $data['topup_credit_enabled'] = $enabled;
+        $data['topup_credit_limit'] = $limit;
+        $data['topup_credit_note'] = $note !== '' ? $note : null;
+
+        if ($changed) {
+            $data['topup_credit_approved_by'] = $enabled ? $this->currentUser()?->id : null;
+            $data['topup_credit_approved_at'] = $enabled ? now() : null;
+        }
+
+        return $data;
+    }
+
+    private function validateTopupCreditLimit(Quotation $quotation): void
+    {
+        if (! $quotation->topup_credit_enabled) {
+            return;
+        }
+
+        $budget = ProjectTopupBudgetCalculator::calculateQuotation($quotation);
+        $creditLimit = (float) $quotation->topup_credit_limit;
+
+        if ($creditLimit <= $budget['eligibleBudget'] + 0.01) {
+            return;
+        }
+
+        throw ValidationException::withMessages([
+            'topupCreditLimit' => ['Hạn mức nợ không được vượt quá ngân sách đủ điều kiện nạp của Báo phí.'],
+        ]);
     }
 
     private function applyServiceDefaults(array $data): array

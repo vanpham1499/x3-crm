@@ -314,7 +314,7 @@ function ContractDialog({
           <div className="grid overflow-hidden rounded-lg border border-slate-200 bg-slate-50 sm:grid-cols-2 lg:grid-cols-3">
             <InfoCell label="Tên chủ thể" value={watch('invoiceRecipientName')} />
             <InfoCell label="Người đại diện" value={watch('invoiceRepresentativeName')} />
-            <InfoCell label="Mã số thuế" value={watch('invoiceTaxCode')} />
+            <InfoCell label="MST/CCCD" value={watch('invoiceTaxCode')} />
             <InfoCell label="Địa chỉ" value={watch('invoiceAddress')} />
             <InfoCell label="Email nhận HĐ" value={watch('invoiceEmail')} />
             <InfoCell label="Số điện thoại" value={watch('invoicePhone')} />
@@ -334,7 +334,7 @@ function ContractDialog({
               {...register('invoiceRepresentativeName')}
             />
             <FormInputField
-              label="Mã số thuế"
+              label="MST/CCCD"
               className="lg:col-span-4"
               {...register('invoiceTaxCode')}
             />

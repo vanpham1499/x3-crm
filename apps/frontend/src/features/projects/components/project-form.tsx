@@ -83,7 +83,7 @@ export function ProjectForm({
   });
   const selectedServiceId = useWatch({ control, name: 'serviceId' }) || '';
   const projectName = useWatch({ control, name: 'projectName' }) || '';
-  const projectType = useWatch({ control, name: 'projectType' }) || 'K';
+  const projectType = useWatch({ control, name: 'projectType' }) || 'O';
   const planLinkValue = useWatch({ control, name: 'planLink' }) || '';
   const customerTrackingReportLinkValue =
     useWatch({ control, name: 'customerTrackingReportLink' }) || '';
@@ -281,7 +281,7 @@ export function ProjectForm({
             <div className="grid gap-4 md:grid-cols-12">
               <div className="md:col-span-8">
                 <FormInputField
-                  label="Link plan"
+                  label="Link Drive khách hàng"
                   placeholder="https://docs.google.com/..."
                   disabled={readOnly}
                   slotProps={{

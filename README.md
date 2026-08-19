@@ -593,6 +593,7 @@ Ký hiệu Role: `A` = ADMIN, `L` = LEADER, `E` = EMPLOYEE, `S` = SALES,
 | `quotation.delete`                 | Xóa Báo phí thuộc dữ liệu mình phụ trách          | A, L, E, S, K | Theo Project, Customer hoặc Lead cha                                        |
 | `quotation.delete_department`      | Xóa Báo phí trong phòng ban                       | L             | Theo phòng ban của parent ưu tiên                                           |
 | `quotation.delete_all`             | Xóa mọi Báo phí                                   | A             | Bỏ qua ownership                                                            |
+| `quotation.approve_topup_credit`   | Duyệt hạn mức nợ để nạp ngân sách                 | A, L          | Giải ngân trước khi thu tiền; vẫn cần quyền sửa Báo phí                     |
 | `weeklyreport.view`                | Xem báo cáo mình lập/Project mình phụ trách       | A, L, E, S, K | Scope list/detail và bảng lịch báo cáo                                      |
 | `weeklyreport.view_department`     | Xem báo cáo tuần trong phòng ban                  | L             | Theo người báo cáo hoặc manager/sales Project                               |
 | `weeklyreport.view_all`            | Xem mọi báo cáo tuần                              | A             | Bỏ qua scope dữ liệu                                                        |
@@ -604,7 +605,7 @@ Ký hiệu Role: `A` = ADMIN, `L` = LEADER, `E` = EMPLOYEE, `S` = SALES,
 | `weeklyreport.delete_department`   | Xóa báo cáo trong phòng ban                       | L             | Theo người báo cáo hoặc Project                                             |
 | `weeklyreport.delete_all`          | Xóa mọi báo cáo tuần                              | A             | Bỏ qua scope dữ liệu                                                        |
 | `weeklyreport.approve`             | Duyệt báo cáo Project mình quản lý                | A, L, E, S, K | Không cho tự duyệt báo cáo của mình                                         |
-| `weeklyreport.approve_department`  | Duyệt báo cáo trong phòng ban                     | L             | Không cho tự duyệt                                                          |
+| `weeklyreport.approve_department`  | Duyệt báo cáo trong phòng ban                     | L             | Leader được duyệt cả báo cáo do chính mình lập trong phòng ban              |
 | `weeklyreport.approve_all`         | Duyệt mọi báo cáo tuần                            | A             | Bỏ qua scope Project                                                        |
 | `meeting.view`                     | Xem lịch hẹn liên quan đến mình                   | A, L, E, S, K | Người tạo, tổ chức, tham gia hoặc phụ trách đối tượng liên quan             |
 | `meeting.view_department`          | Xem lịch hẹn trong phòng ban                      | L             | Theo người tổ chức/tham gia và đối tượng liên quan                          |
@@ -646,6 +647,9 @@ Ký hiệu Role: `A` = ADMIN, `L` = LEADER, `E` = EMPLOYEE, `S` = SALES,
 - Lead thuộc user khi `leads.assigned_user_id` bằng user hiện tại.
 - Customer thuộc user khi `customers.sales_user_id` bằng user hiện tại.
 - Project thuộc user khi user là `manager_user_id` hoặc `sales_user_id`.
+- Bộ chọn nhân sự trên form Project gọi `GET /api/users/lookup?context=project`: scope cá nhân trả chính
+  user, scope phòng ban trả user cùng toàn bộ nhân sự đang hoạt động trong các team được quản lý và
+  scope toàn bộ trả mọi nhân sự đang hoạt động; API này không phụ thuộc quyền mở page Tài khoản.
 - Payment dùng scope riêng: `payment.view` chỉ trả khoản thu mồ côi `unmatched` chưa có Báo phí/Dự án/
   phân bổ và khoản thanh toán liên quan đến Project có `manager_user_id` là user hiện tại. Scope
   `payment.view_department` mở rộng theo phòng ban của manager Project; `payment.view_all` hoặc
@@ -680,7 +684,9 @@ Ký hiệu Role: `A` = ADMIN, `L` = LEADER, `E` = EMPLOYEE, `S` = SALES,
 - Tạo Customer từ Lead không dùng `customer.create`; backend yêu cầu quyền sửa chính Lead đó để bảo
   toàn luồng chuyển đổi.
 - Báo cáo tuần có đủ scope xem/sửa/xóa/duyệt. Scope phòng ban xét người báo cáo và manager/sales của
-  Project; quyền duyệt cơ sở/phòng ban không cho user tự duyệt báo cáo do chính mình lập.
+  Project. Quyền `weeklyreport.approve_department` cho phép Leader duyệt cả báo cáo do chính mình
+  lập trong phòng ban; quyền duyệt cơ sở theo Project vẫn không cho người quản lý tự duyệt báo cáo
+  của chính mình.
 - Lịch hẹn thuộc phạm vi khi user là người tạo, người phụ trách, người tham gia nội bộ, người sở hữu
   Lead/Customer/Project liên quan. Quyền `_department` mở rộng các quan hệ này theo phòng ban;
   quyền `_all` bỏ qua giới hạn.
@@ -888,7 +894,7 @@ hàng`.
 - Từ hồ sơ Customer, CTA `Tạo dự án` mở `/projects/new?customerId=<id>`.
 - Project bắt buộc có Customer, service, tên, type, ngày bắt đầu, trạng thái, manager và sales phụ
   trách. `Thứ báo cáo` là tùy chọn; `Chưa chọn` nghĩa là Project không cần báo cáo tuần.
-- Project type dùng value `K`, `M` hoặc `O`; `O` hiển thị là `Không chọn` và không tạo segment loại
+- Project type dùng value `K`, `M` hoặc `O`; form thêm mới mặc định là `O`. `O` hiển thị là `Không chọn` và không tạo segment loại
   trong mã Project. Dữ liệu cũ dùng `N` được migration đổi sang `O`; API vẫn nhận `N` để tương thích
   client cũ nhưng Service luôn chuẩn hóa thành `O` trước khi lưu.
 - Backend luôn tự tạo lại mã:
@@ -968,8 +974,23 @@ số lượng, đơn giá và chi phí đối tác/thực hiện.
   service có auto pricing, frontend thêm các dòng ngân sách, phí quản lý và setup theo config.
 - Với Project loại `M`, mỗi hạng mục nhập thêm có checkbox `Tính vào số tiền có thể nạp`. Lựa chọn
   được snapshot tại `quotation_items.metadata.countsTowardTopupBudget`; khi bật, toàn bộ
-  `amount_after_vat` của hạng mục được cộng vào hạn mức nạp của Project. Ngân sách tự động vẫn lấy
+  `amount_after_vat` của hạng mục được cộng vào ngân sách đủ điều kiện nạp. Ngân sách tự động vẫn lấy
   từ `quotations.metadata.budget` và không bị cộng trùng với các hạng mục khóa.
+- Ngân sách đủ điều kiện không tự động trở thành tiền có thể nạp. Mỗi Báo phí dùng công thức:
+
+```text
+Ngân sách đủ điều kiện = Ngân sách sau VAT + Hạng mục được đánh dấu sau VAT
+Tiền thực nhận khả dụng = Tiền đã phân bổ - Hoàn tiền hoàn tất - Tiền cọc đang giữ
+Hạn mức từ tiền đã thu = min(Ngân sách đủ điều kiện, Tiền thực nhận khả dụng)
+Hạn mức nợ thực dùng = min(Phần đủ điều kiện còn lại, Hạn mức nợ được duyệt)
+Tổng được phép nạp = Hạn mức từ tiền đã thu + Hạn mức nợ thực dùng
+```
+
+- Form Báo phí loại `M` có lựa chọn `Cho phép nạp trước khi thu tiền`. Chỉ user có
+  `quotation.approve_topup_credit` mới thay đổi được; khi bật bắt buộc nhập hạn mức tiền và lý do.
+  Backend lưu người/thời điểm duyệt và không cho hạn mức nợ vượt ngân sách đủ điều kiện. Khi khách
+  thanh toán thêm, hạn mức từ tiền đã thu tăng còn phần nợ thực dùng tự giảm để không cộng trùng.
+  Hoàn tiền hoàn tất làm giảm hạn mức; Project có thể hiển thị âm nếu số đã nạp vượt nguồn còn lại.
 - Gói setup mặc định trên form thêm mới là `Không tính phí setup`. Khi chỉnh sửa, hệ thống giữ lựa
   chọn đã lưu; báo phí cũ chưa có metadata gói setup cũng dùng mặc định không tính phí.
 - Loại Project `O` và dữ liệu cũ `N` đều hiển thị thống nhất là `Không chọn` trên form Báo phí.
@@ -1061,9 +1082,8 @@ Tiền chưa phân bổ = Tiền nhận
 - Bảng tiền nhận không hiển thị cột Dự án; hai cột `Thời gian` và `Số tiền` được ghim cố định khi
   cuộn ngang. Ghi chú của từng dòng phân bổ được hiển thị ngay trong popup chi tiết khoản thu, dưới
   Báo phí tương ứng.
-- Click vào vùng nội dung của một dòng tiền nhận hoặc tiền hoàn sẽ mở popup chi tiết đang dùng bởi
-  icon mắt. Click vào Số hóa đơn, liên kết Báo phí/Dự án hoặc nút tác vụ vẫn giữ hành vi riêng và
-  không làm mở popup chi tiết ngoài ý muốn.
+- Danh sách tiền nhận và tiền hoàn chỉ mở popup chi tiết bằng icon mắt; click vào vùng nội dung của
+  dòng không mở popup. Số hóa đơn, liên kết Báo phí/Dự án và các nút tác vụ giữ hành vi riêng.
 - Nút `Xuất Excel` ở header tải toàn bộ dữ liệu trong scope quyền theo bộ lọc hiện tại của cả hai tab,
   không phụ thuộc trang phân trang đang mở. Workbook gồm `Tiền nhận vào`, `Phân bổ báo phí` và `Tiền
   hoàn ra`; các sheet giữ số tiền/ngày giờ ở đúng kiểu dữ liệu và gồm cả nội dung trong popup như
@@ -1108,7 +1128,8 @@ Lợi nhuận thực nhận của Project = Đã nhận
 - Hoàn toàn bộ giữ lại tổng Báo phí và tổng tiền nhận ban đầu để truy vết, nhưng các chỉ số cần thu,
   thực thu, còn phải thu và chênh lệch về 0.
 - `compensation` hiển thị riêng, không tạo công nợ âm và không thay đổi số phải thu.
-- Tab `Tiền hoàn ra` hiển thị `Số hóa đơn` của Payment nguồn (`payments.output_invoice_number`),
+- Tab `Tiền hoàn ra` bỏ cột Dự án để bảng gọn trong một khung. Cột `Số hóa đơn` hiển thị số của
+  Payment nguồn (`payments.output_invoice_number`) và cho phép click để nhập/sửa bằng popup,
   không tạo thêm một số hóa đơn riêng trên `payment_refunds`.
 
 ### 6. Chi phí Project và CID
@@ -1136,12 +1157,15 @@ Lợi nhuận thực nhận của Project = Đã nhận
 - Popup chi tiết Chi phí đối tác chỉ giữ thông tin đối tác, số tiền, trạng thái chi, ghi chú và dữ
   liệu đối soát/hóa đơn thực tế; không hiển thị lại các trường nghiệp vụ đã bỏ ở trên.
 - Chỉ `completed` được tính vào chi phí/lợi nhuận; `pending` chưa tính; `cancelled` bị loại.
+- Với chi phí `ad_spend`, backend chỉ cho Lead chuyển sang `completed` khi số tiền không vượt
+  `Tổng được phép nạp - số đã nạp` của Project. Yêu cầu pending vẫn được ghi nhận để chờ Lead kiểm
+  tra; không thể bỏ qua hạn mức bằng cách gọi API trực tiếp.
 - Một khoản chi có thể gắn Báo phí để đối chiếu theo kỳ nhưng không bắt buộc.
 - `/costs` là sổ đối soát tập trung, group theo Project và hỗ trợ keyword, loại, trạng thái, đã
   khớp/chưa khớp và khoảng ngày.
 - Cột `Dự án` tại `/costs` hiển thị thêm hạn mức `Có thể nạp`; nếu hạn mức nhỏ hơn `0`, giao diện
-  hiển thị rõ `Đang âm` cùng giá trị tuyệt đối. Công thức dùng chung với summary Project:
-  `Ngân sách báo phí gồm VAT + các hạng mục được đánh dấu gồm VAT - chi phí nạp completed thực tế`.
+  hiển thị rõ `Đang âm` cùng giá trị tuyệt đối. Công thức dùng chung với summary Project và form chi
+  phí: `Hạn mức từ tiền đã thu + hạn mức nợ thực dùng - chi phí nạp completed thực tế`.
 - Popup đối soát chỉ có hai kết quả: `Khớp chuẩn` và `Chưa khớp`. Hai kết quả chỉ cập nhật dữ liệu
   đối soát; trạng thái `completed` do Lead xác nhận được giữ nguyên để phản ánh tiền đã thực chi.
 - Người có quyền duyệt có thể nhấn lại trạng thái `Đã khớp` để mở popup, sửa thông tin hoặc chuyển
@@ -1204,9 +1228,9 @@ Giao diện theo đúng format chung của CRM:
 2. tab `Lịch tháng` và `Danh sách`;
 3. bộ lọc từ khóa, người phụ trách, phòng ban, hình thức và trạng thái dùng `ListFilterBar`; các
    filter rộng `220px`, riêng search co giãn để chiếm phần chiều ngang còn lại trên tablet/desktop
-   và tất cả tự giãn toàn chiều rộng trên màn hình nhỏ; option `Người phụ trách` được lấy từ những
-   người đang phụ trách ít nhất một lịch mà user hiện tại có quyền xem, nên mọi Role dùng được filter
-   nhưng không nhìn thấy nhân sự ngoài scope lịch hẹn;
+   và tất cả tự giãn toàn chiều rộng trên màn hình nhỏ; option `Người phụ trách` dùng đúng scope lịch
+   hẹn: user thường luôn có chính mình, user có scope phòng ban có chính mình và nhân sự thuộc tất cả
+   team đang quản lý, còn scope `_all` có toàn bộ nhân sự đang hoạt động;
 4. lịch tháng bắt đầu từ Thứ 2, hiển thị đủ 42 ngày bằng các ô compact cao cố định `84px`; mỗi
    lịch hiển thị trực tiếp bằng giờ và tiêu đề, tối đa ba lịch trong một ô; bấm ngày để tạo lịch,
    bấm lịch để xem chi tiết;
@@ -1276,8 +1300,10 @@ sửa/xóa/chuyển trạng thái kiểm tra `MeetingPolicy`. API chính:
 - `GET /api/meetings`: danh sách; nếu có `page`/`per_page` thì trả phân trang, nếu không thì trả mảng
   cho lịch tháng; hỗ trợ filter và khoảng ngày;
 - `GET /api/meetings/summary`: bốn chỉ số tổng quan;
-- `GET /api/meetings/organizers`: danh sách người phụ trách lấy theo scope lịch hẹn của user hiện tại,
-  dùng riêng cho filter và không phụ thuộc quyền mở trang Nhân sự;
+- `GET /api/meetings/organizers`: danh sách nhân sự có thể chọn làm người phụ trách/người tham gia,
+  dùng chung cho filter và form, không phụ thuộc quyền mở trang Nhân sự. Khi chọn Lead/Customer/Project,
+  form chỉ tự đổi người phụ trách nếu nhân sự liên quan nằm trong danh sách này; backend kiểm tra lại
+  cùng phạm vi khi tạo/sửa để không thể gửi ID ngoài quyền qua API;
 - `POST /api/meetings`, `GET/PUT/PATCH/DELETE /api/meetings/{id}`;
 - `POST /api/meetings/{id}/confirm`;
 - `POST /api/meetings/{id}/complete`;
@@ -1332,7 +1358,10 @@ mở panel để badge chuông không bị đứng nếu WebSocket tạm mất k
 
 Notification, Máy tính và Hồ sơ cá nhân dùng chung utility drawer bên phải,
 chiều rộng `420px` trên desktop và full width trên mobile; layout chỉ cho phép mở một utility tại một thời
-điểm để không chồng panel. Notification có filter `Tất cả`, `Chưa đọc`, `Đã lưu trữ`; danh sách hiển thị
+điểm để không chồng panel. Máy tính nhận phím số và numpad ngay khi drawer mở; hỗ trợ `Enter`/`=`,
+`Backspace`, `Delete`/`C`, `%`, dấu phẩy hoặc dấu chấm thập phân và bốn phép tính. Kết quả có thể sao chép,
+tự lưu tối đa 30 phép tính gần nhất vào trình duyệt; người dùng có thể chọn kết quả cũ để dùng lại hoặc
+xóa toàn bộ lịch sử. Notification có filter `Tất cả`, `Chưa đọc`, `Đã lưu trữ`; danh sách hiển thị
 phẳng theo thời gian, không hiện nhãn trạng thái nghiệp vụ trên từng item, hỗ trợ đánh dấu toàn bộ đã đọc,
 lưu trữ, phân trang mỗi lần 10 thông báo và điều hướng
 tới entity. Lưu trữ không xóa dữ liệu; người dùng xem lại trong tab `Đã lưu trữ` và có thể khôi phục về
@@ -1459,8 +1488,12 @@ draft → submitted → approved
 - Điểm P2 là chức năng ghi nhận điểm cộng/trừ hiện tại; không được gọi là KPI.
 - API chuẩn dùng `/p2-points`, có CRUD, phân trang, tổng hợp theo nhân viên và action approve.
 - Màn hình chuẩn là `/p2-points`; nghiệp vụ KPI thật dùng riêng `/kpi`.
+- Bộ lọc thời gian dùng cùng format với KPI: `Theo tháng`, `Theo quý`, `Theo năm` và `Khoảng tháng`;
+  frontend quy đổi kỳ đã chọn thành ngày đầu và ngày cuối trước khi gọi API P2.
 - Tab `Lịch sử ghi nhận` hiển thị mã Project bằng `EntityTableLink` cùng format với bảng Báo phí;
   bấm mã mở trang chi tiết Project, điểm không gắn Project hiển thị `Chưa gắn dự án`.
+- Bản ghi đang chờ và thuộc quyền duyệt hiển thị nút icon duyệt trực tiếp trên dòng; thao tác xóa vẫn
+  nằm trong menu ba chấm và menu không hiển thị nếu user không có thao tác phụ phù hợp.
 - Danh mục P2 được cấu hình tại `/settings/p2-categories`, option group `p2_category`.
 - Route và menu được kiểm soát bằng permission `p2point.view`; list/detail/tổng hợp scope theo người
   nhận P2. Create, update, delete và approve dùng `P2PointPolicy`, hỗ trợ `own/department/all`.
@@ -1539,13 +1572,14 @@ tất, hoàn tiền và lần ghi nhận Báo phí đầu; mỗi dòng có ngày
 và `Nhánh phụ trách khách hàng`; các liên kết Project/Báo phí mở đúng màn hình nguồn để kiểm tra.
 Popup chỉ hiển thị nhánh có ít nhất một phát sinh; nhánh không có dữ liệu bị ẩn hoàn toàn, không
 render header hoặc bảng trống.
+
 - Riêng tab `Theo nhân sự` có nút `Xuất Excel` trên thanh lọc. File xuất toàn bộ nhân sự thuộc phạm
   vi quyền và toàn bộ các tháng đang lọc, không chỉ các dòng đang nhìn thấy. Workbook gồm sheet
   `Tổng hợp KPI` chứa kế hoạch, tổng nguồn có VAT, lợi nhuận trước VAT, từng nhánh và tỷ lệ hoàn
   thành; sheet `Chi tiết đối soát` chứa đầy đủ từng phát sinh đang có trong popup, gồm thời gian,
   Project, Báo phí/tham chiếu, số nguồn có VAT và tác động lợi nhuận trước VAT.
-Backend áp dụng lại phạm vi `own/department/all` khi trả chi tiết, nên người dùng không thể dùng API
-đối soát để xem dữ liệu ngoài phạm vi KPI được cấp.
+  Backend áp dụng lại phạm vi `own/department/all` khi trả chi tiết, nên người dùng không thể dùng API
+  đối soát để xem dữ liệu ngoài phạm vi KPI được cấp.
 
 Chỉ Project chưa bị soft-delete mới được tính. Báo phí không gắn Project, hoặc dữ liệu thuộc Project
 đã xóa, không được tính vào số nguồn lẫn bất kỳ nhánh lợi nhuận KPI nào dù Payment/chi phí/hoàn tiền
@@ -2209,7 +2243,7 @@ Các file triển khai nguồn:
 | File                                                             | Vai trò                                        |
 | ---------------------------------------------------------------- | ---------------------------------------------- |
 | `tooling/deployment/production/compose.yml`                      | Bảy service, volume, healthcheck, log rotation |
-| `tooling/deployment/production/backend.Dockerfile`               | Laravel/PHP 8.4, pdo_pgsql, OPcache            |
+| `tooling/deployment/production/backend.Dockerfile`               | Laravel/PHP 8.4, pdo_pgsql, OPcache, pcntl     |
 | `tooling/deployment/production/frontend.Dockerfile`              | Next.js standalone/Node 20                     |
 | `tooling/deployment/production/nginx.conf`                       | HTTPS, frontend, API, Sanctum, VietQR, uploads |
 | `tooling/deployment/production/env.template`                     | Mẫu production, không chứa secret thật         |
@@ -2233,7 +2267,7 @@ Các file triển khai nguồn:
 9. load image mới, chạy migration và recreate backend/scheduler/reverb/queue-worker/frontend/nginx;
 10. xóa image cũ không còn được container sử dụng;
 11. áp dụng `robots.txt` và `X-Robots-Tag: noindex, nofollow` cho toàn bộ domain production;
-12. kiểm tra frontend, API, container và migration status;
+12. kiểm tra frontend, API, Reverb nội bộ, WebSocket công khai, container và migration status;
 13. luôn xóa tar tạm trên server khi bước load kết thúc, kể cả khi lỗi.
 
 `NEXT_PUBLIC_*` được đóng vào bundle lúc build. Đổi domain/API URL bắt buộc build lại frontend;
@@ -2241,6 +2275,10 @@ chỉ sửa `.env` VPS là chưa đủ.
 
 `REVERB_APP_SECRET` chỉ nằm trong `.env` trên VPS và được deploy script sinh ngẫu nhiên một lần;
 không đưa secret này vào frontend hay source code.
+
+Reverb cần extension PHP `pcntl`. `REVERB_ALLOWED_ORIGINS` dùng hostname (`crm.x3sales.com`), không dùng URL
+có scheme (`https://crm.x3sales.com`). Deploy chỉ thành công khi endpoint WebSocket trả `101 Switching Protocols`
+và phát sự kiện `pusher:connection_established`.
 
 ### Lệnh vận hành thường ngày trên VPS
 

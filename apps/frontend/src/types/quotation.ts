@@ -55,6 +55,16 @@ export type Quotation = {
   isFullyRefunded?: boolean;
   isPaymentLocked?: boolean;
   depositAmount?: string | number | null;
+  topupCreditEnabled?: boolean;
+  topupCreditLimit?: string | number | null;
+  topupCreditNote?: string | null;
+  topupCreditApprovedAt?: string | null;
+  topupEligibleAmount?: string | number | null;
+  topupPaidBudget?: string | number | null;
+  topupCreditBudget?: string | number | null;
+  topupReleasedBudget?: string | number | null;
+  topupUsablePaidAmount?: string | number | null;
+  topupHeldDepositAmount?: string | number | null;
   accountReconciliationImageUrls?: string[];
   validUntil?: string | null;
   note?: string | null;
@@ -73,7 +83,9 @@ export type Quotation = {
   items?: QuotationItem[];
   canUpdate?: boolean;
   canDelete?: boolean;
+  canApproveTopupCredit?: boolean;
   createdBy?: Pick<User, 'id' | 'code' | 'name' | 'email'> | null;
+  topupCreditApprovedBy?: Pick<User, 'id' | 'code' | 'name'> | null;
   createdAt?: string;
   updatedAt?: string;
 };

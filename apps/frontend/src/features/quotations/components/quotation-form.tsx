@@ -3,6 +3,7 @@
 import { useEffect, useMemo, useState } from 'react';
 import AddRoundedIcon from '@mui/icons-material/AddRounded';
 import DeleteRoundedIcon from '@mui/icons-material/DeleteRounded';
+import CreditScoreRoundedIcon from '@mui/icons-material/CreditScoreRounded';
 import LockRoundedIcon from '@mui/icons-material/LockRounded';
 import SaveRoundedIcon from '@mui/icons-material/SaveRounded';
 import { Autocomplete, Checkbox, FormControlLabel, IconButton, MenuItem } from '@mui/material';
@@ -24,6 +25,7 @@ import {
 } from '@/lib/company-bank-account-options';
 import { formatCustomerIdentity } from '@/lib/customer-utils';
 import { getQuotationPaymentContent } from '@/lib/quotation-utils';
+import { hasPermission } from '@/lib/ownership';
 import {
   SERVICE_QUOTE_CONFIG_GROUP,
   calculateManagementFee,
@@ -32,6 +34,7 @@ import {
 } from '@/lib/service-quote-config';
 import { flattenServices } from '@/lib/service-utils';
 import api from '@/services/api/client';
+import { useAuthStore } from '@/stores/auth-store';
 import type { AppOption } from '@/types/option';
 import type { ProjectItem, ProjectType } from '@/types/project';
 import type { Quotation, QuotationLineFormValue } from '@/types/quotation';
@@ -120,6 +123,9 @@ export function QuotationForm({
   const [projectType, setProjectType] = useState<ProjectType>('K');
   const [vatRate, setVatRate] = useState('8');
   const [depositAmount, setDepositAmount] = useState('0');
+  const [topupCreditEnabled, setTopupCreditEnabled] = useState(false);
+  const [topupCreditLimit, setTopupCreditLimit] = useState('0');
+  const [topupCreditNote, setTopupCreditNote] = useState('');
   const [note, setNote] = useState('');
   const [selectedServiceId, setSelectedServiceId] = useState('');
   const [selectedBankAccountId, setSelectedBankAccountId] = useState('');
@@ -133,6 +139,10 @@ export function QuotationForm({
     { id: 1, name: '', unit: 'Dịch vụ', quantity: '1', unitPrice: '0' },
   ]);
   const [fieldErrors, setFieldErrors] = useState<Record<string, string>>({});
+  const currentUser = useAuthStore((state) => state.user);
+  const canApproveTopupCredit =
+    quotation?.canApproveTopupCredit ??
+    hasPermission(currentUser, 'quotation.approve_topup_credit');
 
   const serviceOptions = useMemo(() => flattenServices(services), [services]);
   const bankAccounts = useMemo(
@@ -224,6 +234,21 @@ export function QuotationForm({
   const vatAmount = Math.round((subtotal * toNumber(vatRate)) / 100);
   const deposit = toNumber(depositAmount);
   const total = subtotal + vatAmount + deposit;
+  const baseTopupBudget = toNumber(budget);
+  const topupEligibleAmount =
+    baseTopupBudget +
+    Math.round((baseTopupBudget * toNumber(vatRate)) / 100) +
+    quoteLines.reduce((sum, line) => {
+      if (!line.countsTowardTopupBudget) return sum;
+
+      return sum + line.amount + Math.round((line.amount * toNumber(vatRate)) / 100);
+    }, 0);
+  const topupUsablePaidAmount = Math.max(0, Number(quotation?.topupUsablePaidAmount) || 0);
+  const topupPaidBudget = Math.min(topupEligibleAmount, topupUsablePaidAmount);
+  const remainingTopupBudget = Math.max(0, topupEligibleAmount - topupPaidBudget);
+  const approvedTopupCredit = topupCreditEnabled
+    ? Math.min(remainingTopupBudget, toNumber(topupCreditLimit))
+    : 0;
   const paymentContent = getQuotationPaymentContent(quotation);
   const missingRequiredProject = !projectId;
   const storedTotalAmount = Number(quotation?.totalAmount) || 0;
@@ -268,6 +293,9 @@ export function QuotationForm({
         : '8',
     );
     setDepositAmount(String(quotation.depositAmount ?? '0'));
+    setTopupCreditEnabled(Boolean(quotation.topupCreditEnabled));
+    setTopupCreditLimit(String(quotation.topupCreditLimit ?? '0'));
+    setTopupCreditNote(quotation.topupCreditNote || '');
     setNote(quotation.note || '');
     setSelectedServiceId(idToString(quotation.serviceId));
     setBudget(getMetadataValue(metadata, 'budget') || '0');
@@ -338,7 +366,48 @@ export function QuotationForm({
     });
   };
 
+  const toggleTopupCredit = (enabled: boolean) => {
+    setTopupCreditEnabled(enabled);
+    setFieldErrors((current) => ({
+      ...current,
+      topupCreditLimit: '',
+      topupCreditNote: '',
+    }));
+
+    if (enabled && toNumber(topupCreditLimit) <= 0) {
+      setTopupCreditLimit(String(Math.max(0, remainingTopupBudget)));
+    }
+  };
+
   const submitForm = async () => {
+    if (projectType === 'M' && topupCreditEnabled && toNumber(topupCreditLimit) <= 0) {
+      setFieldErrors((current) => ({
+        ...current,
+        topupCreditLimit: 'Hạn mức nợ được phép nạp phải lớn hơn 0.',
+      }));
+      return;
+    }
+
+    if (
+      projectType === 'M' &&
+      topupCreditEnabled &&
+      toNumber(topupCreditLimit) > topupEligibleAmount + 0.01
+    ) {
+      setFieldErrors((current) => ({
+        ...current,
+        topupCreditLimit: 'Hạn mức nợ không được vượt ngân sách đủ điều kiện nạp.',
+      }));
+      return;
+    }
+
+    if (projectType === 'M' && topupCreditEnabled && !topupCreditNote.trim()) {
+      setFieldErrors((current) => ({
+        ...current,
+        topupCreditNote: 'Vui lòng nhập lý do cho phép nạp trước khi thu tiền.',
+      }));
+      return;
+    }
+
     const existingRevenueGroup = getMetadataValue(quotation?.metadata, 'revenueGroup');
     const existingPricingMode = getMetadataValue(quotation?.metadata, 'pricingMode');
     const revenueGroup =
@@ -427,6 +496,12 @@ export function QuotationForm({
           };
         }),
     };
+
+    if (canApproveTopupCredit && projectType === 'M') {
+      payload.topupCreditEnabled = topupCreditEnabled;
+      payload.topupCreditLimit = topupCreditEnabled ? toNumber(topupCreditLimit) : 0;
+      payload.topupCreditNote = topupCreditEnabled ? topupCreditNote.trim() : null;
+    }
 
     const projectIdValue = projectId ? Number(projectId) : null;
     payload.projectId = projectIdValue;
@@ -590,6 +665,122 @@ export function QuotationForm({
                 </>
               )}
             </div>
+
+            {projectType === 'M' ? (
+              <div
+                className={`rounded-xl border p-4 transition-colors duration-200 ${
+                  topupCreditEnabled
+                    ? 'border-amber-200 bg-amber-50/70'
+                    : 'border-slate-200 bg-slate-50/70'
+                }`}
+              >
+                <div className="flex items-start gap-3">
+                  <span
+                    className={`mt-0.5 inline-flex h-9 w-9 shrink-0 items-center justify-center rounded-lg ${
+                      topupCreditEnabled
+                        ? 'bg-amber-100 text-amber-700'
+                        : 'bg-white text-slate-500 ring-1 ring-slate-200'
+                    }`}
+                  >
+                    <CreditScoreRoundedIcon fontSize="small" />
+                  </span>
+                  <div className="min-w-0 flex-1">
+                    <FormControlLabel
+                      className="!m-0 min-h-10"
+                      control={
+                        <Checkbox
+                          checked={topupCreditEnabled}
+                          disabled={
+                            !canApproveTopupCredit ||
+                            isPaymentLocked ||
+                            isSubmitting ||
+                            topupEligibleAmount <= 0
+                          }
+                          onChange={(event) => toggleTopupCredit(event.target.checked)}
+                        />
+                      }
+                      label={
+                        <span className="text-sm font-bold text-slate-800">
+                          Cho phép nạp trước khi thu tiền
+                        </span>
+                      }
+                    />
+                    <p className="text-xs font-medium leading-5 text-slate-500">
+                      {canApproveTopupCredit
+                        ? 'Chỉ phần hạn mức được duyệt mới cộng thêm vào số tiền Project có thể nạp.'
+                        : 'Bạn có thể xem nhưng không có quyền thay đổi hạn mức nợ.'}
+                    </p>
+                  </div>
+                </div>
+
+                <div className="mt-3 grid grid-cols-3 gap-2 border-t border-slate-200/80 pt-3">
+                  {[
+                    ['Đủ điều kiện', topupEligibleAmount],
+                    ['Từ tiền đã thu', topupPaidBudget],
+                    ['Hạn mức nợ', approvedTopupCredit],
+                  ].map(([label, value]) => (
+                    <div key={String(label)} className="min-w-0">
+                      <p className="truncate text-[11px] font-bold uppercase tracking-wide text-slate-400">
+                        {label}
+                      </p>
+                      <p className="mt-1 truncate text-sm font-extrabold tabular-nums text-slate-800">
+                        {formatCurrency(value as number)}
+                      </p>
+                    </div>
+                  ))}
+                </div>
+
+                {topupCreditEnabled ? (
+                  <div className="mt-4 grid gap-3 md:grid-cols-2">
+                    <MoneyInput
+                      fullWidth
+                      size="small"
+                      label="Hạn mức nợ được phép nạp"
+                      required
+                      value={topupCreditLimit}
+                      disabled={!canApproveTopupCredit || isPaymentLocked || isSubmitting}
+                      onValueChange={(value) => {
+                        setTopupCreditLimit(value);
+                        setFieldErrors((current) => ({ ...current, topupCreditLimit: '' }));
+                      }}
+                      error={Boolean(
+                        fieldErrors.topupCreditLimit || fieldErrors.topup_credit_limit,
+                      )}
+                      helperText={
+                        fieldErrors.topupCreditLimit ||
+                        fieldErrors.topup_credit_limit ||
+                        `Tối đa ${formatCurrency(remainingTopupBudget)}`
+                      }
+                      className={compactFormFieldClassName}
+                    />
+                    <FormInputField
+                      multiline
+                      minRows={2}
+                      label="Lý do cho phép nợ"
+                      required
+                      value={topupCreditNote}
+                      disabled={!canApproveTopupCredit || isPaymentLocked || isSubmitting}
+                      onChange={(event) => {
+                        setTopupCreditNote(event.target.value);
+                        setFieldErrors((current) => ({ ...current, topupCreditNote: '' }));
+                      }}
+                      error={Boolean(fieldErrors.topupCreditNote || fieldErrors.topup_credit_note)}
+                      helperText={fieldErrors.topupCreditNote || fieldErrors.topup_credit_note}
+                    />
+                  </div>
+                ) : null}
+
+                {quotation?.topupCreditApprovedBy && quotation.topupCreditApprovedAt ? (
+                  <p className="mt-3 text-xs font-semibold text-slate-500">
+                    Duyệt bởi {quotation.topupCreditApprovedBy.name} ·{' '}
+                    {new Intl.DateTimeFormat('vi-VN', {
+                      dateStyle: 'short',
+                      timeStyle: 'short',
+                    }).format(new Date(quotation.topupCreditApprovedAt))}
+                  </p>
+                ) : null}
+              </div>
+            ) : null}
 
             <FormInputField
               multiline

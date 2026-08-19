@@ -22,7 +22,10 @@ import { IconTabs } from '@/components/navigation/icon-tabs';
 import { PageHeader } from '@/components/shell/page-header';
 import { MeetingCalendar } from '@/features/meetings/components/meeting-calendar';
 import { MeetingDetailDialog } from '@/features/meetings/components/meeting-detail-dialog';
-import { MeetingFormDialog } from '@/features/meetings/components/meeting-form-dialog';
+import {
+  MeetingFormDialog,
+  type MeetingUserOption,
+} from '@/features/meetings/components/meeting-form-dialog';
 import { MeetingList } from '@/features/meetings/components/meeting-list';
 import { MeetingStatusDialog } from '@/features/meetings/components/meeting-status-dialog';
 import { getApiErrorMessage } from '@/lib/api-error';
@@ -37,7 +40,6 @@ import type {
   MeetingPayload,
   MeetingSummary,
 } from '@/types/meeting';
-import type { User } from '@/types/user';
 
 const INITIAL_FILTERS: MeetingFilters = {
   keyword: '',
@@ -60,8 +62,6 @@ type SaveIntent = {
   meetingId?: number;
   payload: MeetingPayload;
 };
-
-type MeetingOrganizerOption = Pick<User, 'id' | 'code' | 'name'>;
 
 function conflictMessages(error: unknown): string[] {
   const conflicts = (error as { response?: { data?: { errors?: { conflicts?: unknown } } } })
@@ -129,17 +129,30 @@ export default function MeetingsPage() {
     [deferredKeyword, filters],
   );
 
-  const { data: users = [] } = useQuery<User[]>({
-    queryKey: ['users', 'meeting-options'],
-    queryFn: () =>
-      api.get<User[]>('/users/lookup?context=meeting').then((response) => response.data),
-  });
-
-  const { data: organizerUsers = [] } = useQuery<MeetingOrganizerOption[]>({
+  const { data: organizerUsers = [] } = useQuery<MeetingUserOption[]>({
     queryKey: ['meetings', 'organizer-options'],
     queryFn: () =>
-      api.get<MeetingOrganizerOption[]>('/meetings/organizers').then((response) => response.data),
+      api.get<MeetingUserOption[]>('/meetings/organizers').then((response) => response.data),
   });
+  const meetingUsers = useMemo(() => {
+    const options = new Map<number, MeetingUserOption>();
+    const candidates: Array<MeetingUserOption | null | undefined> = [
+      currentUser,
+      ...organizerUsers,
+      formMeeting?.organizer,
+      ...(formMeeting?.participants || []),
+    ];
+
+    candidates.forEach((user) => {
+      if (user?.id && user.code && user.name && user.isActive !== false) {
+        options.set(user.id, { id: user.id, code: user.code, name: user.name });
+      }
+    });
+
+    return Array.from(options.values()).sort((first, second) =>
+      first.code.localeCompare(second.code, 'vi'),
+    );
+  }, [currentUser, formMeeting, organizerUsers]);
 
   const { data: departments = [] } = useQuery<Department[]>({
     queryKey: ['departments', 'meeting-options'],
@@ -505,7 +518,7 @@ export default function MeetingsPage() {
       <MeetingFormDialog
         open={formOpen}
         meeting={formMeeting}
-        users={users}
+        users={meetingUsers}
         currentUserId={currentUser?.id}
         defaultDate={defaultDate}
         isSubmitting={saveMutation.isPending}

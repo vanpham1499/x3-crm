@@ -151,6 +151,7 @@ class QuotationRepository extends BaseRepository
             'paymentAllocations',
             'paymentRefunds',
             'createdBy',
+            'topupCreditApprovedBy',
         ];
     }
 
@@ -191,6 +192,7 @@ class QuotationRepository extends BaseRepository
             'paymentAllocations',
             'paymentRefunds',
             'createdBy',
+            'topupCreditApprovedBy',
         ]);
     }
 
@@ -200,6 +202,6 @@ class QuotationRepository extends BaseRepository
             return null;
         }
 
-        return $this->query()->with(['lead', 'customer', 'project', 'contract', 'service', 'items.service', 'paymentAllocations', 'paymentRefunds', 'createdBy'])->where('quotation_code', $code)->first();
+        return $this->query()->with(['lead', 'customer', 'project', 'contract', 'service', 'items.service', 'paymentAllocations', 'paymentRefunds', 'createdBy', 'topupCreditApprovedBy'])->where('quotation_code', $code)->first();
     }
 }

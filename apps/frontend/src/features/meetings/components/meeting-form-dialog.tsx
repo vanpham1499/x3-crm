@@ -19,10 +19,14 @@ import type { Meeting, MeetingPayload, MeetingRelatedType, MeetingType } from '@
 import type { ProjectItem } from '@/types/project';
 import type { User } from '@/types/user';
 
+export type MeetingUserOption = Pick<User, 'id' | 'code' | 'name'> & {
+  isActive?: boolean;
+};
+
 type MeetingFormDialogProps = {
   open: boolean;
   meeting?: Meeting | null;
-  users: User[];
+  users: MeetingUserOption[];
   currentUserId?: number | null;
   defaultDate?: string;
   isSubmitting: boolean;
@@ -144,22 +148,31 @@ export function MeetingFormDialog({
 
     const label = relatedLabel(type, nextRelated);
     if (!subject.trim()) setSubject(`Trao đổi - ${label}`);
+    const selectOrganizer = (userId?: number | null) => {
+      if (userId && users.some((user) => user.id === userId)) {
+        setOrganizerUserId(String(userId));
+      }
+    };
 
     if (type === 'lead') {
       const lead = nextRelated as Lead;
-      if (lead.assignedUserId) setOrganizerUserId(String(lead.assignedUserId));
+      selectOrganizer(lead.assignedUserId);
       return;
     }
 
     if (type === 'customer') {
       const customer = nextRelated as Customer;
-      if (customer.salesUserId) setOrganizerUserId(String(customer.salesUserId));
+      selectOrganizer(customer.salesUserId);
       return;
     }
 
     const project = nextRelated as ProjectItem;
-    if (project.salesUserId) setOrganizerUserId(String(project.salesUserId));
-    if (project.managerUserId && project.managerUserId !== project.salesUserId) {
+    selectOrganizer(project.salesUserId);
+    if (
+      project.managerUserId &&
+      project.managerUserId !== project.salesUserId &&
+      users.some((user) => user.id === project.managerUserId)
+    ) {
       setParticipantUserIds((current) =>
         current.includes(project.managerUserId as number)
           ? current
@@ -391,7 +404,7 @@ export function MeetingFormDialog({
               onChange={(event) => setAgenda(event.target.value)}
             />
 
-            <Autocomplete<User, true, false, false>
+            <Autocomplete<MeetingUserOption, true, false, false>
               multiple
               limitTags={3}
               options={users.filter(

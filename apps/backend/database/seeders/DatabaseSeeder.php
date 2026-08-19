@@ -126,6 +126,7 @@ class DatabaseSeeder extends Seeder
             ['module' => 'quotation', 'code' => 'quotation.delete', 'name' => 'Xóa báo phí của mình'],
             ['module' => 'quotation', 'code' => 'quotation.delete_department', 'name' => 'Xóa báo phí trong phòng ban'],
             ['module' => 'quotation', 'code' => 'quotation.delete_all', 'name' => 'Xóa mọi báo phí'],
+            ['module' => 'quotation', 'code' => 'quotation.approve_topup_credit', 'name' => 'Duyệt hạn mức nợ để nạp ngân sách'],
 
             ['module' => 'weeklyreport', 'code' => 'weeklyreport.view', 'name' => 'Xem báo cáo tuần'],
             ['module' => 'weeklyreport', 'code' => 'weeklyreport.view_department', 'name' => 'Xem báo cáo tuần trong phòng ban'],
@@ -226,6 +227,7 @@ class DatabaseSeeder extends Seeder
                 'customer.view_department', 'customer.update_department', 'customer.delete_department',
                 'project.view_department', 'project.update_department', 'project.delete_department',
                 'quotation.view_department', 'quotation.update_department', 'quotation.delete_department',
+                'quotation.approve_topup_credit',
                 'payment.view_department',
                 'meeting.view_department', 'meeting.update_department', 'meeting.delete_department',
                 'weeklyreport.view_department', 'weeklyreport.update_department', 'weeklyreport.delete_department', 'weeklyreport.approve_department',

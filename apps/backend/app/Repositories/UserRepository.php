@@ -39,7 +39,7 @@ class UserRepository extends BaseRepository
             ->when($departmentId, fn ($query) => $query->where('department_id', $departmentId))
             ->when($departmentIds !== [], fn ($query) => $query->where(function ($scope) use ($departmentIds, $includeId): void {
                 $scope->whereIn('department_id', $departmentIds)
-                    ->when($includeId, fn ($scope) => $scope->orWhereKey($includeId));
+                    ->when($includeId, fn ($scope) => $scope->orWhere('users.id', $includeId));
             }))
             ->when($isActive !== null && $isActive !== '', function ($query) use ($isActive): void {
                 $query->where('is_active', filter_var($isActive, FILTER_VALIDATE_BOOLEAN));

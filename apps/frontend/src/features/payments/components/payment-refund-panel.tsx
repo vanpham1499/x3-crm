@@ -23,10 +23,10 @@ import { ListFilterBar } from '@/components/form/list-filter-bar';
 import { MoneyInput } from '@/components/form/money-input';
 import { AppDataTable } from '@/components/table/app-data-table';
 import { EntityTableLink } from '@/components/table/entity-table-link';
-import { isInteractiveTableTarget } from '@/components/table/row-interaction';
 import { TablePaginationBar } from '@/components/table/table-pagination-bar';
 import { formatCustomerIdentity } from '@/lib/customer-utils';
 import type {
+  Payment,
   PaymentRefund,
   PaymentRefundFilters,
   PaymentRefundUpdateInput,
@@ -47,6 +47,7 @@ type PaymentRefundPanelProps = {
   onFiltersChange: (filters: PaymentRefundFilters) => void;
   onUpdate: (refundId: number, values: PaymentRefundUpdateInput) => Promise<PaymentRefund>;
   onDelete: (refundId: number) => Promise<void>;
+  onUpdateInvoice: (paymentId: number, invoiceNumber: string | null) => Promise<Payment>;
 };
 
 const TYPE_LABELS = {
@@ -385,6 +386,67 @@ function EditRefundDialog({
   );
 }
 
+function RefundInvoiceDialog({
+  refund,
+  submitting,
+  onClose,
+  onSubmit,
+}: {
+  refund: PaymentRefund | null;
+  submitting: boolean;
+  onClose: () => void;
+  onSubmit: (invoiceNumber: string | null) => Promise<void>;
+}) {
+  const [invoiceNumber, setInvoiceNumber] = useState('');
+
+  useEffect(() => {
+    setInvoiceNumber(refund?.invoiceNumber || refund?.payment?.invoiceNumber || '');
+  }, [refund]);
+
+  if (!refund) return null;
+
+  const handleSubmit = async (event: FormEvent<HTMLFormElement>) => {
+    event.preventDefault();
+    await onSubmit(invoiceNumber.trim() || null);
+  };
+
+  return (
+    <AppFormDialog
+      open
+      title={refund.invoiceNumber ? 'Sửa số hóa đơn' : 'Nhập số hóa đơn'}
+      maxWidth="sm"
+      submitting={submitting}
+      onClose={onClose}
+      onSubmit={handleSubmit}
+      actions={
+        <>
+          <DialogActionButton disabled={submitting} onClick={onClose}>
+            Hủy
+          </DialogActionButton>
+          <DialogActionButton type="submit" tone="primary" disabled={submitting}>
+            {submitting ? 'Đang lưu...' : 'Lưu hóa đơn'}
+          </DialogActionButton>
+        </>
+      }
+    >
+      <div className="grid gap-3">
+        <FormInputField
+          autoFocus
+          label="Số hóa đơn xuất cho khách hàng"
+          placeholder="Nhập số hóa đơn"
+          value={invoiceNumber}
+          slotProps={{ htmlInput: { maxLength: 100 } }}
+          onChange={(event) => setInvoiceNumber(event.target.value)}
+        />
+        <p className="text-xs font-medium leading-5 text-slate-500">
+          Số hóa đơn được lưu theo giao dịch tiền vào nguồn của khoản hoàn. Để trống và lưu nếu cần
+          xóa số đã nhập.
+        </p>
+      </div>
+    </AppFormDialog>
+  );
+}
+
 export function PaymentRefundPanel({
   refunds,
   filters,
@@ -400,12 +462,14 @@ export function PaymentRefundPanel({
   onFiltersChange,
   onUpdate,
   onDelete,
+  onUpdateInvoice,
 }: PaymentRefundPanelProps) {
   const [viewTarget, setViewTarget] = useState<PaymentRefund | null>(null);
   const [editTarget, setEditTarget] = useState<PaymentRefund | null>(null);
   const [completeTarget, setCompleteTarget] = useState<PaymentRefund | null>(null);
   const [cancelTarget, setCancelTarget] = useState<PaymentRefund | null>(null);
   const [deleteTarget, setDeleteTarget] = useState<PaymentRefund | null>(null);
+  const [invoiceTarget, setInvoiceTarget] = useState<PaymentRefund | null>(null);
   const [menuAnchor, setMenuAnchor] = useState<HTMLElement | null>(null);
   const [menuTarget, setMenuTarget] = useState<PaymentRefund | null>(null);
 
@@ -464,7 +528,6 @@ export function PaymentRefundPanel({
           { key: 'invoice', label: 'Số hóa đơn', className: 'w-40' },
           { key: 'customer', label: 'Khách hàng', className: 'w-56' },
           { key: 'quotation', label: 'Báo phí', className: 'w-56' },
-          { key: 'project', label: 'Dự án', className: 'w-56' },
           { key: 'amount', label: 'Số tiền', className: 'w-44 text-right' },
           { key: 'recipient', label: 'Người nhận', className: 'w-60' },
           { key: 'status', label: 'Trạng thái', className: 'w-36' },
@@ -473,17 +536,10 @@ export function PaymentRefundPanel({
         isLoading={isFetching}
         isEmpty={refunds.length === 0}
         emptyText="Chưa có khoản trả khách. Hãy tạo từ một giao dịch trong tab Tiền nhận vào."
-        minWidthClassName="min-w-[1580px]"
+        minWidthClassName="min-w-[1180px]"
       >
         {refunds.map((refund) => (
-          <tr
-            key={refund.id}
-            className="cursor-pointer hover:bg-slate-50/80"
-            onClick={(event) => {
-              if (isInteractiveTableTarget(event.target)) return;
-              setViewTarget(refund);
-            }}
-          >
+          <tr key={refund.id} className="hover:bg-slate-50/80">
             <td className="whitespace-nowrap px-3 py-3.5 font-semibold tabular-nums text-slate-700">
               {formatDate(
                 refund.status === 'completed'
@@ -497,9 +553,21 @@ export function PaymentRefundPanel({
               </span>
             </td>
             <td className="px-3 py-3.5">
-              <span className="block max-w-40 truncate font-mono text-xs font-bold text-sky-700">
-                {refund.invoiceNumber || refund.payment?.invoiceNumber || '-'}
-              </span>
+              <button
+                type="button"
+                title={
+                  refund.invoiceNumber ? `Sửa hóa đơn ${refund.invoiceNumber}` : 'Nhập số hóa đơn'
+                }
+                disabled={!canManage}
+                className={`block max-w-full truncate rounded-md px-2 py-1 text-left font-mono text-xs font-bold transition ${
+                  refund.invoiceNumber
+                    ? 'bg-sky-50 text-sky-700 ring-1 ring-sky-100 hover:bg-sky-100'
+                    : 'text-slate-400 hover:bg-slate-100 hover:text-slate-600'
+                } disabled:cursor-default disabled:hover:bg-transparent`}
+                onClick={() => setInvoiceTarget(refund)}
+              >
+                {refund.invoiceNumber || refund.payment?.invoiceNumber || 'Chưa nhập'}
+              </button>
             </td>
             <td className="px-3 py-3.5">
               {refund.customer ? (
@@ -517,15 +585,6 @@ export function PaymentRefundPanel({
               {refund.quotation ? (
                 <EntityTableLink href={`/quotations/${refund.quotation.id}`} tone="primary">
                   {refund.quotation.quotationCode || `#${refund.quotation.id}`}
-                </EntityTableLink>
-              ) : (
-                <span className="text-slate-400">-</span>
-              )}
-            </td>
-            <td className="px-3 py-3.5">
-              {refund.project ? (
-                <EntityTableLink href={`/projects/${refund.project.id}`} tone="blue">
-                  {refund.project.projectCode || `#${refund.project.id}`}
                 </EntityTableLink>
               ) : (
                 <span className="text-slate-400">-</span>
@@ -748,6 +807,17 @@ export function PaymentRefundPanel({
           if (!editTarget) return;
           await onUpdate(editTarget.id, values);
           setEditTarget(null);
+        }}
+      />
+      <RefundInvoiceDialog
+        key={invoiceTarget?.id || 'refund-invoice'}
+        refund={invoiceTarget}
+        submitting={isMutating}
+        onClose={() => setInvoiceTarget(null)}
+        onSubmit={async (invoiceNumber) => {
+          if (!invoiceTarget) return;
+          await onUpdateInvoice(invoiceTarget.paymentId, invoiceNumber);
+          setInvoiceTarget(null);
         }}
       />
       <ConfirmDialog

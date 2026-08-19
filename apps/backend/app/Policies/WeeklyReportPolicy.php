@@ -60,7 +60,6 @@ class WeeklyReportPolicy
 
         if (
             $user->hasPermission('weeklyreport.approve_department')
-            && $report->reporter_user_id !== $user->id
             && $this->belongsToDepartmentScope($user, $report)
         ) {
             return true;

@@ -661,6 +661,31 @@ export function QuotationPreviewDialog({
             </section>
           ) : null}
 
+          {quotation.topupCreditEnabled ? (
+            <section className="overflow-hidden rounded-xl border border-amber-200 bg-amber-50/60">
+              <div className="grid sm:grid-cols-2 lg:grid-cols-4 lg:divide-x lg:divide-amber-200">
+                <InfoCell
+                  label="Ngân sách đủ điều kiện"
+                  value={formatCurrency(quotation.topupEligibleAmount)}
+                />
+                <InfoCell
+                  label="Từ tiền đã thu"
+                  value={formatCurrency(quotation.topupPaidBudget)}
+                />
+                <InfoCell label="Hạn mức nợ" value={formatCurrency(quotation.topupCreditBudget)} />
+                <InfoCell
+                  label="Được phép nạp"
+                  value={formatCurrency(quotation.topupReleasedBudget)}
+                />
+              </div>
+              {quotation.topupCreditNote ? (
+                <p className="border-t border-amber-200 px-4 py-2.5 text-sm font-semibold text-amber-900">
+                  Lý do: {quotation.topupCreditNote}
+                </p>
+              ) : null}
+            </section>
+          ) : null}
+
           <section className="overflow-hidden rounded-xl bg-white">
             <QuotationItemsTable
               lines={quotationLines(quotation)}

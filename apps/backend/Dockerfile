@@ -7,7 +7,7 @@ FROM php:8.2-cli-alpine
 WORKDIR /app
 
 RUN apk add --no-cache postgresql-dev \
-  && docker-php-ext-install pdo pdo_pgsql
+  && docker-php-ext-install pdo pdo_pgsql pcntl
 
 COPY . .
 COPY --from=vendor /app/vendor ./vendor

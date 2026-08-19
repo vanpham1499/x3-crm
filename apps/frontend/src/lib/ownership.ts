@@ -262,8 +262,7 @@ export function canApproveWeeklyReport(
   if (hasPermission(user, 'weeklyreport.approve_all')) return true;
   if (
     hasPermission(user, 'weeklyreport.approve_department') &&
-    canAccessDepartment(user, report.reporter?.departmentId) &&
-    report.reporterUserId !== user.id
+    canAccessDepartment(user, report.reporter?.departmentId)
   ) {
     return true;
   }

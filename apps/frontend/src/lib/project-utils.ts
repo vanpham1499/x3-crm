@@ -46,7 +46,7 @@ export function getProjectDefaults(
             project?.projectType === 'K' ||
             project?.projectType === 'O'
           ? project.projectType
-          : defaults?.projectType || 'K',
+          : defaults?.projectType || 'O',
     statusOptionId: idToString(project?.statusOptionId) || defaults?.statusOptionId || '',
     managerUserId: idToString(project?.managerUserId) || defaults?.managerUserId || '',
     weeklyReportWeekday:

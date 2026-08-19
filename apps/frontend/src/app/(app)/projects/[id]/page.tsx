@@ -244,10 +244,12 @@ export default function EditProjectPage() {
     (sum, quotation) => sum + (Number(quotation.outstandingAmount) || 0),
     0,
   );
-  const { availableBudget: availableTopupBudget } = calculateAvailableTopupBudget({
-    quotations,
-    costs: projectCosts,
-  });
+  const {
+    paidBudget: paidTopupBudget,
+    creditBudget: creditTopupBudget,
+    usedBudget: usedTopupBudget,
+    availableBudget: availableTopupBudget,
+  } = calculateAvailableTopupBudget({ quotations, costs: projectCosts });
   const depositNotes = [
     heldDeposit > 0 ? `Đang giữ ${formatCurrency(heldDeposit)}` : '',
     totalDepositRefunded > 0 ? `Đã hoàn ${formatCurrency(totalDepositRefunded)}` : '',
@@ -271,7 +273,7 @@ export default function EditProjectPage() {
       label: 'Số tiền có thể nạp',
       value: availableTopupBudget,
       className: availableTopupBudget < 0 ? 'text-rose-700' : 'text-blue-700',
-      note: 'Lead kiểm tra trước khi nạp',
+      note: `Đã thu ${formatCurrency(paidTopupBudget)} · Nợ ${formatCurrency(creditTopupBudget)} · Đã nạp ${formatCurrency(usedTopupBudget)}`,
     },
     {
       label: 'Chi phí đã chi',

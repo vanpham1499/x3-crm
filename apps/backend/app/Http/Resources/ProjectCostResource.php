@@ -63,6 +63,11 @@ class ProjectCostResource extends JsonResource
                 'projectName' => $this->project->project_name,
                 'projectType' => $this->project->project_type,
                 'availableTopupBudget' => $topupBudget['availableBudget'] ?? null,
+                'eligibleTopupBudget' => $topupBudget['eligibleBudget'] ?? null,
+                'paidTopupBudget' => $topupBudget['paidBudget'] ?? null,
+                'creditTopupBudget' => $topupBudget['creditBudget'] ?? null,
+                'releasedTopupBudget' => $topupBudget['releasedBudget'] ?? null,
+                'usedTopupBudget' => $topupBudget['usedBudget'] ?? null,
                 'customer' => $this->project->relationLoaded('customer') && $this->project->customer ? [
                     'id' => $this->project->customer->id,
                     'customerCode' => $this->project->customer->customer_code,

@@ -9,6 +9,7 @@ use App\Models\ProjectCostAdjustment;
 use App\Models\ProjectCostCidIncident;
 use App\Models\User;
 use App\Repositories\ProjectCostRepository;
+use App\Support\ProjectTopupBudgetCalculator;
 use Illuminate\Auth\Access\AuthorizationException;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Validation\ValidationException;
@@ -114,6 +115,7 @@ class ProjectCostsService extends BaseService
             }
 
             $data = $this->preparePayload($normalized, $existing);
+            $this->ensureWithinTopupBudget($existing, $data);
 
             if ((string) $data['project_id'] !== (string) $existing->project_id) {
                 $project = Project::query()->findOrFail($data['project_id']);
@@ -543,6 +545,38 @@ class ProjectCostsService extends BaseService
 
         throw ValidationException::withMessages([
             'cost' => ['Lead phải xác nhận khoản ngân sách đã nạp/đã chi trước khi kế toán đối soát.'],
+        ]);
+    }
+
+    private function ensureWithinTopupBudget(ProjectCost $existing, array $data): void
+    {
+        if (
+            ($data['entry_type'] ?? null) !== ProjectCost::TYPE_AD_SPEND
+            || ($data['status'] ?? null) !== ProjectCost::STATUS_COMPLETED
+        ) {
+            return;
+        }
+
+        $project = Project::query()->findOrFail($data['project_id']);
+        $budget = ProjectTopupBudgetCalculator::calculate($project);
+        $candidate = clone $existing;
+        $candidate->fill($data);
+        $candidateAmount = $candidate->actualCostAmount();
+        $existingAmount = $existing->status === ProjectCost::STATUS_COMPLETED
+            && (string) $existing->project_id === (string) $data['project_id']
+            ? $existing->actualCostAmount()
+            : 0.0;
+        $availableForCandidate = round($budget['availableBudget'] + $existingAmount, 2);
+
+        if ($candidateAmount <= $availableForCandidate + 0.01) {
+            return;
+        }
+
+        throw ValidationException::withMessages([
+            'amountBeforeVat' => [
+                'Số tiền xác nhận nạp vượt quá hạn mức hiện có của Project. Có thể nạp tối đa '
+                .number_format(max(0, $availableForCandidate), 0, ',', '.').' đ.',
+            ],
         ]);
     }
 

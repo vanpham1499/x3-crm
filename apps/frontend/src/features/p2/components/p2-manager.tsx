@@ -11,16 +11,19 @@ import MoreVertRoundedIcon from '@mui/icons-material/MoreVertRounded';
 import PendingActionsRoundedIcon from '@mui/icons-material/PendingActionsRounded';
 import TrendingDownRoundedIcon from '@mui/icons-material/TrendingDownRounded';
 import TrendingUpRoundedIcon from '@mui/icons-material/TrendingUpRounded';
-import { Autocomplete, IconButton, Menu, MenuItem } from '@mui/material';
+import { Autocomplete, IconButton, Menu, MenuItem, Tooltip } from '@mui/material';
 import { Controller, useForm } from 'react-hook-form';
 import { DialogActionButton } from '@/components/actions/dialog-action-button';
 import { SummaryMetricCard } from '@/components/data-display/summary-metric-card';
 import { AppFormDialog } from '@/components/dialog/app-form-dialog';
 import { ConfirmDialog } from '@/components/feedback/confirm-dialog';
 import { CompactAutocompleteField } from '@/components/form/compact-autocomplete-field';
+import { CompactMonthPicker } from '@/components/form/compact-month-picker';
 import { CompactSelectField } from '@/components/form/compact-select-field';
+import { CompactYearPicker } from '@/components/form/compact-year-picker';
 import { FormDatePicker } from '@/components/form/form-date-picker';
 import { FormInputField } from '@/components/form/form-input-field';
+import { FormSelectField } from '@/components/form/form-select-field';
 import { ListFilterBar } from '@/components/form/list-filter-bar';
 import { ServerPaginatedAutocomplete } from '@/components/form/server-paginated-autocomplete';
 import { IconTabs } from '@/components/navigation/icon-tabs';
@@ -373,18 +376,80 @@ export function P2Manager({
         />
 
         <ListFilterBar className="p-4">
-          <FormDatePicker
-            label="Ngày bắt đầu"
-            value={filters.dateFrom}
-            max={filters.dateTo || undefined}
-            onChange={(dateFrom) => updateFilters({ dateFrom })}
-          />
-          <FormDatePicker
-            label="Ngày kết thúc"
-            value={filters.dateTo}
-            min={filters.dateFrom || undefined}
-            onChange={(dateTo) => updateFilters({ dateTo })}
-          />
+          <FormSelectField
+            label="Kỳ báo cáo"
+            value={filters.mode}
+            onChange={(event) =>
+              updateFilters({ mode: event.target.value as P2PointFilters['mode'] })
+            }
+          >
+            <MenuItem value="month">Theo tháng</MenuItem>
+            <MenuItem value="quarter">Theo quý</MenuItem>
+            <MenuItem value="year">Theo năm</MenuItem>
+            <MenuItem value="range">Khoảng tháng</MenuItem>
+          </FormSelectField>
+
+          {filters.mode === 'month' && (
+            <CompactMonthPicker
+              label="Tháng"
+              value={filters.month}
+              onChange={(month) => month && updateFilters({ month })}
+            />
+          )}
+
+          {filters.mode === 'quarter' && (
+            <>
+              <FormSelectField
+                label="Quý"
+                value={filters.quarter}
+                onChange={(event) => updateFilters({ quarter: event.target.value })}
+              >
+                <MenuItem value="1">Quý 1</MenuItem>
+                <MenuItem value="2">Quý 2</MenuItem>
+                <MenuItem value="3">Quý 3</MenuItem>
+                <MenuItem value="4">Quý 4</MenuItem>
+              </FormSelectField>
+              <CompactYearPicker
+                value={filters.year}
+                onChange={(year) => year && updateFilters({ year })}
+              />
+            </>
+          )}
+
+          {filters.mode === 'year' && (
+            <CompactYearPicker
+              value={filters.year}
+              onChange={(year) => year && updateFilters({ year })}
+            />
+          )}
+
+          {filters.mode === 'range' && (
+            <>
+              <CompactMonthPicker
+                label="Từ tháng"
+                value={filters.periodFrom}
+                onChange={(periodFrom) => {
+                  if (!periodFrom) return;
+                  updateFilters({
+                    periodFrom,
+                    periodTo: periodFrom > filters.periodTo ? periodFrom : filters.periodTo,
+                  });
+                }}
+              />
+              <CompactMonthPicker
+                label="Đến tháng"
+                value={filters.periodTo}
+                onChange={(periodTo) => {
+                  if (!periodTo) return;
+                  updateFilters({
+                    periodFrom: periodTo < filters.periodFrom ? periodTo : filters.periodFrom,
+                    periodTo,
+                  });
+                }}
+              />
+            </>
+          )}
+
           <CompactAutocompleteField
             label="Nhân viên"
             value={filters.userId}
@@ -507,7 +572,7 @@ export function P2Manager({
                 { key: 'score', label: 'Điểm', className: 'w-[100px] text-right' },
                 { key: 'approval', label: 'Trạng thái duyệt', className: 'w-[150px]' },
                 { key: 'note', label: 'Ghi chú', className: 'w-[260px]' },
-                { key: 'actions', className: 'w-[56px]' },
+                { key: 'actions', className: 'w-[96px]' },
               ]}
               isLoading={isFetching}
               isEmpty={points.length === 0}
@@ -583,14 +648,34 @@ export function P2Manager({
                       {point.note || '-'}
                     </td>
                     <td className="px-3 py-3.5 text-right">
-                      <IconButton
-                        size="small"
-                        title="Tác vụ"
-                        aria-label={`Tác vụ P2 của ${point.user?.name || 'nhân viên'}`}
-                        onClick={(event) => openActionMenu(event, point)}
-                      >
-                        <MoreVertRoundedIcon fontSize="small" />
-                      </IconButton>
+                      <div className="flex items-center justify-end gap-1">
+                        {!point.isApproved && canApproveP2Point(currentUser, point) ? (
+                          <Tooltip title="Duyệt điểm P2" arrow>
+                            <span>
+                              <IconButton
+                                size="small"
+                                disabled={isApproving}
+                                aria-label={`Duyệt điểm P2 của ${point.user?.name || 'nhân viên'}`}
+                                className="!text-emerald-600 hover:!bg-emerald-50 disabled:!text-slate-300"
+                                onClick={() => onApprove(point)}
+                              >
+                                <CheckCircleOutlineRoundedIcon fontSize="small" />
+                              </IconButton>
+                            </span>
+                          </Tooltip>
+                        ) : null}
+
+                        {point.canDelete ? (
+                          <IconButton
+                            size="small"
+                            title="Tác vụ"
+                            aria-label={`Tác vụ P2 của ${point.user?.name || 'nhân viên'}`}
+                            onClick={(event) => openActionMenu(event, point)}
+                          >
+                            <MoreVertRoundedIcon fontSize="small" />
+                          </IconButton>
+                        ) : null}
+                      </div>
                     </td>
                   </tr>
                 );
@@ -610,18 +695,6 @@ export function P2Manager({
       </section>
 
       <Menu anchorEl={menuAnchorEl} open={Boolean(menuAnchorEl)} onClose={closeActionMenu}>
-        {activePoint && !activePoint.isApproved && canApproveP2Point(currentUser, activePoint) && (
-          <MenuItem
-            disabled={isApproving}
-            onClick={() => {
-              onApprove(activePoint);
-              closeActionMenu();
-            }}
-          >
-            <CheckCircleOutlineRoundedIcon fontSize="small" className="mr-2 text-emerald-600" />
-            Duyệt điểm P2
-          </MenuItem>
-        )}
         {activePoint?.canDelete ? (
           <MenuItem
             className="text-rose-600"

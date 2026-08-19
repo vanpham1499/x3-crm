@@ -31,17 +31,65 @@ type P2PointsPageResponse = PaginatedResponse<P2Point> & {
   };
 };
 
-function getCurrentDate() {
+function currentPeriod() {
   const today = new Date();
-  return `${today.getFullYear()}-${String(today.getMonth() + 1).padStart(2, '0')}-${String(
-    today.getDate(),
-  ).padStart(2, '0')}`;
+
+  return `${today.getFullYear()}-${String(today.getMonth() + 1).padStart(2, '0')}`;
 }
 
-const initialDate = getCurrentDate();
-const initialMonthStart = `${initialDate.slice(0, 7)}-01`;
+function currentQuarter() {
+  return String(Math.floor(new Date().getMonth() / 3) + 1);
+}
+
+function monthValue(year: string, month: number) {
+  return `${year}-${String(month).padStart(2, '0')}`;
+}
+
+function monthStart(period: string) {
+  return `${period}-01`;
+}
+
+function monthEnd(period: string) {
+  const [year, month] = period.split('-').map(Number);
+  const lastDay = new Date(year, month, 0).getDate();
+
+  return `${period}-${String(lastDay).padStart(2, '0')}`;
+}
+
+function resolveDateRange(filters: P2PointFilters) {
+  if (filters.mode === 'quarter') {
+    const quarter = Math.min(4, Math.max(1, Number(filters.quarter) || 1));
+    const firstMonth = (quarter - 1) * 3 + 1;
+
+    return {
+      dateFrom: monthStart(monthValue(filters.year, firstMonth)),
+      dateTo: monthEnd(monthValue(filters.year, firstMonth + 2)),
+    };
+  }
+
+  if (filters.mode === 'year') {
+    return {
+      dateFrom: monthStart(monthValue(filters.year, 1)),
+      dateTo: monthEnd(monthValue(filters.year, 12)),
+    };
+  }
+
+  if (filters.mode === 'range') {
+    return {
+      dateFrom: monthStart(filters.periodFrom),
+      dateTo: monthEnd(filters.periodTo),
+    };
+  }
+
+  return {
+    dateFrom: monthStart(filters.month),
+    dateTo: monthEnd(filters.month),
+  };
+}
 
 function p2Params(filters: P2PointFilters) {
+  const dateRange = resolveDateRange(filters);
+
   return {
     user_id: filters.userId || undefined,
     category: filters.category || undefined,
@@ -52,8 +100,8 @@ function p2Params(filters: P2PointFilters) {
         : filters.approvalStatus === 'pending'
           ? 0
           : undefined,
-    date_from: filters.dateFrom || undefined,
-    date_to: filters.dateTo || undefined,
+    date_from: dateRange.dateFrom,
+    date_to: dateRange.dateTo,
   };
 }
 
@@ -61,15 +109,20 @@ export default function P2PointsPage() {
   const queryClient = useQueryClient();
   const notify = useAppNotification();
   const currentUser = useAuthStore((state) => state.user);
+  const initialMonth = currentPeriod();
   const [page, setPage] = useState(1);
   const [pageSize, setPageSize] = useState(P2_PAGE_SIZE);
   const [filters, setFilters] = useState<P2PointFilters>({
+    mode: 'month',
+    month: initialMonth,
+    quarter: currentQuarter(),
+    year: initialMonth.slice(0, 4),
+    periodFrom: initialMonth,
+    periodTo: initialMonth,
     userId: '',
     category: '',
     type: '',
     approvalStatus: '',
-    dateFrom: initialMonthStart,
-    dateTo: initialDate,
   });
 
   const { data: users = [], isLoading: isUsersLoading } = useQuery<User[]>({
