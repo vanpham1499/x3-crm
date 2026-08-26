@@ -224,6 +224,15 @@ export default function PaymentsPage() {
     onError: (error) => notify.error(getApiErrorMessage(error, 'Không thể xóa khoản trả khách')),
   });
 
+  const deletePaymentMutation = useMutation({
+    mutationFn: (paymentId: number) => api.delete(`/payments/${paymentId}`).then(() => undefined),
+    onSuccess: () => {
+      void refreshPaymentData();
+      notify.success('Đã xóa khoản thanh toán');
+    },
+    onError: (error) => notify.error(getApiErrorMessage(error, 'Không thể xóa khoản thanh toán')),
+  });
+
   const updateInvoiceMutation = useMutation({
     mutationFn: ({
       paymentId,
@@ -295,6 +304,7 @@ export default function PaymentsPage() {
         refundMutation.isPending ||
         updateRefundMutation.isPending ||
         deleteRefundMutation.isPending ||
+        deletePaymentMutation.isPending ||
         updateInvoiceMutation.isPending ||
         removeAllocationMutation.isPending
       }
@@ -313,6 +323,7 @@ export default function PaymentsPage() {
       onRefund={(paymentId, values) => refundMutation.mutateAsync({ paymentId, values })}
       onUpdateRefund={(refundId, values) => updateRefundMutation.mutateAsync({ refundId, values })}
       onDeleteRefund={(refundId) => deleteRefundMutation.mutateAsync(refundId)}
+      onDeletePayment={(paymentId) => deletePaymentMutation.mutateAsync(paymentId)}
       onUpdateInvoice={(paymentId, invoiceNumber) =>
         updateInvoiceMutation.mutateAsync({ paymentId, invoiceNumber })
       }

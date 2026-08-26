@@ -179,6 +179,8 @@ class DatabaseSeeder extends Seeder
             ['module' => 'payment', 'code' => 'payment.manage', 'name' => 'Đối soát / chốt thanh toán'],
             ['module' => 'payment', 'code' => 'payment.allocate', 'name' => 'Phân bổ / hủy phân bổ báo phí'],
             ['module' => 'payment', 'code' => 'payment.refund.create', 'name' => 'Tạo khoản trả khách'],
+            ['module' => 'payment', 'code' => 'payment.refund.update', 'name' => 'Chỉnh sửa khoản trả khách đang chờ'],
+            ['module' => 'payment', 'code' => 'payment.delete', 'name' => 'Xóa khoản thanh toán'],
 
             ['module' => 'option', 'code' => 'option.manage', 'name' => 'Quản lý danh mục hệ thống'],
         ];
@@ -243,6 +245,7 @@ class DatabaseSeeder extends Seeder
                 'payment.manage',
                 'payment.allocate',
                 'payment.refund.create',
+                'payment.refund.update',
                 'cost.view',
                 'cost.view_all',
                 'cost.approve',

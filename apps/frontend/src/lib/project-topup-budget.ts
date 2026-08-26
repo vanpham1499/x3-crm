@@ -36,40 +36,58 @@ function quotationTopupBreakdown(quotation: Quotation) {
     : calculateQuotationEligibleTopupBudget(quotation);
   const grossPaidAmount = Math.max(0, Number(quotation.grossPaidAmount) || 0);
   const refundedAmount = Math.max(0, Number(quotation.refundedAmount) || 0);
+  const isFullyRefunded =
+    quotation.isFullyRefunded === true ||
+    quotation.paymentStatus === 'refunded' ||
+    quotation.status === 'refunded';
   const depositRefundedAmount = Math.max(0, Number(quotation.depositRefundedAmount) || 0);
-  const heldDepositAmount = Math.max(
-    0,
-    Math.min(Math.max(0, Number(quotation.depositAmount) || 0), grossPaidAmount) -
-      depositRefundedAmount,
-  );
-  const usablePaidAmount = Math.max(0, grossPaidAmount - refundedAmount - heldDepositAmount);
+  const heldDepositAmount = isFullyRefunded
+    ? 0
+    : Math.max(
+        0,
+        Math.min(Math.max(0, Number(quotation.depositAmount) || 0), grossPaidAmount) -
+          depositRefundedAmount,
+      );
+  const usablePaidAmount = isFullyRefunded
+    ? 0
+    : Math.max(0, grossPaidAmount - refundedAmount - heldDepositAmount);
   const paidBudget = Math.min(eligibleBudget, usablePaidAmount);
   const remainingEligibleBudget = Math.max(0, eligibleBudget - paidBudget);
-  const creditBudget = quotation.topupCreditEnabled
-    ? Math.min(remainingEligibleBudget, Math.max(0, Number(quotation.topupCreditLimit) || 0))
-    : 0;
+  const creditBudget =
+    !isFullyRefunded && quotation.topupCreditEnabled
+      ? Math.min(remainingEligibleBudget, Math.max(0, Number(quotation.topupCreditLimit) || 0))
+      : 0;
 
   return {
     eligibleBudget,
     paidBudget,
     creditBudget,
     releasedBudget: paidBudget + creditBudget,
+    isFullyRefunded,
   };
 }
 
 function topupBudgetUsed(cost: ProjectCost) {
+  const topupAmount = Math.max(0, Number(cost.totalAmount) || Number(cost.amountBeforeVat) || 0);
+
+  if (cost.entryType === 'ad_spend' && cost.cidIsDead) {
+    const confirmedRefund =
+      cost.cidIncident?.status === 'confirmed'
+        ? Math.max(0, Number(cost.cidIncident.refundedAmount) || 0)
+        : cost.cidIncident
+          ? 0
+          : cost.reconciledAt
+            ? Math.max(0, Number(cost.cidRefundedAmount) || 0)
+            : 0;
+
+    return Math.max(0, topupAmount - Math.min(topupAmount, confirmedRefund));
+  }
+
   if (cost.actualCostAmount !== undefined && cost.actualCostAmount !== null) {
     return Number(cost.actualCostAmount) || 0;
   }
 
-  const topupAmount = Math.max(0, Number(cost.totalAmount) || Number(cost.amountBeforeVat) || 0);
-  const spentAmount = Math.max(0, Number(cost.cidSpentAmount) || 0);
-  const vatRate = Math.max(0, Number(cost.vatRate) || 0);
-  const spentAmountWithVat = spentAmount + Math.round((spentAmount * vatRate) / 100);
-
-  return cost.cidIsDead && cost.reconciledAt
-    ? Math.min(topupAmount, spentAmountWithVat)
-    : topupAmount;
+  return topupAmount;
 }
 
 export function calculateRealizedProjectCost(costs: ProjectCost[]) {

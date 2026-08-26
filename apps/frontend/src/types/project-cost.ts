@@ -38,9 +38,7 @@ export type ProjectCostAdjustment = {
 export type ProjectCostCidIncident = {
   id: number;
   stoppedAt: string;
-  spentAmount: string | number;
-  unrecoverableAmount: string | number;
-  releasedAmount: string | number;
+  refundedAmount: string | number;
   status: ProjectCostCidIncidentStatus;
   note?: string | null;
   reportedAt?: string | null;
@@ -67,8 +65,7 @@ export type ProjectCost = {
   cid?: string | null;
   adAccount?: string | null;
   cidIsDead?: boolean;
-  cidSpentAmount?: string | number | null;
-  cidUnrecoverableAmount?: string | number | null;
+  cidRefundedAmount?: string | number | null;
   cidIncident?: ProjectCostCidIncident | null;
   bankAccountOptionId?: number | null;
   partnerOptionId?: number | null;
@@ -111,6 +108,7 @@ export type ProjectCost = {
     creditTopupBudget?: string | number | null;
     releasedTopupBudget?: string | number | null;
     usedTopupBudget?: string | number | null;
+    hasTopupBudgetSource?: boolean;
     customer?: {
       id: number;
       customerCode?: string | null;
@@ -151,8 +149,7 @@ export type ProjectCostReconciliationInput = {
 
 export type ProjectCostCidIncidentInput = {
   stoppedAt: string;
-  spentAmount: number;
-  unrecoverableAmount: number;
+  refundedAmount: number;
   note?: string | null;
 };
 
@@ -162,7 +159,7 @@ export type ProjectCostFormValues = {
   cid: string;
   adAccount: string;
   cidIsDead: boolean;
-  cidSpentAmount: string;
+  cidRefundedAmount: string;
   bankAccountOptionId: string;
   partnerOptionId: string;
   amountBeforeVat: string;

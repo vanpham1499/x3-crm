@@ -144,7 +144,8 @@ class CustomerRepository extends BaseRepository
             ->when($industry, fn ($query) => $query->whereHas('industryOption', fn ($subQuery) => $subQuery->where('group', Option::GROUP_INDUSTRY)->where('key', $industry)))
             ->when($salesUserId, fn ($query) => $query->where('sales_user_id', $salesUserId))
             ->when($leadId, fn ($query) => $query->where('lead_id', $leadId))
-            ->orderByDesc('created_at');
+            ->orderBy('customer_code')
+            ->orderBy('id');
     }
 
     private function applyViewScope(Builder $query, ?User $user): void

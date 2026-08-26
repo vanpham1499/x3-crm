@@ -18,7 +18,7 @@ import { PageHeader } from '@/components/shell/page-header';
 import { AppDataTable } from '@/components/table/app-data-table';
 import { TablePaginationBar } from '@/components/table/table-pagination-bar';
 import { usePagination } from '@/hooks/use-pagination';
-import { applyApiErrorsToForm } from '@/lib/api-error';
+import { applyApiErrorsToForm, getApiFieldErrors } from '@/lib/api-error';
 import { canManageCatalog } from '@/lib/ownership';
 import { useAuthStore } from '@/stores/auth-store';
 import {
@@ -89,6 +89,10 @@ function BankAccountDialog({
           closeDialog();
         } catch (error) {
           applyApiErrorsToForm(error, setError);
+          const fieldErrors = getApiFieldErrors(error);
+          if (fieldErrors['meta.note']) {
+            setError('note', { type: 'server', message: fieldErrors['meta.note'] });
+          }
         }
       })}
       actions={
@@ -136,6 +140,14 @@ function BankAccountDialog({
       </div>
 
       <FormInputField label="Chi nhánh" {...register('branch')} />
+      <FormInputField
+        label="Ghi chú"
+        multiline
+        minRows={2}
+        error={Boolean(errors.note)}
+        helperText={errors.note?.message}
+        {...register('note')}
+      />
       <FormControlLabel
         className="!m-0 min-h-10 rounded-lg border border-slate-200 px-2"
         control={
@@ -212,13 +224,14 @@ export function CompanyBankAccountManager({
             { key: 'account', label: 'Số tài khoản', className: 'w-48' },
             { key: 'owner', label: 'Chủ tài khoản', className: 'w-72' },
             { key: 'branch', label: 'Chi nhánh', className: 'w-56' },
+            { key: 'note', label: 'Ghi chú', className: 'w-72' },
             { key: 'default', label: 'Mặc định', className: 'w-32' },
             { key: 'actions', className: 'w-24' },
           ]}
           isLoading={isFetching}
           isEmpty={pageItems.length === 0}
           emptyText="Chưa có tài khoản nhận tiền"
-          minWidthClassName="min-w-[1120px]"
+          minWidthClassName="min-w-[1360px]"
         >
           {pageItems.map((account) => (
             <tr key={account.id} className="group hover:bg-slate-50/80">
@@ -246,6 +259,11 @@ export function CompanyBankAccountManager({
               <td className="px-3 py-4 text-slate-700">
                 <span className="block truncate" title={getBankAccountMetaValue(account, 'branch')}>
                   {getBankAccountMetaValue(account, 'branch') || '-'}
+                </span>
+              </td>
+              <td className="px-3 py-4 text-slate-600">
+                <span className="block truncate" title={getBankAccountMetaValue(account, 'note')}>
+                  {getBankAccountMetaValue(account, 'note') || '-'}
                 </span>
               </td>
               <td className="px-3 py-4">

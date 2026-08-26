@@ -54,6 +54,7 @@ class ProjectCost extends BaseModel
         'ad_account',
         'cid_is_dead',
         'cid_spent_amount',
+        'cid_refunded_amount',
         'bank_account_option_id',
         'partner_option_id',
         'amount_before_vat',
@@ -81,6 +82,7 @@ class ProjectCost extends BaseModel
         'transaction_date' => 'date',
         'cid_is_dead' => 'boolean',
         'cid_spent_amount' => 'decimal:2',
+        'cid_refunded_amount' => 'decimal:2',
         'amount_before_vat' => 'decimal:2',
         'vat_rate' => 'decimal:2',
         'vat_amount' => 'decimal:2',
@@ -150,10 +152,9 @@ class ProjectCost extends BaseModel
                 return round((float) ($this->total_amount ?? 0), 2);
             }
 
-            return round(min(
-                (float) ($this->total_amount ?? 0),
-                max(0, (float) $incident->spent_amount)
-                    + max(0, (float) $incident->unrecoverable_amount),
+            return round(max(
+                0,
+                (float) ($this->total_amount ?? 0) - max(0, (float) $incident->released_amount),
             ), 2);
         }
 
@@ -168,7 +169,10 @@ class ProjectCost extends BaseModel
             return round((float) ($this->total_amount ?? 0), 2);
         }
 
-        return round(max(0, (float) ($this->cid_spent_amount ?? 0)), 2);
+        return round(max(
+            0,
+            (float) ($this->total_amount ?? 0) - max(0, (float) ($this->cid_refunded_amount ?? 0)),
+        ), 2);
     }
 
     public function originalBalanceAmount(): float
@@ -187,10 +191,7 @@ class ProjectCost extends BaseModel
             return 0.0;
         }
 
-        return round(max(
-            0,
-            (float) ($this->total_amount ?? 0) - max(0, (float) ($this->cid_spent_amount ?? 0)),
-        ), 2);
+        return round(max(0, (float) ($this->cid_refunded_amount ?? 0)), 2);
     }
 
     public function handledBalanceAmount(): float

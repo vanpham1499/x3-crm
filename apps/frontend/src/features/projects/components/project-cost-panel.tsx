@@ -251,8 +251,7 @@ function CostActionMenu({
 
 type CidIncidentFormValues = {
   stoppedAt: string;
-  spentAmount: string;
-  unrecoverableAmount: string;
+  refundedAmount: string;
   note: string;
 };
 
@@ -278,8 +277,7 @@ function CidIncidentReportDialog({
   } = useForm<CidIncidentFormValues>({
     values: {
       stoppedAt: incident?.stoppedAt || todayDateValue(),
-      spentAmount: String(incident?.spentAmount ?? ''),
-      unrecoverableAmount: String(incident?.unrecoverableAmount ?? '0'),
+      refundedAmount: String(incident?.refundedAmount ?? ''),
       note: incident?.note || '',
     },
   });
@@ -287,9 +285,8 @@ function CidIncidentReportDialog({
   if (!cost) return null;
 
   const totalAmount = moneyValue(cost.totalAmount);
-  const spentAmount = Math.max(0, Number(watch('spentAmount')) || 0);
-  const unrecoverableAmount = Math.max(0, Number(watch('unrecoverableAmount')) || 0);
-  const releasedAmount = Math.max(0, totalAmount - spentAmount - unrecoverableAmount);
+  const refundedAmount = Math.max(0, Number(watch('refundedAmount')) || 0);
+  const actualCostAmount = Math.max(0, totalAmount - refundedAmount);
 
   return (
     <AppFormDialog
@@ -299,9 +296,9 @@ function CidIncidentReportDialog({
       submitting={loading}
       onClose={onClose}
       onSubmit={handleSubmit(async (values) => {
-        if (spentAmount + unrecoverableAmount > totalAmount) {
-          setError('spentAmount', {
-            message: 'Tiền đã chạy và không thu hồi được không được vượt quá tiền đã nạp',
+        if (refundedAmount > totalAmount) {
+          setError('refundedAmount', {
+            message: 'Số tiền CID hoàn về không được vượt quá tiền đã nạp',
           });
           return;
         }
@@ -309,8 +306,7 @@ function CidIncidentReportDialog({
         try {
           await onSubmit({
             stoppedAt: values.stoppedAt,
-            spentAmount,
-            unrecoverableAmount,
+            refundedAmount,
             note: values.note.trim() || null,
           });
           onClose();
@@ -336,8 +332,8 @@ function CidIncidentReportDialog({
             CID {cost.cid || '-'} đã ngừng sau khi khoản nạp được đối soát
           </div>
           <p className="mt-1 pl-[26px] text-xs font-medium leading-5 text-slate-600">
-            Khoản chi gốc vẫn được khóa. Hạn mức còn lại chỉ tự cộng về dự án sau khi kế toán xác
-            nhận báo cáo này.
+            Số tiền CID hoàn về sẽ được cộng nguyên vào “Số tiền có thể nạp” sau khi kế toán xác
+            nhận.
           </p>
         </div>
 
@@ -360,47 +356,36 @@ function CidIncidentReportDialog({
             )}
           />
           <Controller
-            name="spentAmount"
+            name="refundedAmount"
             control={control}
-            rules={{ required: 'Vui lòng nhập số tiền CID đã chạy' }}
+            rules={{ required: 'Vui lòng nhập số tiền CID hoàn về' }}
             render={({ field }) => (
               <MoneyInput
                 fullWidth
                 size="small"
-                label="Số tiền CID đã chạy *"
+                label="Số tiền CID hoàn về *"
                 value={field.value}
                 onValueChange={field.onChange}
-                error={Boolean(errors.spentAmount)}
-                helperText={errors.spentAmount?.message}
+                error={Boolean(errors.refundedAmount)}
+                helperText={errors.refundedAmount?.message}
                 className={compactFormFieldClassName}
               />
             )}
           />
-          <Controller
-            name="unrecoverableAmount"
-            control={control}
-            render={({ field }) => (
-              <MoneyInput
-                fullWidth
-                size="small"
-                label="Số tiền không thu hồi được"
-                value={field.value}
-                onValueChange={field.onChange}
-                error={Boolean(errors.unrecoverableAmount)}
-                helperText={errors.unrecoverableAmount?.message}
-                className={compactFormFieldClassName}
-              />
-            )}
+          <FormInputField
+            multiline
+            minRows={2}
+            label="Ghi chú"
+            className="md:col-span-2"
+            {...register('note')}
           />
-          <FormInputField multiline minRows={2} label="Ghi chú" {...register('note')} />
         </div>
 
-        <div className="grid overflow-hidden rounded-lg border border-slate-200 bg-white sm:grid-cols-4 sm:divide-x sm:divide-slate-200">
+        <div className="grid overflow-hidden rounded-lg border border-slate-200 bg-white sm:grid-cols-3 sm:divide-x sm:divide-slate-200">
           {[
             ['Tiền đã nạp', totalAmount, 'text-slate-950'],
-            ['CID đã chạy', spentAmount, 'text-slate-950'],
-            ['Không thu hồi', unrecoverableAmount, 'text-rose-700'],
-            ['Sẽ hoàn hạn mức', releasedAmount, 'text-emerald-700'],
+            ['CID hoàn về', refundedAmount, 'text-emerald-700'],
+            ['Chi phí ghi nhận', actualCostAmount, 'text-slate-950'],
           ].map(([label, amount, tone]) => (
             <div key={String(label)} className="px-3 py-2.5">
               <p className="text-[11px] font-bold uppercase text-slate-400">{label}</p>
@@ -424,7 +409,7 @@ function getCostDefaults(cost?: ProjectCost | null): ProjectCostFormValues {
     cid: cost?.cid || '',
     adAccount: cost?.adAccount || '',
     cidIsDead: cost?.cidIsDead === true,
-    cidSpentAmount: String(cost?.cidSpentAmount ?? ''),
+    cidRefundedAmount: String(cost?.cidRefundedAmount ?? ''),
     bankAccountOptionId: cost?.bankAccountOptionId ? String(cost.bankAccountOptionId) : '',
     partnerOptionId: cost?.partnerOptionId ? String(cost.partnerOptionId) : '',
     amountBeforeVat: String(
@@ -485,7 +470,7 @@ function CostDialog({
   const amountBeforeVat = Number(watch('amountBeforeVat')) || 0;
   const selectedQuotationId = watch('quotationId');
   const cidIsDead = watch('cidIsDead');
-  const cidSpentAmount = Math.max(0, Number(watch('cidSpentAmount')) || 0);
+  const cidRefundedAmount = Math.max(0, Number(watch('cidRefundedAmount')) || 0);
   const managedBudgetProject = isManagedBudgetProject({
     projectType,
     projectCode,
@@ -498,7 +483,7 @@ function CostDialog({
         status: cost.status,
         amountBeforeVat,
         cidIsDead,
-        cidSpentAmount,
+        cidRefundedAmount,
       }
     : null;
   const { customerBudget, paidBudget, creditBudget, usedBudget, availableBudget } =
@@ -522,6 +507,17 @@ function CostDialog({
       submitting={isSubmitting}
       onClose={closeDialog}
       onSubmit={handleSubmit(async (values) => {
+        if (
+          isAdSpend &&
+          values.cidIsDead &&
+          (Number(values.cidRefundedAmount) || 0) > (Number(values.amountBeforeVat) || 0)
+        ) {
+          setError('cidRefundedAmount', {
+            message: 'Số tiền CID hoàn về không được vượt quá tiền đã nạp',
+          });
+          return;
+        }
+
         try {
           await onSubmit(values, cost);
           closeDialog();
@@ -700,7 +696,7 @@ function CostDialog({
                     onChange={(event) => {
                       field.onChange(event.target.checked);
                       if (!event.target.checked) {
-                        setValue('cidSpentAmount', '');
+                        setValue('cidRefundedAmount', '');
                       }
                     }}
                   />
@@ -721,14 +717,17 @@ function CostDialog({
 
           {cidIsDead ? (
             <Controller
-              name="cidSpentAmount"
+              name="cidRefundedAmount"
               control={control}
+              rules={{ required: 'Vui lòng nhập số tiền CID hoàn về' }}
               render={({ field }) => (
                 <MoneyInput
                   size="small"
-                  label="Số tiền CID đã chạy"
+                  label="Số tiền CID hoàn về *"
                   value={field.value}
                   onValueChange={field.onChange}
+                  error={Boolean(errors.cidRefundedAmount)}
+                  helperText={errors.cidRefundedAmount?.message}
                   className={`${compactFormFieldClassName} w-full md:w-[320px]`}
                 />
               )}
@@ -806,8 +805,8 @@ export function ProjectCostPanel({
         cid: values.cid.trim() || null,
         adAccount: values.adAccount.trim() || null,
         cidIsDead: entryType === 'ad_spend' ? values.cidIsDead : false,
-        cidSpentAmount:
-          entryType === 'ad_spend' && values.cidIsDead ? Number(values.cidSpentAmount) || 0 : 0,
+        cidRefundedAmount:
+          entryType === 'ad_spend' && values.cidIsDead ? Number(values.cidRefundedAmount) || 0 : 0,
         bankAccountOptionId:
           entryType === 'ad_spend' && values.bankAccountOptionId
             ? Number(values.bankAccountOptionId)
@@ -942,8 +941,8 @@ export function ProjectCostPanel({
                 <th className="w-[12%] px-4 py-3">Ngày nạp</th>
                 <th className="w-[27%] px-3 py-3">CID / Thẻ nạp</th>
                 <th className="w-[13%] px-3 py-3 text-right">Đã nạp</th>
-                <th className="w-[12%] px-3 py-3 text-right">Đã chạy</th>
-                <th className="w-[12%] px-3 py-3 text-right">Hạn mức</th>
+                <th className="w-[12%] px-3 py-3 text-right">CID hoàn về</th>
+                <th className="w-[12%] px-3 py-3 text-right">Hoàn vào hạn mức</th>
                 <th className="w-[19%] px-3 py-3">Trạng thái</th>
                 <th className="w-[5%] px-2 py-3" />
               </tr>
@@ -991,9 +990,7 @@ export function ProjectCostPanel({
                       {formatCurrency(moneyValue(cost.totalAmount))}
                     </td>
                     <td className="px-3 py-3 text-right font-bold tabular-nums text-slate-700">
-                      {cost.cidIsDead
-                        ? formatCurrency(moneyValue(cost.cidSpentAmount ?? cost.actualCostAmount))
-                        : '-'}
+                      {cost.cidIsDead ? formatCurrency(moneyValue(cost.cidRefundedAmount)) : '-'}
                     </td>
                     <td className="px-3 py-3 text-right font-bold tabular-nums">
                       {cost.balanceStatus && cost.balanceStatus !== 'none' ? (

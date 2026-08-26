@@ -11,8 +11,10 @@ class CreateCustomerRequest extends BaseRequest
     public function rules(): array
     {
         return [
-            'customer_code' => ['nullable', 'string', 'max:50', Rule::unique('customers', 'customer_code')],
-            'customerCode' => ['nullable', 'string', 'max:50', Rule::unique('customers', 'customer_code')],
+            'customer_code' => ['nullable', 'string', 'max:50', Rule::unique('customers', 'customer_code')->whereNull('deleted_at')],
+            'customerCode' => ['nullable', 'string', 'max:50', Rule::unique('customers', 'customer_code')->whereNull('deleted_at')],
+            'purge_deleted_duplicate' => ['nullable', 'boolean'],
+            'purgeDeletedDuplicate' => ['nullable', 'boolean'],
             'lead_id' => ['nullable', 'integer', Rule::exists('leads', 'id')->whereNull('deleted_at')],
             'leadId' => ['nullable', 'integer', Rule::exists('leads', 'id')->whereNull('deleted_at')],
             'customer_name' => ['required_without:customerName', 'string', 'max:255', 'not_regex:/\s/u'],

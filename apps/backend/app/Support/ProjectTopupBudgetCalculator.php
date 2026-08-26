@@ -18,7 +18,8 @@ class ProjectTopupBudgetCalculator
      *   customerBudget: float,
      *   releasedBudget: float,
      *   usedBudget: float,
-     *   availableBudget: float
+     *   availableBudget: float,
+     *   hasTopupBudgetSource: bool
      * }
      */
     public static function calculate(Project $project): array
@@ -35,6 +36,8 @@ class ProjectTopupBudgetCalculator
         $eligibleBudget = round((float) $quotationBudgets->sum('eligibleBudget'), 2);
         $paidBudget = round((float) $quotationBudgets->sum('paidBudget'), 2);
         $creditBudget = round((float) $quotationBudgets->sum('creditBudget'), 2);
+        $hasTopupBudgetSource = $quotationBudgets
+            ->contains(fn (array $budget): bool => ! $budget['isFullyRefunded']);
         $releasedBudget = round($paidBudget + $creditBudget, 2);
         $usedBudget = round((float) $project->costs
             ->where('entry_type', ProjectCost::TYPE_AD_SPEND)
@@ -50,6 +53,7 @@ class ProjectTopupBudgetCalculator
             'releasedBudget' => $releasedBudget,
             'usedBudget' => $usedBudget,
             'availableBudget' => round($releasedBudget - $usedBudget, 2),
+            'hasTopupBudgetSource' => $hasTopupBudgetSource,
         ];
     }
 
@@ -60,7 +64,8 @@ class ProjectTopupBudgetCalculator
      *   creditBudget: float,
      *   releasedBudget: float,
      *   usablePaidAmount: float,
-     *   heldDepositAmount: float
+     *   heldDepositAmount: float,
+     *   isFullyRefunded: bool
      * }
      */
     public static function calculateQuotation(Quotation $quotation): array
@@ -79,13 +84,18 @@ class ProjectTopupBudgetCalculator
             ->sum('amount');
         $refundedAmount = $depositRefundedAmount + $paymentRefundedAmount;
         $netPaidAmount = max(0, $grossPaidAmount - $refundedAmount);
-        $heldDepositAmount = self::usesNonTaxableDeposit($quotation)
+        $isFullyRefunded = $grossPaidAmount > 0.01
+            && $netPaidAmount <= 0.01
+            && $refundedAmount >= $grossPaidAmount - 0.01;
+        $heldDepositAmount = ! $isFullyRefunded && self::usesNonTaxableDeposit($quotation)
             ? max(0, min((float) $quotation->deposit_amount, $grossPaidAmount) - $depositRefundedAmount)
             : 0.0;
-        $usablePaidAmount = round(max(0, $netPaidAmount - $heldDepositAmount), 2);
+        $usablePaidAmount = $isFullyRefunded
+            ? 0.0
+            : round(max(0, $netPaidAmount - $heldDepositAmount), 2);
         $paidBudget = round(min($eligibleBudget, $usablePaidAmount), 2);
         $remainingEligibleBudget = max(0, $eligibleBudget - $paidBudget);
-        $creditLimit = $quotation->topup_credit_enabled
+        $creditLimit = ! $isFullyRefunded && $quotation->topup_credit_enabled
             ? max(0, (float) $quotation->topup_credit_limit)
             : 0.0;
         $creditBudget = round(min($remainingEligibleBudget, $creditLimit), 2);
@@ -97,6 +107,7 @@ class ProjectTopupBudgetCalculator
             'releasedBudget' => round($paidBudget + $creditBudget, 2),
             'usablePaidAmount' => $usablePaidAmount,
             'heldDepositAmount' => round($heldDepositAmount, 2),
+            'isFullyRefunded' => $isFullyRefunded,
         ];
     }
 

@@ -114,4 +114,16 @@ export type CustomerPayload = {
   sourceOptionId?: string | null;
   salesUserId?: string | null;
   note?: string | null;
+  purgeDeletedDuplicate?: boolean;
+};
+
+export type DeletedCustomerCodeConflict = {
+  id: number;
+  customerCode: string;
+  customerName?: string | null;
+  companyName?: string | null;
+  displayName: string;
+  deletedAt?: string | null;
+  canPurge: boolean;
+  blockers: string[];
 };

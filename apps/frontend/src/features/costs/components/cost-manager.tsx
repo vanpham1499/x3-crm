@@ -29,6 +29,7 @@ import { AppDataTable } from '@/components/table/app-data-table';
 import { EntityTableButton, EntityTableLink } from '@/components/table/entity-table-link';
 import { TablePaginationBar } from '@/components/table/table-pagination-bar';
 import { getAdTopupCardLabel } from '@/lib/ad-topup-card-options';
+import { formatProjectPartnerIdentity } from '@/lib/project-partner-options';
 import type {
   ProjectCost,
   ProjectCostAdjustmentType,
@@ -182,7 +183,7 @@ function costSummary(cost: ProjectCost) {
       .join(' · ');
   }
 
-  return optionLabel(cost.partnerOption);
+  return formatProjectPartnerIdentity(cost.partnerOption);
 }
 
 function DetailRow({ label, value }: { label: string; value?: string | null }) {
@@ -334,26 +335,14 @@ function CostDetailDialog({
                       value={
                         cost.cidIncident
                           ? `${cost.cidIncident.status === 'pending' ? 'Chờ kế toán xác nhận' : 'Đã xác nhận'} · Ngừng ngày ${formatDate(cost.cidIncident.stoppedAt)}`
-                          : `Đã chạy ${formatCurrency(cost.cidSpentAmount)} · Dư gốc ${formatCurrency(cost.originalBalanceAmount)}`
+                          : `Hoàn về ${formatCurrency(cost.cidRefundedAmount)}`
                       }
                     />
                     {cost.cidIncident ? (
                       <>
                         <DetailRow
-                          label="Tiền CID đã chạy"
-                          value={formatCurrency(cost.cidIncident.spentAmount)}
-                        />
-                        <DetailRow
-                          label="Không thu hồi được"
-                          value={formatCurrency(cost.cidIncident.unrecoverableAmount)}
-                        />
-                        <DetailRow
-                          label={
-                            cost.cidIncident.status === 'confirmed'
-                              ? 'Hạn mức đã hoàn'
-                              : 'Dự kiến hoàn hạn mức'
-                          }
-                          value={formatCurrency(cost.cidIncident.releasedAmount)}
+                          label="Số tiền CID hoàn về"
+                          value={formatCurrency(cost.cidIncident.refundedAmount)}
                         />
                         <DetailRow
                           label="Người báo"
@@ -382,7 +371,7 @@ function CostDetailDialog({
                 ) : null}
               </>
             ) : (
-              <DetailRow label="Đối tác" value={optionLabel(cost.partnerOption)} />
+              <DetailRow label="Đối tác" value={formatProjectPartnerIdentity(cost.partnerOption)} />
             )}
             {cost.adjustments?.length ? (
               <DetailRow
@@ -453,29 +442,31 @@ function CidIncidentConfirmDialog({
             CID {cost.cid || '-'} ngừng ngày {formatDate(incident.stoppedAt)}
           </div>
           <p className="mt-1 pl-[26px] text-xs font-medium leading-5 text-slate-600">
-            Sau khi xác nhận, khoản chi gốc vẫn được khóa và phần hạn mức còn lại sẽ tự động cộng về
-            “Số tiền có thể nạp” của dự án.
+            Sau khi xác nhận, đúng số tiền CID hoàn về sẽ được cộng vào “Số tiền có thể nạp” của dự
+            án.
           </p>
         </div>
 
-        <div className="grid overflow-hidden rounded-lg border border-slate-200 bg-white sm:grid-cols-2">
+        <div className="grid overflow-hidden rounded-lg border border-slate-200 bg-white sm:grid-cols-3 sm:divide-x sm:divide-slate-200">
           {[
             { label: 'Tiền đã nạp', value: cost.totalAmount, tone: 'text-slate-950' },
-            { label: 'CID đã chạy', value: incident.spentAmount, tone: 'text-slate-950' },
             {
-              label: 'Không thu hồi được',
-              value: incident.unrecoverableAmount,
-              tone: 'text-rose-700',
+              label: 'CID hoàn về',
+              value: incident.refundedAmount,
+              tone: 'text-emerald-700',
             },
             {
-              label: 'Tự hoàn hạn mức',
-              value: incident.releasedAmount,
-              tone: 'text-emerald-700',
+              label: 'Chi phí ghi nhận',
+              value: Math.max(
+                0,
+                moneyValue(cost.totalAmount) - moneyValue(incident.refundedAmount),
+              ),
+              tone: 'text-slate-950',
             },
           ].map((item) => (
             <div
               key={item.label}
-              className="border-b border-slate-200 px-3 py-2.5 odd:border-r last:border-b-0"
+              className="border-b border-slate-200 px-3 py-2.5 last:border-b-0 sm:border-b-0"
             >
               <p className="text-[11px] font-bold uppercase text-slate-400">{item.label}</p>
               <p
@@ -522,7 +513,9 @@ function CostReconciliationDialog({
 
   const cashOutAmount = moneyValue(cost.cashOutAmount ?? cost.totalAmount);
   const actualCostAmount = cost.cidIsDead
-    ? moneyValue(cost.cidSpentAmount)
+    ? cost.cidIncident
+      ? moneyValue(cost.actualCostAmount ?? cost.totalAmount)
+      : Math.max(0, cashOutAmount - moneyValue(cost.cidRefundedAmount))
     : moneyValue(cost.actualCostAmount ?? cost.totalAmount);
   const originalBalanceAmount = moneyValue(cost.originalBalanceAmount);
   const isMatched = result === 'matched';
@@ -597,12 +590,12 @@ function CostReconciliationDialog({
           <div className="rounded-lg border border-rose-200 bg-rose-50 px-3 py-2.5">
             <div className="flex items-center gap-2 text-sm font-bold text-rose-700">
               <WarningAmberRoundedIcon className="!text-[18px]" />
-              CID ngừng hoạt động · Đã chạy {formatCurrency(cost.cidSpentAmount)}
+              CID ngừng hoạt động · Hoàn về {formatCurrency(cost.cidRefundedAmount)}
             </div>
             <p className="mt-1 pl-[26px] text-xs font-semibold leading-5 text-slate-600">
               {isMatched
-                ? `${formatCurrency(originalBalanceAmount)} còn dư sẽ tự cộng lại vào Số tiền có thể nạp của dự án ngay khi lưu đối soát.`
-                : 'Hạn mức còn dư chỉ được hoàn lại sau khi khoản chi được xác nhận Khớp chuẩn.'}
+                ? `${formatCurrency(originalBalanceAmount)} CID hoàn về sẽ được cộng vào Số tiền có thể nạp ngay khi lưu đối soát.`
+                : 'Số tiền CID hoàn về chỉ được cộng vào hạn mức sau khi khoản chi được xác nhận Khớp chuẩn.'}
             </p>
           </div>
         ) : null}
@@ -805,7 +798,9 @@ export function CostManager({
             const rowSpan = group.costs.length;
             const availableTopupBudget = Number(project?.availableTopupBudget) || 0;
             const hasTopupBudget =
-              project?.availableTopupBudget !== null && project?.availableTopupBudget !== undefined;
+              project?.availableTopupBudget !== null &&
+              project?.availableTopupBudget !== undefined &&
+              project?.hasTopupBudgetSource !== false;
 
             return group.costs.map((cost, rowIndex) => {
               const isFirstRow = rowIndex === 0;
@@ -950,7 +945,7 @@ export function CostManager({
                       <button
                         type="button"
                         className="inline-flex items-center gap-1 whitespace-nowrap rounded-md bg-amber-50 px-2 py-1 text-xs font-bold text-amber-700 ring-1 ring-amber-200 transition hover:bg-amber-100"
-                        title="Chi phí đã đối soát, CID đang chờ xác nhận số tiền đã chạy"
+                        title="Chi phí đã đối soát, CID đang chờ xác nhận số tiền hoàn về"
                         onClick={() => setConfirmCidTarget(cost)}
                       >
                         <WarningAmberRoundedIcon className="!text-[15px]" />

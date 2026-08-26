@@ -25,7 +25,7 @@ const COLLECTION_STATUS_LABELS: Record<string, string> = {
   paid: 'Đã thu đủ',
   overpaid: 'Chuyển thừa',
   partially_refunded: 'Đã hoàn một phần',
-  refunded: 'Đã hoàn toàn bộ',
+  refunded: 'Đã hoàn',
 };
 
 const PROCESSING_STATUS_HAS_PRIORITY = new Set([

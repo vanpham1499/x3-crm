@@ -30,6 +30,13 @@ class DashboardService extends BaseService
         'lead.delete',
     ];
 
+    private const PROJECT_REPORT_PERMISSIONS = [
+        'project.view',
+        'project.create',
+        'project.update',
+        'project.delete',
+    ];
+
     private const LEAD_REPORT_FALLBACK_COLORS = [
         '#00a878',
         '#0b7db3',
@@ -178,6 +185,12 @@ class DashboardService extends BaseService
             ],
             'operations' => $operations,
             'leadReport' => $this->leadReport($rangeStart, $rangeEnd, $currentUser),
+            'projectReport' => $this->projectReport(
+                $rangeStart,
+                $rangeEnd,
+                $currentUser,
+                $currentReport['periods'],
+            ),
             'trend' => $this->buildTrend(
                 $rangeStart,
                 $rangeEnd,
@@ -383,6 +396,308 @@ class DashboardService extends BaseService
                 ])
                 ->all(),
             'employees' => $employees,
+        ];
+    }
+
+    private function projectReport(
+        CarbonImmutable $rangeStart,
+        CarbonImmutable $rangeEnd,
+        User $currentUser,
+        Collection|array $kpiPeriods,
+    ): ?array {
+        foreach (self::PROJECT_REPORT_PERMISSIONS as $permission) {
+            if (! $currentUser->hasPermission($permission)) {
+                return null;
+            }
+        }
+
+        $periodKeys = collect();
+        $periodLabels = [];
+        $cursor = $rangeStart;
+
+        while (! $cursor->greaterThan($rangeEnd)) {
+            $period = $cursor->format('Y-m');
+            $periodKeys->push($period);
+            $periodLabels[$period] = 'T'.$cursor->format('m/Y');
+            $cursor = $cursor->addMonth();
+        }
+
+        $projects = $this->projectReportQuery($currentUser)
+            ->where(function (Builder $dateScope) use ($rangeStart, $rangeEnd): void {
+                $dateScope
+                    ->where(function (Builder $started): void {
+                        $started->whereNotNull('start_date');
+                    })
+                    ->where('start_date', '>=', $rangeStart->toDateString())
+                    ->where('start_date', '<', $rangeEnd->addMonth()->toDateString())
+                    ->orWhere(function (Builder $created) use ($rangeStart, $rangeEnd): void {
+                        $created
+                            ->whereNull('start_date')
+                            ->where('created_at', '>=', $rangeStart->toDateTimeString())
+                            ->where('created_at', '<', $rangeEnd->addMonth()->toDateTimeString());
+                    });
+            })
+            ->with([
+                'managerUser' => fn ($query) => $query
+                    ->withTrashed()
+                    ->select(['id', 'code', 'name', 'department_id', 'is_active', 'deleted_at']),
+                'statusOption' => fn ($query) => $query
+                    ->withTrashed()
+                    ->select(['id', 'key', 'label', 'meta', 'sort_order']),
+            ])
+            ->get([
+                'id',
+                'manager_user_id',
+                'status_option_id',
+                'start_date',
+                'created_at',
+            ]);
+        $monthlyTotals = array_fill_keys($periodKeys->all(), 0);
+        $monthlyProfits = array_fill_keys($periodKeys->all(), 0.0);
+        $employeeBuckets = [];
+        $statusDefinitions = [
+            0 => [
+                'statusId' => 0,
+                'key' => null,
+                'label' => 'Chưa có trạng thái',
+                'color' => '#94a3b8',
+                'order' => PHP_INT_MAX,
+            ],
+        ];
+
+        foreach ($projects as $project) {
+            $projectDate = $project->start_date ?: $project->created_at;
+            $period = $projectDate?->format('Y-m');
+
+            if (! $period || ! array_key_exists($period, $monthlyTotals)) {
+                continue;
+            }
+
+            $employeeId = (int) ($project->manager_user_id ?? 0);
+            $manager = $employeeId > 0 ? $project->managerUser : null;
+            $this->ensureProjectEmployeeBucket(
+                $employeeBuckets,
+                $employeeId,
+                $manager?->code,
+                $manager?->name ?: 'Chưa phân công',
+                $manager ? (bool) $manager->is_active : null,
+                $manager ? $manager->deleted_at !== null : false,
+                $periodKeys,
+            );
+
+            $statusId = (int) ($project->status_option_id ?? 0);
+            $status = $project->statusOption;
+
+            if ($status && ! isset($statusDefinitions[$statusId])) {
+                $configuredColor = is_array($status->meta) ? ($status->meta['color'] ?? null) : null;
+                $fallbackIndex = count($statusDefinitions) % count(self::LEAD_REPORT_FALLBACK_COLORS);
+                $statusDefinitions[$statusId] = [
+                    'statusId' => $statusId,
+                    'key' => $status->key,
+                    'label' => $status->label,
+                    'color' => is_string($configuredColor) && trim($configuredColor) !== ''
+                        ? $configuredColor
+                        : self::LEAD_REPORT_FALLBACK_COLORS[$fallbackIndex],
+                    'order' => (int) $status->sort_order,
+                ];
+            }
+
+            if (! isset($statusDefinitions[$statusId])) {
+                $statusDefinitions[$statusId] = [
+                    'statusId' => $statusId,
+                    'key' => null,
+                    'label' => 'Trạng thái #'.$statusId,
+                    'color' => self::LEAD_REPORT_FALLBACK_COLORS[count($statusDefinitions) % count(self::LEAD_REPORT_FALLBACK_COLORS)],
+                    'order' => PHP_INT_MAX - 1,
+                ];
+            }
+
+            $monthlyTotals[$period]++;
+            $employeeBuckets[$employeeId]['total']++;
+            $employeeBuckets[$employeeId]['projects'][$period]++;
+
+            if (! isset($employeeBuckets[$employeeId]['statuses'][$statusId])) {
+                $employeeBuckets[$employeeId]['statuses'][$statusId] = array_fill_keys(
+                    $periodKeys->all(),
+                    0,
+                );
+            }
+
+            $employeeBuckets[$employeeId]['statuses'][$statusId][$period]++;
+        }
+
+        foreach (collect($kpiPeriods) as $periodRow) {
+            $period = (string) ($periodRow['period'] ?? '');
+
+            if (! array_key_exists($period, $monthlyProfits)) {
+                continue;
+            }
+
+            foreach (collect($periodRow['employees'] ?? []) as $employee) {
+                if (! $this->matchesProjectReportEmployeeScope($employee, $currentUser)) {
+                    continue;
+                }
+
+                $profitAmount = (float) ($employee['implementationAmount'] ?? 0);
+
+                if (abs($profitAmount) < self::MONEY_EPSILON
+                    && ! isset($employeeBuckets[(int) $employee['id']])) {
+                    continue;
+                }
+
+                $employeeId = (int) $employee['id'];
+                $this->ensureProjectEmployeeBucket(
+                    $employeeBuckets,
+                    $employeeId,
+                    $employee['code'] ?? null,
+                    (string) ($employee['name'] ?? 'Nhân sự #'.$employeeId),
+                    (bool) ($employee['isActive'] ?? false),
+                    false,
+                    $periodKeys,
+                );
+                $employeeBuckets[$employeeId]['profits'][$period] += $profitAmount;
+                $employeeBuckets[$employeeId]['profitAmount'] += $profitAmount;
+                $monthlyProfits[$period] += $profitAmount;
+            }
+        }
+
+        $employees = collect($employeeBuckets)
+            ->filter(fn (array $employee): bool => $employee['total'] > 0
+                || abs((float) $employee['profitAmount']) >= self::MONEY_EPSILON)
+            ->sort(function (array $left, array $right): int {
+                $byProjects = $right['total'] <=> $left['total'];
+
+                if ($byProjects !== 0) {
+                    return $byProjects;
+                }
+
+                $byProfit = abs((float) $right['profitAmount']) <=> abs((float) $left['profitAmount']);
+
+                return $byProfit !== 0
+                    ? $byProfit
+                    : strcasecmp((string) $left['name'], (string) $right['name']);
+            })
+            ->map(function (array $employee) use ($periodKeys, $statusDefinitions): array {
+                $statusSeries = collect($employee['statuses'])
+                    ->map(function (array $values, int|string $statusId) use ($periodKeys, $statusDefinitions): array {
+                        $definition = $statusDefinitions[(int) $statusId];
+
+                        return [
+                            'statusId' => $definition['statusId'],
+                            'key' => $definition['key'],
+                            'label' => $definition['label'],
+                            'color' => $definition['color'],
+                            'order' => $definition['order'],
+                            'total' => array_sum($values),
+                            'values' => $periodKeys
+                                ->map(fn (string $period): int => (int) ($values[$period] ?? 0))
+                                ->all(),
+                        ];
+                    })
+                    ->filter(fn (array $series): bool => $series['total'] > 0)
+                    ->sortBy('order')
+                    ->map(function (array $series): array {
+                        unset($series['order']);
+
+                        return $series;
+                    })
+                    ->values()
+                    ->all();
+
+                return [
+                    'id' => $employee['id'],
+                    'code' => $employee['code'],
+                    'name' => $employee['name'],
+                    'isActive' => $employee['isActive'],
+                    'isDeleted' => $employee['isDeleted'],
+                    'total' => $employee['total'],
+                    'profitAmount' => $this->money($employee['profitAmount']),
+                    'projectValues' => $periodKeys
+                        ->map(fn (string $period): int => (int) ($employee['projects'][$period] ?? 0))
+                        ->all(),
+                    'profitValues' => $periodKeys
+                        ->map(fn (string $period): float => $this->money((float) ($employee['profits'][$period] ?? 0)))
+                        ->all(),
+                    'statusSeries' => $statusSeries,
+                ];
+            })
+            ->values()
+            ->all();
+
+        return [
+            'periods' => $periodKeys
+                ->map(fn (string $period): array => [
+                    'period' => $period,
+                    'label' => $periodLabels[$period],
+                    'total' => (int) ($monthlyTotals[$period] ?? 0),
+                    'profitAmount' => $this->money((float) ($monthlyProfits[$period] ?? 0)),
+                ])
+                ->all(),
+            'employees' => $employees,
+        ];
+    }
+
+    private function projectReportQuery(User $user): Builder
+    {
+        $query = Project::query();
+
+        if ($user->hasPermission('project.view_all')) {
+            return $query;
+        }
+
+        $departmentIds = $user->accessibleDepartmentIds();
+
+        if ($user->hasPermission('project.view_department') && $departmentIds !== []) {
+            return $query->whereHas(
+                'managerUser',
+                fn (Builder $manager) => $manager
+                    ->withTrashed()
+                    ->whereIn('department_id', $departmentIds),
+            );
+        }
+
+        return $query->where('manager_user_id', $user->id);
+    }
+
+    private function matchesProjectReportEmployeeScope(array $employee, User $user): bool
+    {
+        if ($user->hasPermission('project.view_all')) {
+            return true;
+        }
+
+        $departmentIds = $user->accessibleDepartmentIds();
+
+        if ($user->hasPermission('project.view_department') && $departmentIds !== []) {
+            return in_array((int) ($employee['departmentId'] ?? 0), $departmentIds, true);
+        }
+
+        return (int) ($employee['id'] ?? 0) === (int) $user->id;
+    }
+
+    private function ensureProjectEmployeeBucket(
+        array &$employeeBuckets,
+        int $employeeId,
+        ?string $code,
+        string $name,
+        ?bool $isActive,
+        bool $isDeleted,
+        Collection $periodKeys,
+    ): void {
+        if (isset($employeeBuckets[$employeeId])) {
+            return;
+        }
+
+        $employeeBuckets[$employeeId] = [
+            'id' => $employeeId,
+            'code' => $code,
+            'name' => $name,
+            'isActive' => $isActive,
+            'isDeleted' => $isDeleted,
+            'total' => 0,
+            'profitAmount' => 0.0,
+            'projects' => array_fill_keys($periodKeys->all(), 0),
+            'profits' => array_fill_keys($periodKeys->all(), 0.0),
+            'statuses' => [],
         ];
     }
 

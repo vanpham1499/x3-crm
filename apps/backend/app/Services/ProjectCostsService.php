@@ -309,22 +309,23 @@ class ProjectCostsService extends BaseService
                 ]);
             }
 
-            $spentAmount = round(max(0, (float) ($data['spentAmount'] ?? 0)), 2);
-            $unrecoverableAmount = round(max(0, (float) ($data['unrecoverableAmount'] ?? 0)), 2);
+            $refundedAmount = round(max(0, (float) ($data['refundedAmount'] ?? 0)), 2);
             $totalAmount = round(max(0, (float) ($cost->total_amount ?? 0)), 2);
 
-            if ($spentAmount + $unrecoverableAmount > $totalAmount + 0.01) {
+            if ($refundedAmount > $totalAmount + 0.01) {
                 throw ValidationException::withMessages([
-                    'spentAmount' => ['Tổng tiền đã chạy và không thu hồi được không được vượt quá tiền đã nạp.'],
+                    'refundedAmount' => ['Số tiền CID hoàn về không được vượt quá tiền đã nạp.'],
                 ]);
             }
 
             $payload = [
                 'project_cost_id' => $cost->id,
                 'stopped_at' => $stoppedAt,
-                'spent_amount' => $spentAmount,
-                'unrecoverable_amount' => $unrecoverableAmount,
-                'released_amount' => round(max(0, $totalAmount - $spentAmount - $unrecoverableAmount), 2),
+                // Keep legacy columns internally so old audit data remains readable.
+                // The business input and released limit are now the same refunded amount.
+                'spent_amount' => round(max(0, $totalAmount - $refundedAmount), 2),
+                'unrecoverable_amount' => 0,
+                'released_amount' => $refundedAmount,
                 'status' => ProjectCostCidIncident::STATUS_PENDING,
                 'note' => trim((string) ($data['note'] ?? '')) ?: null,
                 'reported_by' => auth()->id(),
@@ -429,7 +430,7 @@ class ProjectCostsService extends BaseService
 
         $mergeableFields = [
             'project_id', 'quotation_id', 'entry_type', 'transaction_date', 'cid', 'ad_account',
-            'cid_is_dead', 'cid_spent_amount',
+            'cid_is_dead', 'cid_spent_amount', 'cid_refunded_amount',
             'bank_account_option_id', 'partner_option_id', 'amount_before_vat', 'vat_rate',
             'discount_amount', 'status', 'acceptance_status', 'input_invoice_status', 'note',
         ];
@@ -459,10 +460,22 @@ class ProjectCostsService extends BaseService
             $data['acceptance_status'] = null;
             $data['input_invoice_status'] = null;
             $data['cid_is_dead'] = (bool) ($data['cid_is_dead'] ?? false);
-            $data['cid_spent_amount'] = $data['cid_is_dead']
-                ? round(max(0, (float) ($data['cid_spent_amount'] ?? 0)), 2)
-                : 0;
             $data['total_amount'] = round($amountBeforeVat, 2);
+            $refundedAmount = $data['cid_is_dead']
+                ? round(max(0, (float) ($data['cid_refunded_amount'] ?? 0)), 2)
+                : 0.0;
+
+            if ($refundedAmount > $data['total_amount'] + 0.01) {
+                throw ValidationException::withMessages([
+                    'cidRefundedAmount' => ['Số tiền CID hoàn về không được vượt quá tiền đã nạp.'],
+                ]);
+            }
+
+            $data['cid_refunded_amount'] = $refundedAmount;
+            // Retain the former column as a derived compatibility value only.
+            $data['cid_spent_amount'] = $data['cid_is_dead']
+                ? round(max(0, $data['total_amount'] - $refundedAmount), 2)
+                : 0;
         } else {
             $data['quotation_id'] = null;
             $data['bank_account_option_id'] = null;
@@ -470,6 +483,7 @@ class ProjectCostsService extends BaseService
             $data['ad_account'] = null;
             $data['cid_is_dead'] = false;
             $data['cid_spent_amount'] = 0;
+            $data['cid_refunded_amount'] = 0;
             $data['vat_rate'] = 0;
             $data['vat_amount'] = 0;
             $data['discount_amount'] = 0;
@@ -492,7 +506,7 @@ class ProjectCostsService extends BaseService
             'transactionDate' => 'transaction_date',
             'adAccount' => 'ad_account',
             'cidIsDead' => 'cid_is_dead',
-            'cidSpentAmount' => 'cid_spent_amount',
+            'cidRefundedAmount' => 'cid_refunded_amount',
             'bankAccountOptionId' => 'bank_account_option_id',
             'partnerOptionId' => 'partner_option_id',
             'amountBeforeVat' => 'amount_before_vat',

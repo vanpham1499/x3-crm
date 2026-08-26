@@ -500,7 +500,7 @@ không thấy menu và không mở được `/costs`. `LEADER` được xem chi 
 để xác nhận đã nạp/đã chi. `ACCOUNTANT` được seed `cost.view_all` + `cost.approve_all` để đối soát/xác
 nhận CID trên mọi Project nhưng không được sửa dữ liệu gốc của khoản chi.
 
-### Danh mục 134 permission hiện tại
+### Danh mục 136 permission hiện tại
 
 Ký hiệu Role: `A` = ADMIN, `L` = LEADER, `E` = EMPLOYEE, `S` = SALES,
 `K` = ACCOUNTANT. Cột “Kiểm tra backend” mô tả code đang chạy, không phải thiết kế mong muốn.
@@ -636,7 +636,9 @@ Ký hiệu Role: `A` = ADMIN, `L` = LEADER, `E` = EMPLOYEE, `S` = SALES,
 | `kpi.manage_department`            | Lập KPI trong phòng ban                           | L             | Phòng ban chính, các team đang Lead và nhân sự thuộc các phòng ban đó       |
 | `kpi.manage_all`                   | Lập toàn bộ KPI                                   | A             | Dịch vụ/nhóm dịch vụ, mọi phòng ban và mọi nhân sự                          |
 | `payment.allocate`                 | Phân bổ/hủy phân bổ Payment vào Báo phí           | A, K          | Quyền hành động độc lập; Project/Customer suy ra từ Báo phí                 |
-| `payment.refund.create`            | Tạo khoản trả khách                               | A, K          | Chỉ tạo mới; cập nhật/hoàn tất/hủy khoản trả vẫn dùng `payment.manage`      |
+| `payment.refund.create`            | Tạo khoản trả khách                               | A, K          | Chỉ tạo mới khoản trả khách                                                 |
+| `payment.refund.update`            | Chỉnh sửa khoản trả khách đang chờ                | A, K          | Sửa nội dung khi còn `pending`; không được hoàn tất, hủy hoặc xóa           |
+| `payment.delete`                   | Xóa khoản thanh toán                              | A             | Chỉ khoản chưa có phân bổ và chưa phát sinh hoàn tiền                       |
 | `payment.manage`                   | Quản trị nghiệp vụ kế toán Payment                | A, K          | Phân loại, hóa đơn, sửa giao dịch và quản lý khoản trả đã tạo               |
 | `option.manage`                    | Quản lý Options và Services                       | A             | Route middleware cho create/update/delete/reorder                           |
 
@@ -667,9 +669,12 @@ Ký hiệu Role: `A` = ADMIN, `L` = LEADER, `E` = EMPLOYEE, `S` = SALES,
   hẹn, Báo cáo tuần và P2. Có quyền `_all` của bất kỳ action nào trong module thì được tra toàn bộ;
   có quyền `_department` thì tra trong phòng ban; chỉ có quyền cơ sở thì tra chính user hiện tại.
   Backend còn từ chối đổi người phụ trách Lead/Customer sang user ngoài scope, kể cả khi bỏ qua FE.
-- `payment.allocate` và `payment.refund.create` là hai quyền hành động độc lập với
-  `payment.manage`. Khi chọn một trong hai ở form Role, backend tự giữ `payment.view` để user vẫn mở
-  được trang Thanh toán. Role có `payment.manage` luôn được phép thực hiện cả hai hành động.
+- `payment.allocate`, `payment.refund.create`, `payment.refund.update` và `payment.delete` là các
+  quyền hành động độc lập với `payment.manage`. Khi chọn một trong các quyền này ở form Role,
+  backend tự giữ
+  `payment.view` để user vẫn mở được trang Thanh toán. `payment.refund.update` chỉ sửa nội dung khoản
+  còn `pending`; chuyển sang Đã hoàn, hủy hoặc xóa khoản trả vẫn bắt buộc `payment.manage`.
+  `payment.delete` phải được cấp riêng, kể cả Role đã có `payment.manage`.
 - Hợp đồng và cấu hình báo cáo tuần dùng quyền cập nhật của Project cha qua
   `authorizeProjectOwnership()`.
 - `cost.view`, `cost.view_department`, `cost.view_all` chỉ quyết định phạm vi của trang `/costs`.
@@ -855,6 +860,12 @@ hàng`.
 #### Chuyển thành Customer
 
 - Frontend mở `/customers/new?leadId=<id>` và gọi `POST /customers` với `leadId`.
+- Mã Customer vẫn duy nhất với dữ liệu đang hoạt động. Khi mã tạo mới thuộc một Customer đã xóa
+  mềm, API trả conflict kèm tên, thời điểm xóa và các nhóm dữ liệu liên quan. Người có quyền xóa
+  Customer có thể xác nhận `Xóa toàn bộ & tạo mới`; backend khóa bản ghi, xóa vĩnh viễn toàn bộ
+  Dự án, Báo phí, thanh toán, phân bổ, hoàn tiền, hợp đồng, Báo cáo tuần, lịch hẹn cùng dữ liệu con,
+  rồi tạo Customer mới trong cùng transaction. Người không có quyền xóa chỉ nhận thông báo và không
+  thể thực hiện thao tác phá hủy này.
 - Backend khóa Lead trong transaction, kiểm tra `converted_customer_id` và Customer cùng `lead_id`
   để chặn tạo trùng.
 - Trong cùng transaction, backend:
@@ -881,6 +892,8 @@ hàng`.
   `customer_code` và `customer_name`, còn tên pháp nhân/hóa đơn không bị ghép mã.
 - Danh sách Customer không hiển thị cột Email; Email vẫn được lưu và hiển thị trong
   form/hồ sơ chi tiết.
+- Danh sách Customer luôn sắp xếp tăng dần theo mã khách hàng, kể cả khi đang tìm kiếm, lọc hoặc
+  chuyển trang phân trang.
 - Trường Website của Customer có thể lưu liên kết Website, Google Map hoặc Fanpage; form phải hiển
   thị chú thích này để người nhập dữ liệu dùng đúng mục đích.
 - `customer_code` độc lập với `lead_code`, được backend cấp dạng `001`, `002`, `003`, ... bằng khóa
@@ -970,6 +983,9 @@ số lượng, đơn giá và chi phí đối tác/thực hiện.
 ```
 
 - Mã này là nội dung chuyển khoản VietQR và không được đổi sau khi phát hành.
+- Trong khối thông tin chuyển khoản của bản gửi khách, ảnh và PDF, dòng `Ngân hàng` hiển thị theo
+  format `<MÃ NGÂN HÀNG> - <TÊN NGÂN HÀNG>`, ví dụ `VCB - Ngân hàng TMCP Ngoại thương Việt Nam`;
+  dữ liệu cũ thiếu một trong hai thành phần sẽ hiển thị phần còn lại đã lưu.
 - Form có các dòng động: nội dung, đơn vị tính, số lượng/số lần, đơn giá, thành tiền. Nếu root
   service có auto pricing, frontend thêm các dòng ngân sách, phí quản lý và setup theo config.
 - Với Project loại `M`, mỗi hạng mục nhập thêm có checkbox `Tính vào số tiền có thể nạp`. Lựa chọn
@@ -990,7 +1006,9 @@ Tổng được phép nạp = Hạn mức từ tiền đã thu + Hạn mức n�
   `quotation.approve_topup_credit` mới thay đổi được; khi bật bắt buộc nhập hạn mức tiền và lý do.
   Backend lưu người/thời điểm duyệt và không cho hạn mức nợ vượt ngân sách đủ điều kiện. Khi khách
   thanh toán thêm, hạn mức từ tiền đã thu tăng còn phần nợ thực dùng tự giảm để không cộng trùng.
-  Hoàn tiền hoàn tất làm giảm hạn mức; Project có thể hiển thị âm nếu số đã nạp vượt nguồn còn lại.
+  Hoàn tiền hoàn tất làm giảm hạn mức. Khi Báo phí đã hoàn toàn bộ tiền khách đã trả, cả hạn mức từ
+  tiền thu và hạn mức nợ được duyệt của Báo phí đó đều về `0`; Báo phí không còn là nguồn cho phép
+  nạp. Project có thể hiển thị âm nếu số đã nạp vượt nguồn còn lại.
 - Gói setup mặc định trên form thêm mới là `Không tính phí setup`. Khi chỉnh sửa, hệ thống giữ lựa
   chọn đã lưu; báo phí cũ chưa có metadata gói setup cũng dùng mặc định không tính phí.
 - Loại Project `O` và dữ liệu cũ `N` đều hiển thị thống nhất là `Không chọn` trên form Báo phí.
@@ -1001,7 +1019,7 @@ Tổng được phép nạp = Hạn mức từ tiền đã thu + Hạn mức n�
 - Trạng thái nghiệp vụ:
   - `draft` → `Báo phí`;
   - `won` → `Đã thanh toán`;
-  - vòng đời hoàn tiền có thể hiển thị `Đã hoàn tiền`, `Đã hoàn toàn bộ`, hoặc
+  - vòng đời hoàn tiền có thể hiển thị `Đã hoàn tiền`, `Đã hoàn`, hoặc
     `Đã hoàn + bù thêm`.
 - Form không cho người dùng tự chọn trạng thái. Backend tính lại trạng thái theo sổ phân bổ và hoàn
   tiền.
@@ -1023,7 +1041,7 @@ Tổng được phép nạp = Hạn mức từ tiền đã thu + Hạn mức n�
 - Nút `Xuất Excel` ở header danh sách tải toàn bộ Báo phí thuộc scope quyền và bộ lọc hiện tại,
   không chỉ trang đang xem. Workbook gồm sheet `Tổng hợp báo phí` chứa đầy đủ Project, Customer,
   dịch vụ, trạng thái, công nợ, VAT, cọc, người tạo và metadata nghiệp vụ chính; sheet `Hạng mục báo
-  phí` chứa từng dòng, số lượng, đơn giá, VAT và cờ tính vào số tiền có thể nạp.
+phí` chứa từng dòng, số lượng, đơn giá, VAT và cờ tính vào số tiền có thể nạp.
 
 ### 4. Hợp đồng
 
@@ -1086,8 +1104,10 @@ Tiền chưa phân bổ = Tiền nhận
   dòng không mở popup. Số hóa đơn, liên kết Báo phí/Dự án và các nút tác vụ giữ hành vi riêng.
 - Nút `Xuất Excel` ở header tải toàn bộ dữ liệu trong scope quyền theo bộ lọc hiện tại của cả hai tab,
   không phụ thuộc trang phân trang đang mở. Workbook gồm `Tiền nhận vào`, `Phân bổ báo phí` và `Tiền
-  hoàn ra`; các sheet giữ số tiền/ngày giờ ở đúng kiểu dữ liệu và gồm cả nội dung trong popup như
+hoàn ra`; các sheet giữ số tiền/ngày giờ ở đúng kiểu dữ liệu và gồm cả nội dung trong popup như
   ghi chú phân bổ, người nhận, tài khoản, lý do, tham chiếu và số hóa đơn.
+- Bảng `Tiền nhận vào` có cột `NH` ngay sau `Thời gian`, hiển thị mã ngân hàng như `VCB`, `BIDV` từ
+  gateway giao dịch. Ba cột `Thời gian`, `NH`, `Số tiền` cùng được giữ cố định khi cuộn ngang.
 
 #### Hoàn tiền
 
@@ -1131,6 +1151,9 @@ Lợi nhuận thực nhận của Project = Đã nhận
 - Tab `Tiền hoàn ra` bỏ cột Dự án để bảng gọn trong một khung. Cột `Số hóa đơn` hiển thị số của
   Payment nguồn (`payments.output_invoice_number`) và cho phép click để nhập/sửa bằng popup,
   không tạo thêm một số hóa đơn riêng trên `payment_refunds`.
+- Khoản `pending` có thể chỉnh sửa khi Role được cấp `payment.refund.update`. Quyền này không mở các
+  tác vụ xác nhận đã chuyển, hủy, xóa hoặc đổi trạng thái; các tác vụ đó vẫn thuộc
+  `payment.manage`.
 
 ### 6. Chi phí Project và CID
 
@@ -1165,9 +1188,13 @@ Lợi nhuận thực nhận của Project = Đã nhận
   khớp/chưa khớp và khoảng ngày.
 - Cột `Dự án` tại `/costs` hiển thị thêm hạn mức `Có thể nạp`; nếu hạn mức nhỏ hơn `0`, giao diện
   hiển thị rõ `Đang âm` cùng giá trị tuyệt đối. Công thức dùng chung với summary Project và form chi
-  phí: `Hạn mức từ tiền đã thu + hạn mức nợ thực dùng - chi phí nạp completed thực tế`.
+  phí: `Hạn mức từ tiền đã thu + hạn mức nợ thực dùng - chi phí nạp completed thực tế`. Khi tất cả
+  Báo phí của Project đã hoàn toàn bộ, dòng `Có thể nạp` được ẩn vì Project không còn nguồn nạp hợp
+  lệ.
 - Popup đối soát chỉ có hai kết quả: `Khớp chuẩn` và `Chưa khớp`. Hai kết quả chỉ cập nhật dữ liệu
   đối soát; trạng thái `completed` do Lead xác nhận được giữ nguyên để phản ánh tiền đã thực chi.
+- Cột `Chi tiết` tại bảng `/costs` và dòng `Đối tác` trong popup `Chi phí đối tác` hiển thị đúng
+  option đối tác theo format `<MÃ ĐỐI TÁC> - <TÊN ĐỐI TÁC>`; không dùng thông tin Customer.
 - Người có quyền duyệt có thể nhấn lại trạng thái `Đã khớp` để mở popup, sửa thông tin hoặc chuyển
   về `Chưa khớp` khi thao tác nhầm. Khoản chi bị khóa sửa dữ liệu gốc khi đang `Khớp chuẩn`; sau khi
   chuyển về `Chưa khớp`, chỉ người có cả quyền quản lý và xác nhận chi mới được sửa dữ liệu gốc.
@@ -1181,28 +1208,35 @@ Lợi nhuận thực nhận của Project = Đã nhận
   nội dung dài được rút gọn trên bảng và vẫn xem đầy đủ qua tooltip/popup chi tiết.
 - Nút `Xuất Excel` tại `/costs` tải toàn bộ khoản chi thuộc scope quyền và bộ lọc hiện tại, không chỉ
   nhóm Project đang phân trang. Workbook gồm `Tổng hợp chi phí`, `Điều chỉnh chi phí` và `Sự kiện
-  CID`, bao gồm số tiền có thể nạp, dòng tiền/chi phí thực tế, số dư, kết quả và ghi chú đối soát,
+CID`, bao gồm số tiền có thể nạp, dòng tiền/chi phí thực tế, số dư, kết quả và ghi chú đối soát,
   hóa đơn, người xử lý cùng dữ liệu CID đã báo/xác nhận.
 
 Với chi phí nạp quảng cáo:
 
 - `cashOutAmount`: dòng tiền đã chi, không thay đổi sau đối soát;
-- `actualCostAmount`: chi phí thực tế;
-- `originalBalanceAmount`: số dư gốc khi CID dừng;
-- `releasedBalanceAmount`: hạn mức đã trả lại Project.
+- `cidRefundedAmount`: số tiền CID hoàn về do nhân sự nhập, không phải số tiền CID đã chạy;
+- `actualCostAmount`: chi phí thực tế bằng tiền đã nạp trừ số tiền CID hoàn về sau khi được xác nhận;
+- `originalBalanceAmount`: đúng bằng số tiền CID hoàn về;
+- `releasedBalanceAmount`: đúng bằng số tiền CID hoàn về đã được trả lại Project.
 
-Nếu CID dừng trước khi đối soát, kết quả reconcile tính phần thực chạy và trả toàn bộ số dư hợp lệ
-vào hạn mức nạp. Nếu CID dừng sau khi khoản chi đã khóa:
+Không còn trường hoặc logic `Số tiền không thu hồi được`. Khi CID dừng trước khi đối soát, nhân sự
+nhập trực tiếp `Số tiền CID hoàn về`; sau khi kế toán chọn `Khớp chuẩn`, đúng số tiền này được cộng
+trở lại `Số tiền có thể nạp`. Nếu CID dừng sau khi khoản chi đã khóa:
 
 1. nhân sự tạo `project_cost_cid_incidents` ở trạng thái `pending`;
-2. nhập ngày dừng, số thực chạy, phần không thu hồi và ghi chú;
+2. nhập ngày dừng, số tiền CID hoàn về và ghi chú;
 3. kế toán xác nhận tại `/costs`;
 4. backend tính:
 
 ```text
-releasedAmount = totalAmount - spentAmount - unrecoverableAmount
-actualCostAmount = spentAmount + unrecoverableAmount
+releasedBalanceAmount = cidRefundedAmount
+actualCostAmount = totalAmount - cidRefundedAmount
+Phần tăng của Số tiền có thể nạp = cidRefundedAmount
 ```
+
+Backend không cho số hoàn về vượt tiền đã nạp. Dữ liệu cũ được migration quy đổi từ số thực chạy
+sang số hoàn về để giữ nguyên chi phí và hạn mức lịch sử; các cột cũ chỉ còn dùng tương thích nội bộ,
+không xuất hiện trên form/API mới.
 
 Sự kiện đã xác nhận bị khóa; sự kiện pending có thể sửa/hủy. Các endpoint:
 
@@ -1861,9 +1895,23 @@ API `GET /api/dashboard?period_from=YYYY-MM&period_to=YYYY-MM` yêu cầu `dashb
   `leadReport.periods` dùng cho xu hướng tổng Lead, còn `leadReport.employees[].values/statusSeries`
   dùng cho so sánh nhân sự và cơ cấu trạng thái từng tháng. Chỉ nhân sự có phát sinh trong kỳ mới
   được trả về; Lead chưa phân công được gom vào nhóm `Chưa phân công` để tổng số luôn đối soát được;
-- section Báo cáo Lead dùng nền kem nhạt và lưới card hai cột theo mẫu báo cáo cũ: line chart xu hướng,
-  grouped bar theo nhân sự và stacked bar trạng thái theo từng nhân sự. Giá trị khác `0` hiển thị trực
-  tiếp trên điểm/cột/thanh, đồng thời vẫn giữ tooltip và nhãn màu để đối soát;
+- `projectReport` là báo cáo vận hành Team kỹ thuật và chỉ khác `null` khi user có **đủ cả bốn**
+  quyền `project.view`, `project.create`, `project.update`, `project.delete`. Scope báo cáo lấy theo
+  nhân sự triển khai: `project.view_all` xem toàn bộ, `project.view_department` chỉ lấy các
+  `manager_user_id` thuộc phòng ban chính hoặc team mà Leader phụ trách, còn scope cơ sở chỉ lấy
+  Project do chính user làm nhân sự triển khai; không dùng quan hệ sales để mở rộng báo cáo kỹ thuật;
+- báo cáo Project lấy tháng bắt đầu theo `projects.start_date`, fallback `created_at`; Project đã xóa
+  mềm bị loại. `projectReport.employees[].projectValues` là số Project bắt đầu theo từng tháng,
+  `profitValues` là riêng lợi nhuận nhánh triển khai trước VAT của nhân sự trong tháng và
+  `statusSeries` là cơ cấu trạng thái hiện tại của các Project thuộc từng tháng bắt đầu. Nhãn/màu
+  trạng thái lấy động từ Settings, không hard-code ID;
+- báo cáo Lead và Project dùng chung một workspace `Báo cáo theo team`: tab cấp một chuyển module,
+  tab cấp hai chuyển giữa xu hướng/số lượng, lợi nhuận và trạng thái. Mỗi lần chỉ render một biểu đồ
+  MUI Charts; biểu đồ trạng thái gom từng nhân sự thành một cột xếp chồng mảnh, đặt tên nhân sự ngay
+  dưới cột và chỉ dùng bộ chọn tháng khi kỳ báo cáo có nhiều tháng để toàn khối gọn hơn.
+  Biểu đồ cột đặt nhân sự trên trục ngang, hiển thị tên ngay dưới cột và dùng từng tháng làm series;
+  độ rộng/gap của cột tự co theo số nhân sự và số tháng. Cách này giữ đủ dữ liệu đối soát nhưng
+  không làm Dashboard kéo dài hoặc xuất hiện các cột quá rộng khi chỉ lọc một tháng;
 - `operations.meetings/weeklyReports` là các hàng đợi công việc hiện tại và có thể là `null` nếu
   user thiếu quyền xem module;
 - `scope.level` là `all`, `department` hoặc `own`; kèm user/phòng ban và tên mốc kế hoạch để
@@ -2168,7 +2216,10 @@ Mapping đặc biệt:
 
 - `project_partner`: `key` mã đối tác, `label` tên, `value` dịch vụ,
   `meta.accountNo`/`meta.bankName` là ngân hàng.
+- `ad_topup_card`: `key` mã thẻ, `label` tên thẻ, `value` thông tin nhận diện thẻ và `meta.note` là
+  ghi chú hiển thị trên bảng Thẻ nạp quảng cáo.
 - `company_bank_account`: `key` mã VietQR, `label` chủ tài khoản, `value` số tài khoản,
+  `meta.note` là ghi chú hiển thị trên bảng Tài khoản nhận tiền,
   `meta.bankName`, `branch`, `isDefault`.
 - `service_quote_config`: `key` root service code, `value` root service id, metadata chứa trạng
   thái bật, bảng tỷ lệ và gói setup.

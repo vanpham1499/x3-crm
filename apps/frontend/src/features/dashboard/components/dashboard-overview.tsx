@@ -37,7 +37,7 @@ import type {
   DashboardServiceRow,
 } from '@/types/dashboard';
 import { DashboardPeriodFilterBar } from './dashboard-period-filters';
-import { LeadReportSection } from './lead-report-section';
+import { TeamReportSection } from './team-report-section';
 
 type DashboardOverviewProps = {
   report: DashboardReport;
@@ -1331,7 +1331,7 @@ function ScopedDashboardOverview({
         </div>
       </div>
 
-      <LeadReportSection report={report.leadReport} />
+      <TeamReportSection leadReport={report.leadReport} projectReport={report.projectReport} />
     </div>
   );
 }
@@ -1511,7 +1511,7 @@ export function DashboardOverview({
         </div>
       </div>
 
-      <LeadReportSection report={report.leadReport} />
+      <TeamReportSection leadReport={report.leadReport} projectReport={report.projectReport} />
     </div>
   );
 }

@@ -4921,21 +4921,16 @@
                             "schema": {
                                 "required": [
                                     "stoppedAt",
-                                    "spentAmount"
+                                    "refundedAmount"
                                 ],
                                 "properties": {
                                     "stoppedAt": {
                                         "type": "string",
                                         "format": "date"
                                     },
-                                    "spentAmount": {
+                                    "refundedAmount": {
                                         "type": "number",
                                         "format": "float"
-                                    },
-                                    "unrecoverableAmount": {
-                                        "type": "number",
-                                        "format": "float",
-                                        "default": 0
                                     },
                                     "note": {
                                         "type": "string",
@@ -5657,7 +5652,6 @@
                     },
                     "weeklyCondition": {
                         "type": "string",
-                        "nullable": true,
                         "maxLength": 50
                     },
                     "weeklySpendAmount": {

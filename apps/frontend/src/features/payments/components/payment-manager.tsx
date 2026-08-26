@@ -31,7 +31,13 @@ import { ListFilterBar } from '@/components/form/list-filter-bar';
 import { MoneyInput } from '@/components/form/money-input';
 import { ServerPaginatedAutocomplete } from '@/components/form/server-paginated-autocomplete';
 import { getPaymentDisplayStatus } from '@/lib/payment-display-status';
-import { canAllocatePayments, canCreatePaymentRefund, canManagePayments } from '@/lib/ownership';
+import {
+  canAllocatePayments,
+  canCreatePaymentRefund,
+  canDeletePayments,
+  canManagePayments,
+  canUpdatePendingPaymentRefund,
+} from '@/lib/ownership';
 import { PageHeader } from '@/components/shell/page-header';
 import { IconTabs } from '@/components/navigation/icon-tabs';
 import { AppDataTable } from '@/components/table/app-data-table';
@@ -83,6 +89,7 @@ type PaymentManagerProps = {
   onRefund: (paymentId: number, values: PaymentRefundInput) => Promise<Payment>;
   onUpdateRefund: (refundId: number, values: PaymentRefundUpdateInput) => Promise<PaymentRefund>;
   onDeleteRefund: (refundId: number) => Promise<void>;
+  onDeletePayment: (paymentId: number) => Promise<void>;
   onUpdateInvoice: (paymentId: number, invoiceNumber: string | null) => Promise<Payment>;
   onRemoveAllocation: (paymentId: number, allocationId: number) => Promise<Payment>;
 };
@@ -111,6 +118,28 @@ const refundStatusLabels: Record<string, string> = {
 
 function formatCurrency(value: string | number | null | undefined) {
   return `${new Intl.NumberFormat('vi-VN').format(Math.round(Number(value) || 0))} đ`;
+}
+
+function paymentBankCode(payment: Payment) {
+  const gateway = payment.bankGateway?.trim() || '';
+  if (!gateway) return '-';
+
+  const compactGateway = gateway.toLocaleUpperCase('vi-VN').replace(/[^A-Z0-9]/g, '');
+  const aliases: Record<string, string> = {
+    VIETCOMBANK: 'VCB',
+    VCB: 'VCB',
+    BIDV: 'BIDV',
+    MBBANK: 'MB',
+    MB: 'MB',
+    TECHCOMBANK: 'TCB',
+    TCB: 'TCB',
+    VIETINBANK: 'ICB',
+    ICB: 'ICB',
+    AGRIBANK: 'VBA',
+    VBA: 'VBA',
+  };
+
+  return aliases[compactGateway] || gateway.toLocaleUpperCase('vi-VN');
 }
 
 function todayString() {
@@ -305,7 +334,7 @@ function groupCollectionStatus(group: PaymentTableGroup, differenceAmount: numbe
     if (collectionStatus === 'refunded') {
       return compensationAmount > 0
         ? { key: 'collection_refunded_with_compensation', label: 'Đã hoàn + bù thêm' }
-        : { key: 'collection_refunded', label: 'Đã hoàn toàn bộ' };
+        : { key: 'collection_refunded', label: 'Đã hoàn' };
     }
     if (collectionStatus === 'partially_refunded') {
       return compensationAmount > 0
@@ -1200,6 +1229,7 @@ export function PaymentManager({
   onRefund,
   onUpdateRefund,
   onDeleteRefund,
+  onDeletePayment,
   onUpdateInvoice,
   onRemoveAllocation,
 }: PaymentManagerProps) {
@@ -1207,6 +1237,7 @@ export function PaymentManager({
   const [allocationTarget, setAllocationTarget] = useState<Payment | null>(null);
   const [refundTarget, setRefundTarget] = useState<Payment | null>(null);
   const [invoiceTarget, setInvoiceTarget] = useState<Payment | null>(null);
+  const [deleteTarget, setDeleteTarget] = useState<Payment | null>(null);
   const [removeTarget, setRemoveTarget] = useState<{
     payment: Payment;
     allocation: PaymentAllocation;
@@ -1305,10 +1336,15 @@ export function PaymentManager({
                   className: 'sticky left-0 z-20 w-52 min-w-[13rem] bg-slate-100',
                 },
                 {
+                  key: 'bank',
+                  label: 'NH',
+                  className: 'sticky left-[13rem] z-20 w-16 min-w-[4rem] bg-slate-100 text-center',
+                },
+                {
                   key: 'amount',
                   label: 'Số tiền',
                   className:
-                    'sticky left-[13rem] z-20 w-44 min-w-[11rem] bg-slate-100 text-right shadow-[1px_0_0_0_rgb(226_232_240)]',
+                    'sticky left-[17rem] z-20 w-44 min-w-[11rem] bg-slate-100 text-right shadow-[1px_0_0_0_rgb(226_232_240)]',
                 },
                 { key: 'content', label: 'Nội dung chuyển khoản', className: 'w-72' },
                 { key: 'invoice', label: 'Số hóa đơn', className: 'w-44' },
@@ -1320,7 +1356,7 @@ export function PaymentManager({
               isLoading={isFetching}
               isEmpty={payments.length === 0}
               emptyText="Chưa có giao dịch thanh toán"
-              minWidthClassName="min-w-[1360px]"
+              minWidthClassName="min-w-[1424px]"
             >
               {paymentGroups.map((group) => {
                 const quotations = [
@@ -1363,7 +1399,15 @@ export function PaymentManager({
                       <td className="sticky left-0 z-10 w-52 min-w-[13rem] bg-white px-3 py-3.5 font-semibold tabular-nums text-slate-800 group-hover:bg-slate-50">
                         <span className="whitespace-nowrap">{transferMoment.full}</span>
                       </td>
-                      <td className="sticky left-[13rem] z-10 w-44 min-w-[11rem] bg-white px-3 py-3.5 text-right font-extrabold tabular-nums text-emerald-700 shadow-[1px_0_0_0_rgb(226_232_240)] group-hover:bg-slate-50">
+                      <td className="sticky left-[13rem] z-10 w-16 min-w-[4rem] bg-white px-2 py-3.5 text-center group-hover:bg-slate-50">
+                        <span
+                          className="inline-flex rounded-md bg-slate-100 px-2 py-1 font-mono text-xs font-extrabold text-slate-700"
+                          title={payment.bankGateway || 'Chưa xác định ngân hàng'}
+                        >
+                          {paymentBankCode(payment)}
+                        </span>
+                      </td>
+                      <td className="sticky left-[17rem] z-10 w-44 min-w-[11rem] bg-white px-3 py-3.5 text-right font-extrabold tabular-nums text-emerald-700 shadow-[1px_0_0_0_rgb(226_232_240)] group-hover:bg-slate-50">
                         {formatCurrency(payment.amount)}
                       </td>
                       <td className="px-3 py-3.5">
@@ -1496,6 +1540,7 @@ export function PaymentManager({
             isFetching={isRefundsFetching}
             isMutating={isMutating}
             canManage={canManagePayments(currentUser)}
+            canEditPending={canUpdatePendingPaymentRefund(currentUser)}
             onPageChange={onRefundPageChange}
             onPageSizeChange={onRefundPageSizeChange}
             onFiltersChange={onRefundFiltersChange}
@@ -1580,6 +1625,26 @@ export function PaymentManager({
             Chưa có liên kết đối soát
           </MenuItem>
         ) : null}
+        {canDeletePayments(currentUser) ? (
+          <MenuItem
+            className="!text-rose-600"
+            disabled={
+              Boolean(activePayment?.allocations?.length) || Boolean(activePayment?.refunds?.length)
+            }
+            title={
+              activePayment?.allocations?.length || activePayment?.refunds?.length
+                ? 'Không thể xóa khoản thanh toán đã có phân bổ hoặc hoàn tiền'
+                : 'Xóa khoản thanh toán'
+            }
+            onClick={() => {
+              if (activePayment) setDeleteTarget(activePayment);
+              closeActionMenu();
+            }}
+          >
+            <DeleteOutlineRoundedIcon fontSize="small" className="mr-2" />
+            Xóa khoản thanh toán
+          </MenuItem>
+        ) : null}
       </Menu>
 
       <PaymentDetailDialog
@@ -1625,6 +1690,23 @@ export function PaymentManager({
           const updated = await onUpdateInvoice(invoiceTarget.id, invoiceNumber);
           applyUpdatedPayment(updated);
           setInvoiceTarget(null);
+        }}
+      />
+      <ConfirmDialog
+        open={Boolean(deleteTarget)}
+        title="Xóa khoản thanh toán?"
+        description={`Giao dịch ${deleteTarget?.reference || `#${deleteTarget?.id || ''}`} trị giá ${formatCurrency(deleteTarget?.amount)} sẽ bị xóa khỏi hệ thống. Thao tác này chỉ thực hiện được khi giao dịch chưa có phân bổ hoặc hoàn tiền.`}
+        confirmText="Xóa thanh toán"
+        loading={isMutating}
+        onClose={() => setDeleteTarget(null)}
+        onConfirm={() => {
+          if (!deleteTarget) return;
+          void onDeletePayment(deleteTarget.id)
+            .then(() => {
+              if (viewTarget?.id === deleteTarget.id) setViewTarget(null);
+              setDeleteTarget(null);
+            })
+            .catch(() => undefined);
         }}
       />
       <ConfirmDialog

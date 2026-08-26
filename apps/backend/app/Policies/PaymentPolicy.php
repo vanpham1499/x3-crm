@@ -2,6 +2,8 @@
 
 namespace App\Policies;
 
+use App\Models\Payment;
+use App\Models\PaymentRefund;
 use App\Models\User;
 
 class PaymentPolicy
@@ -20,5 +22,17 @@ class PaymentPolicy
     public function createRefund(User $user): bool
     {
         return $this->manage($user) || $user->hasPermission('payment.refund.create');
+    }
+
+    public function updateRefund(User $user, PaymentRefund $refund): bool
+    {
+        return $this->manage($user)
+            || ($refund->status === PaymentRefund::STATUS_PENDING
+                && $user->hasPermission('payment.refund.update'));
+    }
+
+    public function delete(User $user, Payment $payment): bool
+    {
+        return $user->hasPermission('payment.delete');
     }
 }

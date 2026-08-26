@@ -106,6 +106,31 @@ export type DashboardLeadReport = {
   employees: DashboardLeadEmployee[];
 };
 
+export type DashboardProjectReportPeriod = {
+  period: string;
+  label: string;
+  total: number;
+  profitAmount: number;
+};
+
+export type DashboardProjectEmployee = {
+  id: number;
+  code?: string | null;
+  name: string;
+  isActive: boolean | null;
+  isDeleted: boolean;
+  total: number;
+  profitAmount: number;
+  projectValues: number[];
+  profitValues: number[];
+  statusSeries: DashboardLeadStatusSeries[];
+};
+
+export type DashboardProjectReport = {
+  periods: DashboardProjectReportPeriod[];
+  employees: DashboardProjectEmployee[];
+};
+
 export type DashboardTrendPoint = {
   period: string;
   label: string;
@@ -208,6 +233,7 @@ export type DashboardReport = {
   summary: DashboardSummary;
   operations: DashboardOperations;
   leadReport: DashboardLeadReport | null;
+  projectReport: DashboardProjectReport | null;
   trend: {
     granularity: 'day' | 'month';
     points: DashboardTrendPoint[];

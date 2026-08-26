@@ -28,6 +28,7 @@ function matchesKeyword(account: AppOption, keyword: string) {
     account.value,
     getBankAccountMetaValue(account, 'bankName'),
     getBankAccountMetaValue(account, 'branch'),
+    getBankAccountMetaValue(account, 'note'),
   ]
     .filter(Boolean)
     .some((value) => String(value).toLowerCase().includes(normalizedKeyword));
@@ -89,6 +90,7 @@ export default function CompanyBankAccountsPage() {
                     accountName: item.label || '',
                     bankName: getBankAccountMetaValue(item, 'bankName'),
                     branch: getBankAccountMetaValue(item, 'branch'),
+                    note: getBankAccountMetaValue(item, 'note'),
                     isDefault: false,
                   },
                   item.sortOrder,

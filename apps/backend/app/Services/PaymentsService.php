@@ -142,7 +142,8 @@ class PaymentsService extends BaseService
     public function remove(string $id): array
     {
         return $this->transaction(function () use ($id): array {
-            $payment = $this->payments->findWithRelationsOrFail($id);
+            $payment = $this->payments->findWithRelationsOrFail($id, $this->currentUser());
+            $this->authorize('delete', $payment);
 
             if ($payment->allocations->isNotEmpty() || $payment->refunds->isNotEmpty()) {
                 throw ValidationException::withMessages([
@@ -259,8 +260,19 @@ class PaymentsService extends BaseService
 
     public function updateRefund(string $id, array $data): array
     {
-        $this->authorize('manage', Payment::class);
-        $refund = $this->paymentAllocations->updateRefund($id, $data, auth()->id());
+        $existingRefund = PaymentRefund::query()->findOrFail($id);
+        $this->payments->findWithRelationsOrFail(
+            (string) $existingRefund->payment_id,
+            $this->currentUser(),
+        );
+        $this->authorize('updateRefund', [Payment::class, $existingRefund]);
+        $canManage = $this->currentUser()?->hasPermission('payment.manage') === true;
+        $refund = $this->paymentAllocations->updateRefund(
+            $id,
+            $data,
+            auth()->id(),
+            pendingOnly: ! $canManage,
+        );
         $this->syncRefundNotifications($refund);
         $this->syncPaymentNotifications($refund->payment_id);
 

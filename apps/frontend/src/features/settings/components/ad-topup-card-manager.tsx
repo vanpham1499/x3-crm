@@ -86,6 +86,9 @@ function AdTopupCardDialog({
           if (fieldErrors.value) {
             setError('cardInfo', { type: 'server', message: fieldErrors.value });
           }
+          if (fieldErrors['meta.note']) {
+            setError('note', { type: 'server', message: fieldErrors['meta.note'] });
+          }
         }
       })}
       contentClassName="grid gap-3 sm:grid-cols-2"
@@ -114,7 +117,7 @@ function AdTopupCardDialog({
       />
       <FormInputField
         label="Thông tin thẻ"
-        className="sm:col-span-2  !hidden"
+        className="sm:col-span-2"
         placeholder="Ví dụ: Visa **** 1234"
         error={Boolean(errors.cardInfo)}
         helperText={errors.cardInfo?.message}
@@ -125,6 +128,8 @@ function AdTopupCardDialog({
         multiline
         minRows={2}
         className="sm:col-span-2"
+        error={Boolean(errors.note)}
+        helperText={errors.note?.message}
         {...register('note')}
       />
     </AppFormDialog>

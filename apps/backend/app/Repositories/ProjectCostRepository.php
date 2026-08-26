@@ -217,7 +217,7 @@ class ProjectCostRepository extends BaseRepository
 
     private function balanceStatusQuery(Builder $query, string $status): Builder
     {
-        $balanceSql = 'GREATEST(project_costs.total_amount - COALESCE(project_costs.cid_spent_amount, 0), 0)';
+        $balanceSql = 'GREATEST(COALESCE(project_costs.cid_refunded_amount, 0), 0)';
 
         if ($status === 'none') {
             return $query->where(function ($query) use ($balanceSql): void {

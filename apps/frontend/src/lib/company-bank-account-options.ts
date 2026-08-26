@@ -9,6 +9,7 @@ export type CompanyBankAccount = {
   accountName: string;
   bankName: string;
   branch: string;
+  note: string;
   isDefault: boolean;
   option: AppOption;
 };
@@ -19,12 +20,13 @@ export type CompanyBankAccountFormValues = {
   accountName: string;
   bankName: string;
   branch: string;
+  note: string;
   isDefault: boolean;
 };
 
 export function getBankAccountMetaValue(
   option: AppOption,
-  key: 'bankCode' | 'bankName' | 'branch',
+  key: 'bankCode' | 'bankName' | 'branch' | 'note',
 ) {
   const value = option.meta?.[key];
   return typeof value === 'string' ? value : '';
@@ -47,6 +49,7 @@ export function getCompanyBankAccountDefaults(
     accountName: option?.label || '',
     bankName: option ? getBankAccountMetaValue(option, 'bankName') : '',
     branch: option ? getBankAccountMetaValue(option, 'branch') : '',
+    note: option ? getBankAccountMetaValue(option, 'note') : '',
     isDefault: option ? getBankAccountMetaBoolean(option, 'isDefault') : false,
   };
 }
@@ -68,6 +71,7 @@ export function toCompanyBankAccountPayload(
       bankCode,
       bankName: values.bankName.trim(),
       branch: values.branch.trim(),
+      note: values.note.trim(),
       isDefault: values.isDefault,
     },
     isActive: true,
@@ -82,6 +86,7 @@ export function companyBankAccountFromOption(option: AppOption): CompanyBankAcco
     accountName: option.label || '',
     bankName: getBankAccountMetaValue(option, 'bankName'),
     branch: getBankAccountMetaValue(option, 'branch'),
+    note: getBankAccountMetaValue(option, 'note'),
     isDefault: getBankAccountMetaBoolean(option, 'isDefault'),
     option,
   };

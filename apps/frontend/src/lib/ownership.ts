@@ -325,6 +325,14 @@ export function canCreatePaymentRefund(user: User | null | undefined): boolean {
   return canManagePayments(user) || hasPermission(user, 'payment.refund.create');
 }
 
+export function canUpdatePendingPaymentRefund(user: User | null | undefined): boolean {
+  return canManagePayments(user) || hasPermission(user, 'payment.refund.update');
+}
+
+export function canDeletePayments(user: User | null | undefined): boolean {
+  return hasPermission(user, 'payment.delete');
+}
+
 // ---- Catalogs (options/services/partners/bank-accounts/P2 categories) ----
 
 export function canManageCatalog(user: User | null | undefined): boolean {

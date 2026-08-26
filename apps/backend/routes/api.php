@@ -211,15 +211,17 @@ Route::middleware(['auth:sanctum', 'active'])->group(function (): void {
             ->middleware('permission:payment.allocate,payment.manage');
         Route::post('/payments/{id}/refunds', [PaymentsController::class, 'refund'])
             ->middleware('permission:payment.refund.create,payment.manage');
+        Route::patch('/payment-refunds/{id}', [PaymentsController::class, 'updateRefund'])
+            ->middleware('permission:payment.refund.update,payment.manage');
+        Route::delete('/payments/{id}', [PaymentsController::class, 'destroy'])
+            ->middleware('permission:payment.delete');
 
         Route::middleware('permission:payment.manage')->group(function (): void {
-            Route::patch('/payment-refunds/{id}', [PaymentsController::class, 'updateRefund']);
             Route::delete('/payment-refunds/{id}', [PaymentsController::class, 'destroyRefund']);
             Route::post('/payments', [PaymentsController::class, 'store']);
             Route::patch('/payments/{id}/invoice', [PaymentsController::class, 'updateInvoice']);
             Route::put('/payments/{id}', [PaymentsController::class, 'update']);
             Route::patch('/payments/{id}', [PaymentsController::class, 'update']);
-            Route::delete('/payments/{id}', [PaymentsController::class, 'destroy']);
         });
     });
 

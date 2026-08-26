@@ -148,12 +148,13 @@ function PaymentDetails({
     requestedAmount === undefined ? outstandingAmount : Math.max(0, requestedAmount ?? 0);
   const isWaitingForValidAmount = requestedAmount === null && outstandingAmount > 0;
   const qrUrl = quotationQrUrl(quotation, amount);
-  const bankName =
-    quotationMetadata(quotation, 'bankName') || quotationMetadata(quotation, 'bankCode');
+  const bankCode = quotationMetadata(quotation, 'bankCode').trim().toUpperCase();
+  const bankName = quotationMetadata(quotation, 'bankName').trim();
+  const bankDisplay = bankCode && bankName ? `${bankCode} - ${bankName}` : bankCode || bankName;
   const accountNo = quotationMetadata(quotation, 'bankAccountNo');
   const accountName = quotationMetadata(quotation, 'bankAccountName');
   const paymentContent = getQuotationPaymentContent(quotation);
-  const hasBankDetails = Boolean(bankName && accountNo && accountName);
+  const hasBankDetails = Boolean(bankDisplay && accountNo && accountName);
 
   if (!hasBankDetails) {
     return (
@@ -194,7 +195,7 @@ function PaymentDetails({
             </div>
             <div className="flex min-w-0 gap-1.5">
               <dt className="shrink-0 font-medium">Ngân hàng:</dt>
-              <dd className="font-semibold text-slate-900">{bankName}</dd>
+              <dd className="font-semibold text-slate-900">{bankDisplay}</dd>
             </div>
             <div className="flex min-w-0 gap-1.5">
               <dt className="shrink-0 font-medium">Chủ tài khoản:</dt>

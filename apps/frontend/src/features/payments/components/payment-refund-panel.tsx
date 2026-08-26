@@ -42,6 +42,7 @@ type PaymentRefundPanelProps = {
   isFetching: boolean;
   isMutating: boolean;
   canManage: boolean;
+  canEditPending: boolean;
   onPageChange: (page: number) => void;
   onPageSizeChange: (pageSize: number) => void;
   onFiltersChange: (filters: PaymentRefundFilters) => void;
@@ -180,11 +181,13 @@ function CompleteRefundDialog({
 function EditRefundDialog({
   refund,
   submitting,
+  canChangeStatus,
   onClose,
   onSubmit,
 }: {
   refund: PaymentRefund | null;
   submitting: boolean;
+  canChangeStatus: boolean;
   onClose: () => void;
   onSubmit: (values: PaymentRefundUpdateInput) => Promise<void>;
 }) {
@@ -313,6 +316,7 @@ function EditRefundDialog({
         <FormSelectField
           label="Trạng thái"
           value={status}
+          disabled={!canChangeStatus}
           onChange={(event) => setStatus(event.target.value as PaymentRefund['status'])}
         >
           <MenuItem value="pending">Chờ chuyển tiền</MenuItem>
@@ -457,6 +461,7 @@ export function PaymentRefundPanel({
   isFetching,
   isMutating,
   canManage,
+  canEditPending,
   onPageChange,
   onPageSizeChange,
   onFiltersChange,
@@ -483,6 +488,8 @@ export function PaymentRefundPanel({
     setMenuAnchor(event.currentTarget);
     setMenuTarget(refund);
   };
+  const canEditRefund = (refund?: PaymentRefund | null) =>
+    Boolean(refund && (canManage || (canEditPending && refund.status === 'pending')));
 
   return (
     <>
@@ -622,7 +629,7 @@ export function PaymentRefundPanel({
                 <IconButton size="small" title="Xem chi tiết" onClick={() => setViewTarget(refund)}>
                   <VisibilityRoundedIcon fontSize="small" />
                 </IconButton>
-                {canManage ? (
+                {canManage || canEditRefund(refund) ? (
                   <IconButton
                     size="small"
                     title="Tác vụ"
@@ -656,7 +663,7 @@ export function PaymentRefundPanel({
           <VisibilityRoundedIcon fontSize="small" className="mr-2 text-slate-500" />
           Xem chi tiết
         </MenuItem>
-        {menuTarget?.status === 'pending' ? (
+        {canManage && menuTarget?.status === 'pending' ? (
           <MenuItem
             disabled={isMutating}
             onClick={() => {
@@ -668,17 +675,19 @@ export function PaymentRefundPanel({
             Xác nhận đã chuyển
           </MenuItem>
         ) : null}
-        <MenuItem
-          disabled={isMutating}
-          onClick={() => {
-            setEditTarget(menuTarget);
-            closeMenu();
-          }}
-        >
-          <EditRoundedIcon fontSize="small" className="mr-2 text-sky-600" />
-          Chỉnh sửa
-        </MenuItem>
-        {menuTarget?.status === 'pending' ? (
+        {canEditRefund(menuTarget) ? (
+          <MenuItem
+            disabled={isMutating}
+            onClick={() => {
+              setEditTarget(menuTarget);
+              closeMenu();
+            }}
+          >
+            <EditRoundedIcon fontSize="small" className="mr-2 text-sky-600" />
+            Chỉnh sửa
+          </MenuItem>
+        ) : null}
+        {canManage && menuTarget?.status === 'pending' ? (
           <MenuItem
             disabled={isMutating}
             onClick={() => {
@@ -690,17 +699,19 @@ export function PaymentRefundPanel({
             Hủy khoản trả
           </MenuItem>
         ) : null}
-        <MenuItem
-          className="text-rose-600"
-          disabled={isMutating}
-          onClick={() => {
-            setDeleteTarget(menuTarget);
-            closeMenu();
-          }}
-        >
-          <DeleteOutlineRoundedIcon fontSize="small" className="mr-2" />
-          Xóa khoản trả
-        </MenuItem>
+        {canManage ? (
+          <MenuItem
+            className="text-rose-600"
+            disabled={isMutating}
+            onClick={() => {
+              setDeleteTarget(menuTarget);
+              closeMenu();
+            }}
+          >
+            <DeleteOutlineRoundedIcon fontSize="small" className="mr-2" />
+            Xóa khoản trả
+          </MenuItem>
+        ) : null}
       </Menu>
 
       <AppDetailDialog
@@ -802,6 +813,7 @@ export function PaymentRefundPanel({
         key={editTarget?.id || 'edit-refund'}
         refund={editTarget}
         submitting={isMutating}
+        canChangeStatus={canManage}
         onClose={() => setEditTarget(null)}
         onSubmit={async (values) => {
           if (!editTarget) return;

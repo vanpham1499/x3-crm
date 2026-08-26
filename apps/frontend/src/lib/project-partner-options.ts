@@ -16,6 +16,21 @@ export function getPartnerMetaValue(option: AppOption, key: 'accountNo' | 'bankC
   return typeof value === 'string' ? value : '';
 }
 
+export function formatProjectPartnerIdentity(option?: AppOption | null, fallback = '-') {
+  if (!option) return fallback;
+
+  const code = option.key?.trim().toLocaleUpperCase('vi-VN') || '';
+  const name = (option.label || option.value || '').trim();
+
+  if (!code) return name || fallback;
+  if (!name || name.toLocaleUpperCase('vi-VN') === code) return code;
+
+  const escapedCode = code.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
+  const nameWithoutLegacyCode = name.replace(new RegExp(`^${escapedCode}(?:[-.·\\s]+)`, 'iu'), '');
+
+  return nameWithoutLegacyCode ? `${code} - ${nameWithoutLegacyCode}` : code;
+}
+
 export function getProjectPartnerDefaults(option?: AppOption | null): ProjectPartnerFormValues {
   return {
     code: option?.key || '',

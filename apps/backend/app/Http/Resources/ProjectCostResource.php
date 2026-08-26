@@ -25,8 +25,7 @@ class ProjectCostResource extends JsonResource
             'cid' => $this->cid,
             'adAccount' => $this->ad_account,
             'cidIsDead' => $this->hasStoppedCid(),
-            'cidSpentAmount' => $cidIncident?->spent_amount ?? $this->cid_spent_amount,
-            'cidUnrecoverableAmount' => $cidIncident?->unrecoverable_amount ?? 0,
+            'cidRefundedAmount' => $cidIncident?->released_amount ?? $this->cid_refunded_amount,
             'bankAccountOptionId' => $this->bank_account_option_id,
             'partnerOptionId' => $this->partner_option_id,
             'amountBeforeVat' => $this->amount_before_vat,
@@ -68,6 +67,7 @@ class ProjectCostResource extends JsonResource
                 'creditTopupBudget' => $topupBudget['creditBudget'] ?? null,
                 'releasedTopupBudget' => $topupBudget['releasedBudget'] ?? null,
                 'usedTopupBudget' => $topupBudget['usedBudget'] ?? null,
+                'hasTopupBudgetSource' => $topupBudget['hasTopupBudgetSource'] ?? false,
                 'customer' => $this->project->relationLoaded('customer') && $this->project->customer ? [
                     'id' => $this->project->customer->id,
                     'customerCode' => $this->project->customer->customer_code,
@@ -93,9 +93,7 @@ class ProjectCostResource extends JsonResource
             'cidIncident' => $this->whenLoaded('cidIncident', fn () => $cidIncident ? [
                 'id' => $cidIncident->id,
                 'stoppedAt' => $cidIncident->stopped_at?->toDateString(),
-                'spentAmount' => $cidIncident->spent_amount,
-                'unrecoverableAmount' => $cidIncident->unrecoverable_amount,
-                'releasedAmount' => $cidIncident->released_amount,
+                'refundedAmount' => $cidIncident->released_amount,
                 'status' => $cidIncident->status,
                 'note' => $cidIncident->note,
                 'reportedAt' => $cidIncident->reported_at?->toISOString(),

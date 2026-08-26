@@ -22,6 +22,7 @@ class CreateOptionRequest extends BaseRequest
             'meta' => ['nullable', 'array'],
             'meta.color' => ['nullable', 'string', 'regex:/^#[0-9a-fA-F]{6}$/'],
             'meta.requiresWeeklyReport' => ['nullable', 'boolean'],
+            'meta.note' => ['nullable', 'string', 'max:2000'],
             'meta.serviceRootIds' => ['nullable', 'array', 'min:2'],
             'meta.serviceRootIds.*' => [
                 'integer',

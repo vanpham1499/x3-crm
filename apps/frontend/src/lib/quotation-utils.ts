@@ -6,7 +6,7 @@ export const QUOTATION_PAYMENT_STATUS_LABELS: Record<string, string> = {
   paid: 'Hoàn thành',
   overpaid: 'Thu thừa',
   partially_refunded: 'Đã hoàn một phần',
-  refunded: 'Đã hoàn toàn bộ',
+  refunded: 'Đã hoàn',
 };
 
 export function getQuotationPaymentStatusLabel(

@@ -7,6 +7,7 @@ use App\Models\PaymentAllocation;
 use App\Models\PaymentRefund;
 use App\Models\Quotation;
 use Carbon\Carbon;
+use Illuminate\Auth\Access\AuthorizationException;
 use Illuminate\Database\Eloquent\Collection;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Validation\ValidationException;
@@ -314,9 +315,19 @@ class PaymentAllocationService
         string|int $refundId,
         array $data,
         ?int $userId = null,
+        bool $pendingOnly = false,
     ): PaymentRefund {
-        return DB::transaction(function () use ($refundId, $data, $userId): PaymentRefund {
+        return DB::transaction(function () use ($refundId, $data, $userId, $pendingOnly): PaymentRefund {
             $refund = PaymentRefund::query()->lockForUpdate()->findOrFail($refundId);
+            if ($pendingOnly && $refund->status !== PaymentRefund::STATUS_PENDING) {
+                throw new AuthorizationException('Chỉ được chỉnh sửa khoản trả khách đang chờ hoàn.');
+            }
+
+            $requestedStatus = (string) ($data['status'] ?? $refund->status);
+            if ($pendingOnly && $requestedStatus !== PaymentRefund::STATUS_PENDING) {
+                throw new AuthorizationException('Bạn không có quyền chuyển trạng thái khoản trả khách.');
+            }
+
             $oldQuotationId = $refund->quotation_id;
             $payment = Payment::query()
                 ->with(['allocations.quotation', 'refunds'])
