@@ -70,6 +70,9 @@ class CreateQuotationRequest extends BaseRequest
             'items.*.sort_order' => ['nullable', 'integer', 'min:0'],
             'items.*.sortOrder' => ['nullable', 'integer', 'min:0'],
             'items.*.metadata' => ['nullable', 'array'],
+            'items.*.metadata.unit' => ['sometimes', 'nullable', 'string', 'max:50'],
+            'items.*.metadata.locked' => ['sometimes', 'boolean'],
+            'items.*.metadata.excludedFromTotal' => ['sometimes', 'boolean'],
             'items.*.metadata.countsTowardTopupBudget' => ['sometimes', 'boolean'],
         ];
     }

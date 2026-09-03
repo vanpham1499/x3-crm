@@ -27,6 +27,12 @@ class UpdateOptionRequest extends BaseRequest
             'meta.color' => ['nullable', 'string', 'regex:/^#[0-9a-fA-F]{6}$/'],
             'meta.requiresWeeklyReport' => ['nullable', 'boolean'],
             'meta.note' => ['nullable', 'string', 'max:2000'],
+            'meta.bankCode' => ['nullable', 'string', 'max:50'],
+            'meta.bankName' => ['nullable', 'string', 'max:255'],
+            'meta.branch' => ['nullable', 'string', 'max:255'],
+            'meta.isDefault' => ['nullable', 'boolean'],
+            'meta.type' => ['nullable', Rule::in(['bonus', 'penalty'])],
+            'meta.defaultScore' => ['nullable', 'numeric'],
             'meta.serviceRootIds' => ['nullable', 'array', 'min:2'],
             'meta.serviceRootIds.*' => [
                 'integer',

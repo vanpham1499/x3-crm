@@ -18,6 +18,8 @@ use Illuminate\Validation\ValidationException;
 
 class QuotationsService extends BaseService
 {
+    private const AUTO_ITEM_CODES = ['-1', '-2', '-3'];
+
     public function __construct(
         private readonly QuotationRepository $quotations,
         private readonly PaymentRepository $payments,
@@ -486,7 +488,7 @@ class QuotationsService extends BaseService
         ?float $quotationVatRate = null,
         bool $excludeBudgetFromTotal = false,
     ): array {
-        return collect($items)
+        $normalizedItems = collect($items)
             ->map(function (array $item, int $index) use ($quotationVatRate, $excludeBudgetFromTotal): array {
                 $item = $this->normalizeItemKeys($item);
                 $item = $this->applyItemServiceDefaults($item);
@@ -495,8 +497,18 @@ class QuotationsService extends BaseService
                 $unitPrice = (float) ($item['unit_price'] ?? 0);
                 $amountBeforeVat = (float) ($item['amount_before_vat'] ?? round($quantity * $unitPrice, 2));
                 $metadata = is_array($item['metadata'] ?? null) ? $item['metadata'] : [];
+                $itemCode = (string) ($item['item_code'] ?? '');
+
+                if (in_array($itemCode, self::AUTO_ITEM_CODES, true)) {
+                    $metadata['locked'] = true;
+                    $metadata['unit'] = $metadata['unit'] ?? match ($itemCode) {
+                        '-1' => 'Tháng',
+                        '-3' => 'Lần',
+                        default => 'Dịch vụ',
+                    };
+                }
                 $excludedFromTotal = $excludeBudgetFromTotal
-                    && (string) ($item['item_code'] ?? '') === '-1'
+                    && $itemCode === '-1'
                     && ($metadata['locked'] ?? false) === true;
                 $metadata['excludedFromTotal'] = $excludedFromTotal;
                 $vatRate = $excludedFromTotal
@@ -526,6 +538,49 @@ class QuotationsService extends BaseService
             })
             ->values()
             ->all();
+
+        return $this->removeDuplicatedAutoItems($normalizedItems);
+    }
+
+    /** @param array<int, array<string, mixed>> $items @return array<int, array<string, mixed>> */
+    private function removeDuplicatedAutoItems(array $items): array
+    {
+        $autoSignatures = collect($items)
+            ->filter(fn (array $item): bool => in_array((string) ($item['item_code'] ?? ''), self::AUTO_ITEM_CODES, true))
+            ->mapWithKeys(fn (array $item): array => [$this->itemSignature($item) => true]);
+        $seenAutoCodes = [];
+
+        return collect($items)
+            ->filter(function (array $item) use ($autoSignatures, &$seenAutoCodes): bool {
+                $itemCode = (string) ($item['item_code'] ?? '');
+
+                if (in_array($itemCode, self::AUTO_ITEM_CODES, true)) {
+                    if (isset($seenAutoCodes[$itemCode])) {
+                        return false;
+                    }
+
+                    $seenAutoCodes[$itemCode] = true;
+
+                    return true;
+                }
+
+                return ! $autoSignatures->has($this->itemSignature($item));
+            })
+            ->values()
+            ->all();
+    }
+
+    /** @param array<string, mixed> $item */
+    private function itemSignature(array $item): string
+    {
+        $name = Str::lower(trim((string) ($item['item_name'] ?? '')));
+        $name = preg_replace('/\s+/u', ' ', $name) ?? $name;
+
+        return implode('|', [
+            $name,
+            number_format((float) ($item['quantity'] ?? 1), 4, '.', ''),
+            number_format((float) ($item['unit_price'] ?? 0), 2, '.', ''),
+        ]);
     }
 
     private function normalizeItemKeys(array $item): array

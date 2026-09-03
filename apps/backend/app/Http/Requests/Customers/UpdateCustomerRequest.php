@@ -13,8 +13,10 @@ class UpdateCustomerRequest extends BaseRequest
         $customerId = $this->route('id');
 
         return [
-            'customer_code' => ['sometimes', 'required', 'string', 'max:50', Rule::unique('customers', 'customer_code')->ignore($customerId)],
-            'customerCode' => ['sometimes', 'required', 'string', 'max:50', Rule::unique('customers', 'customer_code')->ignore($customerId)],
+            'customer_code' => ['sometimes', 'required', 'string', 'max:50', Rule::unique('customers', 'customer_code')->ignore($customerId)->whereNull('deleted_at')],
+            'customerCode' => ['sometimes', 'required', 'string', 'max:50', Rule::unique('customers', 'customer_code')->ignore($customerId)->whereNull('deleted_at')],
+            'purge_deleted_duplicate' => ['nullable', 'boolean'],
+            'purgeDeletedDuplicate' => ['nullable', 'boolean'],
             'lead_id' => ['sometimes', 'nullable', 'integer', Rule::exists('leads', 'id')->whereNull('deleted_at')],
             'leadId' => ['sometimes', 'nullable', 'integer', Rule::exists('leads', 'id')->whereNull('deleted_at')],
             'customer_name' => ['sometimes', 'string', 'max:255', 'not_regex:/\s/u'],

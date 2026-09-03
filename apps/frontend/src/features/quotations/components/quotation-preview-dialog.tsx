@@ -107,7 +107,11 @@ function quotationQrUrl(quotation: Quotation, amount: number) {
     accountName,
   });
 
-  params.set('amount', String(Math.round(amount)));
+  const roundedAmount = Math.round(amount);
+  params.set('amount', String(roundedAmount));
+  // VietQR images are cached aggressively. Keep the cache key tied to the
+  // actual transfer payload so an edited amount can never reuse an older QR.
+  params.set('_v', `2-${bankCode}-${accountNo}-${paymentContent}-${roundedAmount}`);
 
   return `https://img.vietqr.io/image/${bankCode}-${accountNo}-qr_only.png?${params.toString()}`;
 }
@@ -246,8 +250,11 @@ function PaymentDetails({
           <div className="flex items-center justify-center md:justify-end">
             {/* eslint-disable-next-line @next/next/no-img-element */}
             <img
+              key={qrUrl}
               src={qrUrl}
               alt="Mã VietQR thanh toán báo phí"
+              data-qr-amount={Math.round(amount)}
+              loading="eager"
               className="aspect-square h-auto w-full max-w-[320px] object-contain"
             />
           </div>

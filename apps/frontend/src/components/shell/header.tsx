@@ -11,15 +11,7 @@ import { NotificationCenter } from '@/features/notifications/components/notifica
 import { ProfileCenter } from '@/features/profile/components/profile-center';
 import x3salesLogo from '@assets/logos/x3sales-logo.svg';
 
-const WEEKDAY_LABELS = [
-  'Chủ nhật',
-  'Thứ Hai',
-  'Thứ Ba',
-  'Thứ Tư',
-  'Thứ Năm',
-  'Thứ Sáu',
-  'Thứ Bảy',
-];
+const WEEKDAY_LABELS = ['Chủ nhật', 'Thứ Hai', 'Thứ Ba', 'Thứ Tư', 'Thứ Năm', 'Thứ Sáu', 'Thứ Bảy'];
 const headerDateFormatter = new Intl.DateTimeFormat('vi-VN', {
   day: '2-digit',
   month: '2-digit',
@@ -74,16 +66,23 @@ function HeaderIconButton({
   className = '',
   onClick,
   title,
+  ariaControls,
+  ariaExpanded,
 }: {
   children: React.ReactNode;
   className?: string;
   onClick?: () => void;
   title: string;
+  ariaControls?: string;
+  ariaExpanded?: boolean;
 }) {
   return (
     <button
       type="button"
       title={title}
+      aria-label={title}
+      aria-controls={ariaControls}
+      aria-expanded={ariaExpanded}
       onClick={onClick}
       className={`relative inline-flex h-10 w-10 items-center justify-center rounded-full text-slate-500 transition hover:bg-slate-100 hover:text-primary dark:text-slate-300 dark:hover:bg-slate-800 ${className}`}
     >
@@ -96,10 +95,17 @@ export type HeaderUtility = 'calculator' | 'notifications' | 'profile';
 
 type HeaderProps = {
   activeUtility?: HeaderUtility | null;
+  mobileMenuOpen?: boolean;
+  onOpenMenu?: () => void;
   onToggleUtility?: (utility: HeaderUtility) => void;
 };
 
-export function Header({ activeUtility = null, onToggleUtility }: HeaderProps) {
+export function Header({
+  activeUtility = null,
+  mobileMenuOpen = false,
+  onOpenMenu,
+  onToggleUtility,
+}: HeaderProps) {
   const [themeMode, setThemeMode] = useState<'light' | 'dark'>('light');
 
   useEffect(() => {
@@ -119,13 +125,19 @@ export function Header({ activeUtility = null, onToggleUtility }: HeaderProps) {
   };
 
   return (
-    <header className="sticky top-0 z-20 flex h-[72px] items-center justify-between bg-white/80 px-4 backdrop-blur-md dark:bg-slate-950/80 md:px-6">
-      <div className="flex min-w-0 items-center gap-3">
-        <HeaderIconButton title="Mở menu" className="lg:hidden">
+    <header className="sticky top-0 z-20 flex h-[72px] min-w-0 items-center justify-between bg-white/80 px-2 backdrop-blur-md dark:bg-slate-950/80 sm:px-4 md:px-6">
+      <div className="flex min-w-0 items-center gap-1 sm:gap-3">
+        <HeaderIconButton
+          title="Mở menu"
+          className="lg:hidden"
+          ariaControls="mobile-sidebar"
+          ariaExpanded={mobileMenuOpen}
+          onClick={onOpenMenu}
+        >
           <MenuRoundedIcon />
         </HeaderIconButton>
 
-        <div className="mr-1 block lg:hidden">
+        <div className="mr-1 hidden sm:block lg:hidden">
           <Image
             src={x3salesLogo}
             alt="X3Sales logo"
@@ -135,10 +147,20 @@ export function Header({ activeUtility = null, onToggleUtility }: HeaderProps) {
           />
         </div>
 
+        <div className="mr-1 block sm:hidden">
+          <Image
+            src="/favicon.png"
+            alt="X3Sales"
+            width={32}
+            height={32}
+            className="h-8 w-8 object-contain"
+          />
+        </div>
+
         <HeaderDateTime />
       </div>
 
-      <div className="flex items-center gap-1">
+      <div className="flex min-w-0 shrink-0 items-center gap-0.5 sm:gap-1">
         <HeaderIconButton
           title={activeUtility === 'calculator' ? 'Ẩn máy tính' : 'Mở máy tính'}
           onClick={() => onToggleUtility?.('calculator')}

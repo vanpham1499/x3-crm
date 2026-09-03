@@ -33,14 +33,22 @@ export function UtilityDrawer({
         backdrop: { className: '!bg-slate-950/30 !backdrop-blur-[1px]' },
         paper: {
           className:
-            '!flex !h-dvh !max-w-full !flex-col !overflow-hidden !border-l !border-slate-200 !bg-white !shadow-2xl dark:!border-slate-800 dark:!bg-slate-950',
-          sx: { width: { xs: '100%', sm: 420 } },
+            '!flex !h-dvh !min-w-0 !flex-col !overflow-hidden !overflow-x-hidden !border-l !border-slate-200 !bg-white !shadow-2xl dark:!border-slate-800 dark:!bg-slate-950',
+          sx: {
+            boxSizing: 'border-box',
+            width: 420,
+            maxWidth: 'calc(100vw - 8px)',
+            overscrollBehaviorX: 'none',
+          },
         },
       }}
     >
-      <div className="flex min-h-[72px] shrink-0 items-center justify-between border-b border-slate-100 px-5 dark:border-slate-800">
+      <div className="flex min-h-[72px] min-w-0 shrink-0 items-center justify-between border-b border-slate-100 px-4 dark:border-slate-800 sm:px-5">
         <div className="min-w-0 pr-3">
-          <h2 id={titleId} className="truncate text-lg font-extrabold text-slate-950 dark:text-white">
+          <h2
+            id={titleId}
+            className="truncate text-lg font-extrabold text-slate-950 dark:text-white"
+          >
             {title}
           </h2>
           {subtitle ? (
@@ -60,7 +68,9 @@ export function UtilityDrawer({
           </IconButton>
         </div>
       </div>
-      <div className="min-h-0 flex-1 overflow-hidden">{children}</div>
+      <div className="min-h-0 min-w-0 max-w-full flex-1 overflow-hidden overflow-x-hidden">
+        {children}
+      </div>
     </Drawer>
   );
 }

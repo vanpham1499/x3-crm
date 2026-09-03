@@ -9,11 +9,15 @@ use RuntimeException;
 
 class DeletedCustomerCodeConflictException extends RuntimeException
 {
-    /** @param array<int, string> $blockers */
+    /**
+     * @param  array<int, string>  $blockers
+     * @param  array{projects: array<int, string>, quotations: array<int, string>}  $relatedRecords
+     */
     public function __construct(
         private readonly Customer $customer,
         private readonly bool $canPurge,
         private readonly array $blockers = [],
+        private readonly array $relatedRecords = ['projects' => [], 'quotations' => []],
     ) {
         parent::__construct('Mã khách hàng này thuộc một hồ sơ đã xóa.');
     }
@@ -32,6 +36,7 @@ class DeletedCustomerCodeConflictException extends RuntimeException
                 'deletedAt' => $this->customer->deleted_at?->toIso8601String(),
                 'canPurge' => $this->canPurge,
                 'blockers' => $this->blockers,
+                'relatedRecords' => $this->relatedRecords,
             ],
         ], 409);
     }

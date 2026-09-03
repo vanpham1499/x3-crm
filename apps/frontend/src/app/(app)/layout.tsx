@@ -16,7 +16,12 @@ export default function AppLayout({ children }: { children: React.ReactNode }) {
   const pathname = usePathname();
   const { status, init, verify, user } = useAuthStore();
   const [activeUtility, setActiveUtility] = useState<HeaderUtility | null>(null);
+  const [mobileSidebarOpen, setMobileSidebarOpen] = useState(false);
   const verifiedPathRef = useRef(pathname);
+
+  useEffect(() => {
+    setMobileSidebarOpen(false);
+  }, [pathname]);
 
   useEffect(() => {
     if (status === 'unauthenticated') {
@@ -63,7 +68,7 @@ export default function AppLayout({ children }: { children: React.ReactNode }) {
 
   return (
     <div className="flex min-h-screen bg-background">
-      <Sidebar />
+      <Sidebar mobileOpen={mobileSidebarOpen} onMobileClose={() => setMobileSidebarOpen(false)} />
       <CalculatorPanel
         open={activeUtility === 'calculator'}
         onClose={() => setActiveUtility(null)}
@@ -71,6 +76,8 @@ export default function AppLayout({ children }: { children: React.ReactNode }) {
       <div className="min-w-0 flex-1">
         <Header
           activeUtility={activeUtility}
+          mobileMenuOpen={mobileSidebarOpen}
+          onOpenMenu={() => setMobileSidebarOpen(true)}
           onToggleUtility={(utility) =>
             setActiveUtility((current) => (current === utility ? null : utility))
           }

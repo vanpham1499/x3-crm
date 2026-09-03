@@ -54,6 +54,14 @@ class CustomerResource extends JsonResource
                 'email' => $this->createdBy->email,
             ] : null),
             'projectsCount' => $this->whenLoaded('projects', fn () => $this->projects->count()),
+            'projects' => $this->whenLoaded('projects', fn () => $this->projects
+                ->filter(fn ($project): bool => (bool) ($request->user()?->can('view', $project) ?? false))
+                ->map(fn ($project): array => [
+                    'id' => $project->id,
+                    'projectCode' => $project->project_code,
+                    'projectName' => $project->project_name,
+                ])
+                ->values()),
             'timelines' => CustomerTimelineResource::collection($this->whenLoaded('timelines')),
             'canUpdate' => (bool) ($request->user()?->can('update', $this->resource) ?? false),
             'canDelete' => (bool) ($request->user()?->can('delete', $this->resource) ?? false),

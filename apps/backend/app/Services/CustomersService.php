@@ -107,9 +107,19 @@ class CustomersService extends BaseService
     {
         return $this->transaction(function () use ($id, $data): array {
             $data = $this->normalizePayload($data);
+            $purgeDeletedDuplicate = (bool) ($data['purge_deleted_duplicate'] ?? false);
+            unset($data['purge_deleted_duplicate']);
 
             $before = $this->loadCustomerRelations($this->customers->findWithRelationsOrFail($id));
             $this->authorize('update', $before);
+
+            if (array_key_exists('customer_code', $data)) {
+                $this->resolveDeletedCodeConflict(
+                    (string) $data['customer_code'],
+                    $purgeDeletedDuplicate,
+                    (int) $before->id,
+                );
+            }
 
             if (array_key_exists('sales_user_id', $data)) {
                 $this->validateAssigneeScope('customer', $data['sales_user_id'], 'salesUserId');
@@ -238,12 +248,17 @@ class CustomersService extends BaseService
         return $lead;
     }
 
-    private function resolveDeletedCodeConflict(string $customerCode, bool $purge): void
+    private function resolveDeletedCodeConflict(
+        string $customerCode,
+        bool $purge,
+        ?int $ignoreCustomerId = null,
+    ): void
     {
         /** @var Customer|null $duplicate */
         $duplicate = Customer::query()
             ->withTrashed()
             ->where('customer_code', $customerCode)
+            ->when($ignoreCustomerId, fn ($query) => $query->whereKeyNot($ignoreCustomerId))
             ->lockForUpdate()
             ->first();
 
@@ -258,10 +273,16 @@ class CustomersService extends BaseService
         }
 
         $blockers = $this->permanentDeleteBlockers($duplicate->id);
+        $relatedRecords = $this->deletedCustomerRelatedRecords($duplicate->id);
         $canDelete = (bool) ($this->currentUser()?->can('delete', $duplicate) ?? false);
 
         if (! $purge) {
-            throw new DeletedCustomerCodeConflictException($duplicate, $canDelete, $blockers);
+            throw new DeletedCustomerCodeConflictException(
+                $duplicate,
+                $canDelete,
+                $blockers,
+                $relatedRecords,
+            );
         }
 
         if (! $canDelete) {
@@ -294,6 +315,45 @@ class CustomersService extends BaseService
                 && DB::table($table)->where('customer_id', $customerId)->exists())
             ->values()
             ->all();
+    }
+
+    /** @return array{projects: array<int, string>, quotations: array<int, string>} */
+    private function deletedCustomerRelatedRecords(int $customerId): array
+    {
+        $projects = DB::table('projects')
+            ->where('customer_id', $customerId)
+            ->orderBy('id')
+            ->get(['id', 'project_code', 'project_name']);
+        $projectIds = $projects->pluck('id')->all();
+        $quotations = DB::table('quotations')
+            ->where(function ($query) use ($customerId, $projectIds): void {
+                $query->where('customer_id', $customerId);
+
+                if ($projectIds !== []) {
+                    $query->orWhereIn('project_id', $projectIds);
+                }
+            })
+            ->orderBy('id')
+            ->pluck('quotation_code')
+            ->map(fn ($code): string => trim((string) $code))
+            ->filter()
+            ->unique()
+            ->values()
+            ->all();
+
+        return [
+            'projects' => $projects
+                ->map(function ($project): string {
+                    $code = trim((string) $project->project_code);
+                    $name = trim((string) $project->project_name);
+
+                    return $code !== '' ? $code : ($name !== '' ? $name : '#'.$project->id);
+                })
+                ->unique()
+                ->values()
+                ->all(),
+            'quotations' => $quotations,
+        ];
     }
 
     private function forceDeleteCustomerGraph(Customer $customer): void

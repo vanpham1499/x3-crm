@@ -31,7 +31,7 @@ import { canCreateProjectForCustomer, canDeleteCustomer, canEditCustomer } from 
 import { getMediaPreviewUrl } from '@/lib/media-url';
 import { getOptionColor } from '@/lib/option-utils';
 import api from '@/services/api/client';
-import type { Customer, CustomerFilters } from '@/types/customer';
+import type { Customer, CustomerFilters, CustomerProjectSummary } from '@/types/customer';
 import type { AppOption } from '@/types/option';
 import type { User } from '@/types/user';
 
@@ -126,16 +126,32 @@ function CustomerDetailRow({ label, value }: { label: string; value?: string | n
 
 function CustomerLinkActions({
   website,
-  project,
+  projects,
 }: {
   website?: string | null;
-  project?: string | null;
+  projects?: CustomerProjectSummary[];
 }) {
+  const availableProjects = projects || [];
+
   return (
     <div className="grid grid-cols-[128px_minmax(0,1fr)] gap-3 text-sm md:col-span-2">
       <dt className="font-semibold text-slate-500">Liên kết</dt>
       <dd className="flex min-w-0 flex-wrap items-center gap-2">
-        <ExternalLinkButton value={project} label="Link Dự án" icon={<WorkRoundedIcon />} />
+        {availableProjects.length ? (
+          availableProjects.map((project) => (
+            <DialogActionButton
+              key={project.id}
+              href={`/projects/${project.id}`}
+              startIcon={<WorkRoundedIcon />}
+            >
+              {availableProjects.length === 1 ? 'Link Dự án' : project.projectCode}
+            </DialogActionButton>
+          ))
+        ) : (
+          <DialogActionButton disabled startIcon={<WorkRoundedIcon />}>
+            Link Dự án
+          </DialogActionButton>
+        )}
         <ExternalLinkButton value={website} label="Link Website" icon={<LanguageRoundedIcon />} />
       </dd>
     </div>
@@ -189,7 +205,7 @@ function CustomerIdentityImages({ imageUrls }: { imageUrls: string[] }) {
   );
 }
 
-function CustomerViewDialog({
+export function CustomerViewDialog({
   customer,
   tab,
   isLoading,
@@ -263,7 +279,7 @@ function CustomerViewDialog({
                   value={customer.identityNo || customer.taxCode}
                 />
                 <CustomerDetailRow label="Ngày sinh" value={customer.birthday} />
-                <CustomerLinkActions website={customer.website} project={customer.planLink} />
+                <CustomerLinkActions website={customer.website} projects={customer.projects} />
               </dl>
 
               <div className="mt-5 grid gap-4 border-t border-slate-100 pt-5 md:grid-cols-2">

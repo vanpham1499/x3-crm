@@ -17,6 +17,7 @@ import { FormSelectField } from '@/components/form/form-select-field';
 import { MoneyInput } from '@/components/form/money-input';
 import { ServerPaginatedAutocomplete } from '@/components/form/server-paginated-autocomplete';
 import { MultiImageUpload } from '@/components/upload/multi-image-upload';
+import { CustomerViewDialog } from '@/features/customers/components/customer-manager';
 import { getApiFieldErrors } from '@/lib/api-error';
 import { PageHeader } from '@/components/shell/page-header';
 import {
@@ -36,14 +37,16 @@ import { flattenServices } from '@/lib/service-utils';
 import api from '@/services/api/client';
 import { useAuthStore } from '@/stores/auth-store';
 import type { AppOption } from '@/types/option';
+import type { Customer } from '@/types/customer';
 import type { ProjectItem, ProjectType } from '@/types/project';
-import type { Quotation, QuotationLineFormValue } from '@/types/quotation';
+import type { Quotation, QuotationItem, QuotationLineFormValue } from '@/types/quotation';
 import type { ServiceItem } from '@/types/service';
 import { QuotationItemsTable } from './quotation-items-table';
 
 const NO_SETUP_PACKAGE_KEY = 'none';
 const NON_TAXABLE_DEPOSIT_MODE = 'non_taxable_addition_v1';
 const VAT_RATE_OPTIONS = ['7', '8', '10'] as const;
+const AUTO_ITEM_CODES = new Set(['-1', '-2', '-3']);
 
 type QuotationFormProps = {
   mode: 'create' | 'edit';
@@ -104,6 +107,30 @@ function getLineUnit(line: { metadata?: Record<string, unknown> | null }) {
   return typeof unit === 'string' && unit ? unit : 'Dịch vụ';
 }
 
+function quotationItemSignature(item: QuotationItem) {
+  return [
+    item.itemName.trim().toLocaleLowerCase('vi-VN').replace(/\s+/gu, ' '),
+    toNumber(item.quantity ?? 1).toFixed(4),
+    toNumber(item.unitPrice).toFixed(2),
+  ].join('|');
+}
+
+function getManualQuotationItems(items: QuotationItem[]) {
+  const autoSignatures = new Set(
+    items
+      .filter((item) => AUTO_ITEM_CODES.has(String(item.itemCode || '')))
+      .map(quotationItemSignature),
+  );
+
+  return items.filter((item) => {
+    if (item.metadata?.locked === true || AUTO_ITEM_CODES.has(String(item.itemCode || ''))) {
+      return false;
+    }
+
+    return !autoSignatures.has(quotationItemSignature(item));
+  });
+}
+
 function getProjectOptionLabel(project: ProjectItem) {
   return project.projectCode || `Dự án #${project.id}`;
 }
@@ -139,6 +166,8 @@ export function QuotationForm({
     { id: 1, name: '', unit: 'Dịch vụ', quantity: '1', unitPrice: '0' },
   ]);
   const [fieldErrors, setFieldErrors] = useState<Record<string, string>>({});
+  const [customerViewTarget, setCustomerViewTarget] = useState<Customer | null>(null);
+  const [customerViewTab, setCustomerViewTab] = useState(0);
   const currentUser = useAuthStore((state) => state.user);
   const canApproveTopupCredit =
     quotation?.canApproveTopupCredit ??
@@ -150,6 +179,13 @@ export function QuotationForm({
     [bankAccountOptions],
   );
   const selectedProject = selectedProjectOption;
+  const customerViewId = customerViewTarget?.id || '';
+  const { data: customerViewDetail, isFetching: isFetchingCustomerView } = useQuery<Customer>({
+    queryKey: ['customers', customerViewId, 'quotation-quick-view'],
+    queryFn: () =>
+      api.get<Customer>(`/customers/lookup/${customerViewId}`).then((response) => response.data),
+    enabled: Boolean(customerViewId),
+  });
   const { data: defaultProject } = useQuery<ProjectItem>({
     queryKey: ['projects', defaultProjectId, 'quotation-default-project'],
     queryFn: () =>
@@ -303,17 +339,16 @@ export function QuotationForm({
     setSelectedBankAccountId(getMetadataValue(metadata, 'bankAccountOptionId'));
     setAccountReconciliationImageUrls(quotation.accountReconciliationImageUrls || []);
 
-    const nextManualLines =
-      quotation.items
-        ?.filter((item) => item.metadata?.locked !== true)
-        .map((item) => ({
+    const nextManualLines = quotation.items
+      ? getManualQuotationItems(quotation.items).map((item) => ({
           id: item.id || createQuoteLineId(),
           name: item.itemName || '',
           unit: getLineUnit(item),
           quantity: String(item.quantity ?? '1'),
           unitPrice: String(item.unitPrice ?? '0'),
           countsTowardTopupBudget: item.metadata?.countsTowardTopupBudget === true,
-        })) || [];
+        }))
+      : [];
 
     setManualLines(
       nextManualLines.length > 0
@@ -525,443 +560,475 @@ export function QuotationForm({
   };
 
   return (
-    <form
-      noValidate
-      className="flex min-h-[calc(100vh-72px)] flex-col bg-slate-50/60 px-6 pt-6"
-      onSubmit={(event) => {
-        event.preventDefault();
-        if (!isSubmitting && !isUploadingReconciliationImages && !missingRequiredProject)
-          submitForm();
-      }}
-    >
-      <PageHeader
-        title={mode === 'edit' ? 'Chỉnh sửa báo phí' : 'Thêm báo phí'}
-        currentLabel={mode === 'edit' ? quotation?.quotationCode || 'Chỉnh sửa' : undefined}
-      />
+    <>
+      <form
+        noValidate
+        className="flex min-h-[calc(100vh-72px)] flex-col bg-slate-50/60 px-6 pt-6"
+        onSubmit={(event) => {
+          event.preventDefault();
+          if (!isSubmitting && !isUploadingReconciliationImages && !missingRequiredProject)
+            submitForm();
+        }}
+      >
+        <PageHeader
+          title={mode === 'edit' ? 'Chỉnh sửa báo phí' : 'Thêm báo phí'}
+          currentLabel={mode === 'edit' ? quotation?.quotationCode || 'Chỉnh sửa' : undefined}
+        />
 
-      {isPaymentLocked ? (
-        <div
-          className="mb-4 flex items-start gap-3 rounded-xl border border-emerald-200 bg-emerald-50 px-4 py-3"
-          role="status"
-        >
-          <LockRoundedIcon className="mt-0.5 !text-[20px] !text-emerald-700" />
-          <div className="min-w-0">
-            <p className="text-sm font-bold text-emerald-800">Báo phí đã được khóa</p>
-            <p className="mt-0.5 text-sm font-medium text-emerald-700">
-              Báo phí đã thu đủ. Bạn chỉ có thể cập nhật ghi chú.
-            </p>
-          </div>
-        </div>
-      ) : null}
-
-      <div className="grid items-start gap-6 xl:grid-cols-12">
-        <div className="xl:col-span-5">
-          <FormSection title="Thông tin báo phí">
-            <ServerPaginatedAutocomplete<ProjectItem>
-              endpoint="/projects"
-              queryKey={['projects', 'quotation-autocomplete']}
-              label="Dự án"
-              value={selectedProject}
-              disabled={isPaymentLocked || (mode === 'edit' && Boolean(quotation?.projectId))}
-              required
-              error={Boolean(fieldErrors.projectId || fieldErrors.project_id)}
-              helperText={fieldErrors.projectId || fieldErrors.project_id}
-              placeholder="Nhập mã dự án, tên dự án hoặc khách hàng"
-              onChange={(value) => {
-                setSelectedProjectOption(value);
-                setProjectId(idToString(value?.id));
-                setSelectedServiceId(idToString(value?.serviceId));
-                setProjectType(normalizeProjectType(value?.projectType));
-              }}
-              getOptionLabel={getProjectOptionLabel}
-            />
-
-            {selectedProject ? (
-              <dl className="grid overflow-hidden rounded-xl border border-slate-200 bg-slate-50 md:grid-cols-[minmax(0,2fr)_minmax(0,2fr)_minmax(0,1fr)]">
-                <div className="min-w-0 px-3 py-2.5">
-                  <dt className="text-[11px] font-bold uppercase tracking-wide text-slate-400">
-                    Khách hàng
-                  </dt>
-                  <dd className="mt-1 truncate text-sm font-bold text-slate-800">
-                    {formatCustomerIdentity(selectedProject.customer)}
-                  </dd>
-                </div>
-                <div className="min-w-0 border-slate-200 px-3 py-2.5 md:border-x">
-                  <dt className="text-[11px] font-bold uppercase tracking-wide text-slate-400">
-                    Dịch vụ
-                  </dt>
-                  <dd
-                    className="mt-1 truncate text-sm font-bold text-slate-800"
-                    title={
-                      selectedService ? `${selectedService.code} - ${selectedService.pathName}` : ''
-                    }
-                  >
-                    {selectedService
-                      ? `${selectedService.code} - ${selectedService.pathName}`
-                      : '-'}
-                  </dd>
-                </div>
-                <div className="min-w-0 px-3 py-2.5">
-                  <dt className="text-[11px] font-bold uppercase tracking-wide text-slate-400">
-                    Loại
-                  </dt>
-                  <dd className="mt-1 text-sm font-bold text-slate-800">
-                    {projectType === 'O' ? 'Không chọn' : projectType}
-                  </dd>
-                </div>
-              </dl>
-            ) : null}
-
-            <div className="grid gap-4 md:grid-cols-12">
-              <FormSelectField
-                className="md:col-span-6"
-                label="VAT"
-                value={vatRate}
-                disabled={isPaymentLocked}
-                onChange={(event) => setVatRate(event.target.value)}
-              >
-                {VAT_RATE_OPTIONS.map((rate) => (
-                  <MenuItem key={rate} value={rate}>
-                    {rate}%
-                  </MenuItem>
-                ))}
-              </FormSelectField>
-              <MoneyInput
-                fullWidth
-                size="small"
-                label="Cọc"
-                value={depositAmount}
-                disabled={isPaymentLocked}
-                onValueChange={setDepositAmount}
-                error={Boolean(fieldErrors.depositAmount || fieldErrors.deposit_amount)}
-                helperText={fieldErrors.depositAmount || fieldErrors.deposit_amount}
-                className={`${compactFormFieldClassName} md:col-span-6`}
-              />
-              {canUseAutoQuote && (
-                <>
-                  <MoneyInput
-                    fullWidth
-                    size="small"
-                    label="Ngân sách"
-                    value={budget}
-                    disabled={isPaymentLocked}
-                    onValueChange={setBudget}
-                    className={`${compactFormFieldClassName} md:col-span-6`}
-                  />
-                  <FormSelectField
-                    className="md:col-span-6"
-                    label="Gói setup"
-                    value={setupPackageKey}
-                    disabled={isPaymentLocked}
-                    onChange={(event) => setSetupPackageKey(event.target.value)}
-                  >
-                    <MenuItem value={NO_SETUP_PACKAGE_KEY}>Không tính phí setup</MenuItem>
-                    {(rootConfig?.setupPackages || []).map((item) => (
-                      <MenuItem key={item.key} value={item.key}>
-                        {item.label} - {formatCurrency(item.price)}
-                      </MenuItem>
-                    ))}
-                  </FormSelectField>
-                </>
-              )}
+        {isPaymentLocked ? (
+          <div
+            className="mb-4 flex items-start gap-3 rounded-xl border border-emerald-200 bg-emerald-50 px-4 py-3"
+            role="status"
+          >
+            <LockRoundedIcon className="mt-0.5 !text-[20px] !text-emerald-700" />
+            <div className="min-w-0">
+              <p className="text-sm font-bold text-emerald-800">Báo phí đã được khóa</p>
+              <p className="mt-0.5 text-sm font-medium text-emerald-700">
+                Báo phí đã thu đủ. Bạn chỉ có thể cập nhật ghi chú.
+              </p>
             </div>
+          </div>
+        ) : null}
 
-            {projectType === 'M' ? (
-              <div
-                className={`rounded-xl border p-4 transition-colors duration-200 ${
-                  topupCreditEnabled
-                    ? 'border-amber-200 bg-amber-50/70'
-                    : 'border-slate-200 bg-slate-50/70'
-                }`}
-              >
-                <div className="flex items-start gap-3">
-                  <span
-                    className={`mt-0.5 inline-flex h-9 w-9 shrink-0 items-center justify-center rounded-lg ${
-                      topupCreditEnabled
-                        ? 'bg-amber-100 text-amber-700'
-                        : 'bg-white text-slate-500 ring-1 ring-slate-200'
-                    }`}
-                  >
-                    <CreditScoreRoundedIcon fontSize="small" />
-                  </span>
-                  <div className="min-w-0 flex-1">
-                    <FormControlLabel
-                      className="!m-0 min-h-10"
-                      control={
-                        <Checkbox
-                          checked={topupCreditEnabled}
-                          disabled={
-                            !canApproveTopupCredit ||
-                            isPaymentLocked ||
-                            isSubmitting ||
-                            topupEligibleAmount <= 0
-                          }
-                          onChange={(event) => toggleTopupCredit(event.target.checked)}
-                        />
-                      }
-                      label={
-                        <span className="text-sm font-bold text-slate-800">
-                          Cho phép nạp trước khi thu tiền
+        <div className="grid items-start gap-6 xl:grid-cols-12">
+          <div className="xl:col-span-5">
+            <FormSection title="Thông tin báo phí">
+              <ServerPaginatedAutocomplete<ProjectItem>
+                endpoint="/projects"
+                queryKey={['projects', 'quotation-autocomplete']}
+                label="Dự án"
+                value={selectedProject}
+                disabled={isPaymentLocked || (mode === 'edit' && Boolean(quotation?.projectId))}
+                required
+                error={Boolean(fieldErrors.projectId || fieldErrors.project_id)}
+                helperText={fieldErrors.projectId || fieldErrors.project_id}
+                placeholder="Nhập mã dự án, tên dự án hoặc khách hàng"
+                onChange={(value) => {
+                  setSelectedProjectOption(value);
+                  setProjectId(idToString(value?.id));
+                  setSelectedServiceId(idToString(value?.serviceId));
+                  setProjectType(normalizeProjectType(value?.projectType));
+                }}
+                getOptionLabel={getProjectOptionLabel}
+              />
+
+              {selectedProject ? (
+                <dl className="grid overflow-hidden rounded-xl border border-slate-200 bg-slate-50 md:grid-cols-[minmax(0,2fr)_minmax(0,2fr)_minmax(0,1fr)]">
+                  <div className="min-w-0 px-3 py-2.5">
+                    <dt className="text-[11px] font-bold uppercase tracking-wide text-slate-400">
+                      Khách hàng
+                    </dt>
+                    <dd className="mt-1 truncate text-sm font-bold">
+                      {selectedProject.customer?.id ? (
+                        <button
+                          type="button"
+                          aria-haspopup="dialog"
+                          title="Xem chi tiết khách hàng"
+                          className="max-w-full truncate text-left text-primary transition hover:underline focus-visible:rounded focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary/30"
+                          onClick={() => {
+                            setCustomerViewTarget(selectedProject.customer as Customer);
+                            setCustomerViewTab(0);
+                          }}
+                        >
+                          {formatCustomerIdentity(selectedProject.customer)}
+                        </button>
+                      ) : (
+                        <span className="text-slate-800">
+                          {formatCustomerIdentity(selectedProject.customer)}
                         </span>
-                      }
-                    />
-                    <p className="text-xs font-medium leading-5 text-slate-500">
-                      {canApproveTopupCredit
-                        ? 'Chỉ phần hạn mức được duyệt mới cộng thêm vào số tiền Project có thể nạp.'
-                        : 'Bạn có thể xem nhưng không có quyền thay đổi hạn mức nợ.'}
-                    </p>
+                      )}
+                    </dd>
                   </div>
-                </div>
+                  <div className="min-w-0 border-slate-200 px-3 py-2.5 md:border-x">
+                    <dt className="text-[11px] font-bold uppercase tracking-wide text-slate-400">
+                      Dịch vụ
+                    </dt>
+                    <dd
+                      className="mt-1 truncate text-sm font-bold text-slate-800"
+                      title={
+                        selectedService
+                          ? `${selectedService.code} - ${selectedService.pathName}`
+                          : ''
+                      }
+                    >
+                      {selectedService
+                        ? `${selectedService.code} - ${selectedService.pathName}`
+                        : '-'}
+                    </dd>
+                  </div>
+                  <div className="min-w-0 px-3 py-2.5">
+                    <dt className="text-[11px] font-bold uppercase tracking-wide text-slate-400">
+                      Loại
+                    </dt>
+                    <dd className="mt-1 text-sm font-bold text-slate-800">
+                      {projectType === 'O' ? 'Không chọn' : projectType}
+                    </dd>
+                  </div>
+                </dl>
+              ) : null}
 
-                <div className="mt-3 grid grid-cols-3 gap-2 border-t border-slate-200/80 pt-3">
-                  {[
-                    ['Đủ điều kiện', topupEligibleAmount],
-                    ['Từ tiền đã thu', topupPaidBudget],
-                    ['Hạn mức nợ', approvedTopupCredit],
-                  ].map(([label, value]) => (
-                    <div key={String(label)} className="min-w-0">
-                      <p className="truncate text-[11px] font-bold uppercase tracking-wide text-slate-400">
-                        {label}
-                      </p>
-                      <p className="mt-1 truncate text-sm font-extrabold tabular-nums text-slate-800">
-                        {formatCurrency(value as number)}
-                      </p>
-                    </div>
+              <div className="grid gap-4 md:grid-cols-12">
+                <FormSelectField
+                  className="md:col-span-6"
+                  label="VAT"
+                  value={vatRate}
+                  disabled={isPaymentLocked}
+                  onChange={(event) => setVatRate(event.target.value)}
+                >
+                  {VAT_RATE_OPTIONS.map((rate) => (
+                    <MenuItem key={rate} value={rate}>
+                      {rate}%
+                    </MenuItem>
                   ))}
-                </div>
-
-                {topupCreditEnabled ? (
-                  <div className="mt-4 grid gap-3 md:grid-cols-2">
+                </FormSelectField>
+                <MoneyInput
+                  fullWidth
+                  size="small"
+                  label="Cọc"
+                  value={depositAmount}
+                  disabled={isPaymentLocked}
+                  onValueChange={setDepositAmount}
+                  error={Boolean(fieldErrors.depositAmount || fieldErrors.deposit_amount)}
+                  helperText={fieldErrors.depositAmount || fieldErrors.deposit_amount}
+                  className={`${compactFormFieldClassName} md:col-span-6`}
+                />
+                {canUseAutoQuote && (
+                  <>
                     <MoneyInput
                       fullWidth
                       size="small"
-                      label="Hạn mức nợ được phép nạp"
-                      required
-                      value={topupCreditLimit}
-                      disabled={!canApproveTopupCredit || isPaymentLocked || isSubmitting}
-                      onValueChange={(value) => {
-                        setTopupCreditLimit(value);
-                        setFieldErrors((current) => ({ ...current, topupCreditLimit: '' }));
-                      }}
-                      error={Boolean(
-                        fieldErrors.topupCreditLimit || fieldErrors.topup_credit_limit,
-                      )}
-                      helperText={
-                        fieldErrors.topupCreditLimit ||
-                        fieldErrors.topup_credit_limit ||
-                        `Tối đa ${formatCurrency(remainingTopupBudget)}`
-                      }
-                      className={compactFormFieldClassName}
+                      label="Ngân sách"
+                      value={budget}
+                      disabled={isPaymentLocked}
+                      onValueChange={setBudget}
+                      className={`${compactFormFieldClassName} md:col-span-6`}
+                    />
+                    <FormSelectField
+                      className="md:col-span-6"
+                      label="Gói setup"
+                      value={setupPackageKey}
+                      disabled={isPaymentLocked}
+                      onChange={(event) => setSetupPackageKey(event.target.value)}
+                    >
+                      <MenuItem value={NO_SETUP_PACKAGE_KEY}>Không tính phí setup</MenuItem>
+                      {(rootConfig?.setupPackages || []).map((item) => (
+                        <MenuItem key={item.key} value={item.key}>
+                          {item.label} - {formatCurrency(item.price)}
+                        </MenuItem>
+                      ))}
+                    </FormSelectField>
+                  </>
+                )}
+              </div>
+
+              {projectType === 'M' ? (
+                <div
+                  className={`rounded-xl border p-4 transition-colors duration-200 ${
+                    topupCreditEnabled
+                      ? 'border-amber-200 bg-amber-50/70'
+                      : 'border-slate-200 bg-slate-50/70'
+                  }`}
+                >
+                  <div className="flex items-start gap-3">
+                    <span
+                      className={`mt-0.5 inline-flex h-9 w-9 shrink-0 items-center justify-center rounded-lg ${
+                        topupCreditEnabled
+                          ? 'bg-amber-100 text-amber-700'
+                          : 'bg-white text-slate-500 ring-1 ring-slate-200'
+                      }`}
+                    >
+                      <CreditScoreRoundedIcon fontSize="small" />
+                    </span>
+                    <div className="min-w-0 flex-1">
+                      <FormControlLabel
+                        className="!m-0 min-h-10"
+                        control={
+                          <Checkbox
+                            checked={topupCreditEnabled}
+                            disabled={
+                              !canApproveTopupCredit ||
+                              isPaymentLocked ||
+                              isSubmitting ||
+                              topupEligibleAmount <= 0
+                            }
+                            onChange={(event) => toggleTopupCredit(event.target.checked)}
+                          />
+                        }
+                        label={
+                          <span className="text-sm font-bold text-slate-800">
+                            Cho phép nạp trước khi thu tiền
+                          </span>
+                        }
+                      />
+                      <p className="text-xs font-medium leading-5 text-slate-500">
+                        {canApproveTopupCredit
+                          ? 'Chỉ phần hạn mức được duyệt mới cộng thêm vào số tiền Project có thể nạp.'
+                          : 'Bạn có thể xem nhưng không có quyền thay đổi hạn mức nợ.'}
+                      </p>
+                    </div>
+                  </div>
+
+                  <div className="mt-3 grid grid-cols-3 gap-2 border-t border-slate-200/80 pt-3">
+                    {[
+                      ['Đủ điều kiện', topupEligibleAmount],
+                      ['Từ tiền đã thu', topupPaidBudget],
+                      ['Hạn mức nợ', approvedTopupCredit],
+                    ].map(([label, value]) => (
+                      <div key={String(label)} className="min-w-0">
+                        <p className="truncate text-[11px] font-bold uppercase tracking-wide text-slate-400">
+                          {label}
+                        </p>
+                        <p className="mt-1 truncate text-sm font-extrabold tabular-nums text-slate-800">
+                          {formatCurrency(value as number)}
+                        </p>
+                      </div>
+                    ))}
+                  </div>
+
+                  {topupCreditEnabled ? (
+                    <div className="mt-4 grid gap-3 md:grid-cols-2">
+                      <MoneyInput
+                        fullWidth
+                        size="small"
+                        label="Hạn mức nợ được phép nạp"
+                        required
+                        value={topupCreditLimit}
+                        disabled={!canApproveTopupCredit || isPaymentLocked || isSubmitting}
+                        onValueChange={(value) => {
+                          setTopupCreditLimit(value);
+                          setFieldErrors((current) => ({ ...current, topupCreditLimit: '' }));
+                        }}
+                        error={Boolean(
+                          fieldErrors.topupCreditLimit || fieldErrors.topup_credit_limit,
+                        )}
+                        helperText={
+                          fieldErrors.topupCreditLimit ||
+                          fieldErrors.topup_credit_limit ||
+                          `Tối đa ${formatCurrency(remainingTopupBudget)}`
+                        }
+                        className={compactFormFieldClassName}
+                      />
+                      <FormInputField
+                        multiline
+                        minRows={2}
+                        label="Lý do cho phép nợ"
+                        required
+                        value={topupCreditNote}
+                        disabled={!canApproveTopupCredit || isPaymentLocked || isSubmitting}
+                        onChange={(event) => {
+                          setTopupCreditNote(event.target.value);
+                          setFieldErrors((current) => ({ ...current, topupCreditNote: '' }));
+                        }}
+                        error={Boolean(
+                          fieldErrors.topupCreditNote || fieldErrors.topup_credit_note,
+                        )}
+                        helperText={fieldErrors.topupCreditNote || fieldErrors.topup_credit_note}
+                      />
+                    </div>
+                  ) : null}
+
+                  {quotation?.topupCreditApprovedBy && quotation.topupCreditApprovedAt ? (
+                    <p className="mt-3 text-xs font-semibold text-slate-500">
+                      Duyệt bởi {quotation.topupCreditApprovedBy.name} ·{' '}
+                      {new Intl.DateTimeFormat('vi-VN', {
+                        dateStyle: 'short',
+                        timeStyle: 'short',
+                      }).format(new Date(quotation.topupCreditApprovedAt))}
+                    </p>
+                  ) : null}
+                </div>
+              ) : null}
+
+              <FormInputField
+                multiline
+                minRows={2}
+                label="Ghi chú"
+                value={note}
+                error={Boolean(fieldErrors.note)}
+                helperText={
+                  fieldErrors.note ||
+                  (isPaymentLocked ? 'Đây là trường duy nhất có thể cập nhật.' : undefined)
+                }
+                onChange={(event) => setNote(event.target.value)}
+              />
+
+              <Autocomplete
+                options={bankAccounts}
+                value={selectedBankAccount}
+                disabled={isPaymentLocked}
+                onChange={(_, value) => setSelectedBankAccountId(value?.id || '')}
+                getOptionLabel={(option) =>
+                  `${option.bankCode} - ${option.accountNo} - ${option.accountName}`
+                }
+                isOptionEqualToValue={(option, value) => option.id === value.id}
+                noOptionsText="Chưa có tài khoản nhận tiền"
+                renderInput={(params) => <FormInputField {...params} label="Tài khoản nhận tiền" />}
+              />
+
+              <div
+                className={`rounded-xl border px-4 py-3 ${
+                  paymentContent
+                    ? 'border-emerald-200 bg-emerald-50/70'
+                    : 'border-slate-200 bg-slate-50'
+                }`}
+                role="status"
+              >
+                <p className="text-xs font-bold uppercase tracking-wide text-slate-500">
+                  Nội dung chuyển khoản
+                </p>
+                {paymentContent ? (
+                  <p className="mt-1 select-all break-all font-mono text-lg font-extrabold tracking-wide text-primary">
+                    {paymentContent}
+                  </p>
+                ) : (
+                  <p className="mt-1 text-sm font-medium text-slate-500">Tạo tự động sau khi lưu</p>
+                )}
+              </div>
+            </FormSection>
+          </div>
+
+          <div className="xl:col-span-7">
+            <FormSection
+              title="Chi tiết báo phí"
+              action={
+                <TabActionButton
+                  startIcon={<AddRoundedIcon />}
+                  disabled={isPaymentLocked}
+                  onClick={addLine}
+                >
+                  Thêm hạng mục
+                </TabActionButton>
+              }
+            >
+              {manualLines.map((line) => (
+                <div key={line.id}>
+                  <div className="grid items-start gap-3 xl:grid-cols-[minmax(0,1.7fr)_110px_90px_140px_38px]">
+                    <FormInputField
+                      label="Hạng mục"
+                      value={line.name}
+                      disabled={isPaymentLocked}
+                      onChange={(event) => updateLine(line.id, { name: event.target.value })}
                     />
                     <FormInputField
-                      multiline
-                      minRows={2}
-                      label="Lý do cho phép nợ"
-                      required
-                      value={topupCreditNote}
-                      disabled={!canApproveTopupCredit || isPaymentLocked || isSubmitting}
-                      onChange={(event) => {
-                        setTopupCreditNote(event.target.value);
-                        setFieldErrors((current) => ({ ...current, topupCreditNote: '' }));
-                      }}
-                      error={Boolean(fieldErrors.topupCreditNote || fieldErrors.topup_credit_note)}
-                      helperText={fieldErrors.topupCreditNote || fieldErrors.topup_credit_note}
+                      label="Đơn vị tính"
+                      value={line.unit}
+                      disabled={isPaymentLocked}
+                      onChange={(event) => updateLine(line.id, { unit: event.target.value })}
                     />
+                    <FormInputField
+                      label="Số lượng"
+                      value={line.quantity}
+                      disabled={isPaymentLocked}
+                      onChange={(event) => updateLine(line.id, { quantity: event.target.value })}
+                    />
+                    <MoneyInput
+                      fullWidth
+                      allowNegative
+                      label="Đơn giá"
+                      size="small"
+                      value={line.unitPrice}
+                      disabled={isPaymentLocked}
+                      onValueChange={(value) => updateLine(line.id, { unitPrice: value })}
+                      className={compactFormFieldClassName}
+                    />
+                    <IconButton
+                      size="small"
+                      color="error"
+                      aria-label="Xóa hạng mục"
+                      disabled={isPaymentLocked || manualLines.length === 1}
+                      onClick={() => deleteLine(line.id)}
+                      title="Xóa dòng"
+                      className="!mt-1"
+                    >
+                      <DeleteRoundedIcon fontSize="small" />
+                    </IconButton>
                   </div>
-                ) : null}
-
-                {quotation?.topupCreditApprovedBy && quotation.topupCreditApprovedAt ? (
-                  <p className="mt-3 text-xs font-semibold text-slate-500">
-                    Duyệt bởi {quotation.topupCreditApprovedBy.name} ·{' '}
-                    {new Intl.DateTimeFormat('vi-VN', {
-                      dateStyle: 'short',
-                      timeStyle: 'short',
-                    }).format(new Date(quotation.topupCreditApprovedAt))}
-                  </p>
-                ) : null}
-              </div>
-            ) : null}
-
-            <FormInputField
-              multiline
-              minRows={2}
-              label="Ghi chú"
-              value={note}
-              error={Boolean(fieldErrors.note)}
-              helperText={
-                fieldErrors.note ||
-                (isPaymentLocked ? 'Đây là trường duy nhất có thể cập nhật.' : undefined)
-              }
-              onChange={(event) => setNote(event.target.value)}
-            />
-
-            <Autocomplete
-              options={bankAccounts}
-              value={selectedBankAccount}
-              disabled={isPaymentLocked}
-              onChange={(_, value) => setSelectedBankAccountId(value?.id || '')}
-              getOptionLabel={(option) =>
-                `${option.bankCode} - ${option.accountNo} - ${option.accountName}`
-              }
-              isOptionEqualToValue={(option, value) => option.id === value.id}
-              noOptionsText="Chưa có tài khoản nhận tiền"
-              renderInput={(params) => <FormInputField {...params} label="Tài khoản nhận tiền" />}
-            />
-
-            <div
-              className={`rounded-xl border px-4 py-3 ${
-                paymentContent
-                  ? 'border-emerald-200 bg-emerald-50/70'
-                  : 'border-slate-200 bg-slate-50'
-              }`}
-              role="status"
-            >
-              <p className="text-xs font-bold uppercase tracking-wide text-slate-500">
-                Nội dung chuyển khoản
-              </p>
-              {paymentContent ? (
-                <p className="mt-1 select-all break-all font-mono text-lg font-extrabold tracking-wide text-primary">
-                  {paymentContent}
-                </p>
-              ) : (
-                <p className="mt-1 text-sm font-medium text-slate-500">Tạo tự động sau khi lưu</p>
-              )}
-            </div>
-          </FormSection>
-        </div>
-
-        <div className="xl:col-span-7">
-          <FormSection
-            title="Chi tiết báo phí"
-            action={
-              <TabActionButton
-                startIcon={<AddRoundedIcon />}
-                disabled={isPaymentLocked}
-                onClick={addLine}
-              >
-                Thêm hạng mục
-              </TabActionButton>
-            }
-          >
-            {manualLines.map((line) => (
-              <div key={line.id}>
-                <div className="grid items-start gap-3 xl:grid-cols-[minmax(0,1.7fr)_110px_90px_140px_38px]">
-                  <FormInputField
-                    label="Hạng mục"
-                    value={line.name}
-                    disabled={isPaymentLocked}
-                    onChange={(event) => updateLine(line.id, { name: event.target.value })}
-                  />
-                  <FormInputField
-                    label="Đơn vị tính"
-                    value={line.unit}
-                    disabled={isPaymentLocked}
-                    onChange={(event) => updateLine(line.id, { unit: event.target.value })}
-                  />
-                  <FormInputField
-                    label="Số lượng"
-                    value={line.quantity}
-                    disabled={isPaymentLocked}
-                    onChange={(event) => updateLine(line.id, { quantity: event.target.value })}
-                  />
-                  <MoneyInput
-                    fullWidth
-                    allowNegative
-                    label="Đơn giá"
-                    size="small"
-                    value={line.unitPrice}
-                    disabled={isPaymentLocked}
-                    onValueChange={(value) => updateLine(line.id, { unitPrice: value })}
-                    className={compactFormFieldClassName}
-                  />
-                  <IconButton
-                    size="small"
-                    color="error"
-                    aria-label="Xóa hạng mục"
-                    disabled={isPaymentLocked || manualLines.length === 1}
-                    onClick={() => deleteLine(line.id)}
-                    title="Xóa dòng"
-                    className="!mt-1"
-                  >
-                    <DeleteRoundedIcon fontSize="small" />
-                  </IconButton>
+                  {projectType === 'M' ? (
+                    <div className="mt-1 flex min-h-11 flex-wrap items-center gap-x-2 pl-0.5">
+                      <FormControlLabel
+                        className="!m-0"
+                        control={
+                          <Checkbox
+                            size="small"
+                            checked={Boolean(line.countsTowardTopupBudget)}
+                            disabled={isSubmitting}
+                            onChange={(event) =>
+                              updateLine(line.id, {
+                                countsTowardTopupBudget: event.target.checked,
+                              })
+                            }
+                          />
+                        }
+                        label={
+                          <span className="text-sm font-semibold text-slate-700">
+                            Tính vào số tiền có thể nạp
+                          </span>
+                        }
+                      />
+                      <span className="text-xs font-medium text-slate-500">
+                        Cộng giá trị sau VAT của hạng mục.
+                      </span>
+                    </div>
+                  ) : null}
                 </div>
-                {projectType === 'M' ? (
-                  <div className="mt-1 flex min-h-11 flex-wrap items-center gap-x-2 pl-0.5">
-                    <FormControlLabel
-                      className="!m-0"
-                      control={
-                        <Checkbox
-                          size="small"
-                          checked={Boolean(line.countsTowardTopupBudget)}
-                          disabled={isSubmitting}
-                          onChange={(event) =>
-                            updateLine(line.id, {
-                              countsTowardTopupBudget: event.target.checked,
-                            })
-                          }
-                        />
-                      }
-                      label={
-                        <span className="text-sm font-semibold text-slate-700">
-                          Tính vào số tiền có thể nạp
-                        </span>
-                      }
-                    />
-                    <span className="text-xs font-medium text-slate-500">
-                      Cộng giá trị sau VAT của hạng mục.
-                    </span>
-                  </div>
-                ) : null}
-              </div>
-            ))}
+              ))}
 
-            <QuotationItemsTable
-              lines={quoteLines.map((line) => ({
-                ...line,
-                highlighted: line.locked,
-              }))}
-              subtotal={subtotal}
-              vatRate={vatRate}
-              vatAmount={vatAmount}
-              deposit={deposit}
-              total={total}
-              emptyText="Nhập hạng mục để xem chi tiết báo phí"
-            />
+              <QuotationItemsTable
+                lines={quoteLines.map((line) => ({
+                  ...line,
+                  highlighted: line.locked,
+                }))}
+                subtotal={subtotal}
+                vatRate={vatRate}
+                vatAmount={vatAmount}
+                deposit={deposit}
+                total={total}
+                emptyText="Nhập hạng mục để xem chi tiết báo phí"
+              />
 
-            {projectType === 'K' ? (
-              <div className="border-t border-slate-200 pt-4">
-                <p className="mb-2 text-sm font-bold text-slate-700">
-                  Ảnh đối soát chi tiết tài khoản quảng cáo
-                </p>
-                <MultiImageUpload
-                  value={accountReconciliationImageUrls}
-                  imageLabel="Ảnh đối soát"
-                  collectionLabel="báo phí"
-                  helperText="Chọn ảnh từ thư viện hoặc tải ảnh mới. Tối đa 3 ảnh đối soát."
-                  disabled={isPaymentLocked}
-                  onChange={setAccountReconciliationImageUrls}
-                  onUploadingChange={setIsUploadingReconciliationImages}
-                />
-              </div>
-            ) : null}
-          </FormSection>
+              {projectType === 'K' ? (
+                <div className="border-t border-slate-200 pt-4">
+                  <p className="mb-2 text-sm font-bold text-slate-700">
+                    Ảnh đối soát chi tiết tài khoản quảng cáo
+                  </p>
+                  <MultiImageUpload
+                    value={accountReconciliationImageUrls}
+                    imageLabel="Ảnh đối soát"
+                    collectionLabel="báo phí"
+                    helperText="Chọn ảnh từ thư viện hoặc tải ảnh mới. Tối đa 3 ảnh đối soát."
+                    disabled={isPaymentLocked}
+                    onChange={setAccountReconciliationImageUrls}
+                    onUploadingChange={setIsUploadingReconciliationImages}
+                  />
+                </div>
+              ) : null}
+            </FormSection>
+          </div>
         </div>
-      </div>
 
-      <FormActionBar
-        cancelHref="/quotations"
-        submitLabel={
-          isPaymentLocked
-            ? 'Lưu ghi chú và ngân sách'
-            : mode === 'edit'
-              ? 'Lưu thay đổi'
-              : 'Tạo báo phí'
-        }
-        isSubmitting={isSubmitting || isUploadingReconciliationImages}
-        submitDisabled={missingRequiredProject || isUploadingReconciliationImages}
-        submitIcon={<SaveRoundedIcon />}
+        <FormActionBar
+          cancelHref="/quotations"
+          submitLabel={
+            isPaymentLocked
+              ? 'Lưu ghi chú và ngân sách'
+              : mode === 'edit'
+                ? 'Lưu thay đổi'
+                : 'Tạo báo phí'
+          }
+          isSubmitting={isSubmitting || isUploadingReconciliationImages}
+          submitDisabled={missingRequiredProject || isUploadingReconciliationImages}
+          submitIcon={<SaveRoundedIcon />}
+        />
+      </form>
+
+      <CustomerViewDialog
+        customer={customerViewDetail || customerViewTarget}
+        tab={customerViewTab}
+        isLoading={isFetchingCustomerView}
+        currentUser={currentUser}
+        onTabChange={setCustomerViewTab}
+        onClose={() => setCustomerViewTarget(null)}
       />
-    </form>
+    </>
   );
 }

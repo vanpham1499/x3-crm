@@ -1,4 +1,4 @@
-import type { Customer } from '@/types/customer';
+import type { Customer, DeletedCustomerCodeConflict } from '@/types/customer';
 
 export const CUSTOMER_ALL_STATUS = 'Tất cả';
 
@@ -27,6 +27,23 @@ export function formatCustomerIdentity(customer?: CustomerIdentitySource | null,
   const nameWithoutLegacyCode = name.replace(new RegExp(`^${escapedCode}(?:[-.·\\s]+)`, 'u'), '');
 
   return nameWithoutLegacyCode ? `${code}-${nameWithoutLegacyCode}` : code;
+}
+
+export function formatDeletedCustomerRelations(
+  conflict?: DeletedCustomerCodeConflict | null,
+): string {
+  if (!conflict?.relatedRecords) return '';
+
+  return [
+    conflict.relatedRecords.projects.length
+      ? `Dự án: ${conflict.relatedRecords.projects.join(', ')}`
+      : '',
+    conflict.relatedRecords.quotations.length
+      ? `Báo phí: ${conflict.relatedRecords.quotations.join(', ')}`
+      : '',
+  ]
+    .filter(Boolean)
+    .join('; ');
 }
 
 export function getCustomerStatusClass(status: string) {

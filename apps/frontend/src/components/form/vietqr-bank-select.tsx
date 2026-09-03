@@ -1,6 +1,6 @@
 'use client';
 
-import type { ReactNode } from 'react';
+import { useEffect, type ReactNode } from 'react';
 import { Autocomplete } from '@mui/material';
 import { useQuery } from '@tanstack/react-query';
 import { FormInputField } from '@/components/form/form-input-field';
@@ -15,6 +15,7 @@ type VietQrBankSelectProps = {
   error?: boolean;
   helperText?: ReactNode;
   onChange: (bank: VietQrBank | null) => void;
+  onResolved?: (bank: VietQrBank) => void;
 };
 
 export function VietQrBankSelect({
@@ -26,6 +27,7 @@ export function VietQrBankSelect({
   error = false,
   helperText,
   onChange,
+  onResolved,
 }: VietQrBankSelectProps) {
   const {
     data: banks = [],
@@ -42,6 +44,12 @@ export function VietQrBankSelect({
     banks.find((bank) => normalizedCode && bank.code.toUpperCase() === normalizedCode) ||
     banks.find((bank) => normalizedName && bank.name.trim().toLowerCase() === normalizedName) ||
     null;
+
+  useEffect(() => {
+    if (selectedBank && normalizedCode && !normalizedName) {
+      onResolved?.(selectedBank);
+    }
+  }, [normalizedCode, normalizedName, onResolved, selectedBank]);
 
   return (
     <Autocomplete

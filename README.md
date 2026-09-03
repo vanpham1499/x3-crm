@@ -860,9 +860,10 @@ hàng`.
 #### Chuyển thành Customer
 
 - Frontend mở `/customers/new?leadId=<id>` và gọi `POST /customers` với `leadId`.
-- Mã Customer vẫn duy nhất với dữ liệu đang hoạt động. Khi mã tạo mới thuộc một Customer đã xóa
-  mềm, API trả conflict kèm tên, thời điểm xóa và các nhóm dữ liệu liên quan. Người có quyền xóa
-  Customer có thể xác nhận `Xóa toàn bộ & tạo mới`; backend khóa bản ghi, xóa vĩnh viễn toàn bộ
+- Mã Customer vẫn duy nhất với dữ liệu đang hoạt động. Khi mã tạo mới hoặc mã đang chỉnh sửa thuộc
+  một Customer đã xóa mềm, API trả conflict kèm tên, thời điểm xóa và các nhóm dữ liệu liên quan.
+  Người có quyền xóa Customer có thể xác nhận xóa toàn bộ dữ liệu cũ rồi tiếp tục lưu; backend khóa
+  bản ghi, xóa vĩnh viễn toàn bộ
   Dự án, Báo phí, thanh toán, phân bổ, hoàn tiền, hợp đồng, Báo cáo tuần, lịch hẹn cùng dữ liệu con,
   rồi tạo Customer mới trong cùng transaction. Người không có quyền xóa chỉ nhận thông báo và không
   thể thực hiện thao tác phá hủy này.
@@ -894,6 +895,8 @@ hàng`.
   form/hồ sơ chi tiết.
 - Danh sách Customer luôn sắp xếp tăng dần theo mã khách hàng, kể cả khi đang tìm kiếm, lọc hoặc
   chuyển trang phân trang.
+- Nút `Link Dự án` trong popup Customer lấy trực tiếp quan hệ Project đang hoạt động. Một Project mở
+  thẳng trang chi tiết; nếu có nhiều Project, popup hiển thị từng mã Project thành nút riêng.
 - Trường Website của Customer có thể lưu liên kết Website, Google Map hoặc Fanpage; form phải hiển
   thị chú thích này để người nhập dữ liệu dùng đúng mục đích.
 - `customer_code` độc lập với `lead_code`, được backend cấp dạng `001`, `002`, `003`, ... bằng khóa
@@ -1108,6 +1111,9 @@ hoàn ra`; các sheet giữ số tiền/ngày giờ ở đúng kiểu dữ liệ
   ghi chú phân bổ, người nhận, tài khoản, lý do, tham chiếu và số hóa đơn.
 - Bảng `Tiền nhận vào` có cột `NH` ngay sau `Thời gian`, hiển thị mã ngân hàng như `VCB`, `BIDV` từ
   gateway giao dịch. Ba cột `Thời gian`, `NH`, `Số tiền` cùng được giữ cố định khi cuộn ngang.
+- Số `Tài khoản nhận` của webhook được đối chiếu với các option `company_bank_account`; hệ thống ưu
+  tiên trường nào thực sự khớp cấu hình (kể cả `subAccount`) thay vì mặc định lấy `accountNumber`.
+  Khi `subAccount` khớp tài khoản nhận, trường này không được ghi trùng thành mã khách hàng.
 
 #### Hoàn tiền
 
@@ -1125,6 +1131,9 @@ Trạng thái:
 - `pending`: giữ chỗ hạn mức để chống hoàn trùng, chưa giảm công nợ;
 - `completed`: đã trả thực tế và được tính vào số thu ròng;
 - `cancelled`: hủy và giải phóng hạn mức.
+
+`refunded_at` chỉ có giá trị khi khoản trả đã `completed`; khoản đang chờ hoặc đã hủy để trống ngày
+hoàn thực tế. `scheduled_at` tiếp tục lưu ngày dự kiến trả khách.
 
 Các chỉ số chính:
 
@@ -1391,8 +1400,10 @@ summary/list của React Query ngay. Summary còn polling nền mỗi 15 giây, 
 mở panel để badge chuông không bị đứng nếu WebSocket tạm mất kết nối.
 
 Notification, Máy tính và Hồ sơ cá nhân dùng chung utility drawer bên phải,
-chiều rộng `420px` trên desktop và full width trên mobile; layout chỉ cho phép mở một utility tại một thời
-điểm để không chồng panel. Máy tính nhận phím số và numpad ngay khi drawer mở; hỗ trợ `Enter`/`=`,
+chiều rộng tối đa `420px`; trên mobile drawer luôn chừa mép `8px`, dùng `border-box` và khóa tràn ngang
+để không vượt viewport. Header mobile dùng favicon ở màn hình nhỏ và logo đầy đủ từ breakpoint `sm` để
+cụm menu/tiện ích không kéo rộng trang. Layout chỉ cho phép mở một utility tại một thời điểm để không
+chồng panel. Máy tính nhận phím số và numpad ngay khi drawer mở; hỗ trợ `Enter`/`=`,
 `Backspace`, `Delete`/`C`, `%`, dấu phẩy hoặc dấu chấm thập phân và bốn phép tính. Kết quả có thể sao chép,
 tự lưu tối đa 30 phép tính gần nhất vào trình duyệt; người dùng có thể chọn kết quả cũ để dùng lại hoặc
 xóa toàn bộ lịch sử. Notification có filter `Tất cả`, `Chưa đọc`, `Đã lưu trữ`; danh sách hiển thị
@@ -2115,6 +2126,9 @@ cả migration, Service, Resource và frontend type/helper; không chỉ sửa g
   và bàn phím.
 - Khi sidebar thu gọn, logo dùng trực tiếp `public/favicon.png` để đồng nhất với biểu tượng trên tab
   trình duyệt; khi mở rộng vẫn hiển thị logo X3Sales đầy đủ.
+- Trên màn hình nhỏ hơn `lg`, nút menu ở Header mở Sidebar dưới dạng drawer. Drawer đóng khi chọn
+  một mục điều hướng, bấm nút đóng, bấm ra backdrop hoặc nhấn `Escape`; desktop vẫn dùng Sidebar
+  cố định và nút thu gọn/mở rộng như cũ.
 - Header hiển thị ngày giờ trên cùng một hàng theo format `Thứ ..., DD/MM/YYYY · HH:mm`, lấy thời
   gian trên thiết bị và nằm đối diện nhóm máy tính/thông báo/tài khoản. Cụm này chỉ hiện từ desktop
   `lg` để không cạnh tranh diện tích với menu và logo trên màn hình nhỏ. Ngày giờ hiển thị dạng text
@@ -2219,8 +2233,9 @@ Mapping đặc biệt:
 - `ad_topup_card`: `key` mã thẻ, `label` tên thẻ, `value` thông tin nhận diện thẻ và `meta.note` là
   ghi chú hiển thị trên bảng Thẻ nạp quảng cáo.
 - `company_bank_account`: `key` mã VietQR, `label` chủ tài khoản, `value` số tài khoản,
-  `meta.note` là ghi chú hiển thị trên bảng Tài khoản nhận tiền,
-  `meta.bankName`, `branch`, `isDefault`.
+  metadata gồm `bankCode`, `bankName`, `branch`, `isDefault` và `note`. Backend khai báo validation
+  cho từng khóa để Laravel không loại chúng khỏi payload; danh sách có thể suy ra tên ngân hàng từ
+  mã VietQR đối với dữ liệu cũ chưa lưu `bankName`.
 - `service_quote_config`: `key` root service code, `value` root service id, metadata chứa trạng
   thái bật, bảng tỷ lệ và gói setup.
 

@@ -51,6 +51,7 @@ class CustomerRepository extends BaseRepository
             'sourceOption',
             'industryOption',
             'salesUser',
+            'projects',
         ]);
     }
 

@@ -1,11 +1,12 @@
 'use client';
 
-import { useState, type MouseEvent } from 'react';
+import { useEffect, useMemo, useState, type MouseEvent } from 'react';
 import AddRoundedIcon from '@mui/icons-material/AddRounded';
 import DeleteRoundedIcon from '@mui/icons-material/DeleteRounded';
 import EditRoundedIcon from '@mui/icons-material/EditRounded';
 import MoreVertRoundedIcon from '@mui/icons-material/MoreVertRounded';
 import { Checkbox, FormControlLabel, IconButton, Menu, MenuItem } from '@mui/material';
+import { useQuery } from '@tanstack/react-query';
 import { useForm } from 'react-hook-form';
 import { DialogActionButton } from '@/components/actions/dialog-action-button';
 import { AppFormDialog } from '@/components/dialog/app-form-dialog';
@@ -20,6 +21,7 @@ import { TablePaginationBar } from '@/components/table/table-pagination-bar';
 import { usePagination } from '@/hooks/use-pagination';
 import { applyApiErrorsToForm, getApiFieldErrors } from '@/lib/api-error';
 import { canManageCatalog } from '@/lib/ownership';
+import { fetchVietQrBanks } from '@/lib/vietqr-banks';
 import { useAuthStore } from '@/stores/auth-store';
 import {
   getBankAccountBankCode,
@@ -64,14 +66,20 @@ function BankAccountDialog({
     setError,
     formState: { errors },
   } = useForm<CompanyBankAccountFormValues>({
-    values: getCompanyBankAccountDefaults(account),
+    defaultValues: getCompanyBankAccountDefaults(),
   });
   const isDefault = watch('isDefault');
   const bankCode = watch('bankCode');
   const bankName = watch('bankName');
 
+  useEffect(() => {
+    if (!state) return;
+
+    reset(getCompanyBankAccountDefaults(account));
+  }, [account, reset, state]);
+
   const closeDialog = () => {
-    reset();
+    reset(getCompanyBankAccountDefaults());
     onClose();
   };
 
@@ -90,6 +98,12 @@ function BankAccountDialog({
         } catch (error) {
           applyApiErrorsToForm(error, setError);
           const fieldErrors = getApiFieldErrors(error);
+          if (fieldErrors['meta.bankName']) {
+            setError('bankName', { type: 'server', message: fieldErrors['meta.bankName'] });
+          }
+          if (fieldErrors['meta.branch']) {
+            setError('branch', { type: 'server', message: fieldErrors['meta.branch'] });
+          }
           if (fieldErrors['meta.note']) {
             setError('note', { type: 'server', message: fieldErrors['meta.note'] });
           }
@@ -120,6 +134,9 @@ function BankAccountDialog({
           setValue('bankCode', bank?.code || '', { shouldDirty: true, shouldValidate: true });
           setValue('bankName', bank?.name || '', { shouldDirty: true });
         }}
+        onResolved={(bank) => {
+          setValue('bankName', bank.name, { shouldDirty: false });
+        }}
         error={Boolean(errors.bankCode)}
         helperText={errors.bankCode?.message}
       />
@@ -139,7 +156,12 @@ function BankAccountDialog({
         />
       </div>
 
-      <FormInputField label="Chi nhánh" {...register('branch')} />
+      <FormInputField
+        label="Chi nhánh"
+        error={Boolean(errors.branch)}
+        helperText={errors.branch?.message}
+        {...register('branch')}
+      />
       <FormInputField
         label="Ghi chú"
         multiline
@@ -149,7 +171,7 @@ function BankAccountDialog({
         {...register('note')}
       />
       <FormControlLabel
-        className="!m-0 min-h-10 rounded-lg border border-slate-200 px-2"
+        className="!m-0 min-h-10 rounded-lg border border-slate-200 px-2 !mt-4"
         control={
           <Checkbox
             checked={Boolean(isDefault)}
@@ -178,6 +200,18 @@ export function CompanyBankAccountManager({
   const [deleteTarget, setDeleteTarget] = useState<AppOption | null>(null);
   const [menuAnchorEl, setMenuAnchorEl] = useState<HTMLElement | null>(null);
   const [activeAccount, setActiveAccount] = useState<AppOption | null>(null);
+  const { data: vietQrBanks = [] } = useQuery({
+    queryKey: ['vietqr-banks'],
+    queryFn: fetchVietQrBanks,
+    staleTime: 24 * 60 * 60 * 1000,
+  });
+  const bankNamesByCode = useMemo(
+    () =>
+      new Map(
+        vietQrBanks.map((bank) => [bank.code.trim().toUpperCase(), bank.name.trim()] as const),
+      ),
+    [vietQrBanks],
+  );
   const { pageItems, page, setPage, totalPages, totalItems, pageSize } = usePagination(accounts, {
     resetKey: keyword,
   });
@@ -242,9 +276,15 @@ export function CompanyBankAccountManager({
                   </span>
                   <span
                     className="truncate font-semibold text-slate-800"
-                    title={getBankAccountMetaValue(account, 'bankName')}
+                    title={
+                      getBankAccountMetaValue(account, 'bankName') ||
+                      bankNamesByCode.get(getBankAccountBankCode(account).toUpperCase()) ||
+                      ''
+                    }
                   >
-                    {getBankAccountMetaValue(account, 'bankName') || '-'}
+                    {getBankAccountMetaValue(account, 'bankName') ||
+                      bankNamesByCode.get(getBankAccountBankCode(account).toUpperCase()) ||
+                      '-'}
                   </span>
                 </div>
               </td>

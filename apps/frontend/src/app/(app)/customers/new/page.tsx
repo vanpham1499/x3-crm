@@ -10,6 +10,7 @@ import { ContentLoading } from '@/components/shell/content-loading';
 import { PageHeader } from '@/components/shell/page-header';
 import { CustomerApiForm } from '@/features/customers/components/customer-api-form';
 import { buildCustomerPayload, createEmptyCustomerFormValues } from '@/lib/customer-form-utils';
+import { formatDeletedCustomerRelations } from '@/lib/customer-utils';
 import { getApiErrorMessage } from '@/lib/api-error';
 import api from '@/services/api/client';
 import type { Customer, CustomerFormValues, DeletedCustomerCodeConflict } from '@/types/customer';
@@ -158,6 +159,7 @@ export default function NewCustomerPage() {
       hourCycle: 'h23',
     }).format(parsed);
   }, [deletedCodeConflict?.customer.deletedAt]);
+  const deletedRelationsLabel = formatDeletedCustomerRelations(deletedCodeConflict?.customer);
 
   if (
     !leadId ||
@@ -210,7 +212,7 @@ export default function NewCustomerPage() {
         }
         description={
           deletedCodeConflict?.customer.blockers?.length
-            ? `Mã ${deletedCodeConflict.customer.customerCode} thuộc “${deletedCodeConflict.customer.displayName}”, đã xóa lúc ${deletedAtLabel}. Hồ sơ cũ đang có ${deletedCodeConflict.customer.blockers.join(', ')}. Nếu tiếp tục, toàn bộ hồ sơ và dữ liệu liên quan này sẽ bị xóa vĩnh viễn trước khi tạo khách hàng mới.`
+            ? `Mã ${deletedCodeConflict.customer.customerCode} thuộc “${deletedCodeConflict.customer.displayName}”, đã xóa lúc ${deletedAtLabel}. Hồ sơ cũ đang có ${deletedCodeConflict.customer.blockers.join(', ')}.${deletedRelationsLabel ? ` ${deletedRelationsLabel}.` : ''} Nếu tiếp tục, toàn bộ hồ sơ và dữ liệu liên quan này sẽ bị xóa vĩnh viễn trước khi tạo khách hàng mới.`
             : `Mã ${deletedCodeConflict?.customer.customerCode || ''} là dữ liệu của “${deletedCodeConflict?.customer.displayName || 'khách hàng cũ'}”, đã xóa lúc ${deletedAtLabel}. Bạn có muốn xóa vĩnh viễn dữ liệu cũ và tiếp tục tạo khách hàng mới không?`
         }
         confirmText={

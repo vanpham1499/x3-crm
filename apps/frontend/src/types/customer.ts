@@ -7,6 +7,12 @@ export type CustomerLeadSummary = {
   customerName?: string | null;
 };
 
+export type CustomerProjectSummary = {
+  id: number;
+  projectCode: string;
+  projectName?: string | null;
+};
+
 export type Customer = {
   id: number;
   customerCode: string;
@@ -45,6 +51,7 @@ export type Customer = {
   salesUser?: Pick<User, 'id' | 'code' | 'name' | 'email' | 'departmentId'> | null;
   createdBy?: Pick<User, 'id' | 'code' | 'name' | 'email'> | null;
   projectsCount?: number;
+  projects?: CustomerProjectSummary[];
   canUpdate?: boolean;
   canDelete?: boolean;
   createdAt?: string;
@@ -126,4 +133,8 @@ export type DeletedCustomerCodeConflict = {
   deletedAt?: string | null;
   canPurge: boolean;
   blockers: string[];
+  relatedRecords?: {
+    projects: string[];
+    quotations: string[];
+  };
 };

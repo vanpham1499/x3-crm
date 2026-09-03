@@ -207,7 +207,7 @@ npm run build:backend
 Lệnh chuẩn:
 
 ```powershell
-npm run deploy:production
+`npm run deploy:production`
 ```
 
 Deploy bằng SSH key và tham số cụ thể:

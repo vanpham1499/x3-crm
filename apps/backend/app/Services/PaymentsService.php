@@ -4,6 +4,7 @@ namespace App\Services;
 
 use App\Http\Resources\PaymentRefundResource;
 use App\Http\Resources\PaymentResource;
+use App\Models\Option;
 use App\Models\Payment;
 use App\Models\PaymentRefund;
 use App\Models\Quotation;
@@ -167,6 +168,7 @@ class PaymentsService extends BaseService
                 return ['ignored' => true, 'reason' => 'outgoing_transfer'];
             }
 
+            $data = $this->resolveWebhookBankAccount($data);
             $data = $this->normalizePayload($data);
             $content = (string) ($data['transaction_content'] ?? '');
             $quotation = $this->quotations->findCodeInText($content);
@@ -517,6 +519,56 @@ class PaymentsService extends BaseService
         return $data;
     }
 
+    private function resolveWebhookBankAccount(array $data): array
+    {
+        $candidates = [
+            'bank_account' => trim((string) ($data['bank_account'] ?? '')),
+            'bankAccount' => trim((string) ($data['bankAccount'] ?? '')),
+            'subAccount' => trim((string) ($data['subAccount'] ?? '')),
+            'sub_account' => trim((string) ($data['sub_account'] ?? '')),
+            'accountNumber' => trim((string) ($data['accountNumber'] ?? '')),
+            'account_number' => trim((string) ($data['account_number'] ?? '')),
+        ];
+        $configuredAccounts = Option::query()
+            ->where('group', 'company_bank_account')
+            ->where('is_active', true)
+            ->pluck('value')
+            ->map(fn ($value): string => trim((string) $value))
+            ->filter()
+            ->flip();
+        $matchedSource = collect($candidates)
+            ->filter()
+            ->keys()
+            ->first(fn (string $source): bool => $configuredAccounts->has($candidates[$source]));
+
+        if ($matchedSource !== null) {
+            $data['bank_account'] = $candidates[$matchedSource];
+
+            // SePay uses subAccount for the receiving account on some connections.
+            // Do not also interpret it as a customer sub-account when it matches CRM settings.
+            if (in_array($matchedSource, ['subAccount', 'sub_account'], true)) {
+                unset($data['subAccount'], $data['sub_account']);
+            }
+        } else {
+            $fallbackSource = collect([
+                'bank_account',
+                'bankAccount',
+                'accountNumber',
+                'account_number',
+                'subAccount',
+                'sub_account',
+            ])->first(fn (string $source): bool => $candidates[$source] !== '');
+
+            if ($fallbackSource !== null) {
+                $data['bank_account'] = $candidates[$fallbackSource];
+            }
+        }
+
+        unset($data['bankAccount']);
+
+        return $data;
+    }
+
     private function authorizeAllocationTargets(array $entries): void
     {
         $user = $this->currentUser();
@@ -583,7 +635,7 @@ class PaymentsService extends BaseService
         $aliases = [
             'transaction_content' => ['content', 'description'],
             'amount' => ['transferAmount', 'transfer_amount'],
-            'bank_account' => ['accountNumber', 'account_number', 'gateway'],
+            'bank_account' => ['subAccount', 'sub_account', 'accountNumber', 'account_number'],
             'customer_code_text' => ['subAccount', 'sub_account'],
             'reference' => ['referenceCode', 'reference_code', 'code', 'id'],
         ];
