@@ -93,7 +93,6 @@ export type CustomerFormValues = {
   website: string;
   industry: string;
   industryOptionId: string;
-  birthday: string;
   sourceOptionId: string;
   salesUserId: string;
   note: string;
@@ -117,7 +116,6 @@ export type CustomerPayload = {
   website?: string | null;
   industry?: string | null;
   industryOptionId?: string | null;
-  birthday?: string | null;
   sourceOptionId?: string | null;
   salesUserId?: string | null;
   note?: string | null;

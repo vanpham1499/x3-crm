@@ -26,6 +26,7 @@ import type { AppOption } from '@/types/option';
 import type { ProjectCustomerSummary, ProjectFormValues, ProjectItem } from '@/types/project';
 import type { ServiceItem } from '@/types/service';
 import type { User } from '@/types/user';
+import { formatUserLabel } from '@/lib/user-utils';
 import type { WeeklyAssignmentSummary } from '@/types/weekly-report';
 
 type ProjectFormProps = {
@@ -45,10 +46,6 @@ type ProjectFormProps = {
 
 function customerLabel(customer: ProjectCustomerSummary) {
   return formatCustomerIdentity(customer);
-}
-
-function userLabel(user: User) {
-  return [user.code, user.name || user.email].filter(Boolean).join(' - ');
 }
 
 function serviceLabel(service: ReturnType<typeof flattenServices>[number]) {
@@ -87,6 +84,7 @@ export function ProjectForm({
   const planLinkValue = useWatch({ control, name: 'planLink' }) || '';
   const customerTrackingReportLinkValue =
     useWatch({ control, name: 'customerTrackingReportLink' }) || '';
+  const websiteValue = useWatch({ control, name: 'website' }) || '';
   const selectedStatusOptionId = useWatch({ control, name: 'statusOptionId' }) || '';
   const selectedManagerUserId = useWatch({ control, name: 'managerUserId' }) || '';
   const weeklyReportWeekday = useWatch({ control, name: 'weeklyReportWeekday' }) || '';
@@ -316,22 +314,41 @@ export function ProjectForm({
               </div>
             </div>
 
-            <FormInputField
-              label="Link báo cáo tổng hợp"
-              placeholder="https://docs.google.com/..."
-              disabled={readOnly}
-              slotProps={{
-                input: {
-                  endAdornment: (
-                    <ExternalLinkAdornment
-                      value={customerTrackingReportLinkValue}
-                      ariaLabel="Mở link báo cáo tổng hợp trong tab mới"
-                    />
-                  ),
-                },
-              }}
-              {...register('customerTrackingReportLink')}
-            />
+            <div className="grid gap-4 md:grid-cols-2">
+              <FormInputField
+                label="Link báo cáo tổng hợp"
+                placeholder="https://docs.google.com/..."
+                disabled={readOnly}
+                slotProps={{
+                  input: {
+                    endAdornment: (
+                      <ExternalLinkAdornment
+                        value={customerTrackingReportLinkValue}
+                        ariaLabel="Mở link báo cáo tổng hợp trong tab mới"
+                      />
+                    ),
+                  },
+                }}
+                {...register('customerTrackingReportLink')}
+              />
+
+              <FormInputField
+                label="Website"
+                placeholder="Có thể nhập link Website, Google Map hoặc Fanpage."
+                disabled={readOnly}
+                slotProps={{
+                  input: {
+                    endAdornment: (
+                      <ExternalLinkAdornment
+                        value={websiteValue}
+                        ariaLabel="Mở Website, Google Map hoặc Fanpage trong tab mới"
+                      />
+                    ),
+                  },
+                }}
+                {...register('website')}
+              />
+            </div>
 
             <div className="grid items-stretch gap-4 md:grid-cols-2">
               <FormInputField
@@ -429,7 +446,7 @@ export function ProjectForm({
                   <MenuItem value="">Chưa chọn</MenuItem>
                   {users.map((user) => (
                     <MenuItem key={user.id} value={String(user.id)}>
-                      {userLabel(user)}
+                      {formatUserLabel(user)}
                     </MenuItem>
                   ))}
                 </FormSelectField>
@@ -482,9 +499,7 @@ export function ProjectForm({
                   ) : (
                     <>
                       <strong>
-                        {selectedManagerUser?.name ||
-                          selectedManagerUser?.email ||
-                          `Nhân sự #${selectedManagerUserId}`}
+                        {formatUserLabel(selectedManagerUser, `Nhân sự #${selectedManagerUserId}`)}
                       </strong>{' '}
                       hiện đã được phân công báo cáo{' '}
                       <strong>

@@ -1,13 +1,6 @@
 import type { Customer, CustomerFormValues, CustomerPayload } from '@/types/customer';
 import type { Lead } from '@/types/lead';
 
-export function getDateInputValue(value?: string | Date | null) {
-  if (!value) return '';
-  const date = new Date(value);
-  if (Number.isNaN(date.getTime())) return '';
-  return date.toISOString().slice(0, 10);
-}
-
 function emptyToNull(value: unknown) {
   if (value === undefined || value === null) return null;
 
@@ -38,7 +31,6 @@ export function createEmptyCustomerFormValues(lead?: Lead | null): CustomerFormV
     website: lead?.website || '',
     industry: lead?.industryOption?.label || lead?.industry || '',
     industryOptionId: idToString(lead?.industryOptionId),
-    birthday: '',
     sourceOptionId: idToString(lead?.sourceOptionId),
     salesUserId: idToString(lead?.assignedUserId),
     note: lead?.note || '',
@@ -64,7 +56,6 @@ export function customerToFormValues(customer: Customer): CustomerFormValues {
     website: customer.website || '',
     industry: customer.industryOption?.label || customer.industry || '',
     industryOptionId: idToString(customer.industryOptionId),
-    birthday: getDateInputValue(customer.birthday),
     sourceOptionId: idToString(customer.sourceOptionId),
     salesUserId: idToString(customer.salesUserId),
     note: customer.note || '',
@@ -96,7 +87,6 @@ export function buildCustomerPayload(values: CustomerFormValues): CustomerPayloa
     website: emptyToNull(values.website),
     industry: emptyToNull(values.industry),
     industryOptionId: emptyToNull(values.industryOptionId),
-    birthday: values.birthday || null,
     sourceOptionId: emptyToNull(values.sourceOptionId),
     salesUserId: emptyToNull(values.salesUserId),
     note: emptyToNull(values.note),

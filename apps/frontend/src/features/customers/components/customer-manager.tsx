@@ -30,6 +30,7 @@ import { formatCustomerIdentity } from '@/lib/customer-utils';
 import { canCreateProjectForCustomer, canDeleteCustomer, canEditCustomer } from '@/lib/ownership';
 import { getMediaPreviewUrl } from '@/lib/media-url';
 import { getOptionColor } from '@/lib/option-utils';
+import { formatUserLabel } from '@/lib/user-utils';
 import api from '@/services/api/client';
 import type { Customer, CustomerFilters, CustomerProjectSummary } from '@/types/customer';
 import type { AppOption } from '@/types/option';
@@ -278,7 +279,6 @@ export function CustomerViewDialog({
                   label="CCCD / MST"
                   value={customer.identityNo || customer.taxCode}
                 />
-                <CustomerDetailRow label="Ngày sinh" value={customer.birthday} />
                 <CustomerLinkActions website={customer.website} projects={customer.projects} />
               </dl>
 
@@ -323,7 +323,7 @@ export function CustomerViewDialog({
                   label="Ngành"
                   value={customer.industryOption?.label || customer.industry}
                 />
-                <CustomerDetailRow label="Sales" value={customer.salesUser?.name} />
+                <CustomerDetailRow label="Sales" value={formatUserLabel(customer.salesUser)} />
                 <CustomerDetailRow label="Số dự án" value={customer.projectsCount} />
               </dl>
 
@@ -455,7 +455,7 @@ export function CustomerManager({
             value={filters.sales_user_id ? String(filters.sales_user_id) : ''}
             options={users.map((user) => ({
               value: String(user.id),
-              label: user.name || user.email || user.code || '-',
+              label: formatUserLabel(user),
             }))}
             onChange={(value) => updateFilters({ sales_user_id: Number(value) || 0 })}
           />
@@ -513,12 +513,13 @@ export function CustomerManager({
                 </td>
                 <td className="px-3 py-4">
                   <InfoPill
-                    value={customer.salesUser?.name}
+                    value={formatUserLabel(customer.salesUser)}
                     className="bg-sky-50 text-sky-700 ring-sky-100"
                   />
                 </td>
                 <td className="px-3 py-4">
                   <UserDateTimeCell
+                    userCode={customer.createdBy?.code}
                     userName={customer.createdBy?.name}
                     dateTime={customer.createdAt}
                   />

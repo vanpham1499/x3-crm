@@ -13,28 +13,34 @@ class QuotationResource extends JsonResource
 {
     public function toArray(Request $request): array
     {
-        $grossPaidAmount = $this->relationLoaded('paymentAllocations')
+        $grossPaidAmount = round($this->relationLoaded('paymentAllocations')
             ? (float) $this->paymentAllocations->sum('amount')
-            : 0.0;
+            : 0.0);
         $completedRefunds = $this->relationLoaded('paymentRefunds')
             ? $this->paymentRefunds
                 ->where('status', PaymentRefund::STATUS_COMPLETED)
             : collect();
-        $depositRefundedAmount = (float) $completedRefunds
+        $depositRefundedAmount = round((float) $completedRefunds
             ->where('refund_type', PaymentRefund::TYPE_DEPOSIT)
-            ->sum('amount');
-        $paymentRefundedAmount = (float) $completedRefunds
+            ->sum('amount'));
+        $paymentRefundedAmount = round((float) $completedRefunds
             ->where('refund_type', PaymentRefund::TYPE_PAYMENT)
-            ->sum('amount');
+            ->sum('amount'));
+        $budgetRefundedAmount = round((float) $completedRefunds
+            ->where('refund_type', PaymentRefund::TYPE_PAYMENT)
+            ->sum('budget_refund_amount'));
+        $serviceFeeRefundedAmount = round((float) $completedRefunds
+            ->where('refund_type', PaymentRefund::TYPE_PAYMENT)
+            ->sum('service_fee_refund_amount'));
         $refundedAmount = $depositRefundedAmount + $paymentRefundedAmount;
-        $compensationAmount = (float) $completedRefunds
+        $compensationAmount = round((float) $completedRefunds
             ->where('refund_type', PaymentRefund::TYPE_COMPENSATION)
-            ->sum('amount');
+            ->sum('amount'));
         $outboundAmount = $refundedAmount + $compensationAmount;
         $overCompensationAmount = max(0, $outboundAmount - $grossPaidAmount);
         $paidAmount = max(0, $grossPaidAmount - $refundedAmount);
-        $totalAmount = (float) $this->total_amount;
-        $storedDepositAmount = (float) $this->deposit_amount;
+        $totalAmount = round((float) $this->total_amount);
+        $storedDepositAmount = round((float) $this->deposit_amount);
         $metadata = is_array($this->metadata) ? $this->metadata : [];
         $expectedTotalWithDeposit = (float) $this->subtotal_amount
             + (float) $this->vat_amount
@@ -82,12 +88,14 @@ class QuotationResource extends JsonResource
             'subtotalAmount' => $this->subtotal_amount,
             'vatRate' => $this->vat_rate,
             'vatAmount' => $this->vat_amount,
-            'totalAmount' => $this->total_amount,
+            'totalAmount' => $totalAmount,
             'paidAmount' => round($paidAmount, 2),
             'grossPaidAmount' => round($grossPaidAmount, 2),
             'refundedAmount' => round($refundedAmount, 2),
             'depositRefundedAmount' => round($depositRefundedAmount, 2),
             'paymentRefundedAmount' => round($paymentRefundedAmount, 2),
+            'budgetRefundedAmount' => round($budgetRefundedAmount, 2),
+            'serviceFeeRefundedAmount' => round($serviceFeeRefundedAmount, 2),
             'compensationAmount' => round($compensationAmount, 2),
             'outboundAmount' => round($outboundAmount, 2),
             'overCompensationAmount' => round($overCompensationAmount, 2),

@@ -18,6 +18,7 @@ import type { Lead } from '@/types/lead';
 import type { Meeting, MeetingPayload, MeetingRelatedType, MeetingType } from '@/types/meeting';
 import type { ProjectItem } from '@/types/project';
 import type { User } from '@/types/user';
+import { formatUserLabel } from '@/lib/user-utils';
 
 export type MeetingUserOption = Pick<User, 'id' | 'code' | 'name'> & {
   isActive?: boolean;
@@ -328,7 +329,7 @@ export function MeetingFormDialog({
                 .filter((user) => user.isActive !== false)
                 .map((user) => (
                   <MenuItem key={user.id} value={String(user.id)}>
-                    {[user.code, user.name].filter(Boolean).join(' - ')}
+                    {formatUserLabel(user)}
                   </MenuItem>
                 ))}
             </FormSelectField>
@@ -411,7 +412,7 @@ export function MeetingFormDialog({
                 (user) => user.isActive !== false && user.id !== Number(organizerUserId),
               )}
               value={selectedParticipants.filter((user) => user.id !== Number(organizerUserId))}
-              getOptionLabel={(option) => [option.code, option.name].filter(Boolean).join(' - ')}
+              getOptionLabel={(option) => formatUserLabel(option)}
               isOptionEqualToValue={(option, selected) => option.id === selected.id}
               onChange={(_, values) => setParticipantUserIds(values.map((user) => user.id))}
               renderInput={(params) => (

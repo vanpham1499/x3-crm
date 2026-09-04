@@ -203,6 +203,7 @@ class PaymentAllocationService
             $payment->refresh()->load(['allocations.quotation', 'refunds']);
             $amount = round((float) ($data['amount'] ?? 0), 2);
             $refundType = (string) ($data['refund_type'] ?? $data['refundType'] ?? '');
+            $breakdown = $this->refundBreakdown($data, $refundType, $amount);
             $status = (string) ($data['status'] ?? PaymentRefund::STATUS_PENDING);
             $allocationId = $data['payment_allocation_id'] ?? $data['paymentAllocationId'] ?? null;
             $allocation = $allocationId
@@ -284,6 +285,8 @@ class PaymentAllocationService
                 'refund_type' => $refundType,
                 'status' => $status,
                 'amount' => $amount,
+                'budget_refund_amount' => $breakdown['budget'],
+                'service_fee_refund_amount' => $breakdown['serviceFee'],
                 'scheduled_at' => $scheduledAt,
                 'refunded_at' => $refundedAt,
                 'completed_at' => $status === PaymentRefund::STATUS_COMPLETED ? $refundedAt : null,
@@ -336,6 +339,7 @@ class PaymentAllocationService
             $refundType = (string) ($data['refund_type'] ?? $data['refundType'] ?? $refund->refund_type);
             $status = (string) ($data['status'] ?? $refund->status);
             $amount = round((float) ($data['amount'] ?? $refund->amount), 2);
+            $breakdown = $this->refundBreakdown($data, $refundType, $amount, $refund);
             $hasAllocationInput = array_key_exists('payment_allocation_id', $data)
                 || array_key_exists('paymentAllocationId', $data);
             $allocationId = $hasAllocationInput
@@ -430,6 +434,8 @@ class PaymentAllocationService
                 'refund_type' => $refundType,
                 'status' => $status,
                 'amount' => $amount,
+                'budget_refund_amount' => $breakdown['budget'],
+                'service_fee_refund_amount' => $breakdown['serviceFee'],
                 'scheduled_at' => $scheduledAt,
                 'refunded_at' => $refundedAt,
                 'completed_at' => $refundedAt,
@@ -902,7 +908,14 @@ class PaymentAllocationService
         float $refundedAmount,
         float $depositRefundedAmount,
     ): array {
-        $receivedAmount = round(max(0, $grossReceivedAmount - $refundedAmount), 2);
+        // Báo phí và giao dịch được hiển thị/thanh toán theo đơn vị đồng. Chuẩn hóa
+        // trước khi đối chiếu để phần lẻ do tính VAT không tạo công nợ "-0 đ".
+        $totalAmount = round($totalAmount);
+        $depositAmount = round($depositAmount);
+        $grossReceivedAmount = round($grossReceivedAmount);
+        $refundedAmount = round($refundedAmount);
+        $depositRefundedAmount = round($depositRefundedAmount);
+        $receivedAmount = round(max(0, $grossReceivedAmount - $refundedAmount));
         $isFullyRefunded = $grossReceivedAmount > self::MONEY_EPSILON
             && $receivedAmount <= self::MONEY_EPSILON
             && $refundedAmount >= $grossReceivedAmount - self::MONEY_EPSILON;
@@ -912,11 +925,10 @@ class PaymentAllocationService
         );
         $collectibleAmount = round(
             $isFullyRefunded ? 0 : max(0, $totalAmount - $releasedDepositAmount),
-            2,
         );
-        $outstandingAmount = round(max(0, $collectibleAmount - $receivedAmount), 2);
-        $excessAmount = round(max(0, $receivedAmount - $collectibleAmount), 2);
-        $differenceAmount = round($receivedAmount - $collectibleAmount, 2);
+        $outstandingAmount = round(max(0, $collectibleAmount - $receivedAmount));
+        $excessAmount = round(max(0, $receivedAmount - $collectibleAmount));
+        $differenceAmount = round($receivedAmount - $collectibleAmount);
         $paymentRefundedAmount = max(0, $refundedAmount - $depositRefundedAmount);
         $status = match (true) {
             $isFullyRefunded => 'refunded',
@@ -968,6 +980,49 @@ class PaymentAllocationService
         }
 
         return trim((string) ($data[$snakeKey] ?? $data[$camelKey] ?? '')) ?: null;
+    }
+
+    /** @return array{budget: float, serviceFee: float} */
+    private function refundBreakdown(
+        array $data,
+        string $refundType,
+        float $amount,
+        ?PaymentRefund $current = null,
+    ): array {
+        if ($refundType !== PaymentRefund::TYPE_PAYMENT) {
+            return ['budget' => 0.0, 'serviceFee' => 0.0];
+        }
+
+        $hasBudget = array_key_exists('budget_refund_amount', $data)
+            || array_key_exists('budgetRefundAmount', $data);
+        $hasServiceFee = array_key_exists('service_fee_refund_amount', $data)
+            || array_key_exists('serviceFeeRefundAmount', $data);
+
+        if (! $hasBudget && ! $hasServiceFee && $current?->refund_type === PaymentRefund::TYPE_PAYMENT) {
+            $budget = round((float) $current->budget_refund_amount, 2);
+            $serviceFee = round((float) $current->service_fee_refund_amount, 2);
+        } elseif ($hasBudget || $hasServiceFee) {
+            $budget = round((float) ($data['budget_refund_amount'] ?? $data['budgetRefundAmount'] ?? 0), 2);
+            $serviceFee = round((float) ($data['service_fee_refund_amount'] ?? $data['serviceFeeRefundAmount'] ?? 0), 2);
+        } else {
+            throw ValidationException::withMessages([
+                'budgetRefundAmount' => ['Cần tách rõ số tiền hoàn ngân sách và hoàn phí quản lý.'],
+            ]);
+        }
+
+        if ($budget < 0 || $serviceFee < 0) {
+            throw ValidationException::withMessages([
+                'budgetRefundAmount' => ['Các khoản tiền hoàn không được nhỏ hơn 0.'],
+            ]);
+        }
+
+        if (abs(($budget + $serviceFee) - $amount) > self::MONEY_EPSILON) {
+            throw ValidationException::withMessages([
+                'amount' => ['Tổng hoàn ngân sách và hoàn phí quản lý phải bằng số tiền trả khách.'],
+            ]);
+        }
+
+        return ['budget' => $budget, 'serviceFee' => $serviceFee];
     }
 
     private function singleLinkedQuotation(Payment $payment): ?Quotation

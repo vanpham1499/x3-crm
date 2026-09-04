@@ -118,7 +118,7 @@ export function ProjectCustomerPanel({ customer }: { customer?: Customer | null 
   const legalItems: CustomerDetail[] = [
     { label: 'Tên pháp nhân', value: textOrDash(customer.companyName) },
     { label: 'Người đại diện', value: textOrDash(customer.representativeName) },
-    { label: 'CCCD/MST', value: textOrDash(customer.taxCode) },
+    { label: 'CCCD/MST', value: textOrDash(customer.identityNo || customer.taxCode) },
     {
       label: 'Email hóa đơn',
       value: customer.invoiceEmail ? (

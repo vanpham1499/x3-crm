@@ -45,6 +45,8 @@ export type Quotation = {
   refundedAmount?: string | number | null;
   depositRefundedAmount?: string | number | null;
   paymentRefundedAmount?: string | number | null;
+  budgetRefundedAmount?: string | number | null;
+  serviceFeeRefundedAmount?: string | number | null;
   compensationAmount?: string | number | null;
   outboundAmount?: string | number | null;
   overCompensationAmount?: string | number | null;

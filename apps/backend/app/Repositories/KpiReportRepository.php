@@ -131,6 +131,8 @@ class KpiReportRepository
                 'payment_allocation_id',
                 'refund_type',
                 'amount',
+                'budget_refund_amount',
+                'service_fee_refund_amount',
                 'completed_at',
                 'reason',
                 'reference',

@@ -10,6 +10,7 @@ export type MediaItem = {
   uploadedBy?: number | string | null;
   uploader?: {
     id: number;
+    code?: string | null;
     name: string;
     departmentId?: number | null;
   } | null;

@@ -23,6 +23,7 @@ class Project extends BaseModel
         'plan_link',
         'weekly_report_link',
         'customer_tracking_report_link',
+        'website',
         'admin_web_account',
         'start_date',
         'end_date',

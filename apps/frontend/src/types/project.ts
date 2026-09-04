@@ -13,7 +13,22 @@ export type StoredProjectType = ProjectType | 'N';
 
 export type ProjectCustomerSummary = Pick<
   Customer,
-  'id' | 'customerCode' | 'customerName' | 'companyName' | 'phone' | 'email' | 'leadId'
+  | 'id'
+  | 'customerCode'
+  | 'customerName'
+  | 'companyName'
+  | 'representativeName'
+  | 'taxCode'
+  | 'identityNo'
+  | 'address'
+  | 'phone'
+  | 'email'
+  | 'invoiceEmail'
+  | 'website'
+  | 'industry'
+  | 'note'
+  | 'leadId'
+  | 'createdAt'
 >;
 
 export type ProjectItem = {
@@ -32,6 +47,7 @@ export type ProjectItem = {
   planLink?: string | null;
   weeklyReportLink?: string | null;
   customerTrackingReportLink?: string | null;
+  website?: string | null;
   adminWebAccount?: string | null;
   startDate?: string | null;
   endDate?: string | null;
@@ -94,6 +110,7 @@ export type ProjectFormValues = {
   planLink: string;
   monthlyBudget: string;
   customerTrackingReportLink: string;
+  website: string;
   adminWebAccount: string;
   startDate: string;
   endDate: string;

@@ -16,6 +16,7 @@ import { ConfirmDialog } from '@/components/feedback/confirm-dialog';
 import { useAppNotification } from '@/components/feedback/notification-provider';
 import { getApiErrorMessage } from '@/lib/api-error';
 import { formatDateTime } from '@/lib/utils';
+import { formatUserLabel } from '@/lib/user-utils';
 import api from '@/services/api/client';
 import type {
   WeeklyReport,
@@ -58,7 +59,7 @@ function MessageBubble({
   onDelete?: (message: WeeklyReportItem) => void;
 }) {
   const [menuAnchor, setMenuAnchor] = useState<HTMLElement | null>(null);
-  const authorName = message.author?.name || report.reporter?.name || 'Người dùng';
+  const authorName = formatUserLabel(message.author || report.reporter, 'Người dùng');
   const isReporter =
     !message.author?.id || Number(message.author.id) === Number(report.reporterUserId);
   const hasActions = Boolean(message.canUpdate || message.canDelete);
@@ -458,9 +459,10 @@ export function WeeklyReportConversation({
               >
                 {editingMessage || editingDraft
                   ? 'Đang chỉnh sửa tin nhắn'
-                  : `Đang phản hồi ${
-                      replyTarget?.author?.name || report?.reporter?.name || 'tin nhắn'
-                    }`}
+                  : `Đang phản hồi ${formatUserLabel(
+                      replyTarget?.author || report?.reporter,
+                      'tin nhắn',
+                    )}`}
               </p>
               <IconButton
                 type="button"

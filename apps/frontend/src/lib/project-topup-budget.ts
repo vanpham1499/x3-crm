@@ -23,7 +23,7 @@ export function calculateQuotationEligibleTopupBudget(quotation: Quotation) {
     return sum + amountBeforeVat + Math.round((amountBeforeVat * itemVatRate) / 100);
   }, 0);
 
-  return budget + Math.round((budget * vatRate) / 100) + extraTopupBudget;
+  return Math.round(budget + Math.round((budget * vatRate) / 100) + extraTopupBudget);
 }
 
 function quotationTopupBreakdown(quotation: Quotation) {
@@ -31,31 +31,52 @@ function quotationTopupBreakdown(quotation: Quotation) {
     quotation.topupEligibleAmount !== null &&
     quotation.topupEligibleAmount !== undefined &&
     Number.isFinite(Number(quotation.topupEligibleAmount));
-  const eligibleBudget = hasServerEligibleBudget
-    ? Number(quotation.topupEligibleAmount)
-    : calculateQuotationEligibleTopupBudget(quotation);
-  const grossPaidAmount = Math.max(0, Number(quotation.grossPaidAmount) || 0);
-  const refundedAmount = Math.max(0, Number(quotation.refundedAmount) || 0);
+  const eligibleBudget = Math.round(
+    hasServerEligibleBudget
+      ? Number(quotation.topupEligibleAmount)
+      : calculateQuotationEligibleTopupBudget(quotation),
+  );
+  const grossPaidAmount = Math.max(0, Math.round(Number(quotation.grossPaidAmount) || 0));
+  const refundedAmount = Math.max(0, Math.round(Number(quotation.refundedAmount) || 0));
+  const budgetRefundedAmount = Math.max(
+    0,
+    Math.round(Number(quotation.budgetRefundedAmount) || 0),
+  );
   const isFullyRefunded =
     quotation.isFullyRefunded === true ||
     quotation.paymentStatus === 'refunded' ||
     quotation.status === 'refunded';
-  const depositRefundedAmount = Math.max(0, Number(quotation.depositRefundedAmount) || 0);
+  const depositRefundedAmount = Math.max(
+    0,
+    Math.round(Number(quotation.depositRefundedAmount) || 0),
+  );
   const heldDepositAmount = isFullyRefunded
     ? 0
     : Math.max(
         0,
-        Math.min(Math.max(0, Number(quotation.depositAmount) || 0), grossPaidAmount) -
+        Math.min(Math.max(0, Math.round(Number(quotation.depositAmount) || 0)), grossPaidAmount) -
           depositRefundedAmount,
       );
   const usablePaidAmount = isFullyRefunded
     ? 0
     : Math.max(0, grossPaidAmount - refundedAmount - heldDepositAmount);
-  const paidBudget = Math.min(eligibleBudget, usablePaidAmount);
-  const remainingEligibleBudget = Math.max(0, eligibleBudget - paidBudget);
+  const hasServerPaidBudget =
+    quotation.topupPaidBudget !== null &&
+    quotation.topupPaidBudget !== undefined &&
+    Number.isFinite(Number(quotation.topupPaidBudget));
+  const fundedBudget = isFullyRefunded
+    ? 0
+    : Math.min(eligibleBudget, Math.max(0, grossPaidAmount - heldDepositAmount));
+  const paidBudget = hasServerPaidBudget
+    ? Math.max(0, Math.round(Number(quotation.topupPaidBudget)))
+    : Math.max(0, fundedBudget - budgetRefundedAmount);
+  const remainingEligibleBudget = Math.max(0, eligibleBudget - fundedBudget);
   const creditBudget =
     !isFullyRefunded && quotation.topupCreditEnabled
-      ? Math.min(remainingEligibleBudget, Math.max(0, Number(quotation.topupCreditLimit) || 0))
+      ? Math.min(
+          remainingEligibleBudget,
+          Math.max(0, Math.round(Number(quotation.topupCreditLimit) || 0)),
+        )
       : 0;
 
   return {
@@ -164,6 +185,6 @@ export function calculateAvailableTopupBudget({
     customerBudget,
     releasedBudget: customerBudget,
     usedBudget,
-    availableBudget: customerBudget - usedBudget,
+    availableBudget: Math.round(customerBudget - usedBudget),
   };
 }

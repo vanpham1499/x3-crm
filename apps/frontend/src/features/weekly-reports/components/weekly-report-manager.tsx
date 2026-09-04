@@ -25,6 +25,7 @@ import {
   canUpdateWeeklyReport,
 } from '@/lib/ownership';
 import { formatDate } from '@/lib/utils';
+import { formatUserLabel } from '@/lib/user-utils';
 import type { ProjectItem } from '@/types/project';
 import type { AppOption } from '@/types/option';
 import type { User } from '@/types/user';
@@ -161,7 +162,7 @@ export function WeeklyReportManager({
         minWidthClassName="min-w-[1132px]"
       >
         {reports.map((report) => {
-          const reporterLabel = report.reporter?.name || '-';
+          const reporterLabel = formatUserLabel(report.reporter);
           const periodLabel = `${formatDate(report.weekStartDate)} – ${formatDate(report.weekEndDate)}`;
 
           return (

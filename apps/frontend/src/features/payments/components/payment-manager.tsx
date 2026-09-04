@@ -370,9 +370,10 @@ function groupCollectionStatus(group: PaymentTableGroup, differenceAmount: numbe
 
 function formatDifference(value: number | null) {
   if (value === null) return '-';
-  if (Math.abs(value) <= 0.01) return formatCurrency(0);
+  const roundedValue = Math.round(value);
+  if (roundedValue === 0) return formatCurrency(0);
 
-  return `${value > 0 ? '+' : '-'}${formatCurrency(Math.abs(value))}`;
+  return `${roundedValue > 0 ? '+' : '-'}${formatCurrency(Math.abs(roundedValue))}`;
 }
 
 function differenceClass(value: number | null) {
@@ -828,6 +829,8 @@ function RefundDialog({
   const [allocationId, setAllocationId] = useState<number | null>(null);
   const [status, setStatus] = useState<'pending' | 'completed'>('pending');
   const [amount, setAmount] = useState('');
+  const [budgetRefundAmount, setBudgetRefundAmount] = useState('');
+  const [serviceFeeRefundAmount, setServiceFeeRefundAmount] = useState('');
   const [scheduledAt, setScheduledAt] = useState(todayString());
   const [recipientName, setRecipientName] = useState('');
   const [recipientAccount, setRecipientAccount] = useState('');
@@ -868,6 +871,8 @@ function RefundDialog({
     setAllocationId(initialAllocation?.id || null);
     setStatus('pending');
     setAmount(String(initialAmount || ''));
+    setBudgetRefundAmount(initialType === 'payment' ? String(initialAmount || '') : '');
+    setServiceFeeRefundAmount('');
     setScheduledAt(todayString());
     setRecipientName('');
     setRecipientAccount('');
@@ -924,12 +929,17 @@ function RefundDialog({
     setRefundType(nextType);
     setAllocationId(nextAllocation?.id || null);
     setAmount(String(nextAmount || ''));
+    setBudgetRefundAmount(nextType === 'payment' ? String(nextAmount || '') : '');
+    setServiceFeeRefundAmount('');
     setError('');
   };
 
   const handleSubmit = async (event: FormEvent<HTMLFormElement>) => {
     event.preventDefault();
-    const refundAmount = Number(amount) || 0;
+    const budgetRefund = Number(budgetRefundAmount) || 0;
+    const serviceFeeRefund = Number(serviceFeeRefundAmount) || 0;
+    const refundAmount =
+      refundType === 'payment' ? budgetRefund + serviceFeeRefund : Number(amount) || 0;
 
     if ((refundType === 'deposit' || refundType === 'payment') && !selectedAllocation) {
       setError('Cần chọn báo phí đã nhận tiền.');
@@ -953,6 +963,8 @@ function RefundDialog({
       refundType,
       status,
       amount: refundAmount,
+      budgetRefundAmount: refundType === 'payment' ? budgetRefund : undefined,
+      serviceFeeRefundAmount: refundType === 'payment' ? serviceFeeRefund : undefined,
       scheduledAt,
       refundedAt: status === 'completed' ? scheduledAt : undefined,
       recipientName: recipientName.trim() || undefined,
@@ -1034,6 +1046,9 @@ function RefundDialog({
                     : Number(next?.refundableAmount) || '',
                 ),
               );
+              const nextRefundable = Number(next?.refundableAmount) || 0;
+              setBudgetRefundAmount(refundType === 'payment' ? String(nextRefundable || '') : '');
+              setServiceFeeRefundAmount('');
               setError('');
             }}
           >
@@ -1071,17 +1086,53 @@ function RefundDialog({
             </span>
           ) : null}
         </div>
-        <MoneyInput
-          label={refundType === 'compensation' ? 'Số tiền bù thêm' : 'Số tiền trả khách'}
-          value={amount}
-          required
-          size="small"
-          className={compactFormFieldClassName}
-          onValueChange={(value) => {
-            setAmount(value);
-            setError('');
-          }}
-        />
+        {refundType === 'payment' ? (
+          <>
+            <MoneyInput
+              label="Số tiền ngân sách hoàn về"
+              value={budgetRefundAmount}
+              required
+              size="small"
+              className={compactFormFieldClassName}
+              onValueChange={(value) => {
+                setBudgetRefundAmount(value);
+                setError('');
+              }}
+            />
+            <MoneyInput
+              label="Phí quản lý hoàn về"
+              value={serviceFeeRefundAmount}
+              required
+              size="small"
+              className={compactFormFieldClassName}
+              onValueChange={(value) => {
+                setServiceFeeRefundAmount(value);
+                setError('');
+              }}
+            />
+            <div className="rounded-lg border border-emerald-200 bg-emerald-50 px-3 py-2.5 sm:col-span-2">
+              <span className="text-sm font-semibold text-emerald-700">Tổng trả khách: </span>
+              <span className="text-sm font-extrabold tabular-nums text-emerald-800">
+                {formatCurrency((Number(budgetRefundAmount) || 0) + (Number(serviceFeeRefundAmount) || 0))}
+              </span>
+              <p className="mt-1 text-xs font-medium text-emerald-700">
+                Chỉ phần ngân sách hoàn về làm giảm số tiền có thể nạp của dự án.
+              </p>
+            </div>
+          </>
+        ) : (
+          <MoneyInput
+            label={refundType === 'compensation' ? 'Số tiền bù thêm' : 'Số tiền trả khách'}
+            value={amount}
+            required
+            size="small"
+            className={compactFormFieldClassName}
+            onValueChange={(value) => {
+              setAmount(value);
+              setError('');
+            }}
+          />
+        )}
         <FormDatePicker
           label={status === 'completed' ? 'Ngày chuyển' : 'Ngày dự kiến trả'}
           value={scheduledAt}
@@ -1375,7 +1426,7 @@ export function PaymentManager({
                     )
                   : undefined;
                 const differenceAmount = differenceSource
-                  ? Number(differenceSource.collectionDifferenceAmount) || 0
+                  ? Math.round(Number(differenceSource.collectionDifferenceAmount) || 0)
                   : null;
                 const compensationAmount = differenceSource
                   ? Number(differenceSource.collectionCompensationAmount) || 0

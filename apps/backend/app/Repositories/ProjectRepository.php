@@ -41,6 +41,8 @@ class ProjectRepository extends BaseRepository
         $salesUserId = $filters['sales_user_id'] ?? null;
 
         $query = $this->query()
+            ->leftJoin('customers as sort_customer', 'sort_customer.id', '=', 'projects.customer_id')
+            ->select('projects.*')
             ->with(['customer', 'quotation', 'service', 'statusOption', 'managerUser', 'salesUser', 'createdBy']);
 
         $this->applyViewScope($query, $user);
@@ -68,7 +70,9 @@ class ProjectRepository extends BaseRepository
             ->when($status, fn ($query) => $query->whereHas('statusOption', fn ($subQuery) => $subQuery->where('group', Option::GROUP_PROJECT_STATUS)->where('key', $status)))
             ->when($managerUserId, fn ($query) => $query->where('manager_user_id', $managerUserId))
             ->when($salesUserId, fn ($query) => $query->where('sales_user_id', $salesUserId))
-            ->orderByDesc('created_at');
+            ->orderByRaw("CASE WHEN sort_customer.customer_code ~ '^[0-9]+$' THEN CAST(sort_customer.customer_code AS BIGINT) END DESC NULLS LAST")
+            ->orderByDesc('sort_customer.customer_code')
+            ->orderByDesc('projects.id');
     }
 
     private function applyViewScope(Builder $query, ?User $user): void

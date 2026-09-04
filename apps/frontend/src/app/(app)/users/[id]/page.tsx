@@ -13,6 +13,7 @@ import {
   getUserFormDefaults,
 } from '@/features/users/components/user-form';
 import { getApiErrorMessage } from '@/lib/api-error';
+import { formatUserLabel } from '@/lib/user-utils';
 import { api } from '@/services/api/client';
 import { useAuthStore } from '@/stores/auth-store';
 import type { RoleOption, User } from '@/types/user';
@@ -102,7 +103,7 @@ export default function UserDetailPage() {
       <ConfirmDialog
         open={deleteDialogOpen}
         title="Xóa nhân viên?"
-        description={`Bạn có chắc muốn xóa nhân viên "${user.name || user.email || user.code}"? Thao tác này sẽ đưa nhân viên ra khỏi danh sách.`}
+        description={`Bạn có chắc muốn xóa nhân viên "${formatUserLabel(user)}"? Thao tác này sẽ đưa nhân viên ra khỏi danh sách.`}
         confirmText="Xóa nhân viên"
         loading={deleteMutation.isPending}
         onClose={() => setDeleteDialogOpen(false)}

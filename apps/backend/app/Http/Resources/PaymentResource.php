@@ -114,6 +114,8 @@ class PaymentResource extends JsonResource
                     'id' => $refund->id,
                     'paymentId' => $refund->payment_id,
                     'amount' => $refund->amount,
+                    'budgetRefundAmount' => $refund->budget_refund_amount,
+                    'serviceFeeRefundAmount' => $refund->service_fee_refund_amount,
                     'paymentAllocationId' => $refund->payment_allocation_id,
                     'quotationId' => $refund->quotation_id,
                     'customerId' => $refund->customer_id,

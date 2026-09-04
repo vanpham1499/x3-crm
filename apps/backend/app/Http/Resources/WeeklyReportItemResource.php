@@ -22,6 +22,7 @@ class WeeklyReportItemResource extends JsonResource
             'assigneeUserId' => $this->assignee_user_id,
             'assignee' => $this->whenLoaded('assignee', fn () => $this->assignee ? [
                 'id' => $this->assignee->id,
+                'code' => $this->assignee->code,
                 'name' => $this->assignee->name,
             ] : null),
             'author' => $this->whenLoaded('createdBy', fn () => $this->createdBy ? [

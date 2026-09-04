@@ -3,17 +3,15 @@
 import { useState } from 'react';
 import SaveRoundedIcon from '@mui/icons-material/SaveRounded';
 import { MenuItem } from '@mui/material';
-import { DatePicker } from '@mui/x-date-pickers/DatePicker';
-import dayjs from 'dayjs';
 import { Controller, useForm } from 'react-hook-form';
 import { FormActionBar } from '@/components/form/form-action-bar';
 import { ExternalLinkAdornment } from '@/components/form/external-link-adornment';
-import { compactFormFieldClassName } from '@/components/form/form-field-styles';
 import { FormInputField } from '@/components/form/form-input-field';
 import { FormSection } from '@/components/form/form-section';
 import { FormSelectField } from '@/components/form/form-select-field';
 import { MultiImageUpload } from '@/components/upload/multi-image-upload';
 import { applyApiErrorsToForm } from '@/lib/api-error';
+import { formatUserLabel } from '@/lib/user-utils';
 import type { Customer, CustomerFormValues } from '@/types/customer';
 import type { AppOption } from '@/types/option';
 import type { User } from '@/types/user';
@@ -31,34 +29,6 @@ type CustomerApiFormProps = {
   readOnly?: boolean;
   onSubmit: (values: CustomerFormValues) => Promise<unknown>;
 };
-
-function CustomerDatePicker({
-  label,
-  value,
-  onChange,
-  disabled,
-}: {
-  label: string;
-  value: string;
-  onChange: (value: string) => void;
-  disabled?: boolean;
-}) {
-  return (
-    <DatePicker
-      label={label}
-      value={value ? dayjs(value) : null}
-      onChange={(nextValue) => onChange(nextValue?.isValid() ? nextValue.format('YYYY-MM-DD') : '')}
-      disabled={disabled}
-      slotProps={{
-        textField: {
-          fullWidth: true,
-          size: 'small',
-          className: compactFormFieldClassName,
-        },
-      }}
-    />
-  );
-}
 
 export function CustomerApiForm({
   mode,
@@ -176,14 +146,42 @@ export function CustomerApiForm({
               />
               <FormInputField
                 required
-                label="Số điện thoại"
+                label="CCCD / MST"
                 disabled={readOnly}
-                error={Boolean(errors.phone)}
-                helperText={errors.phone?.message}
-                {...register('phone', {
-                  validate: (value) => value.trim() !== '' || 'Vui lòng nhập số điện thoại',
+                error={Boolean(errors.taxCode)}
+                helperText={errors.taxCode?.message}
+                {...register('taxCode', {
+                  validate: (value) => value.trim() !== '' || 'Vui lòng nhập CCCD / MST',
                 })}
               />
+              <input type="hidden" {...register('identityNo')} />
+            </div>
+
+            <div className="grid items-start gap-4 md:grid-cols-12">
+              <div className="md:col-span-4">
+                <FormInputField
+                  required
+                  label="Số điện thoại"
+                  disabled={readOnly}
+                  error={Boolean(errors.phone)}
+                  helperText={errors.phone?.message}
+                  {...register('phone', {
+                    validate: (value) => value.trim() !== '' || 'Vui lòng nhập số điện thoại',
+                  })}
+                />
+              </div>
+              <div className="md:col-span-8">
+                <FormInputField
+                  required
+                  label="Địa chỉ"
+                  disabled={readOnly}
+                  error={Boolean(errors.address)}
+                  helperText={errors.address?.message}
+                  {...register('address', {
+                    validate: (value) => value.trim() !== '' || 'Vui lòng nhập địa chỉ',
+                  })}
+                />
+              </div>
             </div>
 
             <div className="grid gap-4 md:grid-cols-2">
@@ -208,74 +206,25 @@ export function CustomerApiForm({
               />
             </div>
 
-            <div className="grid gap-4 md:grid-cols-2">
-              <FormInputField
-                label="Website"
-                disabled={readOnly}
-                helperText="Có thể nhập link Website, Google Map hoặc Fanpage."
-                slotProps={{
-                  input: {
-                    endAdornment: (
-                      <ExternalLinkAdornment
-                        value={websiteValue}
-                        ariaLabel="Mở Website, Google Map hoặc Fanpage trong tab mới"
-                      />
-                    ),
-                  },
-                }}
-                {...register('website')}
-              />
-              <input type="hidden" {...register('industry')} />
-              <input type="hidden" {...register('industryOptionId')} />
-              <FormInputField
-                label="Ngành"
-                value={industryValue}
-                disabled
-                helperText="Kế thừa từ Lead. Muốn thay đổi, hãy cập nhật tại Lead."
-              />
-            </div>
-
-            <div className="grid gap-4 md:grid-cols-2">
-              <FormInputField
-                required
-                label="CCCD / MST"
-                disabled={readOnly}
-                error={Boolean(errors.taxCode)}
-                helperText={errors.taxCode?.message}
-                {...register('taxCode', {
-                  validate: (value) => value.trim() !== '' || 'Vui lòng nhập CCCD / MST',
-                })}
-              />
-              <input type="hidden" {...register('identityNo')} />
-              <Controller
-                name="birthday"
-                control={control}
-                render={({ field }) => (
-                  <CustomerDatePicker
-                    label="Ngày sinh"
-                    value={field.value}
-                    onChange={field.onChange}
-                    disabled={readOnly}
-                  />
-                )}
-              />
-            </div>
+            <FormInputField
+              label="Website"
+              disabled={readOnly}
+              helperText="Có thể nhập link Website, Google Map hoặc Fanpage."
+              slotProps={{
+                input: {
+                  endAdornment: (
+                    <ExternalLinkAdornment
+                      value={websiteValue}
+                      ariaLabel="Mở Website, Google Map hoặc Fanpage trong tab mới"
+                    />
+                  ),
+                },
+              }}
+              {...register('website')}
+            />
 
             <div className="grid items-start gap-4 md:grid-cols-2">
-              <div className="space-y-4">
-                <FormInputField
-                  required
-                  multiline
-                  minRows={2}
-                  label="Địa chỉ"
-                  disabled={readOnly}
-                  error={Boolean(errors.address)}
-                  helperText={errors.address?.message}
-                  {...register('address', {
-                    validate: (value) => value.trim() !== '' || 'Vui lòng nhập địa chỉ',
-                  })}
-                />
-
+              <div>
                 <FormInputField
                   multiline
                   minRows={5}
@@ -362,6 +311,15 @@ export function CustomerApiForm({
               )}
             />
 
+            <input type="hidden" {...register('industry')} />
+            <input type="hidden" {...register('industryOptionId')} />
+            <FormInputField
+              label="Ngành"
+              value={industryValue}
+              disabled
+              helperText="Kế thừa từ Lead. Muốn thay đổi, hãy cập nhật tại Lead."
+            />
+
             <Controller
               name="salesUserId"
               control={control}
@@ -378,7 +336,7 @@ export function CustomerApiForm({
                   <MenuItem value="">Chưa chọn</MenuItem>
                   {users.map((user) => (
                     <MenuItem key={user.id} value={String(user.id)}>
-                      {user.name || user.email || user.code}
+                      {formatUserLabel(user)}
                     </MenuItem>
                   ))}
                 </FormSelectField>

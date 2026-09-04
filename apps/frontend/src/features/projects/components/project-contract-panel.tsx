@@ -42,7 +42,7 @@ function customerInvoiceSnapshot(customer?: Customer | null) {
   return {
     invoiceRecipientName: customer?.companyName || customer?.customerName || '',
     invoiceRepresentativeName: customer?.representativeName || '',
-    invoiceTaxCode: customer?.taxCode || '',
+    invoiceTaxCode: customer?.identityNo || customer?.taxCode || '',
     invoiceAddress: customer?.address || '',
     invoiceEmail: customer?.invoiceEmail || customer?.email || '',
     invoicePhone: customer?.phone || '',
@@ -99,6 +99,13 @@ function getQuotationDeposit(contract: Contract, quotations: Quotation[]) {
 
   const quotation = quotations.find((item) => item.id === contract.quotationId);
   return Number(quotation?.depositAmount ?? contract.quotation?.depositAmount ?? 0) || 0;
+}
+
+function getInvoiceLegalNumber(contract: Contract, customer?: Customer | null) {
+  if (contract.invoiceTaxCode) return contract.invoiceTaxCode;
+  if (contract.invoiceRecipientType === 'other') return '';
+
+  return customer?.identityNo || customer?.taxCode || '';
 }
 
 function InfoCell({ label, value }: { label: string; value?: string | null }) {
@@ -575,9 +582,9 @@ export function ProjectContractPanel({
                 >
                   {contract.invoiceRecipientType === 'other' ? 'Chủ thể khác' : 'Theo khách hàng'}
                 </span>
-                {contract.invoiceTaxCode ? (
+                {getInvoiceLegalNumber(contract, customer) ? (
                   <span className="min-w-0 truncate text-xs text-slate-500">
-                    MST: {contract.invoiceTaxCode}
+                    CCCD/MST: {getInvoiceLegalNumber(contract, customer)}
                   </span>
                 ) : null}
               </div>

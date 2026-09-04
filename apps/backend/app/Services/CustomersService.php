@@ -252,8 +252,7 @@ class CustomersService extends BaseService
         string $customerCode,
         bool $purge,
         ?int $ignoreCustomerId = null,
-    ): void
-    {
+    ): void {
         /** @var Customer|null $duplicate */
         $duplicate = Customer::query()
             ->withTrashed()
@@ -647,7 +646,9 @@ class CustomersService extends BaseService
             'customer_type_option_id' => $this->displayOption($customer->customerTypeOption),
             'source_option_id' => $this->displayOption($customer->sourceOption),
             'industry_option_id' => $this->displayOption($customer->industryOption),
-            'sales_user_id' => $customer->salesUser?->name ?: $this->emptyValue(),
+            'sales_user_id' => $customer->salesUser
+                ? collect([$customer->salesUser->code, $customer->salesUser->name])->filter()->implode(' - ')
+                : $this->emptyValue(),
             'birthday' => $customer->birthday?->toDateString() ?: $this->emptyValue(),
             'identity_image_urls' => count($customer->identity_image_urls ?? []).' ảnh',
             default => $this->stringValue($customer->{$field}),

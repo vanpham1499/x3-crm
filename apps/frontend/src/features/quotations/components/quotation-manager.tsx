@@ -22,6 +22,7 @@ import { TablePaginationBar } from '@/components/table/table-pagination-bar';
 import { UserDateTimeCell } from '@/components/table/user-date-time-cell';
 import { canCreateQuotation, canDeleteQuotation, canEditQuotation } from '@/lib/ownership';
 import { getQuotationPaymentStatusLabel } from '@/lib/quotation-utils';
+import { formatUserLabel } from '@/lib/user-utils';
 import type { Quotation, QuotationFilters } from '@/types/quotation';
 import type { User } from '@/types/user';
 import { QuickQuotationBuilderDialog } from './quick-quotation-builder-dialog';
@@ -60,10 +61,6 @@ function quotationStatusClass(status?: string | null) {
   if (status === 'won') return 'bg-emerald-50 text-emerald-700 ring-emerald-100';
   if (status === 'refunded') return 'bg-rose-50 text-rose-700 ring-rose-100';
   return 'bg-rose-50 text-rose-700 ring-rose-100';
-}
-
-function userLabel(user: User) {
-  return [user.code, user.name].filter(Boolean).join(' - ') || user.email || `User #${user.id}`;
 }
 
 function paymentStatusClass(status?: string | null) {
@@ -195,7 +192,7 @@ export function QuotationManager({
             value={filters.created_by}
             options={creators.map((user) => ({
               value: String(user.id),
-              label: userLabel(user),
+              label: formatUserLabel(user, `User #${user.id}`),
             }))}
             onChange={(value) => updateFilters({ created_by: value })}
             noOptionsText="Không tìm thấy người tạo"
@@ -301,6 +298,7 @@ export function QuotationManager({
                 </td>
                 <td className="px-3 py-4">
                   <UserDateTimeCell
+                    userCode={quotation.createdBy?.code}
                     userName={quotation.createdBy?.name}
                     dateTime={quotation.createdAt}
                   />

@@ -34,6 +34,7 @@ import { getOptionColor } from '@/lib/option-utils';
 import { flattenServices } from '@/lib/service-utils';
 import { canCreateProject, canDeleteProject, canEditProject } from '@/lib/ownership';
 import { formatCurrency } from '@/lib/utils';
+import { formatUserLabel } from '@/lib/user-utils';
 import api from '@/services/api/client';
 import type { AppOption } from '@/types/option';
 import type { ProjectFilters, ProjectItem } from '@/types/project';
@@ -60,11 +61,6 @@ type ProjectManagerProps = {
   onDelete: (project: ProjectItem) => void;
   onStatusChange: (project: ProjectItem, statusOptionId: number) => void;
 };
-
-function userLabel(user?: User | null) {
-  if (!user) return '-';
-  return [user.code, user.name].filter(Boolean).join(' - ');
-}
 
 function InlineProjectStatusSelect({
   project,
@@ -143,8 +139,8 @@ function getProjectTimelineEntries(project: ProjectItem) {
     fallbackEntries.push({
       id: `${project.id}-created`,
       title: 'Tạo dự án',
-      description: project.managerUser?.name
-        ? `Nhân sự triển khai: ${project.managerUser.name}`
+      description: project.managerUser
+        ? `Nhân sự triển khai: ${formatUserLabel(project.managerUser)}`
         : '',
       occurredAt: project.createdAt,
       actor: project.createdBy,
@@ -235,7 +231,7 @@ function ProjectViewDialog({
                 />
                 <ProjectDetailRow
                   label="Nhân sự triển khai"
-                  value={project.managerUser?.name || project.managerUser?.code}
+                  value={formatUserLabel(project.managerUser)}
                 />
                 <ProjectDetailRow label="Bắt đầu" value={formatProjectDate(project.startDate)} />
                 <ProjectDetailRow label="Kết thúc" value={formatProjectDate(project.endDate)} />
@@ -279,6 +275,22 @@ function ProjectViewDialog({
                     >
                       <LinkRoundedIcon className="!text-[18px]" />
                       <span className="truncate">Mở báo cáo tổng hợp</span>
+                    </a>
+                  ) : (
+                    <span className="font-semibold text-slate-800">-</span>
+                  )}
+                </div>
+                <div className="grid grid-cols-[160px_minmax(0,1fr)] gap-3 text-sm">
+                  <span className="font-semibold text-slate-500">Website / Map / Fanpage</span>
+                  {project.website ? (
+                    <a
+                      href={getProjectExternalUrl(project.website)}
+                      target="_blank"
+                      rel="noreferrer"
+                      className="inline-flex min-w-0 items-center gap-1 font-semibold text-blue-600 hover:text-blue-700"
+                    >
+                      <LinkRoundedIcon className="!text-[18px]" />
+                      <span className="truncate">Mở liên kết</span>
                     </a>
                   ) : (
                     <span className="font-semibold text-slate-800">-</span>
@@ -440,7 +452,7 @@ export function ProjectManager({
               value={filters.manager_user_id}
               options={users.map((user) => ({
                 value: String(user.id),
-                label: userLabel(user),
+                label: formatUserLabel(user),
               }))}
               onChange={(value) => updateFilters({ manager_user_id: value })}
             />
@@ -510,14 +522,18 @@ export function ProjectManager({
                   />
                 </td>
                 <td className="px-3 py-4">
-                  <p className="truncate text-slate-700" title={project.managerUser?.name || ''}>
-                    {project.managerUser?.name || '-'}
+                  <p
+                    className="truncate text-slate-700"
+                    title={formatUserLabel(project.managerUser)}
+                  >
+                    {formatUserLabel(project.managerUser)}
                   </p>
                 </td>
                 <td className="px-3 py-4 text-slate-600">{formatProjectDate(project.startDate)}</td>
                 <td className="px-3 py-4 text-slate-600">{formatProjectDate(project.endDate)}</td>
                 <td className="px-3 py-4 align-middle">
                   <UserDateTimeCell
+                    userCode={project.createdBy?.code}
                     userName={project.createdBy?.name}
                     dateTime={project.createdAt}
                   />

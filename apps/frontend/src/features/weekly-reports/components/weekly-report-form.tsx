@@ -32,6 +32,7 @@ import {
   isReportWeekday,
 } from '@/lib/weekly-report-schedule';
 import { formatDate } from '@/lib/utils';
+import { formatUserLabel } from '@/lib/user-utils';
 import api from '@/services/api/client';
 import type { AppOption } from '@/types/option';
 import type { ProjectItem } from '@/types/project';
@@ -253,7 +254,7 @@ export function WeeklyReportForm({
           <AlertTitle className="!font-bold">Báo cáo đã bị từ chối</AlertTitle>
           <p className="whitespace-pre-wrap text-sm leading-6">{report.rejectionReason}</p>
           <p className="mt-1 text-xs font-semibold text-rose-700">
-            {report.rejecter?.name ? `Người từ chối: ${report.rejecter.name}` : null}
+            {report.rejecter ? `Người từ chối: ${formatUserLabel(report.rejecter)}` : null}
           </p>
         </Alert>
       ) : null}

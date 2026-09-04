@@ -36,6 +36,7 @@ import { getUniqueLeadStatuses } from '@/lib/lead-utils';
 import { getOptionColor } from '@/lib/option-utils';
 import { canCreateLead, canDeleteLead, canEditLead } from '@/lib/ownership';
 import { formatDate } from '@/lib/utils';
+import { formatUserLabel } from '@/lib/user-utils';
 import api from '@/services/api/client';
 import type { Lead, LeadFilters, LeadTimelineEntry } from '@/types/lead';
 import type { AppOption } from '@/types/option';
@@ -221,7 +222,9 @@ function getTimelineEntries(lead: Lead) {
     fallbackEntries.push({
       id: `${lead.id}-created`,
       title: 'Tạo lead',
-      description: lead.assignedUser?.name ? `Người phụ trách: ${lead.assignedUser.name}` : '',
+      description: lead.assignedUser
+        ? `Người phụ trách: ${formatUserLabel(lead.assignedUser)}`
+        : '',
       occurredAt: lead.createdAt,
       actor: lead.assignedUser,
       statusOption: lead.statusOption,
@@ -352,7 +355,7 @@ function LeadViewDialog({
                 <LeadDetailRow label="SĐT" value={lead.phone} />
                 <LeadDetailRow label="Nguồn" value={sourceName} />
                 <LeadDetailRow label="Dịch vụ quan tâm" value={serviceNames} />
-                <LeadDetailRow label="Người phụ trách" value={lead.assignedUser?.name} />
+                <LeadDetailRow label="Người phụ trách" value={formatUserLabel(lead.assignedUser)} />
                 <LeadDetailRow label="Ngành" value={industryName} />
                 <LeadDetailRow label="Ngày phát sinh" value={formatDate(lead.occurredDate || '')} />
                 <LeadDetailRow label="Ngày chốt" value={formatDate(lead.closedDate || '')} />
@@ -542,7 +545,7 @@ export function LeadManager({
               value={filters.assigned_user_id}
               options={users.map((user) => ({
                 value: String(user.id),
-                label: user.name || user.email || user.code || '-',
+                label: formatUserLabel(user),
               }))}
               onChange={(value) => updateFilters({ assigned_user_id: value })}
             />
@@ -637,9 +640,9 @@ export function LeadManager({
                 <td className="px-3 py-4 text-center align-middle">
                   <span
                     className="inline-flex max-w-full rounded-full bg-sky-50 px-2 py-1 text-xs font-bold text-sky-700 ring-1 ring-sky-100"
-                    title={lead.assignedUser?.name || '-'}
+                    title={formatUserLabel(lead.assignedUser)}
                   >
-                    <span className="truncate">{lead.assignedUser?.name || '-'}</span>
+                    <span className="truncate">{formatUserLabel(lead.assignedUser)}</span>
                   </span>
                 </td>
                 <td className="px-3 py-4 text-center align-middle">
@@ -677,7 +680,11 @@ export function LeadManager({
                   </p>
                 </td>
                 <td className="px-3 py-4 align-middle">
-                  <UserDateTimeCell userName={lead.createdBy?.name} dateTime={lead.createdAt} />
+                  <UserDateTimeCell
+                    userCode={lead.createdBy?.code}
+                    userName={lead.createdBy?.name}
+                    dateTime={lead.createdAt}
+                  />
                 </td>
                 <td className="px-3 py-4 align-middle">
                   <div className="flex items-center justify-end gap-0.5 pr-1">

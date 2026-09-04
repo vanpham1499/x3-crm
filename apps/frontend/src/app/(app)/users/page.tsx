@@ -7,6 +7,7 @@ import { useAppNotification } from '@/components/feedback/notification-provider'
 import { ContentLoading } from '@/components/shell/content-loading';
 import { UserList } from '@/features/users/components/user-list';
 import { getApiErrorMessage } from '@/lib/api-error';
+import { formatUserLabel } from '@/lib/user-utils';
 import { api } from '@/services/api/client';
 import { useAuthStore } from '@/stores/auth-store';
 import type { RoleOption, User, UserFilters } from '@/types/user';
@@ -78,7 +79,7 @@ export default function UsersPage() {
       <ConfirmDialog
         open={Boolean(deleteTarget)}
         title="Xóa nhân viên?"
-        description={`Bạn có chắc muốn xóa nhân viên "${deleteTarget?.name || deleteTarget?.email || deleteTarget?.code || ''}"? Thao tác này sẽ đưa nhân viên ra khỏi danh sách.`}
+        description={`Bạn có chắc muốn xóa nhân viên "${formatUserLabel(deleteTarget, '')}"? Thao tác này sẽ đưa nhân viên ra khỏi danh sách.`}
         confirmText="Xóa nhân viên"
         loading={deleteMutation.isPending}
         onClose={() => setDeleteTarget(null)}

@@ -194,6 +194,8 @@ function EditRefundDialog({
   const [refundType, setRefundType] = useState<PaymentRefund['refundType']>('payment');
   const [status, setStatus] = useState<PaymentRefund['status']>('pending');
   const [amount, setAmount] = useState('');
+  const [budgetRefundAmount, setBudgetRefundAmount] = useState('');
+  const [serviceFeeRefundAmount, setServiceFeeRefundAmount] = useState('');
   const [scheduledAt, setScheduledAt] = useState(todayString());
   const [recipientName, setRecipientName] = useState('');
   const [recipientAccount, setRecipientAccount] = useState('');
@@ -208,6 +210,19 @@ function EditRefundDialog({
     setRefundType(refund.refundType);
     setStatus(refund.status);
     setAmount(String(Number(refund.amount) || ''));
+    const storedBudgetRefund = Number(refund.budgetRefundAmount);
+    const storedServiceFeeRefund = Number(refund.serviceFeeRefundAmount);
+    const hasStoredBreakdown = storedBudgetRefund > 0 || storedServiceFeeRefund > 0;
+    setBudgetRefundAmount(
+      refund.refundType === 'payment'
+        ? String(hasStoredBreakdown ? storedBudgetRefund || '' : Number(refund.amount) || '')
+        : '',
+    );
+    setServiceFeeRefundAmount(
+      refund.refundType === 'payment' && hasStoredBreakdown
+        ? String(storedServiceFeeRefund || '')
+        : '',
+    );
     setScheduledAt(dateInputValue(refund.scheduledAt || refund.refundedAt));
     setRecipientName(refund.recipientName || '');
     setRecipientAccount(refund.recipientAccount || '');
@@ -234,7 +249,10 @@ function EditRefundDialog({
 
   const handleSubmit = async (event: FormEvent<HTMLFormElement>) => {
     event.preventDefault();
-    const refundAmount = Number(amount) || 0;
+    const budgetRefund = Number(budgetRefundAmount) || 0;
+    const serviceFeeRefund = Number(serviceFeeRefundAmount) || 0;
+    const refundAmount =
+      refundType === 'payment' ? budgetRefund + serviceFeeRefund : Number(amount) || 0;
 
     if (refundAmount <= 0) {
       setError('Số tiền phải lớn hơn 0.');
@@ -257,6 +275,8 @@ function EditRefundDialog({
       refundType,
       status,
       amount: refundAmount,
+      budgetRefundAmount: refundType === 'payment' ? budgetRefund : undefined,
+      serviceFeeRefundAmount: refundType === 'payment' ? serviceFeeRefund : undefined,
       scheduledAt,
       refundedAt: status === 'completed' ? scheduledAt : undefined,
       recipientName: recipientName.trim(),
@@ -303,7 +323,11 @@ function EditRefundDialog({
           value={refundType}
           required
           onChange={(event) => {
-            setRefundType(event.target.value as PaymentRefund['refundType']);
+            const nextType = event.target.value as PaymentRefund['refundType'];
+            setRefundType(nextType);
+            if (nextType === 'payment' && !budgetRefundAmount && !serviceFeeRefundAmount) {
+              setBudgetRefundAmount(amount);
+            }
             setError('');
           }}
         >
@@ -323,17 +347,53 @@ function EditRefundDialog({
           <MenuItem value="completed">Đã chuyển tiền</MenuItem>
           <MenuItem value="cancelled">Đã hủy</MenuItem>
         </FormSelectField>
-        <MoneyInput
-          label={refundType === 'compensation' ? 'Số tiền bù thêm' : 'Số tiền hoàn'}
-          value={amount}
-          required
-          size="small"
-          className={compactFormFieldClassName}
-          onValueChange={(value) => {
-            setAmount(value);
-            setError('');
-          }}
-        />
+        {refundType === 'payment' ? (
+          <>
+            <MoneyInput
+              label="Số tiền ngân sách hoàn về"
+              value={budgetRefundAmount}
+              required
+              size="small"
+              className={compactFormFieldClassName}
+              onValueChange={(value) => {
+                setBudgetRefundAmount(value);
+                setError('');
+              }}
+            />
+            <MoneyInput
+              label="Phí quản lý hoàn về"
+              value={serviceFeeRefundAmount}
+              required
+              size="small"
+              className={compactFormFieldClassName}
+              onValueChange={(value) => {
+                setServiceFeeRefundAmount(value);
+                setError('');
+              }}
+            />
+            <div className="rounded-lg border border-emerald-200 bg-emerald-50 px-3 py-2.5 sm:col-span-2">
+              <span className="text-sm font-semibold text-emerald-700">Tổng trả khách: </span>
+              <span className="text-sm font-extrabold tabular-nums text-emerald-800">
+                {formatCurrency((Number(budgetRefundAmount) || 0) + (Number(serviceFeeRefundAmount) || 0))}
+              </span>
+              <p className="mt-1 text-xs font-medium text-emerald-700">
+                Chỉ phần ngân sách hoàn về làm giảm số tiền có thể nạp của dự án.
+              </p>
+            </div>
+          </>
+        ) : (
+          <MoneyInput
+            label={refundType === 'compensation' ? 'Số tiền bù thêm' : 'Số tiền hoàn'}
+            value={amount}
+            required
+            size="small"
+            className={compactFormFieldClassName}
+            onValueChange={(value) => {
+              setAmount(value);
+              setError('');
+            }}
+          />
+        )}
         <FormDatePicker
           label={status === 'completed' ? 'Ngày chuyển' : 'Ngày dự kiến'}
           value={scheduledAt}
@@ -755,6 +815,12 @@ export function PaymentRefundPanel({
             <section className="overflow-hidden rounded-xl border border-slate-200 bg-white px-4">
               {[
                 ['Lý do', viewTarget.reason],
+                ...(viewTarget.refundType === 'payment'
+                  ? [
+                      ['Hoàn ngân sách', formatCurrency(viewTarget.budgetRefundAmount || 0)],
+                      ['Hoàn phí quản lý', formatCurrency(viewTarget.serviceFeeRefundAmount || 0)],
+                    ]
+                  : []),
                 [
                   'Ảnh hưởng công nợ',
                   viewTarget.refundType === 'compensation'

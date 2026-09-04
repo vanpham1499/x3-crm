@@ -27,6 +27,7 @@ import {
 import { formatCustomerIdentity } from '@/lib/customer-utils';
 import { getQuotationPaymentContent } from '@/lib/quotation-utils';
 import { hasPermission } from '@/lib/ownership';
+import { formatUserLabel } from '@/lib/user-utils';
 import {
   SERVICE_QUOTE_CONFIG_GROUP,
   calculateManagementFee,
@@ -667,6 +668,20 @@ export function QuotationForm({
                 </dl>
               ) : null}
 
+              {mode === 'edit' && quotation?.createdBy ? (
+                <div className="flex min-w-0 items-center justify-between gap-3 rounded-xl border border-slate-200 bg-slate-50 px-3 py-2.5">
+                  <span className="shrink-0 text-[11px] font-bold uppercase tracking-wide text-slate-400">
+                    Nhân sự tạo
+                  </span>
+                  <strong
+                    className="truncate text-sm text-slate-800"
+                    title={formatUserLabel(quotation.createdBy)}
+                  >
+                    {formatUserLabel(quotation.createdBy)}
+                  </strong>
+                </div>
+              ) : null}
+
               <div className="grid gap-4 md:grid-cols-12">
                 <FormSelectField
                   className="md:col-span-6"
@@ -829,7 +844,7 @@ export function QuotationForm({
 
                   {quotation?.topupCreditApprovedBy && quotation.topupCreditApprovedAt ? (
                     <p className="mt-3 text-xs font-semibold text-slate-500">
-                      Duyệt bởi {quotation.topupCreditApprovedBy.name} ·{' '}
+                      Duyệt bởi {formatUserLabel(quotation.topupCreditApprovedBy)} ·{' '}
                       {new Intl.DateTimeFormat('vi-VN', {
                         dateStyle: 'short',
                         timeStyle: 'short',

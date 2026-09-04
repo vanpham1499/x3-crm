@@ -20,6 +20,7 @@ import { formatCustomerIdentity } from '@/lib/customer-utils';
 import { downloadElementAsPdf } from '@/lib/download-element-pdf';
 import { getMediaPreviewUrl } from '@/lib/media-url';
 import { getQuotationPaymentContent } from '@/lib/quotation-utils';
+import { formatUserLabel } from '@/lib/user-utils';
 import {
   DEFAULT_SITE_PROFILE,
   SITE_PROFILE_OPTION_GROUP,
@@ -633,13 +634,14 @@ export function QuotationPreviewDialog({
     >
       {mode === 'detail' ? (
         <div className="space-y-4 bg-slate-50/60 p-5">
-          <section className="grid overflow-hidden rounded-xl border border-slate-200 bg-white sm:grid-cols-2 lg:grid-cols-4 lg:divide-x lg:divide-slate-200">
+          <section className="grid overflow-hidden rounded-xl border border-slate-200 bg-white sm:grid-cols-2 lg:grid-cols-5 lg:divide-x lg:divide-slate-200">
             <InfoCell label="Dự án" value={projectCode} />
             <InfoCell
               label="Dịch vụ"
               value={quotation.serviceName || quotation.serviceCode || '-'}
             />
             <InfoCell label="Ngày báo" value={formatDate(quotation.createdAt)} />
+            <InfoCell label="Nhân sự tạo" value={formatUserLabel(quotation.createdBy)} />
             <InfoCell label="Tình trạng" value={statusLabel} />
           </section>
 

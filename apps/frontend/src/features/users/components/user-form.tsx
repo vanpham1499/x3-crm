@@ -13,7 +13,12 @@ import { PageHeader } from '@/components/shell/page-header';
 import { ImageUpload } from '@/components/upload/image-upload';
 import { applyApiErrorsToForm } from '@/lib/api-error';
 import { formatDate } from '@/lib/utils';
-import { getUserRoleLabel, getUserStatusClass, getUserStatusLabel } from '@/lib/user-utils';
+import {
+  formatUserLabel,
+  getUserRoleLabel,
+  getUserStatusClass,
+  getUserStatusLabel,
+} from '@/lib/user-utils';
 import type { RoleOption, User } from '@/types/user';
 
 export type UserFormValues = {
@@ -82,7 +87,9 @@ export function UserForm({
     }
   });
 
-  const displayName = watch('name') || defaultValues.name || defaultValues.code || 'Nhân viên mới';
+  const watchedName = watch('name') || defaultValues.name;
+  const watchedCode = watch('code') || defaultValues.code;
+  const displayName = formatUserLabel({ code: watchedCode, name: watchedName }, 'Nhân viên mới');
   const watchedIsActive = watch('isActive');
   const roleOptions = useMemo(() => {
     if (roles.length > 0) return roles;

@@ -41,7 +41,7 @@ export type P2Point = {
   approvedAt?: string | null;
   user?: Pick<User, 'id' | 'name' | 'code' | 'departmentId'> | null;
   project?: Pick<ProjectItem, 'id' | 'projectCode' | 'projectName' | 'managerUserId'> | null;
-  approver?: Pick<User, 'id' | 'name'> | null;
+  approver?: Pick<User, 'id' | 'code' | 'name'> | null;
   canUpdate?: boolean;
   canDelete?: boolean;
   canApprove?: boolean;

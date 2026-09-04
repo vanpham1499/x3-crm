@@ -37,6 +37,7 @@ class P2PointResource extends JsonResource
             ] : null),
             'approver' => $this->whenLoaded('approver', fn () => $this->approver ? [
                 'id' => $this->approver->id,
+                'code' => $this->approver->code,
                 'name' => $this->approver->name,
             ] : null),
             'canUpdate' => (bool) ($request->user()?->can('update', $this->resource) ?? false),

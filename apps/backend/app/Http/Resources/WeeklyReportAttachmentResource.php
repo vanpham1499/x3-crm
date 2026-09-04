@@ -17,6 +17,7 @@ class WeeklyReportAttachmentResource extends JsonResource
             'mimeType' => $this->mime_type,
             'uploadedBy' => $this->whenLoaded('uploadedBy', fn () => $this->uploadedBy ? [
                 'id' => $this->uploadedBy->id,
+                'code' => $this->uploadedBy->code,
                 'name' => $this->uploadedBy->name,
             ] : null),
             'createdAt' => $this->created_at?->toISOString(),

@@ -575,12 +575,12 @@ class ProjectCostsService extends BaseService
         $budget = ProjectTopupBudgetCalculator::calculate($project);
         $candidate = clone $existing;
         $candidate->fill($data);
-        $candidateAmount = $candidate->actualCostAmount();
+        $candidateAmount = round($candidate->actualCostAmount());
         $existingAmount = $existing->status === ProjectCost::STATUS_COMPLETED
             && (string) $existing->project_id === (string) $data['project_id']
-            ? $existing->actualCostAmount()
+            ? round($existing->actualCostAmount())
             : 0.0;
-        $availableForCandidate = round($budget['availableBudget'] + $existingAmount, 2);
+        $availableForCandidate = round($budget['availableBudget'] + $existingAmount);
 
         if ($candidateAmount <= $availableForCandidate + 0.01) {
             return;

@@ -13,6 +13,7 @@ export type DashboardScope = {
   level: 'all' | 'department' | 'own';
   label: string;
   userId: number;
+  userCode?: string | null;
   userName: string;
   departmentId?: number | null;
   departmentIds?: number[];

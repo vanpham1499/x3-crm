@@ -850,6 +850,7 @@ class DashboardService extends BaseService
                 'level' => 'all',
                 'label' => 'Toàn hệ thống',
                 'userId' => (int) $user->id,
+                'userCode' => $user->code,
                 'userName' => $user->name,
                 'departmentId' => $user->department_id ? (int) $user->department_id : null,
                 'departmentIds' => $departmentIds,
@@ -865,6 +866,7 @@ class DashboardService extends BaseService
                     ? (string) $departmentNames->first()
                     : $departmentNames->count().' phòng ban phụ trách',
                 'userId' => (int) $user->id,
+                'userCode' => $user->code,
                 'userName' => $user->name,
                 'departmentId' => $departmentIds[0] ?? null,
                 'departmentIds' => $departmentIds,
@@ -877,6 +879,7 @@ class DashboardService extends BaseService
             'level' => 'own',
             'label' => 'Dữ liệu của tôi',
             'userId' => (int) $user->id,
+            'userCode' => $user->code,
             'userName' => $user->name,
             'departmentId' => $user->department_id ? (int) $user->department_id : null,
             'departmentIds' => $user->department_id ? [(int) $user->department_id] : [],

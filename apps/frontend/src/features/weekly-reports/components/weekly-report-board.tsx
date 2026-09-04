@@ -33,6 +33,7 @@ import {
 } from '@/lib/ownership';
 import { getReportWeekdayLabel, REPORT_WEEKDAYS } from '@/lib/weekly-report-schedule';
 import { formatDate } from '@/lib/utils';
+import { formatUserLabel } from '@/lib/user-utils';
 import { WeeklyReportCustomerPreviewDialog } from './weekly-report-customer-preview-dialog';
 import { WeeklyReportRejectDialog } from './weekly-report-reject-dialog';
 import type { User } from '@/types/user';
@@ -254,7 +255,10 @@ export function WeeklyReportBoard({
           <CompactSelectField
             label="Nhân sự"
             value={filters.reportOwnerUserId}
-            options={users.map((user) => ({ value: String(user.id), label: user.name }))}
+            options={users.map((user) => ({
+              value: String(user.id),
+              label: formatUserLabel(user),
+            }))}
             onChange={(reportOwnerUserId) => updateFilters({ reportOwnerUserId })}
           />
           <CompactSelectField
@@ -313,8 +317,7 @@ export function WeeklyReportBoard({
             const editHref = report ? `/weekly-reports/${report.id}` : '';
             const createHref = `/weekly-reports/new?projectId=${row.projectId}&weekStart=${weekStart}`;
             const projectLabel = row.project.projectCode || `Dự án #${row.projectId}`;
-            const ownerLabel =
-              [row.reportOwner?.code, row.reportOwner?.name].filter(Boolean).join(' - ') || '-';
+            const ownerLabel = formatUserLabel(row.reportOwner);
             const periodLabel = `${formatDate(row.periodStartDate)} – ${formatDate(row.periodEndDate)}`;
             return (
               <tr key={row.settingId} className="hover:bg-slate-50/80">

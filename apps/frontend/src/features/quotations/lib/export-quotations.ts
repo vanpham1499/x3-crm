@@ -175,7 +175,9 @@ export async function exportQuotationsWorkbook(filters: QuotationFilters) {
         numberCell(quotation.topupCreditBudget),
         numberCell(quotation.topupReleasedBudget),
         quotation.topupCreditNote || '',
-        quotation.topupCreditApprovedBy?.name || '',
+        [quotation.topupCreditApprovedBy?.code, quotation.topupCreditApprovedBy?.name]
+          .filter(Boolean)
+          .join(' - '),
         dateTimeCell(quotation.topupCreditApprovedAt),
         metadataValue(quotation.metadata, 'revenueGroup'),
         pricingModeLabel(metadataValue(quotation.metadata, 'pricingMode')),

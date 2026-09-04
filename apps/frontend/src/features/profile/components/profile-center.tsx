@@ -22,6 +22,7 @@ import {
 import { applyApiErrorsToForm, getApiErrorMessage } from '@/lib/api-error';
 import { getAuthUser } from '@/lib/auth-response';
 import { getMediaPreviewUrl } from '@/lib/media-url';
+import { formatUserLabel } from '@/lib/user-utils';
 import {
   getUserRoleClass,
   getUserRoleLabel,
@@ -62,13 +63,14 @@ export function ProfileCenter({ open, onToggle, onClose }: ProfileCenterProps) {
   const [showPasswordForm, setShowPasswordForm] = useState(false);
   const [isUploadingAvatar, setIsUploadingAvatar] = useState(false);
   const [isLoggingOut, setIsLoggingOut] = useState(false);
-  const displayName = user?.name || user?.email || user?.code || 'X3Sales';
+  const displayName = formatUserLabel(user, 'X3Sales');
   const displayInitial = displayName.trim().charAt(0).toUpperCase() || 'X';
   const avatarUrl = getMediaPreviewUrl(user?.avatar);
 
   const profileForm = useForm<ProfileFormValues>({ defaultValues: emptyProfile });
   const passwordForm = useForm<PasswordFormValues>({ defaultValues: emptyPassword });
-  const watchedName = profileForm.watch('name') || displayName;
+  const watchedName = profileForm.watch('name') || user?.name || displayName;
+  const watchedIdentity = formatUserLabel({ code: user?.code, name: watchedName }, displayName);
 
   useEffect(() => {
     if (!open || !user) return;
@@ -173,7 +175,7 @@ export function ProfileCenter({ open, onToggle, onClose }: ProfileCenterProps) {
               render={({ field }) => (
                 <ImageUpload
                   value={field.value}
-                  alt={watchedName}
+                  alt={watchedIdentity}
                   fallbackText={(watchedName || 'X').charAt(0).toUpperCase()}
                   helperText=""
                   previewClassName="!h-24 !w-24 !border-solid !border-primary/40 !bg-white !p-1 shadow-md"
@@ -183,7 +185,7 @@ export function ProfileCenter({ open, onToggle, onClose }: ProfileCenterProps) {
               )}
             />
             <h3 className="mt-4 truncate text-lg font-extrabold text-slate-950 dark:text-white">
-              {watchedName}
+              {watchedIdentity}
             </h3>
             <p className="mt-1 truncate text-xs font-semibold text-slate-500 dark:text-slate-400">
               {user?.email || '-'}

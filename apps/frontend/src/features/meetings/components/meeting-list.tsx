@@ -14,6 +14,7 @@ import { AppDataTable } from '@/components/table/app-data-table';
 import { EntityTableButton, EntityTableLink } from '@/components/table/entity-table-link';
 import { TablePaginationBar } from '@/components/table/table-pagination-bar';
 import { formatCustomerIdentity } from '@/lib/customer-utils';
+import { formatUserLabel } from '@/lib/user-utils';
 import type { Meeting } from '@/types/meeting';
 
 type MeetingListProps = {
@@ -167,7 +168,7 @@ export function MeetingList({
                 </EntityTableLink>
               </td>
               <td className="truncate px-3 py-3.5 font-semibold text-slate-700">
-                {meeting.organizer?.name || '-'}
+                {formatUserLabel(meeting.organizer)}
               </td>
               <td className="px-3 py-3.5 font-semibold text-slate-700">
                 {TYPE_LABELS[meeting.meetingType] || meeting.meetingType}

@@ -29,6 +29,8 @@ class PaymentRefund extends BaseModel
         'refund_type',
         'status',
         'amount',
+        'budget_refund_amount',
+        'service_fee_refund_amount',
         'scheduled_at',
         'refunded_at',
         'completed_at',
@@ -45,6 +47,8 @@ class PaymentRefund extends BaseModel
 
     protected $casts = [
         'amount' => 'decimal:2',
+        'budget_refund_amount' => 'decimal:2',
+        'service_fee_refund_amount' => 'decimal:2',
         'scheduled_at' => 'datetime',
         'refunded_at' => 'datetime',
         'completed_at' => 'datetime',

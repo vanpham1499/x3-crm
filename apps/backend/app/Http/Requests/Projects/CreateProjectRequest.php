@@ -39,6 +39,7 @@ class CreateProjectRequest extends BaseRequest
             'weeklyReportLink' => ['nullable', 'string'],
             'customer_tracking_report_link' => ['nullable', 'string'],
             'customerTrackingReportLink' => ['nullable', 'string'],
+            'website' => ['nullable', 'string', 'max:2048'],
             'admin_web_account' => ['nullable', 'string'],
             'adminWebAccount' => ['nullable', 'string'],
             'start_date' => ['nullable', 'date'],

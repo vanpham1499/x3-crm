@@ -55,10 +55,12 @@ class WeeklyReportResource extends JsonResource
             ] : null),
             'approver' => $this->whenLoaded('approver', fn () => $this->approver ? [
                 'id' => $this->approver->id,
+                'code' => $this->approver->code,
                 'name' => $this->approver->name,
             ] : null),
             'rejecter' => $this->whenLoaded('rejecter', fn () => $this->rejecter ? [
                 'id' => $this->rejecter->id,
+                'code' => $this->rejecter->code,
                 'name' => $this->rejecter->name,
             ] : null),
             'items' => WeeklyReportItemResource::collection($this->whenLoaded('items')),

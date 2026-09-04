@@ -11,7 +11,7 @@ export type WeeklyReportAttachment = {
   fileName: string;
   fileUrl: string;
   mimeType?: string | null;
-  uploadedBy?: Pick<User, 'id' | 'name'> | null;
+  uploadedBy?: Pick<User, 'id' | 'code' | 'name'> | null;
   createdAt?: string;
 };
 
@@ -26,7 +26,7 @@ export type WeeklyReportItem = {
   status?: string | null;
   dueDate?: string | null;
   assigneeUserId?: number | null;
-  assignee?: Pick<User, 'id' | 'name'> | null;
+  assignee?: Pick<User, 'id' | 'code' | 'name'> | null;
   author?: Pick<User, 'id' | 'code' | 'name'> | null;
   canUpdate?: boolean;
   canDelete?: boolean;
@@ -63,9 +63,9 @@ export type WeeklyReport = {
   rejectedAt?: string | null;
   project?: Pick<ProjectItem, 'id' | 'projectCode' | 'projectName' | 'managerUserId'> | null;
   customer?: Pick<Customer, 'id' | 'customerCode' | 'customerName'> | null;
-  reporter?: Pick<User, 'id' | 'name' | 'departmentId'> | null;
-  approver?: Pick<User, 'id' | 'name'> | null;
-  rejecter?: Pick<User, 'id' | 'name'> | null;
+  reporter?: Pick<User, 'id' | 'code' | 'name' | 'departmentId'> | null;
+  approver?: Pick<User, 'id' | 'code' | 'name'> | null;
+  rejecter?: Pick<User, 'id' | 'code' | 'name'> | null;
   items?: WeeklyReportItem[];
   attachments?: WeeklyReportAttachment[];
   canUpdate?: boolean;
@@ -153,7 +153,7 @@ export type ProjectWeeklySetting = {
   managementFeeRate?: string | number | null;
   isActive?: boolean;
   project?: Pick<ProjectItem, 'id' | 'projectCode' | 'projectName'> | null;
-  reportOwner?: Pick<User, 'id' | 'name'> | null;
+  reportOwner?: Pick<User, 'id' | 'code' | 'name'> | null;
   createdAt?: string;
   updatedAt?: string;
 };

@@ -8,6 +8,7 @@ import { MenuItem, Select } from '@mui/material';
 import { BarChart } from '@mui/x-charts/BarChart';
 import { LineChart } from '@mui/x-charts/LineChart';
 import { hasPermission } from '@/lib/ownership';
+import { formatUserLabel } from '@/lib/user-utils';
 import { useAuthStore } from '@/stores/auth-store';
 import type {
   DashboardLeadEmployee,
@@ -53,6 +54,7 @@ type ReportModule = 'lead' | 'project';
 type LeadView = 'trend' | 'employee' | 'status';
 type ProjectView = 'count' | 'profit' | 'status';
 type StatusEmployee = {
+  code?: string | null;
   name: string;
   statusSeries: DashboardLeadStatusSeries[];
 };
@@ -274,7 +276,7 @@ function EmployeeCountChart({
       xAxis={[
         {
           scaleType: 'band',
-          data: employees.map((employee) => employee.name),
+          data: employees.map((employee) => formatUserLabel(employee)),
           categoryGapRatio: thinBarCategoryGap(employees.length, periods.length),
           barGapRatio: periods.length > 1 ? 0.28 : 0.08,
           height: 48,
@@ -340,7 +342,7 @@ function EmployeeProfitChart({
       xAxis={[
         {
           scaleType: 'band',
-          data: employees.map((employee) => employee.name),
+          data: employees.map((employee) => formatUserLabel(employee)),
           categoryGapRatio: thinBarCategoryGap(employees.length, periods.length),
           barGapRatio: periods.length > 1 ? 0.28 : 0.08,
           height: 48,
@@ -457,7 +459,7 @@ function StatusChart({
         xAxis={[
           {
             scaleType: 'band',
-            data: employees.map((employee) => employee.name),
+            data: employees.map((employee) => formatUserLabel(employee)),
             categoryGapRatio: Math.min(0.88, thinBarCategoryGap(employees.length, 1) + 0.1),
             barGapRatio: 0.08,
             height: 48,

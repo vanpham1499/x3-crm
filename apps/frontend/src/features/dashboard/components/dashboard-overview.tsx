@@ -28,6 +28,7 @@ import { AppDataTable } from '@/components/table/app-data-table';
 import { ServiceTableCell } from '@/components/table/service-table-cell';
 import { siteConfig } from '@/config/site';
 import { formatCurrency } from '@/lib/utils';
+import { formatUserLabel } from '@/lib/user-utils';
 import type {
   DashboardDepartmentRow,
   DashboardEmployeeRow,
@@ -1141,11 +1142,14 @@ function EmployeePerformanceCard({
                     {row.name.trim().charAt(0).toUpperCase() || 'N'}
                   </span>
                   <span className="min-w-0">
-                    <span className="block truncate text-sm font-extrabold text-slate-900">
-                      {row.name}
+                    <span
+                      className="block truncate text-sm font-extrabold text-slate-900"
+                      title={formatUserLabel(row)}
+                    >
+                      {formatUserLabel(row)}
                     </span>
                     <span className="block truncate text-[11px] font-semibold text-slate-500">
-                      {row.code || 'Chưa có mã'}
+                      {row.departmentName || 'Chưa có phòng ban'}
                     </span>
                   </span>
                 </span>
@@ -1238,7 +1242,7 @@ function ScopedDashboardOverview({
   const isDepartment = report.scope.level === 'department';
   const subjectLabel = isDepartment
     ? report.scope.departmentName || report.scope.label
-    : report.scope.userName;
+    : formatUserLabel({ code: report.scope.userCode, name: report.scope.userName });
   const employee = report.employees[0];
   return (
     <div className="min-h-[calc(100vh-72px)] w-full bg-slate-50/60 p-4 sm:p-6">

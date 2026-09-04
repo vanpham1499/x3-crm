@@ -206,7 +206,9 @@ class P2PointsService extends BaseService
         $category = $point->categoryOption?->label ?: $point->category;
 
         return implode(' · ', array_filter([
-            $point->user?->name,
+            $point->user
+                ? collect([$point->user->code, $point->user->name])->filter()->implode(' - ')
+                : null,
             $category,
             $sign.$score.' điểm',
             $point->project?->project_name,

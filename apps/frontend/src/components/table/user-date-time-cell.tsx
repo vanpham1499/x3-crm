@@ -1,17 +1,20 @@
 import { formatDateTime } from '@/lib/utils';
+import { formatUserLabel } from '@/lib/user-utils';
 
 type UserDateTimeCellProps = {
   userName?: string | null;
+  userCode?: string | null;
   dateTime?: string | null;
   emptyUserLabel?: string;
 };
 
 export function UserDateTimeCell({
   userName,
+  userCode,
   dateTime,
   emptyUserLabel = 'Hệ thống',
 }: UserDateTimeCellProps) {
-  const displayName = userName?.trim() || emptyUserLabel;
+  const displayName = formatUserLabel({ code: userCode, name: userName }, emptyUserLabel);
 
   return (
     <div className="min-w-0 leading-tight">

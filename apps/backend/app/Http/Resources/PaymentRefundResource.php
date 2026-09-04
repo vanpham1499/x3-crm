@@ -19,6 +19,8 @@ class PaymentRefundResource extends JsonResource
             'refundType' => $this->refund_type,
             'status' => $this->status,
             'amount' => $this->amount,
+            'budgetRefundAmount' => $this->budget_refund_amount,
+            'serviceFeeRefundAmount' => $this->service_fee_refund_amount,
             'scheduledAt' => $this->scheduled_at?->toISOString(),
             'refundedAt' => $this->refunded_at?->toISOString(),
             'completedAt' => $this->completed_at?->toISOString(),

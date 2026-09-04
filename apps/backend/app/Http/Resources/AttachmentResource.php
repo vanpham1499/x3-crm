@@ -26,6 +26,7 @@ class AttachmentResource extends JsonResource
             'uploadedBy' => $this->uploaded_by,
             'uploader' => $this->whenLoaded('uploadedBy', fn () => $this->uploadedBy ? [
                 'id' => $this->uploadedBy->id,
+                'code' => $this->uploadedBy->code,
                 'name' => $this->uploadedBy->name,
                 'departmentId' => $this->uploadedBy->department_id,
             ] : null),

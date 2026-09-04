@@ -109,7 +109,7 @@ class ContractsService extends BaseService
             if ($customer) {
                 $data['invoice_recipient_name'] = $customer->company_name ?: $customer->customer_name;
                 $data['invoice_representative_name'] = $customer->representative_name;
-                $data['invoice_tax_code'] = $customer->tax_code;
+                $data['invoice_tax_code'] = $customer->identity_no ?: $customer->tax_code;
                 $data['invoice_address'] = $customer->address;
                 $data['invoice_email'] = $customer->invoice_email ?: $customer->email;
                 $data['invoice_phone'] = $customer->phone;

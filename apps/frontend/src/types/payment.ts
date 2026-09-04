@@ -67,6 +67,8 @@ export type PaymentRefund = {
   refundType: PaymentRefundType;
   status: PaymentRefundStatus;
   amount: string | number;
+  budgetRefundAmount?: string | number | null;
+  serviceFeeRefundAmount?: string | number | null;
   scheduledAt?: string | null;
   refundedAt?: string | null;
   completedAt?: string | null;
@@ -189,6 +191,8 @@ export type PaymentRefundInput = {
   refundType: PaymentRefundType;
   status: Exclude<PaymentRefundStatus, 'cancelled'>;
   amount: number;
+  budgetRefundAmount?: number;
+  serviceFeeRefundAmount?: number;
   scheduledAt: string;
   refundedAt?: string;
   recipientName?: string;
@@ -204,6 +208,8 @@ export type PaymentRefundUpdateInput = {
   refundType?: PaymentRefundType;
   status?: PaymentRefundStatus;
   amount?: number;
+  budgetRefundAmount?: number;
+  serviceFeeRefundAmount?: number;
   scheduledAt?: string;
   refundedAt?: string;
   recipientName?: string;

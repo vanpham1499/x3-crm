@@ -145,8 +145,9 @@ class CustomerRepository extends BaseRepository
             ->when($industry, fn ($query) => $query->whereHas('industryOption', fn ($subQuery) => $subQuery->where('group', Option::GROUP_INDUSTRY)->where('key', $industry)))
             ->when($salesUserId, fn ($query) => $query->where('sales_user_id', $salesUserId))
             ->when($leadId, fn ($query) => $query->where('lead_id', $leadId))
-            ->orderBy('customer_code')
-            ->orderBy('id');
+            ->orderByRaw("CASE WHEN customer_code ~ '^[0-9]+$' THEN CAST(customer_code AS BIGINT) END DESC NULLS LAST")
+            ->orderByDesc('customer_code')
+            ->orderByDesc('id');
     }
 
     private function applyViewScope(Builder $query, ?User $user): void

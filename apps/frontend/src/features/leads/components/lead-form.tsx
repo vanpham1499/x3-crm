@@ -13,6 +13,7 @@ import { FormSection } from '@/components/form/form-section';
 import { FormSelectField } from '@/components/form/form-select-field';
 import { applyApiErrorsToForm } from '@/lib/api-error';
 import { getLeadDefaults } from '@/lib/lead-utils';
+import { formatUserLabel } from '@/lib/user-utils';
 import type { Lead, LeadFormValues, LeadStatus } from '@/types/lead';
 import type { AppOption } from '@/types/option';
 import type { User } from '@/types/user';
@@ -234,7 +235,7 @@ export function LeadForm({
             >
               {users.map((user) => (
                 <MenuItem key={user.id} value={String(user.id)}>
-                  {user.name || user.email || user.code}
+                  {formatUserLabel(user)}
                 </MenuItem>
               ))}
             </FormSelectField>

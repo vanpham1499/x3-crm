@@ -418,7 +418,13 @@ class WeeklyReportsService extends BaseService
                 'module' => 'weekly_report',
                 'event_key' => 'weekly_report_submitted',
                 'title' => 'Báo cáo tuần đang chờ duyệt',
-                'message' => trim(($report->project?->project_name ?? 'Dự án').' · '.($report->reporter?->name ?? 'Nhân sự')),
+                'message' => trim(
+                    ($report->project?->project_name ?? 'Dự án')
+                    .' · '
+                    .($report->reporter
+                        ? collect([$report->reporter->code, $report->reporter->name])->filter()->implode(' - ')
+                        : 'Nhân sự')
+                ),
                 'kind' => 'action',
                 'severity' => 'warning',
                 'entity_type' => 'weekly_report',

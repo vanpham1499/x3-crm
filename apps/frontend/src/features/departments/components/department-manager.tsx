@@ -34,6 +34,7 @@ import { formatDate } from '@/lib/utils';
 import { useAuthStore } from '@/stores/auth-store';
 import type { Department, DepartmentFormValues, DepartmentPayload } from '@/types/department';
 import type { User } from '@/types/user';
+import { formatUserLabel } from '@/lib/user-utils';
 
 type DialogState = { mode: 'create' } | { mode: 'edit'; department: Department };
 
@@ -48,7 +49,7 @@ type DepartmentManagerProps = {
 };
 
 function getUserLabel(user: User) {
-  return [user.code, user.name || user.email].filter(Boolean).join(' · ');
+  return formatUserLabel(user);
 }
 
 function getUserInitial(user?: User | null) {

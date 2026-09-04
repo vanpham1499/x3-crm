@@ -1,5 +1,6 @@
 import { getOptionColor } from '@/lib/option-utils';
 import { formatDateTime } from '@/lib/utils';
+import { formatUserLabel } from '@/lib/user-utils';
 import type { LeadTimelineEntry } from '@/types/lead';
 import type { AppOption } from '@/types/option';
 
@@ -126,7 +127,7 @@ export function EntityTimelineList({
               <p className="text-sm font-bold text-slate-900">{title}</p>
               <p className="mt-1 text-xs font-medium text-slate-500">
                 {formatDateTime(time)}
-                {actor?.name ? ` - ${actor.name}` : ''}
+                {actor ? ` - ${formatUserLabel(actor)}` : ''}
               </p>
               {description && (
                 <p className="mt-2 whitespace-pre-line text-sm leading-6 text-slate-700">

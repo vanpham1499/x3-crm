@@ -30,6 +30,7 @@ import { MeetingList } from '@/features/meetings/components/meeting-list';
 import { MeetingStatusDialog } from '@/features/meetings/components/meeting-status-dialog';
 import { getApiErrorMessage } from '@/lib/api-error';
 import { hasPermission } from '@/lib/ownership';
+import { formatUserLabel } from '@/lib/user-utils';
 import api from '@/services/api/client';
 import { useAuthStore } from '@/stores/auth-store';
 import type { Department } from '@/types/department';
@@ -428,7 +429,7 @@ export default function MeetingsPage() {
               value={filters.organizerUserId}
               options={organizerUsers.map((user) => ({
                 value: String(user.id),
-                label: [user.code, user.name].filter(Boolean).join(' - '),
+                label: formatUserLabel(user),
               }))}
               onChange={(value) => updateFilter('organizerUserId', value)}
             />

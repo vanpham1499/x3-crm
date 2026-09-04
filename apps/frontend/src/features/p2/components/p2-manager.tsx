@@ -34,6 +34,7 @@ import { TablePaginationBar } from '@/components/table/table-pagination-bar';
 import { applyApiErrorsToForm } from '@/lib/api-error';
 import { canApproveP2Point, canOpenP2CreateDialog } from '@/lib/ownership';
 import { formatDate } from '@/lib/utils';
+import { formatUserLabel } from '@/lib/user-utils';
 import type {
   P2Category,
   P2Point,
@@ -136,7 +137,7 @@ function P2Dialog({
               options={users}
               value={users.find((user) => String(user.id) === field.value) || null}
               onChange={(_, value) => field.onChange(value ? String(value.id) : '')}
-              getOptionLabel={(option) => option.name}
+              getOptionLabel={(option) => formatUserLabel(option)}
               isOptionEqualToValue={(option, value) => option.id === value.id}
               noOptionsText="Không tìm thấy nhân viên"
               renderInput={(params) => (
@@ -454,7 +455,10 @@ export function P2Manager({
             label="Nhân viên"
             value={filters.userId}
             allLabel="Tất cả nhân viên"
-            options={users.map((user) => ({ value: String(user.id), label: user.name }))}
+            options={users.map((user) => ({
+              value: String(user.id),
+              label: formatUserLabel(user),
+            }))}
             onChange={(userId) => updateFilters({ userId })}
           />
           <CompactAutocompleteField
@@ -521,16 +525,12 @@ export function P2Manager({
                   </span>
                 </td>
                 <td className="px-3 py-3.5">
-                  <div className="flex min-w-0 items-center gap-2">
-                    {row.code && (
-                      <span className="shrink-0 rounded-md bg-slate-100 px-2 py-1 text-xs font-bold text-slate-600">
-                        {row.code}
-                      </span>
-                    )}
-                    <span className="truncate font-bold text-slate-900" title={row.name}>
-                      {row.name}
-                    </span>
-                  </div>
+                  <span
+                    className="block truncate font-bold text-slate-900"
+                    title={formatUserLabel(row)}
+                  >
+                    {formatUserLabel(row)}
+                  </span>
                 </td>
                 <td className="whitespace-nowrap px-3 py-3.5 text-right font-extrabold tabular-nums text-emerald-700">
                   +{formatScore(row.bonusScore)}
@@ -588,7 +588,7 @@ export function P2Manager({
                       {formatDate(point.entryDate)}
                     </td>
                     <td className="truncate px-3 py-3.5 font-bold text-slate-900">
-                      {point.user?.name || '-'}
+                      {formatUserLabel(point.user)}
                     </td>
                     <td className="px-3 py-3.5">
                       {point.project ? (
@@ -655,7 +655,7 @@ export function P2Manager({
                               <IconButton
                                 size="small"
                                 disabled={isApproving}
-                                aria-label={`Duyệt điểm P2 của ${point.user?.name || 'nhân viên'}`}
+                                aria-label={`Duyệt điểm P2 của ${formatUserLabel(point.user, 'nhân viên')}`}
                                 className="!text-emerald-600 hover:!bg-emerald-50 disabled:!text-slate-300"
                                 onClick={() => onApprove(point)}
                               >
@@ -669,7 +669,7 @@ export function P2Manager({
                           <IconButton
                             size="small"
                             title="Tác vụ"
-                            aria-label={`Tác vụ P2 của ${point.user?.name || 'nhân viên'}`}
+                            aria-label={`Tác vụ P2 của ${formatUserLabel(point.user, 'nhân viên')}`}
                             onClick={(event) => openActionMenu(event, point)}
                           >
                             <MoreVertRoundedIcon fontSize="small" />

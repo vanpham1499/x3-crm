@@ -10,6 +10,7 @@ import { PageHeader } from '@/components/shell/page-header';
 import { getMediaPreviewUrl } from '@/lib/media-url';
 import { formatDate } from '@/lib/utils';
 import {
+  formatUserLabel,
   getUserRoleClass,
   getUserRoleLabel,
   getUserStatusClass,
@@ -83,7 +84,7 @@ export function ProfileOverview() {
   });
 
   const avatarUrl = getMediaPreviewUrl(profileUser?.avatar);
-  const displayName = profileUser?.name || profileUser?.email || profileUser?.code || 'X3Sales';
+  const displayName = formatUserLabel(profileUser, 'X3Sales');
   const roleLabel = getUserRoleLabel(profileUser?.role || '');
   const profileFacts = useMemo(
     () => [

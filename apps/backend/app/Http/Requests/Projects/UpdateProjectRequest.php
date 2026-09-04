@@ -39,6 +39,7 @@ class UpdateProjectRequest extends BaseRequest
             'weeklyReportLink' => ['sometimes', 'nullable', 'string'],
             'customer_tracking_report_link' => ['sometimes', 'nullable', 'string'],
             'customerTrackingReportLink' => ['sometimes', 'nullable', 'string'],
+            'website' => ['sometimes', 'nullable', 'string', 'max:2048'],
             'admin_web_account' => ['sometimes', 'nullable', 'string'],
             'adminWebAccount' => ['sometimes', 'nullable', 'string'],
             'start_date' => ['sometimes', 'nullable', 'date'],

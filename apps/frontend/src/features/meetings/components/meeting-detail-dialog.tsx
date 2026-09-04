@@ -10,6 +10,7 @@ import dayjs from 'dayjs';
 import { DialogActionButton } from '@/components/actions/dialog-action-button';
 import { AppDetailDialog } from '@/components/dialog/app-detail-dialog';
 import { formatCustomerIdentity } from '@/lib/customer-utils';
+import { formatUserLabel } from '@/lib/user-utils';
 import type { Meeting } from '@/types/meeting';
 
 type MeetingDetailDialogProps = {
@@ -110,7 +111,7 @@ export function MeetingDetailDialog({
             />
             <DetailItem label="Hình thức" value={TYPE_LABELS[meeting.meetingType]} />
             <DetailItem label="Trạng thái" value={statusLabel} />
-            <DetailItem label="Người phụ trách" value={meeting.organizer?.name} />
+            <DetailItem label="Người phụ trách" value={formatUserLabel(meeting.organizer)} />
             <DetailItem label="Phòng ban" value={meeting.organizer?.department?.name} />
             <DetailItem
               label={meeting.meetingType === 'online' ? 'Link Meet' : 'Địa điểm'}
@@ -118,7 +119,9 @@ export function MeetingDetailDialog({
             />
             <DetailItem
               label="Người tham gia"
-              value={meeting.participants?.map((participant) => participant.name).join(', ')}
+              value={meeting.participants
+                ?.map((participant) => formatUserLabel(participant))
+                .join(', ')}
             />
           </dl>
 

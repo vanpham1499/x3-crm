@@ -36,6 +36,7 @@ import {
 } from '@/features/kpi/components/kpi-detail-dialog';
 import { applyApiErrorsToForm, getApiErrorMessage } from '@/lib/api-error';
 import { formatCurrency } from '@/lib/utils';
+import { formatUserLabel } from '@/lib/user-utils';
 import type {
   DepartmentKpiRow,
   EmployeeKpiRow,
@@ -50,6 +51,10 @@ import type {
 type KpiRow = ServiceKpiRow | DepartmentKpiRow | EmployeeKpiRow;
 type KpiTabScope = 'services' | 'departments' | 'employees';
 type TargetDialogState = { row: KpiRow; period: string };
+
+function kpiRowLabel(row: KpiRow) {
+  return row.scopeType === 'employee' ? formatUserLabel(row) : row.name;
+}
 
 type KpiManagerProps = {
   report: KpiReport;
@@ -147,12 +152,12 @@ function KpiRowActions({
       <Tooltip title="Xem dữ liệu đối soát">
         <IconButton
           size="small"
-          aria-label={`Xem dữ liệu đối soát KPI cho ${row.name} ${formatMonthLabel(period)}`}
+          aria-label={`Xem dữ liệu đối soát KPI cho ${kpiRowLabel(row)} ${formatMonthLabel(period)}`}
           onClick={() =>
             onDetail({
               scopeType: row.scopeType,
               scopeId: row.id,
-              scopeName: row.name,
+              scopeName: kpiRowLabel(row),
               period,
             })
           }
@@ -165,7 +170,7 @@ function KpiRowActions({
         <Tooltip title="Cập nhật kế hoạch">
           <IconButton
             size="small"
-            aria-label={`Cập nhật kế hoạch KPI cho ${row.name} ${formatMonthLabel(period)}`}
+            aria-label={`Cập nhật kế hoạch KPI cho ${kpiRowLabel(row)} ${formatMonthLabel(period)}`}
             onClick={() => onEdit({ row, period })}
           >
             <EditRoundedIcon fontSize="small" />
@@ -207,7 +212,7 @@ function TargetDialog({
   return (
     <AppFormDialog
       open={Boolean(state)}
-      title={`Cập nhật kế hoạch · ${state?.row.name || ''}`}
+      title={`Cập nhật kế hoạch · ${state ? kpiRowLabel(state.row) : ''}`}
       maxWidth="xs"
       submitting={isSaving}
       onClose={close}
@@ -758,13 +763,15 @@ function EmployeeMonthTable({
                 <PersonRoundedIcon className="!text-[20px]" />
               </span>
               <span className="min-w-0">
-                <span className="block truncate font-bold text-slate-950" title={row.name}>
-                  {row.name}
+                <span
+                  className="block truncate font-bold text-slate-950"
+                  title={formatUserLabel(row)}
+                >
+                  {formatUserLabel(row)}
                   {row.isActive ? '' : ' (Ngừng hoạt động)'}
                 </span>
                 <span className="block truncate text-xs font-semibold text-slate-500">
-                  {[row.code, row.departmentName].filter(Boolean).join(' · ') ||
-                    'Chưa có phòng ban'}
+                  {row.departmentName || 'Chưa có phòng ban'}
                 </span>
               </span>
             </span>

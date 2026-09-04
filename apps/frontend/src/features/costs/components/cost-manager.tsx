@@ -30,6 +30,7 @@ import { EntityTableButton, EntityTableLink } from '@/components/table/entity-ta
 import { TablePaginationBar } from '@/components/table/table-pagination-bar';
 import { getAdTopupCardLabel } from '@/lib/ad-topup-card-options';
 import { formatProjectPartnerIdentity } from '@/lib/project-partner-options';
+import { formatUserLabel } from '@/lib/user-utils';
 import type {
   ProjectCost,
   ProjectCostAdjustmentType,
@@ -92,7 +93,7 @@ const ADJUSTMENT_TYPE_OPTIONS: { value: ProjectCostAdjustmentType; label: string
 ];
 
 function formatCurrency(value: string | number | null | undefined) {
-  return `${new Intl.NumberFormat('vi-VN').format(Number(value) || 0)} ₫`;
+  return `${new Intl.NumberFormat('vi-VN').format(Math.round(Number(value) || 0))} ₫`;
 }
 
 function formatDate(value?: string | null) {
@@ -318,7 +319,7 @@ function CostDetailDialog({
               label="Đối soát"
               value={
                 cost.reconciledAt
-                  ? `Đã khớp · ${formatDateTime(cost.reconciledAt)}${cost.reconciledBy?.name ? ` · ${cost.reconciledBy.name}` : ''}`
+                  ? `Đã khớp · ${formatDateTime(cost.reconciledAt)}${cost.reconciledBy ? ` · ${formatUserLabel(cost.reconciledBy)}` : ''}`
                   : 'Chưa khớp'
               }
             />
@@ -347,7 +348,7 @@ function CostDetailDialog({
                         <DetailRow
                           label="Người báo"
                           value={[
-                            cost.cidIncident.reportedBy?.name,
+                            formatUserLabel(cost.cidIncident.reportedBy, ''),
                             formatDateTime(cost.cidIncident.reportedAt),
                           ]
                             .filter(Boolean)
@@ -357,7 +358,7 @@ function CostDetailDialog({
                           <DetailRow
                             label="Người xác nhận"
                             value={[
-                              cost.cidIncident.confirmedBy?.name,
+                              formatUserLabel(cost.cidIncident.confirmedBy, ''),
                               formatDateTime(cost.cidIncident.confirmedAt),
                             ]
                               .filter(Boolean)
@@ -481,7 +482,7 @@ function CidIncidentConfirmDialog({
         <dl className="rounded-lg border border-slate-200 bg-slate-50 px-3">
           <DetailRow
             label="Người báo"
-            value={[incident.reportedBy?.name, formatDateTime(incident.reportedAt)]
+            value={[formatUserLabel(incident.reportedBy, ''), formatDateTime(incident.reportedAt)]
               .filter(Boolean)
               .join(' · ')}
           />

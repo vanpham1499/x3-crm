@@ -21,6 +21,7 @@ import { getMediaPreviewUrl } from '@/lib/media-url';
 import { canCreateUsers, canDeleteUsers, canEditUsers } from '@/lib/ownership';
 import { formatDate } from '@/lib/utils';
 import {
+  formatUserLabel,
   getUserRoleClass,
   getUserRoleLabel,
   getUserStatusClass,
@@ -58,7 +59,7 @@ function UserDetailDialog({ user, onClose }: { user: User | null; onClose: () =>
   return (
     <AppDetailDialog
       open
-      title={user.name || user.email || user.code || 'Nhân viên'}
+      title={formatUserLabel(user, 'Nhân viên')}
       eyebrow={user.code || `User #${user.id}`}
       subtitle={user.email}
       onClose={onClose}
@@ -77,13 +78,13 @@ function UserDetailDialog({ user, onClose }: { user: User | null; onClose: () =>
           <div className="mb-5 flex items-center gap-3 border-b border-slate-100 pb-5">
             <Avatar
               src={getMediaPreviewUrl(user.avatar) || undefined}
-              alt={user.name || user.email || user.code}
+              alt={formatUserLabel(user)}
               className="!h-12 !w-12 !bg-primary/10 !font-bold !text-primary"
             >
               {getUserInitial(user)}
             </Avatar>
             <div className="min-w-0">
-              <p className="truncate font-bold text-slate-950">{user.name || '-'}</p>
+              <p className="truncate font-bold text-slate-950">{formatUserLabel(user)}</p>
               <p className="mt-1 truncate text-sm text-slate-500">{user.email || '-'}</p>
             </div>
           </div>
@@ -220,7 +221,7 @@ export function UserList({
                 <EntityTableButton
                   title={user.code || ''}
                   tone="neutral"
-                  ariaLabel={`Xem chi tiết nhân viên ${user.code || user.name || user.id}`}
+                  ariaLabel={`Xem chi tiết nhân viên ${formatUserLabel(user, `User #${user.id}`)}`}
                   onClick={() => setViewTarget(user)}
                 >
                   {user.code || '-'}
@@ -230,13 +231,16 @@ export function UserList({
                 <div className="flex min-w-0 items-center gap-3">
                   <Avatar
                     src={getMediaPreviewUrl(user.avatar) || undefined}
-                    alt={user.name || user.email || user.code}
+                    alt={formatUserLabel(user)}
                     className="!h-9 !w-9 !shrink-0 !bg-primary/10 !text-sm !font-bold !text-primary"
                   >
                     {getUserInitial(user)}
                   </Avatar>
-                  <p className="truncate font-semibold text-slate-950" title={user.name || ''}>
-                    {user.name || '-'}
+                  <p
+                    className="truncate font-semibold text-slate-950"
+                    title={formatUserLabel(user)}
+                  >
+                    {formatUserLabel(user)}
                   </p>
                 </div>
               </td>

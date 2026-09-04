@@ -56,6 +56,7 @@ export function getProjectDefaults(
       idToString(project?.weeklySetting?.monthlyBudget) || defaults?.monthlyBudget || '0',
     customerTrackingReportLink:
       project?.customerTrackingReportLink || defaults?.customerTrackingReportLink || '',
+    website: project?.website || defaults?.website || '',
     adminWebAccount: project?.adminWebAccount || defaults?.adminWebAccount || '',
     startDate:
       project?.startDate ||
@@ -79,6 +80,7 @@ export function toProjectPayload(values: ProjectFormValues) {
     planLink: values.planLink.trim() || null,
     monthlyBudget: Number(values.monthlyBudget) || 0,
     customerTrackingReportLink: values.customerTrackingReportLink.trim() || null,
+    website: values.website.trim() || null,
     adminWebAccount: values.adminWebAccount.trim() || null,
     startDate: values.startDate || null,
     endDate: values.endDate || null,

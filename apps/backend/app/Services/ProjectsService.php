@@ -544,6 +544,7 @@ class ProjectsService extends BaseService
             'plan_link' => 'Link kế hoạch',
             'weekly_report_link' => 'Link báo cáo tuần',
             'customer_tracking_report_link' => 'Link báo cáo tổng khách hàng theo dõi',
+            'website' => 'Website / Google Map / Fanpage',
             'admin_web_account' => 'Tài khoản Admin Web',
             'start_date' => 'Ngày bắt đầu',
             'end_date' => 'Ngày kết thúc',
@@ -581,8 +582,12 @@ class ProjectsService extends BaseService
             'customer_id' => $project->customer?->displayLabel($this->emptyValue()) ?: $this->emptyValue(),
             'service_id' => $project->service?->name ?: $this->emptyValue(),
             'status_option_id' => $this->displayOption($project->statusOption),
-            'manager_user_id' => $project->managerUser?->name ?: $this->emptyValue(),
-            'sales_user_id' => $project->salesUser?->name ?: $this->emptyValue(),
+            'manager_user_id' => $project->managerUser
+                ? collect([$project->managerUser->code, $project->managerUser->name])->filter()->implode(' - ')
+                : $this->emptyValue(),
+            'sales_user_id' => $project->salesUser
+                ? collect([$project->salesUser->code, $project->salesUser->name])->filter()->implode(' - ')
+                : $this->emptyValue(),
             'start_date' => $project->start_date?->toDateString() ?: $this->emptyValue(),
             'end_date' => $project->end_date?->toDateString() ?: $this->emptyValue(),
             default => $this->stringValue($project->{$field}),

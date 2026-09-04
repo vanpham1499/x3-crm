@@ -34,6 +34,7 @@ import { TablePaginationBar } from '@/components/table/table-pagination-bar';
 import { UserDateTimeCell } from '@/components/table/user-date-time-cell';
 import { clipboardImageFile, formatFileSize, getImageValidationError } from '@/lib/image-file';
 import { getMediaPreviewUrl } from '@/lib/media-url';
+import { formatUserLabel } from '@/lib/user-utils';
 import type { MediaItem, MediaUsage } from '@/types/media';
 
 type MediaManagerProps = {
@@ -496,7 +497,7 @@ function MediaPreviewDialog({
         {
           src: image.url || image.previewUrl || '',
           alt: image.originalName || image.fileName,
-          label: `${formatFileSize(image.size)} · ${image.mimeType || image.fileType || 'Ảnh'} · ${image.uploader?.name || 'Hệ thống'} · ${createdAt}`,
+          label: `${formatFileSize(image.size)} · ${image.mimeType || image.fileType || 'Ảnh'} · ${formatUserLabel(image.uploader, 'Hệ thống')} · ${createdAt}`,
         },
       ]}
       title={image.originalName || image.fileName}
@@ -712,7 +713,11 @@ export function MediaManager({
                   <UsageLinks usages={image.usages || []} compact />
                 </td>
                 <td className="px-3 py-2.5">
-                  <UserDateTimeCell userName={image.uploader?.name} dateTime={image.createdAt} />
+                  <UserDateTimeCell
+                    userCode={image.uploader?.code}
+                    userName={image.uploader?.name}
+                    dateTime={image.createdAt}
+                  />
                 </td>
                 <td className="whitespace-nowrap px-3 py-2.5 text-xs font-semibold text-slate-600">
                   {formatFileSize(image.size)}
