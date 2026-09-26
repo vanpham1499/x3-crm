@@ -29,6 +29,7 @@ class OptionsService extends BaseService
     {
         return $this->transaction(function () use ($data): array {
             $data = $this->normalizePayload($data);
+            $data = $this->prepareWeeklyReportCurrencyPayload($data);
             $data['key'] = $data['key'] ?? Str::slug($data['label'], '_');
             $data['value'] = $data['value'] ?? $data['key'];
             $data = $this->prepareServiceKpiGroupPayload($data);
@@ -51,6 +52,7 @@ class OptionsService extends BaseService
                 $data['meta'] = array_merge($existingOption->meta ?? [], $data['meta']);
             }
 
+            $data = $this->prepareWeeklyReportCurrencyPayload($data, $existingOption);
             $data = $this->prepareServiceKpiGroupPayload($data, $existingOption);
 
             /** @var Option $option */
@@ -87,6 +89,18 @@ class OptionsService extends BaseService
             /** @var Option $option */
             $option = $this->options->findOrFail($id);
 
+            if ($option->group === Option::GROUP_WEEKLY_REPORT_CURRENCY) {
+                $currency = strtoupper(trim((string) ($option->value ?: $option->key)));
+                if (DB::table('weekly_reports')
+                    ->where('currency', $currency)
+                    ->whereNull('deleted_at')
+                    ->exists()) {
+                    throw new ConflictHttpException(
+                        'Đơn vị tiền tệ đã được dùng trong báo cáo tuần. Hãy tạm tắt thay vì xóa.'
+                    );
+                }
+            }
+
             if (
                 $option->statusLeads()->exists()
                 || $option->sourceLeads()->exists()
@@ -117,6 +131,78 @@ class OptionsService extends BaseService
         if (array_key_exists('sort_order', $data) && $data['sort_order'] === null) {
             $data['sort_order'] = 0;
         }
+
+        return $data;
+    }
+
+    private function prepareWeeklyReportCurrencyPayload(
+        array $data,
+        ?Option $existingOption = null,
+    ): array {
+        $group = $data['group'] ?? $existingOption?->group;
+
+        if ($group !== Option::GROUP_WEEKLY_REPORT_CURRENCY) {
+            return $data;
+        }
+
+        $currency = strtoupper(trim((string) (
+            $data['value']
+            ?? $data['key']
+            ?? $existingOption?->value
+            ?? $existingOption?->key
+            ?? ''
+        )));
+
+        $currentCurrency = $existingOption
+            ? strtoupper(trim((string) ($existingOption->value ?: $existingOption->key)))
+            : null;
+
+        if ($existingOption
+            && $currentCurrency !== $currency
+            && DB::table('weekly_reports')
+                ->where('currency', $currentCurrency)
+                ->whereNull('deleted_at')
+                ->exists()) {
+            throw ValidationException::withMessages([
+                'value' => [
+                    'Mã tiền tệ đã được dùng trong báo cáo tuần. Chỉ có thể đổi tên hiển thị hoặc bật/tắt.',
+                ],
+            ]);
+        }
+
+        if (! preg_match('/^[A-Z]{3,10}$/D', $currency)) {
+            throw ValidationException::withMessages([
+                'value' => ['Mã tiền tệ phải gồm 3-10 chữ cái, ví dụ VND, USD hoặc JPY.'],
+            ]);
+        }
+
+        $duplicate = Option::query()
+            ->where('group', Option::GROUP_WEEKLY_REPORT_CURRENCY)
+            ->where(function ($query) use ($currency): void {
+                $query
+                    ->whereRaw('UPPER(value) = ?', [$currency])
+                    ->orWhereRaw('UPPER(key) = ?', [$currency]);
+            })
+            ->when($existingOption, fn ($query) => $query->whereKeyNot($existingOption->id))
+            ->exists();
+
+        if ($duplicate) {
+            throw ValidationException::withMessages([
+                'value' => ['Mã tiền tệ đã tồn tại.'],
+            ]);
+        }
+
+        $label = trim((string) ($data['label'] ?? $existingOption?->label ?? ''));
+        if ($label === '') {
+            throw ValidationException::withMessages([
+                'label' => ['Vui lòng nhập tên hiển thị của đơn vị tiền tệ.'],
+            ]);
+        }
+
+        $data['key'] = $currency;
+        $data['value'] = $currency;
+        $data['label'] = $label;
+        $data['is_active'] = $data['is_active'] ?? true;
 
         return $data;
     }

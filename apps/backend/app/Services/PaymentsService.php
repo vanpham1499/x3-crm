@@ -10,6 +10,7 @@ use App\Models\PaymentRefund;
 use App\Models\Quotation;
 use App\Repositories\PaymentRefundRepository;
 use App\Repositories\PaymentRepository;
+use App\Support\FinancialMutation;
 use App\Support\QuotationReference;
 use Carbon\Carbon;
 use Illuminate\Auth\Access\AuthorizationException;
@@ -73,7 +74,7 @@ class PaymentsService extends BaseService
 
     public function create(array $data): array
     {
-        return $this->transaction(function () use ($data): array {
+        return FinancialMutation::run(function () use ($data): array {
             $data = $this->normalizePayload($data);
             $quotation = ! empty($data['quotation_id'])
                 ? $this->quotations->findModel((string) $data['quotation_id'])
@@ -95,7 +96,7 @@ class PaymentsService extends BaseService
 
     public function update(string $id, array $data): array
     {
-        return $this->transaction(function () use ($id, $data): array {
+        return FinancialMutation::run(function () use ($id, $data): array {
             $current = $this->payments->findWithRelationsOrFail($id);
             $data = $this->normalizePayload($data);
 
@@ -142,7 +143,7 @@ class PaymentsService extends BaseService
 
     public function remove(string $id): array
     {
-        return $this->transaction(function () use ($id): array {
+        return FinancialMutation::run(function () use ($id): array {
             $payment = $this->payments->findWithRelationsOrFail($id, $this->currentUser());
             $this->authorize('delete', $payment);
 
@@ -161,7 +162,7 @@ class PaymentsService extends BaseService
 
     public function webhook(array $data): array
     {
-        return $this->transaction(function () use ($data): array {
+        return FinancialMutation::run(function () use ($data): array {
             $rawPayload = $data;
 
             if (! $this->isIncomingTransfer($rawPayload)) {
@@ -172,6 +173,11 @@ class PaymentsService extends BaseService
             $data = $this->normalizePayload($data);
             $content = (string) ($data['transaction_content'] ?? '');
             $quotation = $this->quotations->findCodeInText($content);
+            $voidedCode = $quotation?->isVoided() ? $quotation->quotation_code : null;
+            $voidedContext = $voidedCode ? ['project_id' => $quotation->project_id, 'customer_id' => $quotation->customer_id] : [];
+            if ($voidedCode) {
+                $quotation = null;
+            }
             $existingPayment = $this->findDuplicateWebhookPayment($data);
 
             if ($existingPayment) {
@@ -205,11 +211,12 @@ class PaymentsService extends BaseService
             }
 
             if (! $quotation) {
-                $payment = $this->payments->create(array_merge($data, [
+                $payment = $this->payments->create(array_merge($data, $voidedContext, [
                     'status' => 'unmatched',
                     'reconciled_status' => 'unmatched',
                     'receipt_type' => 'customer',
                     'webhook_payload' => $rawPayload,
+                    'note' => $voidedCode ? 'Mã báo phí '.$voidedCode.' đã hủy; khoản thu chờ phân bổ thủ công.' : null,
                 ]));
                 $this->paymentAllocations->reconcilePayment($payment->id);
                 $this->syncPaymentNotifications($payment->id, true);
@@ -295,16 +302,16 @@ class PaymentsService extends BaseService
     public function updateInvoice(string $id, array $data): array
     {
         $this->authorize('manage', Payment::class);
-        $invoiceNumber = trim((string) ($data['invoiceNumber'] ?? ''));
 
-        $this->payments->update($id, [
-            'output_invoice_number' => $invoiceNumber !== '' ? $invoiceNumber : null,
-        ]);
+        return FinancialMutation::run(function () use ($id, $data): array {
+            $invoiceNumber = trim((string) ($data['invoiceNumber'] ?? ''));
+            $this->payments->update($id, ['output_invoice_number' => $invoiceNumber !== '' ? $invoiceNumber : null]);
 
-        return $this->paymentResource($this->payments->findWithRelationsOrFail($id));
+            return $this->paymentResource($this->payments->findWithRelationsOrFail($id));
+        });
     }
 
-    private function syncPaymentNotifications(string|int $paymentId, bool $isNewReceipt = false): void
+    public function syncPaymentNotifications(string|int $paymentId, bool $isNewReceipt = false): void
     {
         $payment = Payment::query()->with([
             'project',
@@ -453,7 +460,10 @@ class PaymentsService extends BaseService
 
     private function paymentMessage(Payment $payment): string
     {
+        // This list contains names, not models. An empty Eloquent collection stays
+        // Eloquent after map(), so pushing a name makes unique() call getKey() on a string.
         $projectNames = $payment->allocations
+            ->toBase()
             ->map(fn ($allocation) => $allocation->quotation?->project?->project_name)
             ->push($payment->project?->project_name)
             ->filter()

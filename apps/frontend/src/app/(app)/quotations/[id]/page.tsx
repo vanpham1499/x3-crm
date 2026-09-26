@@ -5,6 +5,8 @@ import { Alert } from '@mui/material';
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import { useAppNotification } from '@/components/feedback/notification-provider';
 import { ContentLoading } from '@/components/shell/content-loading';
+import { QuotationVoidHistory } from '@/features/quotations/components/quotation-void-history';
+import { DialogActionButton } from '@/components/actions/dialog-action-button';
 import { QuotationForm } from '@/features/quotations/components/quotation-form';
 import { getApiErrorMessage } from '@/lib/api-error';
 import { COMPANY_BANK_ACCOUNT_OPTION_GROUP } from '@/lib/company-bank-account-options';
@@ -74,6 +76,13 @@ export default function EditQuotationPage() {
       </div>
     );
   }
+  if (quotation.isVoided)
+    return (
+      <div className="p-6">
+        <DialogActionButton href="/quotations">Về danh sách báo phí</DialogActionButton>
+        <QuotationVoidHistory quotation={quotation} />
+      </div>
+    );
 
   return (
     <QuotationForm

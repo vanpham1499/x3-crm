@@ -25,6 +25,7 @@ use App\Http\Controllers\WeeklyReportAttachmentsController;
 use App\Http\Controllers\WeeklyReportsController;
 use Illuminate\Support\Facades\Route;
 
+
 Route::get('/', fn () => [
     'name' => 'X3 CRM Backend API',
     'status' => 'ok',
@@ -133,6 +134,8 @@ Route::middleware(['auth:sanctum', 'active'])->group(function (): void {
 
     Route::get('/quotations', [QuotationsController::class, 'index'])->middleware('permission:quotation.view');
     Route::post('/quotations', [QuotationsController::class, 'store'])->middleware('permission:quotation.create');
+    Route::post('/quotations/{id}/void-preview', [QuotationsController::class, 'voidPreview'])->middleware('permission:quotation.void')->name('quotations.void-preview');
+    Route::post('/quotations/{id}/void', [QuotationsController::class, 'voidQuotation'])->middleware('permission:quotation.void')->name('quotations.void');
     Route::get('/quotations/{id}', [QuotationsController::class, 'show'])->middleware('permission:quotation.view');
     Route::put('/quotations/{id}', [QuotationsController::class, 'update'])->middleware('permission:quotation.update,quotation.update_department,quotation.update_all');
     Route::patch('/quotations/{id}', [QuotationsController::class, 'update'])->middleware('permission:quotation.update,quotation.update_department,quotation.update_all');

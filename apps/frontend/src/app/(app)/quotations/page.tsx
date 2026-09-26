@@ -15,13 +15,21 @@ import type { User } from '@/types/user';
 
 const QUOTATIONS_PAGE_SIZE = 10;
 const QUOTATIONS_LIST_QUERY_KEY = ['quotations', 'list'] as const;
-const DEFAULT_QUOTATION_FILTERS: QuotationFilters = { keyword: '', status: '', created_by: '' };
+const DEFAULT_QUOTATION_FILTERS: QuotationFilters = {
+  keyword: '',
+  status: '',
+  created_by: '',
+  date_from: '',
+  date_to: '',
+};
 
 function quotationParams(filters: QuotationFilters) {
   return {
     keyword: filters.keyword.trim() || undefined,
     status: filters.status || undefined,
     created_by: filters.created_by || undefined,
+    date_from: filters.date_from || undefined,
+    date_to: filters.date_to || undefined,
   };
 }
 

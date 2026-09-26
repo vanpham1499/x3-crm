@@ -8,6 +8,7 @@ apps/backend/vendor/
 tooling/binaries/
 tooling/backups/
 tooling/deployment/.work/
+tooling/research/.salework-observer/
 
 # Build outputs
 dist/

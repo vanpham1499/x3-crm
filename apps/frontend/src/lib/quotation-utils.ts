@@ -6,6 +6,7 @@ export const QUOTATION_PAYMENT_STATUS_LABELS: Record<string, string> = {
   paid: 'Hoàn thành',
   overpaid: 'Thu thừa',
   partially_refunded: 'Đã hoàn một phần',
+  voided: 'Không còn hiệu lực',
   refunded: 'Đã hoàn',
 };
 
@@ -42,8 +43,9 @@ export function formatQuotationPaymentContent(value?: string | null) {
 }
 
 export function getQuotationPaymentContent(
-  quotation?: Pick<Quotation, 'quotationCode' | 'paymentContent'> | null,
+  quotation?: Pick<Quotation, 'quotationCode' | 'paymentContent' | 'isVoided'> | null,
 ) {
+  if (quotation?.isVoided) return '';
   return (
     formatQuotationPaymentContent(quotation?.paymentContent) ||
     formatQuotationPaymentContent(quotation?.quotationCode)

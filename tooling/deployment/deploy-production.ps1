@@ -186,13 +186,19 @@ find . -maxdepth 1 -type f \( -name 'x3crm-backend-*.tar' -o -name 'x3crm-fronte
 if [ -d backups ]; then
   find backups -maxdepth 1 -type f -name 'pre-deploy-*.dump' -delete
 fi
+echo 'Disk usage before Docker cleanup:'
+df -h /
+docker system df || true
+# Safe cleanup only: never prune volumes because db_data/uploads_data are persistent data.
+docker container prune -f
+docker builder prune -af
+docker image prune -af
+echo 'Disk usage after Docker cleanup:'
+df -h /
+docker system df || true
 "@
 
-    Write-Step 'Uploading images and deployment configuration'
-    & $ScpExe @SshOptions $backendTar "${Target}:${RemoteDir}/x3crm-backend-$release.tar"
-    Assert-LastExitCode 'Upload backend image'
-    & $ScpExe @SshOptions $frontendTar "${Target}:${RemoteDir}/x3crm-frontend-$release.tar"
-    Assert-LastExitCode 'Upload frontend image'
+    Write-Step 'Uploading deployment configuration'
     & $ScpExe @SshOptions (Join-Path $DeployRoot 'compose.yml') "${Target}:${RemoteDir}/compose.yml"
     Assert-LastExitCode 'Upload compose.yml'
     & $ScpExe @SshOptions (Join-Path $DeployRoot 'nginx.conf') "${Target}:${RemoteDir}/nginx.conf"
@@ -200,17 +206,43 @@ fi
     & $ScpExe @SshOptions (Join-Path $DeployRoot 'reset-keep-accounts-services.sql') "${Target}:${RemoteDir}/reset-keep-accounts-services.sql"
     Assert-LastExitCode 'Upload reset database script'
 
-    Write-Step 'Loading images and restarting application'
+    Write-Step 'Uploading and activating backend image'
+    & $ScpExe @SshOptions $backendTar "${Target}:${RemoteDir}/x3crm-backend-$release.tar"
+    Assert-LastExitCode 'Upload backend image'
     Invoke-Remote @"
 set -euo pipefail
 cd '$RemoteDir'
-trap "rm -f 'x3crm-backend-$release.tar' 'x3crm-frontend-$release.tar'" EXIT
+trap "rm -f 'x3crm-backend-$release.tar'" EXIT
 docker load -i 'x3crm-backend-$release.tar'
-docker load -i 'x3crm-frontend-$release.tar'
 docker compose config -q
 docker compose up -d --no-deps db
-docker compose up -d --force-recreate backend scheduler reverb queue-worker frontend nginx
+docker compose up -d --force-recreate backend scheduler reverb queue-worker
+rm -f 'x3crm-backend-$release.tar'
+trap - EXIT
+# The old backend image is now unreferenced; release it before uploading frontend.
 docker image prune -f
+echo 'Disk usage after backend activation:'
+df -h /
+docker system df || true
+docker compose ps backend scheduler reverb queue-worker
+"@
+
+    Write-Step 'Uploading and activating frontend image'
+    & $ScpExe @SshOptions $frontendTar "${Target}:${RemoteDir}/x3crm-frontend-$release.tar"
+    Assert-LastExitCode 'Upload frontend image'
+    Invoke-Remote @"
+set -euo pipefail
+cd '$RemoteDir'
+trap "rm -f 'x3crm-frontend-$release.tar'" EXIT
+docker load -i 'x3crm-frontend-$release.tar'
+docker compose config -q
+docker compose up -d --force-recreate frontend nginx
+rm -f 'x3crm-frontend-$release.tar'
+trap - EXIT
+docker image prune -f
+echo 'Disk usage after frontend activation:'
+df -h /
+docker system df || true
 docker compose ps
 "@
 

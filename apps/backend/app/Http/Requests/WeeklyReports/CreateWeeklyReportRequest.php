@@ -7,9 +7,19 @@ use Illuminate\Validation\Rule;
 
 class CreateWeeklyReportRequest extends BaseRequest
 {
+    protected function prepareForValidation(): void
+    {
+        if ($this->exists('currency') && is_string($this->input('currency'))) {
+            $this->merge(['currency' => strtoupper(trim($this->input('currency')))]);
+        }
+    }
+
     public function rules(): array
     {
         return [
+            'currency' => ['sometimes', 'required', 'string', 'regex:/^[A-Z]{3,10}$/'],
+            'currencyChangeConfirmed' => ['sometimes', 'boolean'],
+            'currency_change_confirmed' => ['sometimes', 'boolean'],
             'project_id' => ['required_without:projectId', 'integer', Rule::exists('projects', 'id')->whereNull('deleted_at')],
             'projectId' => ['required_without:project_id', 'integer', Rule::exists('projects', 'id')->whereNull('deleted_at')],
             'customer_id' => ['nullable', 'integer', Rule::exists('customers', 'id')->whereNull('deleted_at')],

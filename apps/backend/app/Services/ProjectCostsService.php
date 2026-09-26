@@ -9,6 +9,7 @@ use App\Models\ProjectCostAdjustment;
 use App\Models\ProjectCostCidIncident;
 use App\Models\User;
 use App\Repositories\ProjectCostRepository;
+use App\Support\FinancialMutation;
 use App\Support\ProjectTopupBudgetCalculator;
 use Illuminate\Auth\Access\AuthorizationException;
 use Illuminate\Support\Facades\DB;
@@ -69,7 +70,7 @@ class ProjectCostsService extends BaseService
 
     public function create(array $data): array
     {
-        return $this->transaction(function () use ($data): array {
+        return FinancialMutation::run(function () use ($data): array {
             $data = $this->preparePayload($data);
             $data['status'] = ProjectCost::STATUS_PENDING;
             $project = Project::query()->findOrFail($data['project_id']);
@@ -85,7 +86,7 @@ class ProjectCostsService extends BaseService
 
     public function update(string $id, array $data): array
     {
-        return $this->transaction(function () use ($id, $data): array {
+        return FinancialMutation::run(function () use ($id, $data): array {
             /** @var ProjectCost $existing */
             $existing = $this->costs->findForUpdateOrFail($id);
             $existing->load('project.managerUser', 'project.salesUser');
@@ -132,7 +133,7 @@ class ProjectCostsService extends BaseService
 
     public function remove(string $id): array
     {
-        return $this->transaction(function () use ($id): array {
+        return FinancialMutation::run(function () use ($id): array {
             $cost = $this->costs->findForUpdateOrFail($id);
             $cost->load('project.managerUser', 'project.salesUser');
             $this->authorize('fund', $cost);
@@ -151,7 +152,7 @@ class ProjectCostsService extends BaseService
 
     public function reconcile(string $id, array $data): array
     {
-        return $this->transaction(function () use ($id, $data): array {
+        return FinancialMutation::run(function () use ($id, $data): array {
             $cost = $this->costs->findForUpdateOrFail($id);
             $cost->load('project.managerUser', 'project.salesUser');
             $this->authorize('approve', $cost);
@@ -279,7 +280,7 @@ class ProjectCostsService extends BaseService
 
     public function reportCidIncident(string $id, array $data): array
     {
-        return $this->transaction(function () use ($id, $data): array {
+        return FinancialMutation::run(function () use ($id, $data): array {
             $cost = $this->costs->findForUpdateOrFail($id);
             $cost->load('project.managerUser', 'project.salesUser');
             $this->authorize('manage', $cost);
@@ -351,7 +352,7 @@ class ProjectCostsService extends BaseService
 
     public function confirmCidIncident(string $id): array
     {
-        return $this->transaction(function () use ($id): array {
+        return FinancialMutation::run(function () use ($id): array {
             $cost = $this->costs->findForUpdateOrFail($id);
             $cost->load('project.managerUser', 'project.salesUser');
             $this->authorize('approve', $cost);
@@ -383,7 +384,7 @@ class ProjectCostsService extends BaseService
 
     public function cancelCidIncident(string $id): array
     {
-        return $this->transaction(function () use ($id): array {
+        return FinancialMutation::run(function () use ($id): array {
             $cost = $this->costs->findForUpdateOrFail($id);
             $cost->load('project.managerUser', 'project.salesUser');
             $this->authorize('manage', $cost);
@@ -492,7 +493,7 @@ class ProjectCostsService extends BaseService
             $data['input_invoice_status'] = null;
         }
 
-        $this->validateQuotationProject($data);
+        $this->validateQuotationProject($data, $existing);
 
         return $data;
     }
@@ -575,14 +576,16 @@ class ProjectCostsService extends BaseService
         $budget = ProjectTopupBudgetCalculator::calculate($project);
         $candidate = clone $existing;
         $candidate->fill($data);
-        $candidateAmount = round($candidate->actualCostAmount());
-        $existingAmount = $existing->status === ProjectCost::STATUS_COMPLETED
-            && (string) $existing->project_id === (string) $data['project_id']
-            ? round($existing->actualCostAmount())
-            : 0.0;
-        $availableForCandidate = round($budget['availableBudget'] + $existingAmount);
+        // Replace the candidate in the raw sum before the VND boundary.
+        $otherUsedAmount = (float) $project->costs
+            ->where('entry_type', ProjectCost::TYPE_AD_SPEND)
+            ->where('status', ProjectCost::STATUS_COMPLETED)
+            ->reject(fn (ProjectCost $cost): bool => (string) $cost->id === (string) $existing->id)
+            ->sum(fn (ProjectCost $cost): float => $cost->actualCostAmount());
+        $availableForCandidate = $budget['releasedBudget'] - round($otherUsedAmount);
+        $projectedUsedAmount = round($otherUsedAmount + $candidate->actualCostAmount());
 
-        if ($candidateAmount <= $availableForCandidate + 0.01) {
+        if ($projectedUsedAmount <= $budget['releasedBudget'] + 0.01) {
             return;
         }
 
@@ -645,16 +648,17 @@ class ProjectCostsService extends BaseService
         }
     }
 
-    private function validateQuotationProject(array $data): void
+    private function validateQuotationProject(array $data, ?ProjectCost $existing = null): void
     {
         if (empty($data['quotation_id'])) {
             return;
         }
 
-        $quotationProjectId = DB::table('quotations')
-            ->where('id', $data['quotation_id'])
-            ->whereNull('deleted_at')
-            ->value('project_id');
+        $quotation = DB::table('quotations')->where('id', $data['quotation_id'])->whereNull('deleted_at')->first();
+        if ((! $quotation || $quotation->voided_at) && (string) $data['quotation_id'] !== (string) $existing?->quotation_id) {
+            throw ValidationException::withMessages(['quotationId' => 'Báo phí đã hủy hoặc không còn tồn tại.']);
+        }
+        $quotationProjectId = $quotation?->project_id;
 
         if ($quotationProjectId && (string) $quotationProjectId !== (string) $data['project_id']) {
             throw ValidationException::withMessages([

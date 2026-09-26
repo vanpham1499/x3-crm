@@ -35,6 +35,7 @@ class DatabaseSeeder extends Seeder
         }
 
         $permissions = [
+            ['module' => 'quotation', 'code' => 'quotation.void', 'name' => 'Hủy báo phí tạo nhầm và xử lý phân bổ'],
             ['module' => 'cost', 'code' => 'cost.manage', 'name' => 'Nạp, cập nhật chi phí'],
             ['module' => 'cost', 'code' => 'cost.manage_department', 'name' => 'Nạp, cập nhật chi phí trong phòng ban'],
             ['module' => 'cost', 'code' => 'cost.manage_all', 'name' => 'Nạp, cập nhật mọi chi phí'],

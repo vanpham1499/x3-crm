@@ -7,12 +7,15 @@ import type { Quotation, QuotationFilters, QuotationItem } from '@/types/quotati
 const QUOTATION_STATUS_LABELS: Record<string, string> = {
   draft: 'Báo phí',
   won: 'Đã thanh toán',
+  voided: 'Đã hủy',
   refunded: 'Đã hoàn tiền',
 };
 
 const numberCell = (value?: string | number | null): XlsxCell => ({
   value: Number(value) || 0,
-  format: 'number',
+  // Preserve fractional quantities, unit prices, tax rates and legacy evidence.
+  // Integer monetary values keep grouping; General displays decimal values as-is.
+  format: Number.isInteger(Number(value) || 0) ? 'number' : undefined,
 });
 
 function dateTimeCell(value?: string | null): XlsxCell | string {
@@ -88,6 +91,8 @@ export async function exportQuotationsWorkbook(filters: QuotationFilters) {
       keyword: filters.keyword.trim() || undefined,
       status: filters.status || undefined,
       created_by: filters.created_by || undefined,
+      date_from: filters.date_from || undefined,
+      date_to: filters.date_to || undefined,
     },
   });
   const quotations = response.data;
@@ -118,6 +123,8 @@ export async function exportQuotationsWorkbook(filters: QuotationFilters) {
         { header: 'Thuế suất VAT (%)', width: 18 },
         { header: 'Tiền VAT', width: 18 },
         { header: 'Tiền cọc', width: 18 },
+        { header: 'Điều chỉnh làm tròn', width: 22 },
+        { header: 'Tổng mong muốn', width: 20 },
         { header: 'Tổng thanh toán', width: 20 },
         { header: 'Tổng đã nhận', width: 18 },
         { header: 'Đã hoàn', width: 18 },
@@ -141,6 +148,12 @@ export async function exportQuotationsWorkbook(filters: QuotationFilters) {
         { header: 'Người tạo', width: 24 },
         { header: 'Email người tạo', width: 28 },
         { header: 'Ngày tạo', width: 20 },
+        { header: 'Ngày hủy', width: 22 },
+        { header: 'Người hủy', width: 24 },
+        { header: 'Lý do hủy', width: 36 },
+        { header: 'Báo phí thay thế', width: 30 },
+        { header: 'Tiền chuyển báo phí', width: 22 },
+        { header: 'Tiền về chưa phân bổ', width: 22 },
         { header: 'Cập nhật lần cuối', width: 20 },
       ],
       rows: quotations.map((quotation) => [
@@ -162,6 +175,8 @@ export async function exportQuotationsWorkbook(filters: QuotationFilters) {
         numberCell(quotation.vatRate),
         numberCell(quotation.vatAmount),
         numberCell(quotation.depositAmount),
+        numberCell(quotation.roundingAdjustment),
+        numberCell(quotation.targetTotalAmount),
         numberCell(quotation.totalAmount),
         numberCell(quotation.grossPaidAmount),
         numberCell(quotation.refundedAmount),
@@ -187,6 +202,12 @@ export async function exportQuotationsWorkbook(filters: QuotationFilters) {
         quotation.createdBy?.name || '',
         quotation.createdBy?.email || '',
         dateTimeCell(quotation.createdAt),
+        dateTimeCell(quotation.voidedAt),
+        quotation.voidDetails?.actor.name || '',
+        quotation.voidDetails?.reason || '',
+        quotation.voidDetails?.targetCode || '',
+        quotation.voidDetails ? numberCell(quotation.voidDetails.transferAmount) : '',
+        quotation.voidDetails ? numberCell(quotation.voidDetails.releaseAmount) : '',
         dateTimeCell(quotation.updatedAt),
       ]),
     },

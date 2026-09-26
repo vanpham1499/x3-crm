@@ -34,6 +34,8 @@ services:
     env_file: .env
     environment:
       DB_CONNECTION: pgsql
+      # Production containers must ignore local/server development DB profiles from .env.
+      DB_PROFILE: default
       DB_USE_URL: "false"
       DB_HOST: db
       DB_PORT: 5432
@@ -75,6 +77,7 @@ services:
     env_file: .env
     environment:
       DB_CONNECTION: pgsql
+      DB_PROFILE: default
       DB_USE_URL: "false"
       DB_HOST: db
       DB_PORT: 5432
@@ -94,6 +97,7 @@ services:
     env_file: .env
     environment:
       DB_CONNECTION: pgsql
+      DB_PROFILE: default
       DB_USE_URL: "false"
       DB_HOST: db
       DB_PORT: 5432

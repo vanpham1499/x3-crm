@@ -46,6 +46,10 @@ class UpdateQuotationRequest extends BaseRequest
             'validUntil' => ['sometimes', 'nullable', 'date'],
             'note' => ['sometimes', 'nullable', 'string'],
             'metadata' => ['sometimes', 'nullable', 'array'],
+            // Keep the flexible bank/pricing snapshot when validating a nested target.
+            // Otherwise Laravel drops every metadata key except targetTotalAmount.
+            'metadata.*' => ['nullable'],
+            'metadata.targetTotalAmount' => ['sometimes', 'nullable', 'integer', 'min:1'],
             'topup_budget_item_ids' => ['sometimes', 'array'],
             'topup_budget_item_ids.*' => ['integer'],
             'topupBudgetItemIds' => ['sometimes', 'array'],

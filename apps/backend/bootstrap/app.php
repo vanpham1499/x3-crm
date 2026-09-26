@@ -48,6 +48,11 @@ return Application::configure(basePath: dirname(__DIR__))
         ]);
     })
     ->withExceptions(function (Exceptions $exceptions): void {
+        // Webhook callers may omit Accept: application/json. Preserve error status
+        // codes while returning JSON instead of Laravel's HTML error page.
+        $exceptions->shouldRenderJsonWhen(
+            fn (Request $request, \Throwable $exception): bool => $request->is('api/*') || $request->expectsJson(),
+        );
         $exceptions->render(function (ValidationException $exception, Request $request) {
             if (! $request->is('api/*')) {
                 return null;

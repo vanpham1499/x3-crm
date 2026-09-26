@@ -17,9 +17,10 @@ import { useAppNotification } from '@/components/feedback/notification-provider'
 import { MoneyInput } from '@/components/form/money-input';
 import { ImageLightbox } from '@/components/media/image-lightbox';
 import { formatCustomerIdentity } from '@/lib/customer-utils';
-import { downloadElementAsPdf } from '@/lib/download-element-pdf';
+import { downloadElementAsPdf, getElementCaptureSize } from '@/lib/download-element-pdf';
 import { getMediaPreviewUrl } from '@/lib/media-url';
 import { getQuotationPaymentContent } from '@/lib/quotation-utils';
+import { roundQuotationMoney } from '@/lib/quotation-pricing';
 import { formatUserLabel } from '@/lib/user-utils';
 import {
   DEFAULT_SITE_PROFILE,
@@ -30,6 +31,8 @@ import api from '@/services/api/client';
 import type { AppOption } from '@/types/option';
 import type { Quotation, QuotationItem } from '@/types/quotation';
 import { QuotationItemsTable, type QuotationTableLine } from './quotation-items-table';
+import { QuotationVoidHistory } from './quotation-void-history';
+import { QuotationSheetViewport } from './quotation-sheet-viewport';
 
 type QuotationPreviewDialogProps = {
   quotation: Quotation | null;
@@ -45,8 +48,12 @@ function toNumber(value: string | number | null | undefined) {
   return Number.isFinite(number) ? number : 0;
 }
 
-function formatCurrency(value: string | number | null | undefined) {
-  return `${new Intl.NumberFormat('vi-VN').format(Math.round(toNumber(value)))} đ`;
+function formatCurrency(value: string | number | null | undefined, wholeVnd = true) {
+  const amount = toNumber(value);
+  const displayedAmount = wholeVnd ? roundQuotationMoney(amount) : amount;
+  return `${new Intl.NumberFormat('vi-VN', {
+    maximumFractionDigits: wholeVnd ? 0 : 20,
+  }).format(displayedAmount)} đ`;
 }
 
 function formatDate(value?: string | null) {
@@ -84,6 +91,7 @@ function quotationLines(quotation: Quotation): QuotationTableLine[] {
 }
 
 function payableAmount(quotation: Quotation) {
+  if (quotation.isVoided) return 0;
   const total = toNumber(quotation.totalAmount);
   const paid = toNumber(quotation.paidAmount);
   const outstanding = quotation.outstandingAmount;
@@ -96,6 +104,7 @@ function payableAmount(quotation: Quotation) {
 }
 
 function quotationQrUrl(quotation: Quotation, amount: number) {
+  if (quotation.isVoided) return '';
   const bankCode = quotationMetadata(quotation, 'bankCode');
   const accountNo = quotationMetadata(quotation, 'bankAccountNo');
   const accountName = quotationMetadata(quotation, 'bankAccountName');
@@ -110,8 +119,8 @@ function quotationQrUrl(quotation: Quotation, amount: number) {
 
   const roundedAmount = Math.round(amount);
   params.set('amount', String(roundedAmount));
-  // VietQR images are cached aggressively. Keep the cache key tied to the
-  // actual transfer payload so an edited amount can never reuse an older QR.
+  // Keep browser QR requests tied to the current transfer payload.
+  // Image/PDF exports must also preserve query parameters in their cache keys.
   params.set('_v', `2-${bankCode}-${accountNo}-${paymentContent}-${roundedAmount}`);
 
   return `https://img.vietqr.io/image/${bankCode}-${accountNo}-qr_only.png?${params.toString()}`;
@@ -186,7 +195,13 @@ function PaymentDetails({
       }
     >
       <div
-        className={`grid items-center gap-5 ${qrUrl ? 'md:grid-cols-[minmax(0,1fr)_220px]' : ''}`}
+        className={`grid items-center gap-5 ${
+          qrUrl
+            ? customerView
+              ? 'grid-cols-[minmax(0,1fr)_220px]'
+              : 'md:grid-cols-[minmax(0,1fr)_220px]'
+            : ''
+        }`}
       >
         <div className="min-w-0">
           <h3 className="text-sm font-extrabold text-slate-950">
@@ -248,7 +263,9 @@ function PaymentDetails({
         </div>
 
         {qrUrl ? (
-          <div className="flex items-center justify-center md:justify-end">
+          <div
+            className={`flex items-center ${customerView ? 'justify-end' : 'justify-center md:justify-end'}`}
+          >
             {/* eslint-disable-next-line @next/next/no-img-element */}
             <img
               key={qrUrl}
@@ -312,7 +329,7 @@ function CustomerQuotationTable({ quotation }: { quotation: Quotation }) {
                   {new Intl.NumberFormat('vi-VN').format(toNumber(item.quantity))}
                 </td>
                 <td className="px-3 py-3 text-right tabular-nums text-slate-700">
-                  {formatCurrency(item.unitPrice)}
+                  {formatCurrency(item.unitPrice, false)}
                 </td>
                 <td className="px-3 py-3 text-right font-extrabold tabular-nums text-slate-950">
                   {formatCurrency(amount)}
@@ -346,6 +363,17 @@ function CustomerQuotationTable({ quotation }: { quotation: Quotation }) {
               </td>
               <td className="whitespace-nowrap px-3 py-2.5 text-right font-extrabold tabular-nums text-slate-950">
                 {formatCurrency(quotation.depositAmount)}
+              </td>
+            </tr>
+          ) : null}
+          {toNumber(quotation.roundingAdjustment) !== 0 ? (
+            <tr>
+              <td colSpan={6} className="px-3 py-2.5 text-right font-bold text-slate-600">
+                Điều chỉnh làm tròn
+              </td>
+              <td className="whitespace-nowrap px-3 py-2.5 text-right font-extrabold tabular-nums text-slate-950">
+                {toNumber(quotation.roundingAdjustment) > 0 ? '+' : ''}
+                {formatCurrency(quotation.roundingAdjustment)}
               </td>
             </tr>
           ) : null}
@@ -411,7 +439,7 @@ export function QuotationPreviewDialog({
   }, [autoDownloadPdf]);
 
   const downloadCustomerPdf = useCallback(async () => {
-    if (!quotation || !customerSheetRef.current || isDownloadingPdf) return;
+    if (!quotation || quotation.isVoided || !customerSheetRef.current || isDownloadingPdf) return;
 
     setIsDownloadingPdf(true);
 
@@ -436,6 +464,7 @@ export function QuotationPreviewDialog({
 
     if (
       !quotation ||
+      quotation.isVoided ||
       mode !== 'customer' ||
       isFetchingSiteProfile ||
       isDownloadingPdf ||
@@ -462,6 +491,12 @@ export function QuotationPreviewDialog({
     quotation,
   ]);
 
+  if (quotation?.isVoided)
+    return (
+      <AppDetailDialog open title="Lịch sử hủy báo phí" maxWidth="lg" onClose={onClose}>
+        <QuotationVoidHistory quotation={quotation} />
+      </AppDetailDialog>
+    );
   if (!quotation) return null;
 
   const reconciliationImages = quotation.accountReconciliationImageUrls || [];
@@ -530,11 +565,12 @@ export function QuotationPreviewDialog({
         ),
       );
 
-      const width = Math.ceil(Math.max(sheet.scrollWidth, sheet.getBoundingClientRect().width));
-      const height = Math.ceil(Math.max(sheet.scrollHeight, sheet.getBoundingClientRect().height));
+      const { width, height } = getElementCaptureSize(sheet);
       const blobPromise = toBlob(sheet, {
         backgroundColor: '#ffffff',
         cacheBust: true,
+        // QR amount and transfer content live in the URL query, not the path.
+        includeQueryParams: true,
         width,
         height,
         pixelRatio: 2,
@@ -702,6 +738,7 @@ export function QuotationPreviewDialog({
               subtotal={quotation.subtotalAmount}
               vatRate={quotation.vatRate}
               vatAmount={quotation.vatAmount}
+              roundingAdjustment={quotation.roundingAdjustment}
               deposit={quotation.depositAmount}
               total={quotation.totalAmount}
             />
@@ -765,7 +802,7 @@ export function QuotationPreviewDialog({
           ) : null}
         </div>
       ) : (
-        <div className="overflow-x-auto bg-slate-100 p-3 sm:p-6">
+        <div className="min-w-0 bg-slate-100 p-3 sm:p-6">
           <section className="mx-auto mb-4 max-w-[1040px] rounded-xl border border-slate-200 bg-white p-4">
             <div className="grid gap-3 md:grid-cols-[minmax(280px,360px)_minmax(0,1fr)_auto] md:items-start">
               <MoneyInput
@@ -803,15 +840,12 @@ export function QuotationPreviewDialog({
             </div>
           </section>
 
-          <article
-            ref={customerSheetRef}
-            className="mx-auto max-w-[1040px] overflow-hidden rounded-xl border border-slate-200 bg-white text-slate-900"
-          >
-            <header className="grid gap-5 border-b-4 border-primary px-6 py-5 md:grid-cols-[240px,minmax(0,1fr)] md:items-center">
+          <QuotationSheetViewport ref={customerSheetRef}>
+            <header className="grid grid-cols-[240px,minmax(0,1fr)] items-center gap-5 border-b-4 border-primary px-6 py-5">
               <div className="flex items-center">
                 <Image src={x3salesLogo} alt="X3Sales" className="h-auto w-[190px]" priority />
               </div>
-              <div className="space-y-1 text-sm leading-5 text-slate-600 md:text-right">
+              <div className="space-y-1 text-right text-sm leading-5 text-slate-600">
                 <p className="font-extrabold text-slate-950">{companyInfo.companyName}</p>
                 {companyInfo.taxCode ? <p>MST: {companyInfo.taxCode}</p> : null}
                 <p>{[companyInfo.phone, companyInfo.website].filter(Boolean).join(' · ')}</p>
@@ -830,7 +864,7 @@ export function QuotationPreviewDialog({
                 </p>
               </div>
 
-              <section className="mt-6 grid overflow-hidden rounded-lg border border-slate-200 bg-slate-50 md:grid-cols-3 md:divide-x md:divide-slate-200">
+              <section className="mt-6 grid grid-cols-3 divide-x divide-slate-200 overflow-hidden rounded-lg border border-slate-200 bg-slate-50">
                 <CustomerInfoCell label="Khách hàng" value={partyName} />
                 <CustomerInfoCell label="Dự án" value={projectCode} />
                 <CustomerInfoCell
@@ -871,7 +905,7 @@ export function QuotationPreviewDialog({
                           <img
                             src={previewUrl}
                             alt={`Ảnh đối soát tài khoản quảng cáo ${index + 1}`}
-                            loading="lazy"
+                            loading="eager"
                             className="h-auto w-full object-contain transition-opacity duration-200 group-hover:opacity-90"
                           />
                         </button>
@@ -904,7 +938,7 @@ export function QuotationPreviewDialog({
                 Cảm ơn quý khách đã tin tưởng và lựa chọn dịch vụ của X3Sales.
               </p>
             </div>
-          </article>
+          </QuotationSheetViewport>
         </div>
       )}
 

@@ -5,6 +5,7 @@ namespace App\Services;
 use App\Http\Resources\ContractResource;
 use App\Models\Contract;
 use App\Repositories\ContractRepository;
+use App\Support\FinancialMutation;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Validation\ValidationException;
 
@@ -24,7 +25,7 @@ class ContractsService extends BaseService
 
     public function create(array $data): array
     {
-        return $this->transaction(function () use ($data): array {
+        return FinancialMutation::run(function () use ($data): array {
             $data = $this->normalizePayload($data);
             $this->authorizeProjectOwnership($data['project_id'] ?? null);
 
@@ -38,7 +39,7 @@ class ContractsService extends BaseService
 
     public function update(string $id, array $data): array
     {
-        return $this->transaction(function () use ($id, $data): array {
+        return FinancialMutation::run(function () use ($id, $data): array {
             $existing = $this->contracts->findWithRelationsOrFail($id);
             $this->authorizeProjectOwnership($existing->project_id);
             /** @var Contract $contract */
@@ -51,7 +52,7 @@ class ContractsService extends BaseService
 
     public function remove(string $id): array
     {
-        return $this->transaction(function () use ($id): array {
+        return FinancialMutation::run(function () use ($id): array {
             $contract = $this->contracts->findWithRelationsOrFail($id);
             $this->authorizeProjectOwnership($contract->project_id);
             $this->clearQuotationLinks($contract);
@@ -80,6 +81,9 @@ class ContractsService extends BaseService
 
         if (! empty($quotationId)) {
             $quotation = DB::table('quotations')->where('id', $quotationId)->whereNull('deleted_at')->first();
+            if ($quotation?->voided_at && (string) $quotationId !== (string) $existing?->quotation_id) {
+                throw ValidationException::withMessages(['quotationId' => 'Không được gắn mới hợp đồng vào báo phí đã hủy.']);
+            }
 
             if ($quotation?->project_id && (string) $quotation->project_id !== (string) $projectId) {
                 throw ValidationException::withMessages([
@@ -156,7 +160,7 @@ class ContractsService extends BaseService
     private function syncQuotationLinks(Contract $contract, ?int $previousQuotationId = null): void
     {
         if ($previousQuotationId && (string) $previousQuotationId !== (string) $contract->quotation_id) {
-            DB::table('quotations')
+            DB::table('quotations')->whereNull('voided_at')
                 ->where('id', $previousQuotationId)
                 ->where('contract_id', $contract->id)
                 ->update(['contract_id' => null, 'updated_at' => now()]);
@@ -167,7 +171,7 @@ class ContractsService extends BaseService
                 ->update(['contract_id' => null, 'updated_at' => now()]);
         }
 
-        if (! $contract->quotation_id) {
+        if (! $contract->quotation_id || DB::table('quotations')->where('id', $contract->quotation_id)->whereNotNull('voided_at')->exists()) {
             return;
         }
 
@@ -186,7 +190,7 @@ class ContractsService extends BaseService
 
     private function clearQuotationLinks(Contract $contract): void
     {
-        DB::table('quotations')
+        DB::table('quotations')->whereNull('voided_at')
             ->where('contract_id', $contract->id)
             ->update(['contract_id' => null, 'updated_at' => now()]);
         DB::table('payments')

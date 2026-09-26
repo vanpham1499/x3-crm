@@ -4,7 +4,8 @@ import type { ProjectItem } from '@/types/project';
 import type { ServiceItem } from '@/types/service';
 import type { User } from '@/types/user';
 
-export type QuotationStatus = 'draft' | 'won' | 'refunded';
+import type { QuotationVoidAudit } from './quotation-void';
+export type QuotationStatus = 'draft' | 'won' | 'refunded' | 'voided';
 
 export type QuotationItem = {
   id?: number;
@@ -40,6 +41,8 @@ export type Quotation = {
   vatRate?: string | number | null;
   vatAmount?: string | number | null;
   totalAmount?: string | number | null;
+  targetTotalAmount?: string | number | null;
+  roundingAdjustment?: string | number | null;
   paidAmount?: string | number | null;
   grossPaidAmount?: string | number | null;
   refundedAmount?: string | number | null;
@@ -82,6 +85,10 @@ export type Quotation = {
     contractNo?: string | null;
   } | null;
   service?: ServiceItem | null;
+  isVoided?: boolean;
+  voidedAt?: string | null;
+  voidDetails?: QuotationVoidAudit | null;
+  canVoid?: boolean;
   items?: QuotationItem[];
   canUpdate?: boolean;
   canDelete?: boolean;
@@ -96,6 +103,8 @@ export type QuotationFilters = {
   keyword: string;
   status: string;
   created_by: string;
+  date_from: string;
+  date_to: string;
 };
 
 export type QuotationLineFormValue = {

@@ -25,6 +25,11 @@ export type Contract = {
   invoiceEmail?: string | null;
   invoicePhone?: string | null;
   contractStatusOption?: AppOption | null;
+  project?: {
+    id: number;
+    projectCode?: string | null;
+    projectName?: string | null;
+  } | null;
   quotation?: {
     id: number;
     quotationCode?: string | null;

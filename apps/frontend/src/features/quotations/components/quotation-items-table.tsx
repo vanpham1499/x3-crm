@@ -1,4 +1,5 @@
 import type { Key } from 'react';
+import { roundQuotationMoney } from '@/lib/quotation-pricing';
 
 export type QuotationTableLine = {
   id: Key;
@@ -18,6 +19,7 @@ type QuotationItemsTableProps = {
   vatRate: string | number | null | undefined;
   vatAmount: string | number | null | undefined;
   deposit: string | number | null | undefined;
+  roundingAdjustment?: string | number | null;
   total: string | number | null | undefined;
   emptyText?: string;
 };
@@ -27,7 +29,7 @@ function toNumber(value: string | number | null | undefined) {
 }
 
 function formatMoney(value: string | number | null | undefined) {
-  return new Intl.NumberFormat('vi-VN').format(Math.round(toNumber(value)));
+  return new Intl.NumberFormat('vi-VN').format(roundQuotationMoney(toNumber(value)));
 }
 
 function formatCurrency(value: string | number | null | undefined) {
@@ -40,6 +42,7 @@ export function QuotationItemsTable({
   vatRate,
   vatAmount,
   deposit,
+  roundingAdjustment = 0,
   total,
   emptyText = 'Chưa có hạng mục báo phí',
 }: QuotationItemsTableProps) {
@@ -81,12 +84,17 @@ export function QuotationItemsTable({
                   </td>
                   <td className="px-4 py-3 text-slate-600">{line.unit || '-'}</td>
                   <td className="px-4 py-3 text-right tabular-nums text-slate-600">
-                    {formatMoney(line.quantity)}
+                    {new Intl.NumberFormat('vi-VN', { maximumFractionDigits: 20 }).format(
+                      toNumber(line.quantity),
+                    )}
                   </td>
                   <td
                     className={`px-4 py-3 text-right tabular-nums ${unitPrice < 0 ? 'text-rose-600' : 'text-slate-700'}`}
                   >
-                    {formatCurrency(unitPrice)}
+                    {new Intl.NumberFormat('vi-VN', { maximumFractionDigits: 20 }).format(
+                      unitPrice,
+                    )}{' '}
+                    đ
                   </td>
                   <td
                     className={`px-4 py-3 text-right font-bold tabular-nums ${amount < 0 ? 'text-rose-600' : 'text-slate-950'}`}
@@ -122,6 +130,17 @@ export function QuotationItemsTable({
               </td>
               <td className="px-4 py-3 text-right font-extrabold tabular-nums text-slate-950">
                 {formatCurrency(deposit)}
+              </td>
+            </tr>
+          ) : null}
+          {toNumber(roundingAdjustment) !== 0 ? (
+            <tr>
+              <td colSpan={5} className="px-4 py-3 text-right font-bold text-slate-700">
+                Điều chỉnh làm tròn
+              </td>
+              <td className="px-4 py-3 text-right font-extrabold tabular-nums text-slate-950">
+                {toNumber(roundingAdjustment) > 0 ? '+' : ''}
+                {formatCurrency(roundingAdjustment)}
               </td>
             </tr>
           ) : null}

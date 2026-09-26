@@ -9,6 +9,7 @@ use App\Models\WeeklyReport;
 use App\Models\WeeklyReportItem;
 use App\Repositories\ProjectWeeklySettingRepository;
 use App\Repositories\WeeklyReportRepository;
+use App\Support\WeeklyReportMoney;
 use Carbon\CarbonImmutable;
 use Illuminate\Validation\ValidationException;
 
@@ -252,7 +253,7 @@ class WeeklyReportsService extends BaseService
             );
             unset($data['items']);
 
-            $data = $this->preparePayload($data);
+            $data = $this->preparePayload($data, false, $existingReport);
             unset(
                 $data['project_id'],
                 $data['customer_id'],
@@ -548,9 +549,9 @@ class WeeklyReportsService extends BaseService
         );
     }
 
-    private function preparePayload(array $data, bool $isCreating = false): array
+    private function preparePayload(array $data, bool $isCreating = false, ?WeeklyReport $existing = null): array
     {
-        $data = $this->normalizeKeys($data);
+        $data = WeeklyReportMoney::prepare($this->normalizeKeys($data), $existing);
         $cycleWeekStart = $data['cycle_week_start'] ?? null;
         unset($data['cycle_week_start']);
 
@@ -583,12 +584,15 @@ class WeeklyReportsService extends BaseService
             /** @var ProjectWeeklySetting|null $setting */
             $setting = $settingQuery->first();
 
-            if ($setting) {
-                $data['monthly_budget'] = $data['monthly_budget'] ?? $setting->monthly_budget;
+            if ($setting && $isCreating) {
                 $data['management_fee_rate'] = $data['management_fee_rate'] ?? $setting->management_fee_rate;
-                $data['average_weekly_budget'] = $data['average_weekly_budget']
-                    ?? round((float) $setting->monthly_budget / 4, 2);
-                $data['total_budget'] = $data['total_budget'] ?? $setting->monthly_budget;
+                // Project presets are VND, not amounts that can simply be relabelled USD/EUR.
+                if ($data['currency'] === 'VND') {
+                    $data['monthly_budget'] = $data['monthly_budget'] ?? $setting->monthly_budget;
+                    $data['average_weekly_budget'] = $data['average_weekly_budget']
+                        ?? round((float) $setting->monthly_budget / 4, 2);
+                    $data['total_budget'] = $data['total_budget'] ?? $setting->monthly_budget;
+                }
             }
 
             if ($isCreating && $cycleWeekStart) {
@@ -815,6 +819,7 @@ class WeeklyReportsService extends BaseService
             'remainingAccountBudget' => 'remaining_account_budget',
             'totalBudget' => 'total_budget',
             'monthlyBudget' => 'monthly_budget',
+            'currencyChangeConfirmed' => 'currency_change_confirmed',
             'managementFeeRate' => 'management_fee_rate',
             'problemSolution' => 'problem_solution',
             'nextAction' => 'next_action',

@@ -18,24 +18,23 @@ import { formatCustomerIdentity } from '@/lib/customer-utils';
 import { getMediaPreviewUrl } from '@/lib/media-url';
 import { formatDate } from '@/lib/utils';
 import api from '@/services/api/client';
-import type { WeeklyReport } from '@/types/weekly-report';
+import type { WeeklyReport, WeeklyReportCurrency } from '@/types/weekly-report';
+import { formatWeeklyReportMoney, getWeeklyReportCurrency } from '@/lib/weekly-report-money';
 
 type WeeklyReportCustomerPreviewDialogProps = {
   report: WeeklyReport | null;
   onClose: () => void;
 };
 
-function formatCurrency(value?: string | number | null) {
-  return `${new Intl.NumberFormat('vi-VN').format(Math.round(Number(value) || 0))} đ`;
-}
-
 function MetricCard({
   label,
   value,
+  currency,
   icon,
 }: {
   label: string;
   value?: string | number | null;
+  currency: WeeklyReportCurrency;
   icon: ReactNode;
 }) {
   return (
@@ -44,10 +43,10 @@ function MetricCard({
         <span className="grid size-10 shrink-0 place-items-center rounded-lg bg-blue-50 text-blue-700">
           {icon}
         </span>
-        <div className="min-w-0">
+        <div className="min-w-0 flex-1">
           <p className="min-h-10 text-sm font-bold leading-5 text-slate-600">{label}</p>
-          <p className="mt-2 whitespace-nowrap text-xl font-black tabular-nums text-slate-950">
-            {formatCurrency(value)}
+          <p className="mt-2 break-words text-lg font-black tabular-nums text-slate-950">
+            {formatWeeklyReportMoney(value, currency)}
           </p>
         </div>
       </div>
@@ -73,6 +72,10 @@ export function WeeklyReportCustomerPreviewDialog({
   if (!report) return null;
 
   const currentReport = detailedReport || report;
+  const currency = getWeeklyReportCurrency(currentReport.currency);
+  const hasRemainingBudget =
+    currentReport.remainingAccountBudget != null &&
+    String(currentReport.remainingAccountBudget).trim() !== '';
   const projectName =
     currentReport.project?.projectName || currentReport.project?.projectCode || 'Báo cáo tuần';
   const projectCode = currentReport.project?.projectCode || `Báo cáo #${currentReport.id}`;
@@ -215,24 +218,35 @@ export function WeeklyReportCustomerPreviewDialog({
             <section className="overflow-hidden rounded-xl border border-slate-200">
               <h3 className="border-b border-slate-200 bg-slate-100 px-5 py-3 text-base font-black uppercase text-slate-950">
                 2. Chi tiêu tuần qua
+                <span className="ml-3 inline-flex rounded-md bg-white px-2 py-1 text-xs font-bold text-blue-700 ring-1 ring-slate-200">
+                  Đơn vị: {currency}
+                </span>
               </h3>
-              <div className="grid grid-cols-4 gap-4 p-5">
+              <div
+                className={`grid gap-4 p-5 ${hasRemainingBudget ? 'grid-cols-4' : 'grid-cols-3'}`}
+              >
                 <MetricCard
+                  currency={currency}
                   label="Chi phí"
                   value={currentReport.weeklySpendAmount}
                   icon={<PaidOutlinedIcon />}
                 />
                 <MetricCard
+                  currency={currency}
                   label="Ngân sách trung bình / tuần"
                   value={currentReport.averageWeeklyBudget}
                   icon={<CalendarViewWeekOutlinedIcon />}
                 />
+                {hasRemainingBudget ? (
+                  <MetricCard
+                    currency={currency}
+                    label="Ngân sách tài khoản còn lại"
+                    value={currentReport.remainingAccountBudget}
+                    icon={<AccountBalanceWalletOutlinedIcon />}
+                  />
+                ) : null}
                 <MetricCard
-                  label="Ngân sách tài khoản còn lại"
-                  value={currentReport.remainingAccountBudget}
-                  icon={<AccountBalanceWalletOutlinedIcon />}
-                />
-                <MetricCard
+                  currency={currency}
                   label="Tổng ngân sách"
                   value={currentReport.totalBudget ?? currentReport.monthlyBudget}
                   icon={<SavingsOutlinedIcon />}

@@ -9,8 +9,11 @@ use App\Models\Project;
 use App\Models\Quotation;
 use App\Repositories\PaymentRepository;
 use App\Repositories\QuotationRepository;
+use App\Support\FinancialMutation;
 use App\Support\ProjectTopupBudgetCalculator;
+use App\Support\QuotationMoneyCalculator;
 use App\Support\QuotationReference;
+use App\Support\QuotationSettlement;
 use Illuminate\Auth\Access\AuthorizationException;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Str;
@@ -49,7 +52,7 @@ class QuotationsService extends BaseService
 
     public function create(array $data): array
     {
-        return $this->transaction(function () use ($data): array {
+        return FinancialMutation::run(function () use ($data): array {
             $items = $data['items'] ?? [];
             unset($data['items']);
 
@@ -84,7 +87,7 @@ class QuotationsService extends BaseService
 
     public function update(string $id, array $data): array
     {
-        return $this->transaction(function () use ($id, $data): array {
+        return FinancialMutation::run(function () use ($id, $data): array {
             $currentQuotation = $this->quotations->findForUpdateOrFail($id);
             $this->authorize('update', $currentQuotation);
 
@@ -123,6 +126,18 @@ class QuotationsService extends BaseService
             $data = $this->normalizePayload($data);
             unset($data['quotation_code']);
             unset($data['status']);
+            $data['metadata'] = array_replace($currentQuotation->metadata ?? [], $data['metadata'] ?? []);
+            $hasPricingChanges = $hasItems
+                || array_intersect(array_keys($data), ['subtotal_amount', 'vat_rate', 'vat_amount', 'total_amount', 'deposit_amount']) !== []
+                || ($data['metadata']['targetTotalAmount'] ?? null) !== ($currentQuotation->metadata['targetTotalAmount'] ?? null);
+            if ($hasPricingChanges) {
+                $data['vat_rate'] = $data['vat_rate'] ?? $currentQuotation->vat_rate;
+                $data['deposit_amount'] = $data['deposit_amount'] ?? $currentQuotation->deposit_amount;
+                $data['subtotal_amount'] = $data['subtotal_amount'] ?? $currentQuotation->subtotal_amount;
+                if (! $hasItems) {
+                    $items = $currentQuotation->items->toArray();
+                }
+            }
             $data['project_id'] = $data['project_id'] ?? $currentQuotation->project_id;
             $data = $this->applyProjectDefaults($data);
             $this->authorizeParentView($data);
@@ -134,7 +149,7 @@ class QuotationsService extends BaseService
                 $quotationVatRate,
                 $this->shouldExcludeBudgetFromTotal($data),
             );
-            $data = $hasItems ? $this->applyItemTotals($data, $items) : $data;
+            $data = $hasPricingChanges ? $this->applyItemTotals($data, $items) : $data;
             $data = $this->applyServiceDefaults($data);
             $data = $this->prepareTopupCreditData($data, $currentQuotation);
 
@@ -142,7 +157,7 @@ class QuotationsService extends BaseService
 
             if ($allocatedAmount > 0.01
                 && array_key_exists('total_amount', $data)
-                && abs((float) $data['total_amount'] - (float) $currentQuotation->total_amount) > 0.01) {
+                && round((float) $data['total_amount']) !== round((float) $currentQuotation->total_amount)) {
                 throw ValidationException::withMessages([
                     'items' => ['Báo phí đã phát sinh thanh toán nên không thể thay đổi số tiền.'],
                 ]);
@@ -150,7 +165,7 @@ class QuotationsService extends BaseService
 
             /** @var Quotation $quotation */
             $quotation = $this->quotations->update($id, $data);
-            if ($hasItems) {
+            if ($hasPricingChanges) {
                 $this->syncItems($quotation, $items);
             }
             $this->validateTopupCreditLimit($quotation->refresh());
@@ -162,8 +177,8 @@ class QuotationsService extends BaseService
 
     public function remove(string $id): array
     {
-        return $this->transaction(function () use ($id): array {
-            $quotation = $this->quotations->findWithRelationsOrFail($id);
+        return FinancialMutation::run(function () use ($id): array {
+            $quotation = $this->quotations->findForUpdateOrFail($id);
             $this->authorize('delete', $quotation);
 
             if ($quotation->paymentAllocations->isNotEmpty()) {
@@ -222,7 +237,12 @@ class QuotationsService extends BaseService
 
     public function findModel(string $id): Quotation
     {
-        return $this->quotations->findWithRelationsOrFail($id);
+        $quotation = $this->quotations->findWithRelationsOrFail($id);
+        if ($quotation->isVoided()) {
+            throw ValidationException::withMessages(['quotation' => 'Báo phí đã hủy, không được liên kết hoặc nhận thêm tiền.']);
+        }
+
+        return $quotation;
     }
 
     public function findByCode(?string $code): ?Quotation
@@ -232,14 +252,13 @@ class QuotationsService extends BaseService
 
     public function findCodeInText(string $text): ?Quotation
     {
-        $codes = $this->quotations->findAll([])
-            ->pluck('quotation_code')
+        $codes = Quotation::withVoided()->pluck('quotation_code')
             ->filter(fn (?string $code): bool => $code !== null && $code !== '')
             ->sortByDesc(fn (string $code): int => strlen($code));
 
         foreach ($codes as $code) {
             if (QuotationReference::appearsIn($text, $code)) {
-                return $this->quotations->findByCode($code);
+                return Quotation::withVoided()->where('quotation_code', $code)->first();
             }
         }
 
@@ -256,22 +275,18 @@ class QuotationsService extends BaseService
             }
         }
 
-        $subtotal = (float) ($data['subtotal_amount'] ?? 0);
-        $vatRate = (float) ($data['vat_rate'] ?? 0);
-        $depositAmount = (float) ($data['deposit_amount'] ?? 0);
-        $data['vat_amount'] = $data['vat_amount'] ?? round($subtotal * $vatRate / 100, 2);
-        $data['deposit_amount'] = round($depositAmount, 2);
-        $data['total_amount'] = round($subtotal + (float) $data['vat_amount'] + $depositAmount, 2);
+        // This field is calculated from the items and target total, never client-controlled.
+        unset($data['metadata']['roundingAdjustment']);
 
         return $data;
     }
 
     private function isPaymentLocked(Quotation $quotation): bool
     {
-        $paidAmount = (float) $quotation->paymentAllocations->sum('amount');
-        $totalAmount = (float) $quotation->total_amount;
-
-        return $totalAmount > 0.01 && $paidAmount >= $totalAmount - 0.01;
+        return QuotationSettlement::isPaymentLocked(
+            (float) $quotation->total_amount,
+            (float) $quotation->paymentAllocations->sum('amount'),
+        );
     }
 
     private function normalizeKeys(array $data): array
@@ -298,6 +313,8 @@ class QuotationsService extends BaseService
             'allocationOpen' => 'allocation_open',
             'createdById' => 'created_by',
             'topupBudgetItemIds' => 'topup_budget_item_ids',
+            'dateFrom' => 'date_from',
+            'dateTo' => 'date_to',
         ];
 
         foreach ($map as $from => $to) {
@@ -495,7 +512,7 @@ class QuotationsService extends BaseService
 
                 $quantity = (float) ($item['quantity'] ?? 1);
                 $unitPrice = (float) ($item['unit_price'] ?? 0);
-                $amountBeforeVat = (float) ($item['amount_before_vat'] ?? round($quantity * $unitPrice, 2));
+                $amountBeforeVat = round((float) ($item['amount_before_vat'] ?? ($quantity * $unitPrice)));
                 $metadata = is_array($item['metadata'] ?? null) ? $item['metadata'] : [];
                 $itemCode = (string) ($item['item_code'] ?? '');
 
@@ -621,26 +638,9 @@ class QuotationsService extends BaseService
         return $item;
     }
 
-    private function applyItemTotals(array $data, array $items): array
+    private function applyItemTotals(array $data, array &$items): array
     {
-        if ($items === []) {
-            return $data;
-        }
-
-        $payableItems = collect($items)->reject(
-            fn (array $item): bool => ($item['metadata']['excludedFromTotal'] ?? false) === true,
-        );
-        $subtotal = $payableItems->sum(fn (array $item): float => (float) $item['amount_before_vat']);
-        $vat = array_key_exists('vat_rate', $data)
-            ? round($subtotal * (float) $data['vat_rate'] / 100, 2)
-            : $payableItems->sum(fn (array $item): float => (float) $item['vat_amount']);
-
-        $data['subtotal_amount'] = round($subtotal, 2);
-        $data['vat_amount'] = round($vat, 2);
-        $data['deposit_amount'] = round((float) ($data['deposit_amount'] ?? 0), 2);
-        $data['total_amount'] = round($subtotal + $vat + (float) $data['deposit_amount'], 2);
-
-        return $data;
+        return QuotationMoneyCalculator::apply($data, $items);
     }
 
     private function shouldExcludeBudgetFromTotal(array $data): bool

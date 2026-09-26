@@ -3,8 +3,35 @@
 Tài liệu tổng duy nhất của dự án X3Sales CRM. File này là nguồn chuẩn cho cách cài đặt, lệnh chạy,
 kiến trúc, luồng nghiệp vụ, API, quy ước frontend/backend và vận hành VPS.
 
-> Cập nhật gần nhất: 08/08/2026. Khi thay đổi luồng, API, cấu trúc hoặc cách triển khai, cập nhật
+> Cập nhật gần nhất: 26/09/2026. Khi thay đổi luồng, API, cấu trúc hoặc cách triển khai, cập nhật
 > trực tiếp file này; không tạo thêm README hoặc thư mục `docs` rời.
+
+## Quy tắc tiền và làm tròn — rà soát 19/09/2026
+
+Phân biệt **công nợ báo phí theo VND** với **chứng từ/sổ tiền gốc**. Không backfill hoặc làm tròn
+hàng loạt Payment, allocation, refund, chi phí hay tổng báo phí lịch sử. Giới hạn phân bổ/hoàn vẫn
+kiểm tra tiền thực có ở độ chính xác hai chữ số hiện hành; hiển thị nguyên đồng không cấp thêm tiền.
+
+`QuotationMoneyCalculator` và `quotation-pricing.ts` làm tròn thành tiền sau số lượng × đơn giá,
+VAT theo tổng và cọc theo VND; số âm dùng half-away-from-zero. Không làm tròn số lượng hoặc tỷ lệ VAT.
+`roundingAdjustment` do server tính, tối đa ±1đ và không tự làm tăng ngân sách được phép nạp.
+
+`QuotationSettlement` là quy tắc chung cho API, khóa báo phí, công nợ/hoàn tiền và điều kiện báo phí
+đầu thu đủ trong KPI. Cộng phân bổ gốc trước khi làm tròn. Hoàn cọc và hoàn dịch vụ được cộng theo từng
+loại, làm tròn từng tổng loại rồi cộng lại. Bù thêm/hoàn tiền dư không trừ nhầm công nợ báo phí.
+Nhận biết cọc cũ xét cả cân bằng tiền gốc và cách biểu diễn VND; SQL filter trong QuotationRepository
+phải tương đương helper trước khi đếm/phân trang. Khóa theo tiền thu gốc, không tự mở vì hoàn tiền.
+
+KPI/Dashboard cộng tổng VND của từng báo phí; doanh thu trước VAT giữ tỷ lệ và hai chữ số hiện hành,
+tính mỗi lần nhận bằng chênh lệch doanh thu lũy kế đã làm tròn để không mất phần lẻ khi chia nhiều lần.
+Hạn mức nạp cộng chi thực tế rồi làm tròn một lần; khi sửa chi phí phải thay ứng viên trong tổng gốc.
+Frontend theo cùng ranh giới với backend. Preview/Excel giữ đúng số lượng, thuế suất và đơn giá có
+phần lẻ; Excel không ẩn phần lẻ dưới định dạng số nguyên. Khổ PDF/mobile 1040px giữ nguyên.
+
+Regression: `rounding-consistency.php`, `rounding-flows.php`, `rounding-frontend.cjs` và
+`rounding-display-export.cjs` trong `tooling/tests`, cùng các bộ pricing, metadata, webhook,
+filter và sheet-layout sẵn có. Test dùng model/SQLite RAM hoặc PostgreSQL VALUES CTE READ ONLY;
+không thay thế đối soát từng chứng từ hoặc kiểm thử đồng thời/thiết bị thật trên production.
 
 ## Quy tắc xử lý yêu cầu
 
@@ -97,6 +124,16 @@ Các địa chỉ hỗ trợ:
 | PostgreSQL local | `127.0.0.1:5433`                        |
 | Ngrok inspector  | http://127.0.0.1:4040                   |
 | Production       | https://crm.x3sales.com                 |
+
+Nếu Laravel báo `connection refused` tại `127.0.0.1:5433`, mở Docker Desktop rồi chạy
+`npm run dev:db` trước khi chạy backend. Với container đã có sẵn, có thể dùng
+`docker start x3sales-postgres`; kiểm tra bằng `docker ps --filter name=x3sales-postgres`.
+Giữ nguyên volume dữ liệu; lỗi này không yêu cầu reset database hoặc chạy lại seeder.
+
+Khi chỉ xem giao diện trên database local đã có schema, mở hai terminal: terminal frontend chạy
+`npm run dev:frontend`; terminal backend đặt `$env:SKIP_DB_SETUP = '1'` và
+`$env:START_NGROK = '0'` rồi chạy `npm run dev:backend`. Cách này bỏ qua migrate/seed và ngrok;
+không dùng cho database mới chưa được khởi tạo.
 
 ### Chạy từng phần
 
@@ -974,6 +1011,31 @@ số lượng, đơn giá và chi phí đối tác/thực hiện.
 
 ### 3. Báo phí
 
+#### Hủy báo phí tạo nhầm (19/09/2026)
+
+Menu có `Hủy báo phí tạo nhầm`, quyền `quotation.void` mặc định chỉ cấp ADMIN; backend vẫn kiểm tra
+scope xem/xóa báo phí và quyền phân bổ Payment. `release` gỡ phân bổ về giao dịch nguồn; `transfer`
+chuyển sang báo phí cùng khách hàng/dự án, còn hiệu lực và còn công nợ. Phần dư về chưa phân bổ.
+Không hard-delete, không tạo hoàn tiền hoặc thay số tiền/ngày/reference/raw payload ngân hàng.
+
+`POST /quotations/{id}/void-preview` trả giao dịch nguồn, số tiền/hạn mức nạp/KPI trước sau,
+blockers/warnings và fingerprint. `POST /quotations/{id}/void` bắt buộc mode, reason (5–2000 ký tự),
+confirmationCode đầy đủ, fingerprint và requestId UUID; transfer thêm targetQuotationId.
+Snapshot đã đổi trả 409; retry cùng UUID/nội dung/actor trả kết quả đã lưu, không tháo tiền hai lần.
+Hủy bị chặn nếu có hoàn tiền/cọc/bù thêm pending/completed liên quan hoặc làm thiếu nguồn đã nạp.
+Hợp đồng, hóa đơn và chi phí được cảnh báo/giữ nguyên, không tự hủy hoặc viết lại chứng từ.
+
+Quotation lưu riêng voided_at/by và void_details, giữ tổng/hạng mục/mã. Allocation cũ soft-delete;
+allocation chuyển mới giữ ngày cũ cho fallback kỳ KPI. Liên kết Payment được tính lại, giữ scope
+Customer/Project đã biết. Global scope `effective` loại báo phí hủy khỏi query nghiệp vụ/KPI/hạn mức;
+filter `status=voided` và detail cho xem lịch sử, nhưng không sửa/xóa hay xuất lại QR/PDF. Audit tiền
+chỉ trả cho người đủ quyền hủy. Excel theo filter có cột hủy. Mã không tái sử dụng; webhook gửi lại
+không gắn lại mã hủy; giao dịch mới theo mã cũ vẫn nhận chờ xử lý. Không thu hồi file đã tải trước.
+
+FinancialMutation dùng advisory lock PostgreSQL trước row lock để tuần tự hóa transaction tài chính;
+ưu tiên tính đúng, chưa tối ưu tải ghi lớn. Migration riêng 2026_09_19_003000 chỉ thêm cột/chỉ mục và
+quyền, không hủy báo phí cũ. Chạy migration trước mã mới; rollback bị chặn khi có lịch sử hủy.
+
 - Luồng bắt buộc: `Lead → Customer → Project → Báo phí`.
 - Form chỉ chọn một Project. Customer, Lead nguồn, service, mã nền và phân nhóm được backend suy ra
   từ Project.
@@ -1026,6 +1088,13 @@ Tổng được phép nạp = Hạn mức từ tiền đã thu + Hạn mức n�
     `Đã hoàn + bù thêm`.
 - Form không cho người dùng tự chọn trạng thái. Backend tính lại trạng thái theo sổ phân bổ và hoàn
   tiền.
+- Bộ lọc `Báo phí` / `Đã thanh toán` / `Đã hoàn tiền` dùng trạng thái tính từ sổ phân bổ và các
+  khoản hoàn hoàn tất, cùng quy tắc làm tròn VND và xử lý cọc như `QuotationResource`, không lọc
+  trực tiếp cột `quotations.status` có thể đã cũ. Điều kiện chạy trong SQL trước khi đếm/phân trang,
+  áp dụng chung cho danh sách, xuất Excel và `allocation_open`; không sửa dữ liệu trong request đọc.
+- Regression dữ liệu giả lập: `php -d extension=pdo_sqlite tooling/tests/quotation-status-filter.php`.
+  Có thể chạy cùng bộ test trên một database PostgreSQL local rỗng, riêng biệt, bằng tùy chọn
+  `--pgsql=x3crm_filter_test_<8 ký tự hex>`; không dùng database đang vận hành.
 - Khi tổng phân bổ gốc đạt tổng phải thu với sai số tối đa `0,01`, dữ liệu nghiệp vụ của Báo phí bị
   khóa; chỉ `Ghi chú` và cờ hạng mục `Tính vào số tiền có thể nạp` còn được sửa vì cờ này không làm
   thay đổi tổng tiền khách phải thanh toán. Hủy phân bổ có thể mở khóa nếu tổng nhận xuống dưới mức
@@ -1037,6 +1106,12 @@ Tổng được phép nạp = Hạn mức từ tiền đã thu + Hạn mức n�
   KPI. Validation, số hiển thị và số đóng vào QR cùng làm tròn theo đơn vị VND để giá trị nhập
   bằng đúng `Còn phải thu` không bị báo vượt do phần thập phân ẩn. Chỉ webhook hoặc thao tác
   Payment thực tế mới ghi nhận tiền đã nhận.
+- `Bản gửi khách` và bản xem trước tạo báo phí nhanh dùng cùng khổ cố định rộng `1040px` trên
+  PC/mobile. Màn hình hẹp chỉ thu nhỏ đồng đều toàn tờ, không xếp lại logo, thông tin khách hàng,
+  bảng hạng mục hoặc QR; nút `Xem 100%` cho phép xem kích thước gốc và cuộn ngang, `Vừa màn hình`
+  trở lại chế độ thu vừa. Thanh thao tác và ô nhập số tiền vẫn responsive ở bên ngoài tờ báo phí.
+  Ảnh/PDF chụp trực tiếp tờ gốc với kích thước layout (gồm border), không dùng kích thước sau scale;
+  ảnh đối soát trong bản gửi khách tải eager để xuất được cả phần nằm ngoài vùng nhìn trên mobile.
 - Logo X3Sales trong popup tạo nhanh và `Bản gửi khách` dùng cùng kích thước lớn. Mỗi dòng Báo phí
   có action `Tải PDF` với icon tải xuống; file PDF được render trực tiếp từ chính vùng
   `Bản gửi khách` nên giữ nguyên logo, thông tin khách hàng, bảng hạng mục, QR và ghi chú như bản
@@ -1060,6 +1135,16 @@ phí` chứa từng dòng, số lượng, đơn giá, VAT và cờ tính vào s�
 ### 5. Payment, phân bổ và hoàn tiền
 
 #### Giao dịch gốc
+
+- Khi khách chuyển thêm vào Báo phí đã thu đủ, webhook vẫn ghi nhận một Payment mới theo giao dịch
+  ngân hàng; không cộng thêm phân bổ vào Báo phí đã hết công nợ. Khoản mới giữ số dư chưa xử lý để
+  kế toán đối chiếu, phân bổ sang Báo phí khác hoặc hoàn tiền theo quyền hiện có.
+- Tạo thông báo Payment phải chuyển danh sách Eloquent sang collection giá trị trước khi gom tên
+  Project. Nếu chưa có phân bổ, gọi `unique()` trực tiếp trên collection model chứa tên Project sẽ
+  gây lỗi `getKey() on string` và rollback toàn bộ webhook.
+- Mọi lỗi `/api/*`, kể cả webhook không gửi `Accept: application/json`, trả JSON với đúng HTTP
+  status lỗi; chỉ trả `success: true` sau khi luồng nhận thanh toán thành công.
+- Regression không truy vấn database: `php tooling/tests/payment-webhook.php`.
 
 - `payments` là sổ giao dịch ngân hàng gốc: số tiền, nội dung, thời gian, tài khoản nhận, mã tham
   chiếu và raw webhook payload.
@@ -1436,6 +1521,29 @@ channel bằng Sanctum. Phase này chưa gửi email, Web Push hoặc Zalo.
 
 ### 8. Báo cáo tuần
 
+**Tiền tệ báo cáo (19/09/2026):** mỗi báo cáo lưu `currency` riêng, nhận `VND`, `USD`, `EUR`, `AUD`.
+Báo cáo cũ/ứng dụng cũ không gửi currency mặc định VND; update bỏ trường này giữ đơn vị đã lưu.
+Cả bốn chỉ tiêu và snapshot `monthly_budget` cùng đơn vị báo cáo, giữ tối đa hai chữ số thập phân.
+Đây là số liệu tài khoản quảng cáo nhập tay, không phải chức năng tỷ giá hoặc ghi sổ tiền.
+Không đổi báo phí, Payment, refund, hạn mức Project hay KPI sang ngoại tệ và không cộng khác đơn vị.
+Preset ngân sách tại `project_weekly_settings` vẫn là VND: chỉ tự điền vào báo cáo VND khi tạo mới.
+Báo cáo ngoại tệ phải nhập Chi phí, Ngân sách trung bình/tuần và Tổng ngân sách (nhập 0 nếu không
+phát sinh), không lấy tiền VND rồi đổi nhãn. Riêng Ngân sách tài khoản còn lại không bắt buộc.
+Đổi đơn vị trên form yêu cầu xác nhận, xóa các ô tiền để nhập lại; chỉ ghi DB khi lưu. Server yêu cầu
+`currencyChangeConfirmed: true` cùng ba số bắt buộc khi đổi currency đã lưu; currency-only PATCH bị chặn.
+`remainingAccountBudget` để trống/null được lưu NULL và ẩn cả card trên Bản gửi khách/ảnh PNG;
+nhập 0 vẫn hiển thị 0 theo đơn vị tiền tệ. Khi ẩn, ba card còn lại chia đều hàng, không để ô rỗng.
+Mở lại form giữ nguyên trống/0. PATCH không gửi trường này giữ số đã lưu nếu không đổi currency;
+khi tạo mới/đổi currency mà không gửi thì lưu NULL, tránh dùng lại số của đơn vị cũ.
+Migration `2026_09_19_002000_make_weekly_report_remaining_budget_nullable.php` cho phép NULL,
+bỏ default 0 và không thay bất kỳ số liệu cũ; rollback bị chặn khi còn NULL. Không chuyển các số 0
+lịch sử sang NULL tự động. Regression bổ sung: `tooling/tests/weekly-report-optional-budget.php`.
+Đơn vị được giữ qua gửi duyệt/từ chối/duyệt, hiển thị tại form, lịch sử, board và ảnh Bản gửi khách.
+Migration riêng `2026_09_19_001000_add_currency_to_weekly_reports.php` chỉ thêm cột mặc định VND,
+không làm tròn hoặc backfill tiền cũ; rollback bị chặn khi còn báo cáo ngoại tệ để tránh mất đơn vị.
+Regression: `tooling/tests/weekly-report-currency.php` (SQLite RAM, HTTP/Policy/migration) và
+`tooling/tests/weekly-report-currency.cjs` (parser, React render và callback form; không phải browser E2E).
+
 - Cấu hình nằm tại `project_weekly_settings`, được đồng bộ cùng transaction tạo/sửa Project.
 - Project chỉ cần báo cáo tuần khi đồng thời thỏa hai điều kiện:
   `project_status.meta.requiresWeeklyReport` không phải `false` và `project_weekly_settings` đang
@@ -1480,7 +1588,8 @@ channel bằng Sanctum. Phase này chưa gửi email, Web Push hoặc Zalo.
 - `Tình trạng tuần` là trường bắt buộc khi tạo hoặc cập nhật báo cáo. Form dùng validation MUI và
   hiển thị lỗi ngay dưới field; API cũng yêu cầu một trong `weeklyCondition`/`weekly_condition` để
   chặn payload gọi trực tiếp. Báo cáo cũ chưa có giá trị vẫn đọc được nhưng phải chọn trước khi lưu.
-- Bốn chỉ tiêu tiền do người lập báo cáo nhập bằng `MoneyInput`:
+- Bốn chỉ tiêu tiền dùng `WeeklyReportMoneyInput` riêng, không thay `MoneyInput` VND ở module khác.
+  Nhập dấu phẩy hoặc chấm thập phân, tối đa hai chữ số; dữ liệu gửi API là chuỗi decimal chuẩn:
   - `weeklySpendAmount` / `weekly_spend_amount`: Chi phí;
   - `averageWeeklyBudget` / `average_weekly_budget`: Ngân sách trung bình/tuần, khi tạo mới mặc định
     bằng `project_weekly_settings.monthly_budget / 4`;
@@ -2228,8 +2337,14 @@ hiện có thay vì ghi đè toàn bộ object.
 
 Mapping đặc biệt:
 
-- `project_partner`: `key` mã đối tác, `label` tên, `value` dịch vụ,
-  `meta.accountNo`/`meta.bankName` là ngân hàng.
+- `project_partner`: `key` mã đối tác, `label` tên, `value` dịch vụ;
+  `meta.accountNo` là số tài khoản dạng chuỗi, `meta.bankCode`/`meta.bankName` là ngân hàng.
+  CreateOptionRequest và UpdateOptionRequest phải khai báo riêng `meta.accountNo` (nullable,
+  string, tối đa 100 ký tự), nếu thiếu Laravel loại STK khỏi dữ liệu đã validate nhưng vẫn trả
+  thành công cho những trường khác. Không ép STK sang số để giữ các số 0 ở đầu. PATCH bỏ STK
+  giữ giá trị cũ; gửi chuỗi rỗng/null xóa riêng STK, không mất ngân hàng hay metadata khác.
+  Form hiển thị lỗi `meta.accountNo` dưới ô Số tài khoản. Regression HTTP dùng dữ liệu SQLite RAM
+  tại `tooling/tests/partner-account-number.php`; không chỉnh tài khoản ngân hàng thật khi test.
 - `ad_topup_card`: `key` mã thẻ, `label` tên thẻ, `value` thông tin nhận diện thẻ và `meta.note` là
   ghi chú hiển thị trên bảng Thẻ nạp quảng cáo.
 - `company_bank_account`: `key` mã VietQR, `label` chủ tài khoản, `value` số tài khoản,

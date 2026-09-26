@@ -19,7 +19,7 @@ import { PageHeader } from '@/components/shell/page-header';
 import { AppDataTable } from '@/components/table/app-data-table';
 import { TablePaginationBar } from '@/components/table/table-pagination-bar';
 import { usePagination } from '@/hooks/use-pagination';
-import { applyApiErrorsToForm } from '@/lib/api-error';
+import { applyApiErrorsToForm, getApiFieldErrors } from '@/lib/api-error';
 import { canManageCatalog } from '@/lib/ownership';
 import { useAuthStore } from '@/stores/auth-store';
 import {
@@ -86,6 +86,10 @@ function PartnerDialog({
           closeDialog();
         } catch (error) {
           applyApiErrorsToForm(error, setError);
+          const accountError = getApiFieldErrors(error)['meta.accountNo'];
+          if (accountError) {
+            setError('accountNo', { type: 'server', message: accountError });
+          }
         }
       })}
       contentClassName="grid gap-3 sm:grid-cols-2"
@@ -122,7 +126,16 @@ function PartnerDialog({
           setValue('bankName', bank?.name || '', { shouldDirty: true });
         }}
       />
-      <FormInputField label="Số tài khoản" {...register('accountNo')} />
+      <FormInputField
+        label="Số tài khoản"
+        type="text"
+        error={Boolean(errors.accountNo)}
+        helperText={errors.accountNo?.message}
+        {...register('accountNo', {
+          validate: (value) =>
+            value.trim().length <= 100 || 'Số tài khoản không được vượt quá 100 ký tự.',
+        })}
+      />
       <FormInputField label="Dịch vụ" className="sm:col-span-2" {...register('service')} />
     </AppFormDialog>
   );

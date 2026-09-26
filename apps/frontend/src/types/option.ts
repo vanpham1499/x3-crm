@@ -13,6 +13,7 @@ export type AppOption = {
 
 export type OptionFormValues = {
   group: string;
+  value: string;
   label: string;
   color: string;
   requiresWeeklyReport: boolean;

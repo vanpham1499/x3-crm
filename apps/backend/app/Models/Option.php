@@ -26,6 +26,8 @@ class Option extends BaseModel
 
     public const GROUP_SERVICE_KPI = 'service_kpi_group';
 
+    public const GROUP_WEEKLY_REPORT_CURRENCY = 'weekly_report_currency';
+
     protected $fillable = [
         'group',
         'key',

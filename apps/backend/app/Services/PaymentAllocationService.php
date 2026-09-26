@@ -6,6 +6,8 @@ use App\Models\Payment;
 use App\Models\PaymentAllocation;
 use App\Models\PaymentRefund;
 use App\Models\Quotation;
+use App\Support\FinancialMutation;
+use App\Support\QuotationSettlement;
 use Carbon\Carbon;
 use Illuminate\Auth\Access\AuthorizationException;
 use Illuminate\Database\Eloquent\Collection;
@@ -18,7 +20,7 @@ class PaymentAllocationService
 
     public function allocate(string|int $paymentId, array $entries, ?int $userId = null): Collection
     {
-        return DB::transaction(function () use ($paymentId, $entries, $userId): Collection {
+        return FinancialMutation::run(function () use ($paymentId, $entries, $userId): Collection {
             $payment = Payment::query()->lockForUpdate()->findOrFail($paymentId);
             $this->reconcilePayment($payment->id);
             $payment->refresh();
@@ -170,7 +172,7 @@ class PaymentAllocationService
         string|int $allocationId,
         ?int $userId = null,
     ): void {
-        DB::transaction(function () use ($paymentId, $allocationId, $userId): void {
+        FinancialMutation::run(function () use ($paymentId, $allocationId, $userId): void {
             $allocation = PaymentAllocation::query()
                 ->where('payment_id', $paymentId)
                 ->lockForUpdate()
@@ -197,7 +199,7 @@ class PaymentAllocationService
 
     public function refund(string|int $paymentId, array $data, ?int $userId = null): PaymentRefund
     {
-        return DB::transaction(function () use ($paymentId, $data, $userId): PaymentRefund {
+        return FinancialMutation::run(function () use ($paymentId, $data, $userId): PaymentRefund {
             $payment = Payment::query()->lockForUpdate()->findOrFail($paymentId);
             $this->reconcilePayment($payment->id);
             $payment->refresh()->load(['allocations.quotation', 'refunds']);
@@ -320,7 +322,7 @@ class PaymentAllocationService
         ?int $userId = null,
         bool $pendingOnly = false,
     ): PaymentRefund {
-        return DB::transaction(function () use ($refundId, $data, $userId, $pendingOnly): PaymentRefund {
+        return FinancialMutation::run(function () use ($refundId, $data, $userId, $pendingOnly): PaymentRefund {
             $refund = PaymentRefund::query()->lockForUpdate()->findOrFail($refundId);
             if ($pendingOnly && $refund->status !== PaymentRefund::STATUS_PENDING) {
                 throw new AuthorizationException('Chỉ được chỉnh sửa khoản trả khách đang chờ hoàn.');
@@ -468,7 +470,7 @@ class PaymentAllocationService
 
     public function removeRefund(string|int $refundId, ?int $userId = null): void
     {
-        DB::transaction(function () use ($refundId, $userId): void {
+        FinancialMutation::run(function () use ($refundId, $userId): void {
             $refund = PaymentRefund::query()->lockForUpdate()->findOrFail($refundId);
             $paymentId = $refund->payment_id;
             $quotationId = $refund->quotation_id;
@@ -585,12 +587,7 @@ class PaymentAllocationService
             $refundedAmount,
             $depositRefundedAmount,
         );
-        $status = match (true) {
-            $snapshot['is_fully_refunded'] => Quotation::STATUS_REFUNDED,
-            $snapshot['collectible_amount'] > self::MONEY_EPSILON
-                && $snapshot['received_amount'] >= $snapshot['collectible_amount'] - self::MONEY_EPSILON => Quotation::STATUS_WON,
-            default => Quotation::STATUS_DRAFT,
-        };
+        $status = $snapshot['quotation_status'];
 
         if ($quotation->status !== $status) {
             DB::table('quotations')->where('id', $quotation->id)->update([
@@ -787,20 +784,20 @@ class PaymentAllocationService
             );
             $differenceAmount = $snapshot['difference_amount'];
 
-            $payment->setAttribute('collection_total_amount', round($totalAmount, 2));
+            $payment->setAttribute('collection_total_amount', $snapshot['total_amount']);
             $payment->setAttribute('collection_collectible_amount', $snapshot['collectible_amount']);
-            $payment->setAttribute('collection_gross_received_amount', round($grossReceivedAmount, 2));
+            $payment->setAttribute('collection_gross_received_amount', $snapshot['gross_received_amount']);
             $payment->setAttribute('collection_received_amount', $snapshot['received_amount']);
-            $payment->setAttribute('collection_refunded_amount', round($refundedAmount, 2));
-            $payment->setAttribute('collection_deposit_refunded_amount', round($depositRefundedAmount, 2));
-            $payment->setAttribute('collection_compensation_amount', round($compensationAmount, 2));
+            $payment->setAttribute('collection_refunded_amount', $snapshot['refunded_amount']);
+            $payment->setAttribute('collection_deposit_refunded_amount', $snapshot['deposit_refunded_amount']);
+            $payment->setAttribute('collection_compensation_amount', round($compensationAmount));
             $payment->setAttribute(
                 'collection_outbound_amount',
-                round($refundedAmount + $compensationAmount, 2),
+                $snapshot['refunded_amount'] + round($compensationAmount),
             );
             $payment->setAttribute(
                 'collection_over_compensation_amount',
-                round(max(0, $refundedAmount + $compensationAmount - $grossReceivedAmount), 2),
+                max(0, $snapshot['refunded_amount'] + round($compensationAmount) - $snapshot['gross_received_amount']),
             );
             $payment->setAttribute('collection_outstanding_amount', $snapshot['outstanding_amount']);
             $payment->setAttribute('collection_excess_amount', $snapshot['excess_amount']);
@@ -829,6 +826,9 @@ class PaymentAllocationService
 
     public function quotationOutstandingAmount(Quotation $quotation): float
     {
+        if ($quotation->isVoided()) {
+            return 0.0;
+        }
         $grossReceivedAmount = (float) PaymentAllocation::query()
             ->where('quotation_id', $quotation->id)
             ->sum('amount');
@@ -908,47 +908,10 @@ class PaymentAllocationService
         float $refundedAmount,
         float $depositRefundedAmount,
     ): array {
-        // Báo phí và giao dịch được hiển thị/thanh toán theo đơn vị đồng. Chuẩn hóa
-        // trước khi đối chiếu để phần lẻ do tính VAT không tạo công nợ "-0 đ".
-        $totalAmount = round($totalAmount);
-        $depositAmount = round($depositAmount);
-        $grossReceivedAmount = round($grossReceivedAmount);
-        $refundedAmount = round($refundedAmount);
-        $depositRefundedAmount = round($depositRefundedAmount);
-        $receivedAmount = round(max(0, $grossReceivedAmount - $refundedAmount));
-        $isFullyRefunded = $grossReceivedAmount > self::MONEY_EPSILON
-            && $receivedAmount <= self::MONEY_EPSILON
-            && $refundedAmount >= $grossReceivedAmount - self::MONEY_EPSILON;
-        $releasedDepositAmount = min(
-            max(0, $depositAmount),
-            max(0, $depositRefundedAmount),
+        return QuotationSettlement::snapshot(
+            $totalAmount, $depositAmount, $grossReceivedAmount,
+            $refundedAmount, $depositRefundedAmount,
         );
-        $collectibleAmount = round(
-            $isFullyRefunded ? 0 : max(0, $totalAmount - $releasedDepositAmount),
-        );
-        $outstandingAmount = round(max(0, $collectibleAmount - $receivedAmount));
-        $excessAmount = round(max(0, $receivedAmount - $collectibleAmount));
-        $differenceAmount = round($receivedAmount - $collectibleAmount);
-        $paymentRefundedAmount = max(0, $refundedAmount - $depositRefundedAmount);
-        $status = match (true) {
-            $isFullyRefunded => 'refunded',
-            $receivedAmount <= self::MONEY_EPSILON => 'unpaid',
-            $receivedAmount < $collectibleAmount - self::MONEY_EPSILON
-                && $paymentRefundedAmount > self::MONEY_EPSILON => 'partially_refunded',
-            $receivedAmount < $collectibleAmount - self::MONEY_EPSILON => 'partial',
-            $receivedAmount > $collectibleAmount + self::MONEY_EPSILON => 'overpaid',
-            default => 'paid',
-        };
-
-        return [
-            'received_amount' => $receivedAmount,
-            'collectible_amount' => $collectibleAmount,
-            'outstanding_amount' => $outstandingAmount,
-            'excess_amount' => $excessAmount,
-            'difference_amount' => $differenceAmount,
-            'is_fully_refunded' => $isFullyRefunded,
-            'status' => $status,
-        ];
     }
 
     private function quotationDepositLiability(?Quotation $quotation): float
@@ -957,16 +920,9 @@ class PaymentAllocationService
             return 0.0;
         }
 
-        $depositAmount = (float) $quotation->deposit_amount;
-        $metadata = is_array($quotation->metadata) ? $quotation->metadata : [];
-        $expectedTotalWithDeposit = (float) $quotation->subtotal_amount
-            + (float) $quotation->vat_amount
-            + $depositAmount;
-        $isIncludedInTotal = ($metadata['depositMode'] ?? null) === Quotation::DEPOSIT_MODE_NON_TAXABLE_ADDITION
-            || ($depositAmount > 0
-                && abs((float) $quotation->total_amount - $expectedTotalWithDeposit) < self::MONEY_EPSILON);
-
-        return $isIncludedInTotal ? $depositAmount : 0.0;
+        return QuotationSettlement::usesNonTaxableDeposit($quotation)
+            ? round((float) $quotation->deposit_amount)
+            : 0.0;
     }
 
     private function updatedStringValue(

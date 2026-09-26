@@ -1,6 +1,7 @@
 'use client';
 
 import { TextField, type TextFieldProps } from '@mui/material';
+import { roundQuotationMoney } from '@/lib/quotation-pricing';
 
 type MoneyInputProps = Omit<TextFieldProps, 'value' | 'onChange'> & {
   value: string | number | null | undefined;
@@ -12,7 +13,7 @@ function normalizeMoneyValue(value: string | number | null | undefined, allowNeg
   if (value === null || value === undefined) return '';
 
   if (typeof value === 'number') {
-    return Number.isFinite(value) ? String(Math.round(value)) : '';
+    return Number.isFinite(value) ? String(roundQuotationMoney(value)) : '';
   }
 
   const rawValue = value.trim();
@@ -22,7 +23,7 @@ function normalizeMoneyValue(value: string | number | null | undefined, allowNeg
   // Treat one dot followed by 1-2 digits as a decimal separator, while values
   // such as "2.122.222" remain Vietnamese thousand-separated input.
   if (/^-?\d+\.\d{1,2}$/.test(rawValue)) {
-    return String(Math.round(Number(rawValue)));
+    return String(roundQuotationMoney(Number(rawValue)));
   }
 
   const digits = rawValue.replace(/[^\d]/g, '');

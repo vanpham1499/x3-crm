@@ -51,11 +51,11 @@ class ProjectRepository extends BaseRepository
             ->when($keyword !== '', function ($query) use ($keyword): void {
                 $query->where(function ($query) use ($keyword): void {
                     $query
-                        ->where('project_code', 'ilike', "%{$keyword}%")
-                        ->orWhere('project_name', 'ilike', "%{$keyword}%")
-                        ->orWhere('zalo_group', 'ilike', "%{$keyword}%")
-                        ->orWhere('plan_link', 'ilike', "%{$keyword}%")
-                        ->orWhere('note', 'ilike', "%{$keyword}%")
+                        ->where('projects.project_code', 'ilike', "%{$keyword}%")
+                        ->orWhere('projects.project_name', 'ilike', "%{$keyword}%")
+                        ->orWhere('projects.zalo_group', 'ilike', "%{$keyword}%")
+                        ->orWhere('projects.plan_link', 'ilike', "%{$keyword}%")
+                        ->orWhere('projects.note', 'ilike', "%{$keyword}%")
                         ->orWhereHas('customer', function ($customerQuery) use ($keyword): void {
                             $customerQuery
                                 ->where('customer_code', 'ilike', "%{$keyword}%")
@@ -64,12 +64,12 @@ class ProjectRepository extends BaseRepository
                         });
                 });
             })
-            ->when($customerId, fn ($query) => $query->where('customer_id', $customerId))
-            ->when($serviceId, fn ($query) => $query->where('service_id', $serviceId))
-            ->when($statusOptionId, fn ($query) => $query->where('status_option_id', $statusOptionId))
+            ->when($customerId, fn ($query) => $query->where('projects.customer_id', $customerId))
+            ->when($serviceId, fn ($query) => $query->where('projects.service_id', $serviceId))
+            ->when($statusOptionId, fn ($query) => $query->where('projects.status_option_id', $statusOptionId))
             ->when($status, fn ($query) => $query->whereHas('statusOption', fn ($subQuery) => $subQuery->where('group', Option::GROUP_PROJECT_STATUS)->where('key', $status)))
-            ->when($managerUserId, fn ($query) => $query->where('manager_user_id', $managerUserId))
-            ->when($salesUserId, fn ($query) => $query->where('sales_user_id', $salesUserId))
+            ->when($managerUserId, fn ($query) => $query->where('projects.manager_user_id', $managerUserId))
+            ->when($salesUserId, fn ($query) => $query->where('projects.sales_user_id', $salesUserId))
             ->orderByRaw("CASE WHEN sort_customer.customer_code ~ '^[0-9]+$' THEN CAST(sort_customer.customer_code AS BIGINT) END DESC NULLS LAST")
             ->orderByDesc('sort_customer.customer_code')
             ->orderByDesc('projects.id');
@@ -96,8 +96,8 @@ class ProjectRepository extends BaseRepository
         if ($user->hasPermission('project.view')) {
             $query->where(function (Builder $scope) use ($user): void {
                 $scope
-                    ->where('manager_user_id', $user->id)
-                    ->orWhere('sales_user_id', $user->id);
+                    ->where('projects.manager_user_id', $user->id)
+                    ->orWhere('projects.sales_user_id', $user->id);
             });
 
             return;

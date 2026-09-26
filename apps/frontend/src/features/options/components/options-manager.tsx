@@ -42,6 +42,7 @@ import { useAuthStore } from '@/stores/auth-store';
 import {
   OPTION_SECTIONS,
   PROJECT_STATUS_OPTION_GROUP,
+  WEEKLY_REPORT_CURRENCY_OPTION_GROUP,
   getOptionColor,
   getOptionDefaults,
   groupOptions,
@@ -123,6 +124,21 @@ function OptionDialog({
     >
       <input type="hidden" {...register('group')} />
       <input type="hidden" {...register('sortOrder', { valueAsNumber: true })} />
+      {group?.group === WEEKLY_REPORT_CURRENCY_OPTION_GROUP ? (
+        <FormInputField
+          label="Mã tiền tệ *"
+          placeholder="VD: VND, USD, EUR, JPY"
+          error={Boolean(errors.value)}
+          helperText={errors.value?.message || 'Dùng mã chữ in hoa, từ 3 đến 10 ký tự.'}
+          {...register('value', {
+            required: 'Vui lòng nhập mã tiền tệ',
+            pattern: {
+              value: /^[A-Za-z]{3,10}$/,
+              message: 'Mã tiền tệ phải gồm 3-10 chữ cái.',
+            },
+          })}
+        />
+      ) : null}
       <FormInputField
         label="Tên hiển thị *"
         error={Boolean(errors.label)}
@@ -130,28 +146,30 @@ function OptionDialog({
         {...register('label', { required: 'Vui lòng nhập tên hiển thị' })}
       />
 
-      <Controller
-        name="color"
-        control={control}
-        rules={{
-          required: 'Vui lòng chọn màu',
-          pattern: {
-            value: /^#[0-9a-fA-F]{6}$/,
-            message: 'Mã màu phải có dạng #RRGGBB',
-          },
-        }}
-        render={({ field }) => (
-          <StatusColorPicker
-            name={field.name}
-            value={field.value}
-            inputRef={field.ref}
-            error={Boolean(errors.color)}
-            helperText={errors.color?.message}
-            onBlur={field.onBlur}
-            onChange={field.onChange}
-          />
-        )}
-      />
+      {group?.group !== WEEKLY_REPORT_CURRENCY_OPTION_GROUP ? (
+        <Controller
+          name="color"
+          control={control}
+          rules={{
+            required: 'Vui lòng chọn màu',
+            pattern: {
+              value: /^#[0-9a-fA-F]{6}$/,
+              message: 'Mã màu phải có dạng #RRGGBB',
+            },
+          }}
+          render={({ field }) => (
+            <StatusColorPicker
+              name={field.name}
+              value={field.value}
+              inputRef={field.ref}
+              error={Boolean(errors.color)}
+              helperText={errors.color?.message}
+              onBlur={field.onBlur}
+              onChange={field.onChange}
+            />
+          )}
+        />
+      ) : null}
 
       <Controller
         name="isActive"
@@ -239,7 +257,13 @@ function SortableOptionCard({
       <div className="flex items-center justify-between gap-3">
         <div className="min-w-0 flex-1">
           <div className="flex items-center gap-2">
-            <span className="h-3 w-3 shrink-0 rounded-full" style={{ backgroundColor: color }} />
+            {group.group === WEEKLY_REPORT_CURRENCY_OPTION_GROUP ? (
+              <span className="shrink-0 rounded-md bg-slate-100 px-2 py-0.5 text-[11px] font-extrabold text-slate-700 ring-1 ring-slate-200">
+                {String(option.value || option.key || '').toUpperCase()}
+              </span>
+            ) : (
+              <span className="h-3 w-3 shrink-0 rounded-full" style={{ backgroundColor: color }} />
+            )}
 
             <p className="truncate font-semibold text-slate-900" title={option.label}>
               {option.label}

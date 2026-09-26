@@ -21,6 +21,7 @@ class WeeklyReportResource extends JsonResource
             'projectStatus' => $this->project_status,
             'weeklyCondition' => $this->weekly_condition,
             'status' => $this->status,
+            'currency' => $this->currency ?: 'VND',
             'weeklySpendAmount' => $this->weekly_spend_amount,
             'averageWeeklyBudget' => $this->average_weekly_budget,
             'remainingAccountBudget' => $this->remaining_account_budget,

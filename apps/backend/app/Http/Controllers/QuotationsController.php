@@ -4,7 +4,9 @@ namespace App\Http\Controllers;
 
 use App\Http\Requests\Quotations\CreateQuotationRequest;
 use App\Http\Requests\Quotations\UpdateQuotationRequest;
+use App\Http\Requests\Quotations\VoidQuotationRequest;
 use App\Services\QuotationsService;
+use App\Services\QuotationVoidService;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Http\Request;
 
@@ -25,6 +27,8 @@ class QuotationsController extends Controller
             'status' => $request->query('status'),
             'createdById' => $request->query('created_by'),
             'allocationOpen' => $request->query('allocation_open'),
+            'dateFrom' => $request->query('date_from'),
+            'dateTo' => $request->query('date_to'),
         ];
 
         if ($request->query->has('page') || $request->query->has('per_page')) {
@@ -51,6 +55,16 @@ class QuotationsController extends Controller
     public function update(UpdateQuotationRequest $request, string $id): JsonResponse
     {
         return $this->success($this->quotations->update($id, $request->validatedData()));
+    }
+
+    public function voidPreview(VoidQuotationRequest $request, string $id, QuotationVoidService $service): JsonResponse
+    {
+        return $this->success($service->preview($id, $request->validatedData()));
+    }
+
+    public function voidQuotation(VoidQuotationRequest $request, string $id, QuotationVoidService $service): JsonResponse
+    {
+        return $this->success($service->execute($id, $request->validatedData()));
     }
 
     public function destroy(string $id): JsonResponse

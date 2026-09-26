@@ -25,6 +25,7 @@ class WeeklyReport extends BaseModel
         'project_status',
         'weekly_condition',
         'status',
+        'currency',
         'weekly_spend_amount',
         'average_weekly_budget',
         'remaining_account_budget',

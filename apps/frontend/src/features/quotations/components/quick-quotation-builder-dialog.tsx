@@ -18,6 +18,8 @@ import { compactFormFieldClassName } from '@/components/form/form-field-styles';
 import { FormInputField } from '@/components/form/form-input-field';
 import { FormSelectField } from '@/components/form/form-select-field';
 import { MoneyInput } from '@/components/form/money-input';
+import { getElementCaptureSize } from '@/lib/download-element-pdf';
+import { calculateMixedRateQuotationTotals, roundQuotationMoney } from '@/lib/quotation-pricing';
 import {
   DEFAULT_SITE_PROFILE,
   SITE_PROFILE_OPTION_GROUP,
@@ -25,6 +27,7 @@ import {
 } from '@/lib/site-profile-options';
 import api from '@/services/api/client';
 import type { AppOption } from '@/types/option';
+import { QuotationSheetViewport } from './quotation-sheet-viewport';
 
 type BuilderMode = 'edit' | 'preview';
 type TaxRate = 'KCT' | '0' | '7' | '8' | '10';
@@ -96,11 +99,11 @@ function toNumber(value: string | number | null | undefined) {
 }
 
 function formatNumber(value: number) {
-  return new Intl.NumberFormat('vi-VN').format(Math.round(value));
+  return new Intl.NumberFormat('vi-VN', { maximumFractionDigits: 20 }).format(value);
 }
 
 function formatCurrency(value: number) {
-  return `${formatNumber(value)} đ`;
+  return `${formatNumber(roundQuotationMoney(value))} đ`;
 }
 
 function taxRateNumber(taxRate: TaxRate) {
@@ -153,32 +156,23 @@ export function QuickQuotationBuilderDialog({
     [siteProfileOptions],
   );
   const quotation = useMemo(() => {
-    const calculatedLines: CalculatedLine[] = lines.map((line) => {
-      const amount = toNumber(line.quantity) * toNumber(line.unitPrice);
-      const taxAmount = line.includedInTotal
-        ? Math.round((amount * taxRateNumber(line.taxRate)) / 100)
-        : 0;
-
-      return { ...line, amount, taxAmount };
-    });
-    const subtotal = calculatedLines.reduce(
-      (sum, line) => sum + (line.includedInTotal ? line.amount : 0),
-      0,
+    const totals = calculateMixedRateQuotationTotals(
+      lines.map((line) => ({
+        amount: toNumber(line.quantity) * toNumber(line.unitPrice),
+        vatRate: taxRateNumber(line.taxRate),
+        excludedFromTotal: !line.includedInTotal,
+      })),
     );
-    const taxTotals = calculatedLines.reduce<Record<string, number>>((totals, line) => {
-      if (!line.includedInTotal || line.taxRate === 'KCT' || line.taxRate === '0') {
-        return totals;
-      }
-      totals[line.taxRate] = (totals[line.taxRate] || 0) + line.taxAmount;
-      return totals;
-    }, {});
-    const totalTax = Object.values(taxTotals).reduce((sum, amount) => sum + amount, 0);
-
+    const calculatedLines: CalculatedLine[] = lines.map((line, index) => ({
+      ...line,
+      amount: totals.amounts[index],
+      taxAmount: totals.lineVatAmounts[index],
+    }));
     return {
       lines: calculatedLines,
-      subtotal,
-      taxTotals,
-      total: subtotal + totalTax,
+      subtotal: totals.subtotal,
+      taxTotals: totals.vatTotals,
+      total: totals.total,
     };
   }, [lines]);
 
@@ -238,16 +232,14 @@ export function QuickQuotationBuilderDialog({
           ),
         );
 
-        const captureWidth = Math.ceil(
-          Math.max(previewElement.scrollWidth, previewElement.getBoundingClientRect().width),
-        );
-        const captureHeight = Math.ceil(
-          Math.max(previewElement.scrollHeight, previewElement.getBoundingClientRect().height),
-        );
+        const { width: captureWidth, height: captureHeight } =
+          getElementCaptureSize(previewElement);
 
         const blob = await toBlob(previewElement, {
           backgroundColor: '#ffffff',
           cacheBust: true,
+          // Do not reuse an image whose URL has different payment parameters.
+          includeQueryParams: true,
           width: captureWidth,
           height: captureHeight,
           pixelRatio: 2,
@@ -466,16 +458,13 @@ export function QuickQuotationBuilderDialog({
           </section>
         </div>
       ) : (
-        <div className="overflow-x-auto bg-slate-100 p-3 sm:p-6">
-          <article
-            ref={previewRef}
-            className="mx-auto max-w-[1040px] overflow-hidden rounded-xl border border-slate-200 bg-white text-slate-900"
-          >
-            <header className="grid gap-5 border-b-4 border-primary px-6 py-5 md:grid-cols-[240px,minmax(0,1fr)] md:items-center">
+        <div className="min-w-0 bg-slate-100 p-3 sm:p-6">
+          <QuotationSheetViewport ref={previewRef}>
+            <header className="grid grid-cols-[240px,minmax(0,1fr)] items-center gap-5 border-b-4 border-primary px-6 py-5">
               <div className="flex items-center">
                 <Image src={x3salesLogo} alt="X3Sales" className="h-auto w-[190px]" priority />
               </div>
-              <div className="space-y-1 text-sm leading-5 text-slate-600 md:text-right">
+              <div className="space-y-1 text-right text-sm leading-5 text-slate-600">
                 <p className="font-extrabold text-slate-950">{companyInfo.companyName}</p>
                 {companyInfo.taxCode ? <p>MST: {companyInfo.taxCode}</p> : null}
                 <p>{[companyInfo.phone, companyInfo.website].filter(Boolean).join(' · ')}</p>
@@ -491,7 +480,7 @@ export function QuickQuotationBuilderDialog({
                 </h2>
               </div>
 
-              <section className="mt-6 grid overflow-hidden rounded-lg border border-slate-200 bg-slate-50 md:grid-cols-3 md:divide-x md:divide-slate-200">
+              <section className="mt-6 grid grid-cols-3 divide-x divide-slate-200 overflow-hidden rounded-lg border border-slate-200 bg-slate-50">
                 <PreviewInfo label="Khách hàng" value={customer} />
                 <PreviewInfo label="Thời gian" value={duration} />
                 <PreviewInfo
@@ -598,7 +587,7 @@ export function QuickQuotationBuilderDialog({
                 Cảm ơn quý khách đã tin tưởng và lựa chọn dịch vụ của X3Sales.
               </p>
             </div>
-          </article>
+          </QuotationSheetViewport>
         </div>
       )}
     </AppDetailDialog>

@@ -32,6 +32,7 @@ class ProjectTopupBudgetCalculator
         ]);
 
         $quotationBudgets = $project->quotations
+            ->reject(fn (Quotation $quotation): bool => $quotation->isVoided())
             ->map(fn (Quotation $quotation): array => self::calculateQuotation($quotation));
         $eligibleBudget = round((float) $quotationBudgets->sum('eligibleBudget'));
         $paidBudget = round((float) $quotationBudgets->sum('paidBudget'));
@@ -72,6 +73,11 @@ class ProjectTopupBudgetCalculator
      */
     public static function calculateQuotation(Quotation $quotation): array
     {
+        if ($quotation->isVoided()) {
+            return ['eligibleBudget' => 0.0, 'paidBudget' => 0.0, 'creditBudget' => 0.0,
+                'releasedBudget' => 0.0, 'usablePaidAmount' => 0.0, 'heldDepositAmount' => 0.0,
+                'budgetRefundedAmount' => 0.0, 'serviceFeeRefundedAmount' => 0.0, 'isFullyRefunded' => false];
+        }
         $quotation->loadMissing(['items', 'paymentAllocations', 'paymentRefunds']);
 
         $eligibleBudget = self::quotationBudget($quotation);
@@ -141,15 +147,7 @@ class ProjectTopupBudgetCalculator
 
     private static function usesNonTaxableDeposit(Quotation $quotation): bool
     {
-        $metadata = is_array($quotation->metadata) ? $quotation->metadata : [];
-        $storedDepositAmount = (float) $quotation->deposit_amount;
-        $expectedTotalWithDeposit = (float) $quotation->subtotal_amount
-            + (float) $quotation->vat_amount
-            + $storedDepositAmount;
-
-        return ($metadata['depositMode'] ?? null) === Quotation::DEPOSIT_MODE_NON_TAXABLE_ADDITION
-            || ($storedDepositAmount > 0
-                && abs((float) $quotation->total_amount - $expectedTotalWithDeposit) < 0.01);
+        return QuotationSettlement::usesNonTaxableDeposit($quotation);
     }
 
     private static function countsTowardTopupBudget(QuotationItem $item): bool

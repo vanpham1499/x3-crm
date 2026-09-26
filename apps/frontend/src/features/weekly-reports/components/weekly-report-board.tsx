@@ -33,6 +33,7 @@ import {
 } from '@/lib/ownership';
 import { getReportWeekdayLabel, REPORT_WEEKDAYS } from '@/lib/weekly-report-schedule';
 import { formatDate } from '@/lib/utils';
+import { getWeeklyReportCurrency } from '@/lib/weekly-report-money';
 import { formatUserLabel } from '@/lib/user-utils';
 import { WeeklyReportCustomerPreviewDialog } from './weekly-report-customer-preview-dialog';
 import { WeeklyReportRejectDialog } from './weekly-report-reject-dialog';
@@ -318,7 +319,7 @@ export function WeeklyReportBoard({
             const createHref = `/weekly-reports/new?projectId=${row.projectId}&weekStart=${weekStart}`;
             const projectLabel = row.project.projectCode || `Dự án #${row.projectId}`;
             const ownerLabel = formatUserLabel(row.reportOwner);
-            const periodLabel = `${formatDate(row.periodStartDate)} – ${formatDate(row.periodEndDate)}`;
+            const periodLabel = `${formatDate(row.periodStartDate)} – ${formatDate(row.periodEndDate)}${report ? ` · ${getWeeklyReportCurrency(report.currency)}` : ''}`;
             return (
               <tr key={row.settingId} className="hover:bg-slate-50/80">
                 <td className="px-3 py-3.5">

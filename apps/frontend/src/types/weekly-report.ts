@@ -4,6 +4,7 @@ import type { User } from '@/types/user';
 import type { PaginationMeta } from '@/types/pagination';
 
 export type WeeklyReportStatus = 'draft' | 'submitted' | 'approved' | 'rejected';
+export type WeeklyReportCurrency = string;
 
 export type WeeklyReportAttachment = {
   id: number;
@@ -46,6 +47,7 @@ export type WeeklyReport = {
   projectStatus?: string | null;
   weeklyCondition?: string | null;
   status: WeeklyReportStatus;
+  currency?: WeeklyReportCurrency | null;
   weeklySpendAmount?: string | number | null;
   averageWeeklyBudget?: string | number | null;
   remainingAccountBudget?: string | number | null;

@@ -42,8 +42,13 @@ export const PROJECT_OPTION_GROUPS: OptionGroupConfig[] = [
 ];
 
 export const WEEKLY_CONDITION_OPTION_GROUP = 'weekly_condition';
+export const WEEKLY_REPORT_CURRENCY_OPTION_GROUP = 'weekly_report_currency';
 
 export const REPORT_OPTION_GROUPS: OptionGroupConfig[] = [
+  {
+    group: WEEKLY_REPORT_CURRENCY_OPTION_GROUP,
+    title: 'Đơn vị tiền tệ',
+  },
   {
     group: WEEKLY_CONDITION_OPTION_GROUP,
     title: 'Tình trạng tuần',
@@ -82,6 +87,7 @@ export function getOptionColor(option?: AppOption | null) {
 export function getOptionDefaults(group: string, option?: AppOption | null): OptionFormValues {
   return {
     group,
+    value: option?.value || option?.key || '',
     label: option?.label || '',
     color: getOptionColor(option),
     requiresWeeklyReport: projectStatusRequiresWeeklyReport(option),
@@ -91,6 +97,8 @@ export function getOptionDefaults(group: string, option?: AppOption | null): Opt
 }
 
 export function toOptionPayload(values: OptionFormValues) {
+  const isWeeklyReportCurrency = values.group === WEEKLY_REPORT_CURRENCY_OPTION_GROUP;
+  const currencyCode = isWeeklyReportCurrency ? values.value.trim().toUpperCase() : '';
   const projectStatusMeta =
     values.group === PROJECT_STATUS_OPTION_GROUP
       ? {
@@ -100,11 +108,14 @@ export function toOptionPayload(values: OptionFormValues) {
 
   return {
     group: values.group,
+    ...(isWeeklyReportCurrency ? { key: currencyCode, value: currencyCode } : {}),
     label: values.label.trim(),
-    meta: {
-      color: values.color || DEFAULT_STATUS_COLOR,
-      ...projectStatusMeta,
-    },
+    meta: isWeeklyReportCurrency
+      ? {}
+      : {
+          color: values.color || DEFAULT_STATUS_COLOR,
+          ...projectStatusMeta,
+        },
     sortOrder: Number(values.sortOrder) || 0,
     isActive: values.isActive,
   };

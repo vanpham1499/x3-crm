@@ -26,6 +26,11 @@ import {
 } from '@/lib/company-bank-account-options';
 import { formatCustomerIdentity } from '@/lib/customer-utils';
 import { getQuotationPaymentContent } from '@/lib/quotation-utils';
+import {
+  calculateQuotationTotals,
+  findBudgetForQuotationTotal,
+  roundQuotationMoney,
+} from '@/lib/quotation-pricing';
 import { hasPermission } from '@/lib/ownership';
 import { formatUserLabel } from '@/lib/user-utils';
 import {
@@ -61,7 +66,7 @@ type QuotationFormProps = {
 };
 
 function formatMoney(value: string | number | null | undefined) {
-  return new Intl.NumberFormat('vi-VN').format(Math.round(Number(value) || 0));
+  return new Intl.NumberFormat('vi-VN').format(roundQuotationMoney(Number(value) || 0));
 }
 
 function formatCurrency(value: string | number | null | undefined) {
@@ -159,6 +164,7 @@ export function QuotationForm({
   const [selectedBankAccountId, setSelectedBankAccountId] = useState('');
   const [setupPackageKey, setSetupPackageKey] = useState(NO_SETUP_PACKAGE_KEY);
   const [budget, setBudget] = useState('0');
+  const [targetTotalAmount, setTargetTotalAmount] = useState('');
   const [accountReconciliationImageUrls, setAccountReconciliationImageUrls] = useState<string[]>(
     [],
   );
@@ -213,9 +219,31 @@ export function QuotationForm({
       : rootConfig?.setupPackages.find((item) => item.key === setupPackageKey) ||
         rootConfig?.setupPackages[0] ||
         null;
+  const hasTargetTotal = canUseAutoQuote && targetTotalAmount !== '';
+  const targetBudget = hasTargetTotal
+    ? findBudgetForQuotationTotal({
+        targetTotal: toNumber(targetTotalAmount),
+        vatRate: toNumber(vatRate),
+        deposit: toNumber(depositAmount),
+        fixedSubtotal:
+          roundQuotationMoney(setupPackage?.price || 0) +
+          manualLines.reduce(
+            (sum, line) =>
+              sum +
+              (line.name.trim()
+                ? roundQuotationMoney(toNumber(line.quantity) * toNumber(line.unitPrice))
+                : 0),
+            0,
+          ),
+        excludeBudget: projectType === 'K',
+        rates: rootConfig!.managementFeeRates,
+        currentBudget: toNumber(budget),
+      })
+    : null;
+  const effectiveBudget = targetBudget?.budget ?? toNumber(budget);
   const managementFee = rootConfig
     ? calculateManagementFee({
-        budget: toNumber(budget),
+        budget: effectiveBudget,
         channelMode: 'single',
         rates: rootConfig.managementFeeRates,
       })
@@ -228,7 +256,7 @@ export function QuotationForm({
           name: 'Ngân sách',
           unit: 'Tháng',
           quantity: '1',
-          unitPrice: budget,
+          unitPrice: String(effectiveBudget),
           locked: true,
         },
         {
@@ -259,26 +287,28 @@ export function QuotationForm({
   );
   const excludesBudgetFromTotal = canUseAutoQuote && projectType === 'K';
   const quoteLines = billableLines.map((line, index) => {
-    const amount = toNumber(line.quantity) * toNumber(line.unitPrice);
+    const amount = roundQuotationMoney(toNumber(line.quantity) * toNumber(line.unitPrice));
     const excludedFromTotal = excludesBudgetFromTotal && line.id === -1;
 
     return { ...line, no: index + 1, amount, excludedFromTotal };
   });
-  const subtotal = quoteLines.reduce(
-    (sum, line) => sum + (line.excludedFromTotal ? 0 : line.amount),
-    0,
-  );
-  const vatAmount = Math.round((subtotal * toNumber(vatRate)) / 100);
-  const deposit = toNumber(depositAmount);
-  const total = subtotal + vatAmount + deposit;
-  const baseTopupBudget = toNumber(budget);
+  const totals = calculateQuotationTotals({
+    lines: quoteLines,
+    vatRate: toNumber(vatRate),
+    deposit: toNumber(depositAmount),
+    targetTotal: hasTargetTotal && !targetBudget?.error ? toNumber(targetTotalAmount) : null,
+  });
+  const { subtotal, vatAmount, total, roundingAdjustment, lineVatAmounts } = totals;
+  const deposit = totals.depositAmount;
+  const targetTotalError = targetBudget?.error || totals.targetError;
+  const baseTopupBudget = roundQuotationMoney(effectiveBudget);
   const topupEligibleAmount =
     baseTopupBudget +
     Math.round((baseTopupBudget * toNumber(vatRate)) / 100) +
-    quoteLines.reduce((sum, line) => {
+    quoteLines.reduce((sum, line, index) => {
       if (!line.countsTowardTopupBudget) return sum;
 
-      return sum + line.amount + Math.round((line.amount * toNumber(vatRate)) / 100);
+      return sum + line.amount + lineVatAmounts[index];
     }, 0);
   const topupUsablePaidAmount = Math.max(0, Number(quotation?.topupUsablePaidAmount) || 0);
   const topupPaidBudget = Math.min(topupEligibleAmount, topupUsablePaidAmount);
@@ -288,12 +318,14 @@ export function QuotationForm({
     : 0;
   const paymentContent = getQuotationPaymentContent(quotation);
   const missingRequiredProject = !projectId;
-  const storedTotalAmount = Number(quotation?.totalAmount) || 0;
-  const storedPaidAmount = Number(quotation?.paidAmount) || 0;
+  const storedTotalAmount = roundQuotationMoney(Number(quotation?.totalAmount) || 0);
+  const storedPaidAmount = roundQuotationMoney(
+    Number(quotation?.grossPaidAmount ?? quotation?.paidAmount) || 0,
+  );
   const isPaymentLocked =
     mode === 'edit' &&
-    (quotation?.isPaymentLocked === true ||
-      (storedTotalAmount > 0.01 && storedPaidAmount >= storedTotalAmount - 0.01));
+    (quotation?.isPaymentLocked ??
+      (storedTotalAmount > 0 && storedPaidAmount >= storedTotalAmount));
 
   useEffect(() => {
     if (!quotation) return;
@@ -336,6 +368,9 @@ export function QuotationForm({
     setNote(quotation.note || '');
     setSelectedServiceId(idToString(quotation.serviceId));
     setBudget(getMetadataValue(metadata, 'budget') || '0');
+    setTargetTotalAmount(
+      idToString(quotation.targetTotalAmount ?? (metadata.targetTotalAmount as number | null)),
+    );
     setSetupPackageKey(getMetadataValue(metadata, 'setupPackageKey') || NO_SETUP_PACKAGE_KEY);
     setSelectedBankAccountId(getMetadataValue(metadata, 'bankAccountOptionId'));
     setAccountReconciliationImageUrls(quotation.accountReconciliationImageUrls || []);
@@ -416,6 +451,10 @@ export function QuotationForm({
   };
 
   const submitForm = async () => {
+    if (!isPaymentLocked && targetTotalError) {
+      setFieldErrors((current) => ({ ...current, 'metadata.targetTotalAmount': targetTotalError }));
+      return;
+    }
     if (projectType === 'M' && topupCreditEnabled && toNumber(topupCreditLimit) <= 0) {
       setFieldErrors((current) => ({
         ...current,
@@ -480,7 +519,8 @@ export function QuotationForm({
           '',
         projectName: selectedProject?.projectName || quotation?.project?.projectName || '',
         projectType,
-        budget,
+        budget: String(effectiveBudget),
+        targetTotalAmount: hasTargetTotal ? toNumber(targetTotalAmount) : null,
         setupPackageKey,
         depositMode: NON_TAXABLE_DEPOSIT_MODE,
         bankAccountOptionId: selectedBankAccount?.id || null,
@@ -500,7 +540,7 @@ export function QuotationForm({
         .filter((line) => line.name.trim())
         .map((line, index) => {
           const lineVatRate = line.excludedFromTotal ? 0 : toNumber(vatRate);
-          const lineVatAmount = Math.round((line.amount * lineVatRate) / 100);
+          const lineVatAmount = lineVatAmounts[index];
           const lineAmountAfterVat = line.amount + lineVatAmount;
 
           return {
@@ -605,6 +645,7 @@ export function QuotationForm({
                 helperText={fieldErrors.projectId || fieldErrors.project_id}
                 placeholder="Nhập mã dự án, tên dự án hoặc khách hàng"
                 onChange={(value) => {
+                  setTargetTotalAmount('');
                   setSelectedProjectOption(value);
                   setProjectId(idToString(value?.id));
                   setSelectedServiceId(idToString(value?.serviceId));
@@ -713,8 +754,8 @@ export function QuotationForm({
                       fullWidth
                       size="small"
                       label="Ngân sách"
-                      value={budget}
-                      disabled={isPaymentLocked}
+                      value={hasTargetTotal ? String(effectiveBudget) : budget}
+                      disabled={isPaymentLocked || hasTargetTotal}
                       onValueChange={setBudget}
                       className={`${compactFormFieldClassName} md:col-span-6`}
                     />
@@ -732,6 +773,29 @@ export function QuotationForm({
                         </MenuItem>
                       ))}
                     </FormSelectField>
+                    <MoneyInput
+                      fullWidth
+                      size="small"
+                      label="Tổng thanh toán mong muốn"
+                      placeholder="Ví dụ: 20.000.000"
+                      value={targetTotalAmount}
+                      disabled={isPaymentLocked || toNumber(quotation?.grossPaidAmount) > 0}
+                      onValueChange={(value) => {
+                        if (!value) setBudget(String(effectiveBudget));
+                        setTargetTotalAmount(value);
+                        setFieldErrors((current) => ({
+                          ...current,
+                          'metadata.targetTotalAmount': '',
+                        }));
+                      }}
+                      error={Boolean(targetTotalError || fieldErrors['metadata.targetTotalAmount'])}
+                      helperText={
+                        targetTotalError ||
+                        fieldErrors['metadata.targetTotalAmount'] ||
+                        'Gồm VAT và cọc. Tự tính ngân sách; điều chỉnh làm tròn tối đa ±1đ. Để trống để nhập ngân sách thủ công.'
+                      }
+                      className={`${compactFormFieldClassName} md:col-span-12`}
+                    />
                   </>
                 )}
               </div>
@@ -996,6 +1060,7 @@ export function QuotationForm({
                 subtotal={subtotal}
                 vatRate={vatRate}
                 vatAmount={vatAmount}
+                roundingAdjustment={roundingAdjustment}
                 deposit={deposit}
                 total={total}
                 emptyText="Nhập hạng mục để xem chi tiết báo phí"

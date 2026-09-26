@@ -25,6 +25,7 @@ import {
   canUpdateWeeklyReport,
 } from '@/lib/ownership';
 import { formatDate } from '@/lib/utils';
+import { getWeeklyReportCurrency } from '@/lib/weekly-report-money';
 import { formatUserLabel } from '@/lib/user-utils';
 import type { ProjectItem } from '@/types/project';
 import type { AppOption } from '@/types/option';
@@ -163,7 +164,7 @@ export function WeeklyReportManager({
       >
         {reports.map((report) => {
           const reporterLabel = formatUserLabel(report.reporter);
-          const periodLabel = `${formatDate(report.weekStartDate)} – ${formatDate(report.weekEndDate)}`;
+          const periodLabel = `${formatDate(report.weekStartDate)} – ${formatDate(report.weekEndDate)} · ${getWeeklyReportCurrency(report.currency)}`;
 
           return (
             <tr key={report.id} className="hover:bg-slate-50/80">

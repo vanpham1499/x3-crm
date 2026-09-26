@@ -16,6 +16,7 @@ use App\Models\Service;
 use App\Models\User;
 use App\Repositories\KpiReportRepository;
 use App\Repositories\KpiTargetRepository;
+use App\Support\QuotationSettlement;
 use Carbon\CarbonImmutable;
 use Illuminate\Auth\Access\AuthorizationException;
 use Illuminate\Support\Collection;
@@ -301,7 +302,7 @@ class KpiService extends BaseService
                 'acquisition_credit',
                 'Báo phí đầu đã thu đủ',
                 $success['paidAt'],
-                (float) $quotation->total_amount,
+                round((float) $quotation->total_amount),
                 $beforeVatAmount,
                 $beforeVatAmount,
                 $project,
@@ -669,7 +670,7 @@ class KpiService extends BaseService
             $quotation = $success['quotation'];
 
             if ($departmentId && isset($departmentActuals[$departmentId])) {
-                $departmentActuals[$departmentId]['acquisitionCreditAmount'] += (float) $quotation->total_amount;
+                $departmentActuals[$departmentId]['acquisitionCreditAmount'] += round((float) $quotation->total_amount);
                 $departmentActuals[$departmentId]['acquisitionCreditBeforeVatAmount'] +=
                     $this->acquisitionProfitBeforeVat($project, $quotation);
             }
@@ -677,7 +678,7 @@ class KpiService extends BaseService
             $salesUserId = $project?->customer?->sales_user_id;
 
             if ($salesUserId && isset($employeeActuals[$salesUserId])) {
-                $employeeActuals[$salesUserId]['acquisitionCreditAmount'] += (float) $quotation->total_amount;
+                $employeeActuals[$salesUserId]['acquisitionCreditAmount'] += round((float) $quotation->total_amount);
                 $employeeActuals[$salesUserId]['acquisitionCreditBeforeVatAmount'] +=
                     $this->acquisitionProfitBeforeVat($project, $quotation);
             }
@@ -963,7 +964,7 @@ class KpiService extends BaseService
                 continue;
             }
 
-            $totalAmount = (float) $quotation->total_amount;
+            $totalAmount = round((float) $quotation->total_amount);
 
             if ($totalAmount <= self::MONEY_EPSILON) {
                 continue;
@@ -978,7 +979,7 @@ class KpiService extends BaseService
             foreach ($sortedAllocations as $allocation) {
                 $cumulativeAmount += (float) $allocation->amount;
 
-                if ($cumulativeAmount >= $totalAmount - self::MONEY_EPSILON) {
+                if (QuotationSettlement::isPaymentLocked($totalAmount, $cumulativeAmount)) {
                     $paidAt = $this->allocationEventAt($allocation);
                     break;
                 }
@@ -1029,9 +1030,13 @@ class KpiService extends BaseService
         $taxableGrossAmount = max(0, (float) $quotation->subtotal_amount + (float) $quotation->vat_amount);
         $taxableBefore = min(max(0, $before - $depositAmount), $taxableGrossAmount);
         $taxableAfter = min(max(0, $after - $depositAmount), $taxableGrossAmount);
-        $recognizedGross = max(0, $taxableAfter - $taxableBefore);
+        $factor = $this->quotationBeforeVatFactor($quotation);
 
-        return $this->money($recognizedGross * $this->quotationBeforeVatFactor($quotation));
+        // Round cumulative recognition, not each split receipt independently.
+        return max(0,
+            $this->money($taxableAfter * $factor)
+            - $this->money($taxableBefore * $factor),
+        );
     }
 
     private function quotationBeforeVatFactor(?Quotation $quotation): float

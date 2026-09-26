@@ -48,6 +48,10 @@ class CreateQuotationRequest extends BaseRequest
             'validUntil' => ['nullable', 'date'],
             'note' => ['nullable', 'string'],
             'metadata' => ['nullable', 'array'],
+            // Keep the flexible bank/pricing snapshot when validating a nested target.
+            // Otherwise Laravel drops every metadata key except targetTotalAmount.
+            'metadata.*' => ['nullable'],
+            'metadata.targetTotalAmount' => ['sometimes', 'nullable', 'integer', 'min:1'],
             'items' => ['nullable', 'array'],
             'items.*.service_id' => ['nullable', 'integer', Rule::exists('services', 'id')->whereNull('deleted_at')],
             'items.*.serviceId' => ['nullable', 'integer', Rule::exists('services', 'id')->whereNull('deleted_at')],

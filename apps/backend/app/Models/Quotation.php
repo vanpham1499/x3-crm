@@ -2,6 +2,7 @@
 
 namespace App\Models;
 
+use Illuminate\Database\Eloquent\Builder;
 use Illuminate\Database\Eloquent\Relations\BelongsTo;
 use Illuminate\Database\Eloquent\Relations\HasMany;
 
@@ -14,6 +15,23 @@ class Quotation extends BaseModel
     public const STATUS_REFUNDED = 'refunded';
 
     public const DEPOSIT_MODE_NON_TAXABLE_ADDITION = 'non_taxable_addition_v1';
+
+    protected static function booted(): void
+    {
+        parent::booted();
+        // Business queries exclude cancelled records; the audit explicitly opts in.
+        static::addGlobalScope('effective', fn (Builder $q) => $q->whereNull($q->getModel()->qualifyColumn('voided_at')));
+    }
+
+    public function scopeWithVoided(Builder $query): Builder
+    {
+        return $query->withoutGlobalScope('effective');
+    }
+
+    public function isVoided(): bool
+    {
+        return $this->voided_at !== null;
+    }
 
     protected $fillable = [
         'quotation_code',
@@ -45,6 +63,11 @@ class Quotation extends BaseModel
     ];
 
     protected $casts = [
+        'voided_at' => 'datetime',
+        'voided_by' => 'integer',
+        'void_details' => 'array',
+        'void_request_id' => 'string',
+        'void_request_hash' => 'string',
         'subtotal_amount' => 'decimal:2',
         'vat_rate' => 'decimal:2',
         'vat_amount' => 'decimal:2',

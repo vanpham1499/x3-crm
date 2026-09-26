@@ -23,12 +23,20 @@ class QuotationPolicy
      */
     public function update(User $user, Quotation $quotation): bool
     {
-        return $this->allows($user, $quotation, 'update');
+        return ! $quotation->isVoided() && $this->allows($user, $quotation, 'update');
     }
 
     public function delete(User $user, Quotation $quotation): bool
     {
-        return $this->allows($user, $quotation, 'delete');
+        return ! $quotation->isVoided() && $this->allows($user, $quotation, 'delete');
+    }
+
+    public function void(User $user, Quotation $quotation): bool
+    {
+        return $user->hasPermission('quotation.void')
+            && ($user->hasPermission('payment.allocate') || $user->hasPermission('payment.manage'))
+            && $this->allows($user, $quotation, 'view')
+            && $this->allows($user, $quotation, 'delete');
     }
 
     private function allows(User $user, Quotation $quotation, string $action): bool

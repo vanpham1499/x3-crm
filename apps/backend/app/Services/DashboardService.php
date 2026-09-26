@@ -1264,7 +1264,7 @@ class DashboardService extends BaseService
             $eventAt = CarbonImmutable::parse($quotation->created_at);
             $this->addTrendAmount(
                 $eventAt,
-                (float) $quotation->total_amount,
+                round((float) $quotation->total_amount),
                 'quotationAmount',
                 $rangeStart,
                 $rangeEnd->addMonth(),
@@ -1273,7 +1273,7 @@ class DashboardService extends BaseService
             );
             $this->addTrendAmount(
                 $eventAt,
-                (float) $quotation->total_amount,
+                round((float) $quotation->total_amount),
                 'quotationAmount',
                 $previousStart,
                 $previousEnd->addMonth(),
@@ -1640,9 +1640,13 @@ class DashboardService extends BaseService
         $taxableGrossAmount = max(0, (float) $quotation->subtotal_amount + (float) $quotation->vat_amount);
         $taxableBefore = min(max(0, $before - $depositAmount), $taxableGrossAmount);
         $taxableAfter = min(max(0, $after - $depositAmount), $taxableGrossAmount);
-        $recognizedGross = max(0, $taxableAfter - $taxableBefore);
+        $factor = $this->quotationBeforeVatFactor($quotation);
 
-        return $this->money($recognizedGross * $this->quotationBeforeVatFactor($quotation));
+        // Round cumulative recognition, not each split receipt independently.
+        return max(0,
+            $this->money($taxableAfter * $factor)
+            - $this->money($taxableBefore * $factor),
+        );
     }
 
     private function quotationBeforeVatFactor(?Quotation $quotation): float

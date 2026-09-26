@@ -6,6 +6,7 @@ import Link from 'next/link';
 import { useRouter } from 'next/navigation';
 import { useQuery } from '@tanstack/react-query';
 import DeleteRoundedIcon from '@mui/icons-material/DeleteRounded';
+import DescriptionRoundedIcon from '@mui/icons-material/DescriptionRounded';
 import EditRoundedIcon from '@mui/icons-material/EditRounded';
 import InfoRoundedIcon from '@mui/icons-material/InfoRounded';
 import LanguageRoundedIcon from '@mui/icons-material/LanguageRounded';
@@ -32,6 +33,7 @@ import { getMediaPreviewUrl } from '@/lib/media-url';
 import { getOptionColor } from '@/lib/option-utils';
 import { formatUserLabel } from '@/lib/user-utils';
 import api from '@/services/api/client';
+import type { Contract } from '@/types/contract';
 import type { Customer, CustomerFilters, CustomerProjectSummary } from '@/types/customer';
 import type { AppOption } from '@/types/option';
 import type { User } from '@/types/user';
@@ -221,6 +223,16 @@ export function CustomerViewDialog({
   onTabChange: (tab: number) => void;
   onClose: () => void;
 }) {
+  const customerId = customer?.id || 0;
+  const { data: contracts = [], isFetching: isFetchingContracts } = useQuery<Contract[]>({
+    queryKey: ['contracts', 'by-customer', String(customerId)],
+    queryFn: () =>
+      api
+        .get<Contract[]>('/contracts', { params: { customer_id: customerId } })
+        .then((response) => response.data),
+    enabled: Boolean(customerId) && tab === 2,
+  });
+
   if (!customer) return null;
 
   return (
@@ -228,7 +240,7 @@ export function CustomerViewDialog({
       open
       title={formatCustomerIdentity(customer, 'Khách hàng')}
       eyebrow="Khách hàng"
-      loading={isLoading}
+      loading={isLoading || (tab === 2 && isFetchingContracts)}
       onClose={onClose}
       actions={
         <>
@@ -257,6 +269,7 @@ export function CustomerViewDialog({
         items={[
           { label: 'Thông tin', icon: <InfoRoundedIcon className="!text-[18px]" /> },
           { label: 'Liên kết CRM', icon: <LinkRoundedIcon className="!text-[18px]" /> },
+          { label: 'Hợp đồng', icon: <DescriptionRoundedIcon className="!text-[18px]" /> },
         ]}
       />
 
@@ -334,6 +347,146 @@ export function CustomerViewDialog({
                   </DialogActionButton>
                 </div>
               )}
+            </section>
+          </div>
+        )}
+
+        {tab === 2 && (
+          <div role="tabpanel" aria-label="Hợp đồng khách hàng" className="p-4">
+            <section className="overflow-hidden rounded-xl border border-slate-200 bg-white">
+              <div className="flex items-center justify-between gap-3 border-b border-slate-200 px-4 py-3">
+                <div className="flex items-center gap-2">
+                  <h3 className="text-sm font-bold text-slate-950">Hợp đồng</h3>
+                  <span className="rounded-full bg-slate-100 px-2 py-1 text-xs font-bold text-slate-600">
+                    {contracts.length}
+                  </span>
+                </div>
+              </div>
+              <AppDataTable
+                columns={[
+                  {
+                    key: 'contract',
+                    label: 'Hợp đồng',
+                    className: 'sticky left-0 z-20 w-[190px] bg-slate-100',
+                  },
+                  { key: 'project', label: 'Dự án', className: 'w-[220px]' },
+                  { key: 'quotation', label: 'Báo phí', className: 'w-[230px]' },
+                  { key: 'status', label: 'Tình trạng', className: 'w-[140px]' },
+                  { key: 'signedDate', label: 'Ngày ký', className: 'w-[115px]' },
+                  { key: 'expiredDate', label: 'Ngày hết hạn', className: 'w-[125px]' },
+                  { key: 'recipient', label: 'Chủ thể nhận hóa đơn', className: 'w-[250px]' },
+                  { key: 'deposit', label: 'Tiền cọc', className: 'w-[130px] text-right' },
+                  { key: 'file', label: 'File', className: 'w-[90px]' },
+                ]}
+                isLoading={isFetchingContracts}
+                isEmpty={contracts.length === 0}
+                emptyText="Khách hàng chưa có hợp đồng"
+                minWidthClassName="min-w-[1400px]"
+              >
+                {contracts.map((contract) => (
+                  <tr key={contract.id} className="group hover:bg-slate-50/80">
+                    <td className="sticky left-0 z-10 bg-white px-3 py-3 group-hover:bg-slate-50">
+                      <p
+                        className="truncate font-bold text-slate-950"
+                        title={contract.contractNo || ''}
+                      >
+                        {contract.contractNo || '#' + contract.id}
+                      </p>
+                    </td>
+                    <td className="px-3 py-3">
+                      {contract.project ? (
+                        <Link
+                          href={'/projects/' + contract.project.id}
+                          className="block truncate font-bold text-blue-700 hover:underline"
+                        >
+                          {contract.project.projectCode ||
+                            contract.project.projectName ||
+                            '#' + contract.project.id}
+                        </Link>
+                      ) : (
+                        <span className="text-slate-400">-</span>
+                      )}
+                    </td>
+                    <td className="px-3 py-3">
+                      {contract.quotation ? (
+                        <Link
+                          href={'/quotations/' + contract.quotation.id}
+                          className="block truncate font-bold text-emerald-700 hover:underline"
+                        >
+                          {contract.quotation.quotationCode || '#' + contract.quotation.id}
+                        </Link>
+                      ) : (
+                        <span className="text-slate-400">-</span>
+                      )}
+                    </td>
+                    <td className="whitespace-nowrap px-3 py-3">
+                      <span
+                        className={
+                          'rounded-md border px-2 py-1 text-xs font-bold ' +
+                          (contract.contractStatusOption
+                            ? ''
+                            : 'border-slate-200 bg-slate-100 text-slate-700')
+                        }
+                        style={
+                          contract.contractStatusOption
+                            ? {
+                                color: getOptionColor(contract.contractStatusOption),
+                                borderColor: getOptionColor(contract.contractStatusOption) + '40',
+                                backgroundColor:
+                                  getOptionColor(contract.contractStatusOption) + '14',
+                              }
+                            : undefined
+                        }
+                      >
+                        {contract.contractStatusOption?.label || 'Chưa chọn'}
+                      </span>
+                    </td>
+                    <td className="whitespace-nowrap px-3 py-3 font-semibold text-slate-700">
+                      {contract.signedDate
+                        ? new Date(contract.signedDate).toLocaleDateString('vi-VN')
+                        : '-'}
+                    </td>
+                    <td className="whitespace-nowrap px-3 py-3 font-semibold text-slate-700">
+                      {contract.expiredDate
+                        ? new Date(contract.expiredDate).toLocaleDateString('vi-VN')
+                        : '-'}
+                    </td>
+                    <td className="px-3 py-3">
+                      <p className="truncate font-bold text-slate-800">
+                        {contract.invoiceRecipientName ||
+                          customer.companyName ||
+                          customer.customerName ||
+                          '-'}
+                      </p>
+                      <p className="mt-0.5 text-[11px] font-semibold text-slate-500">
+                        {contract.invoiceRecipientType === 'other'
+                          ? 'Chủ thể khác'
+                          : 'Theo khách hàng'}
+                      </p>
+                    </td>
+                    <td className="whitespace-nowrap px-3 py-3 text-right font-extrabold tabular-nums text-slate-950">
+                      {new Intl.NumberFormat('vi-VN').format(
+                        Math.round(Number(contract.depositAmount) || 0),
+                      )}{' '}
+                      đ
+                    </td>
+                    <td className="whitespace-nowrap px-3 py-3">
+                      {contract.fileUrl ? (
+                        <Link
+                          href={contract.fileUrl}
+                          target="_blank"
+                          rel="noreferrer"
+                          className="text-xs font-bold text-blue-700 hover:underline"
+                        >
+                          Mở file
+                        </Link>
+                      ) : (
+                        <span className="text-slate-400">-</span>
+                      )}
+                    </td>
+                  </tr>
+                ))}
+              </AppDataTable>
             </section>
           </div>
         )}

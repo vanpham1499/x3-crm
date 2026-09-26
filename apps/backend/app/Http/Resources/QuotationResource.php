@@ -3,9 +3,9 @@
 namespace App\Http\Resources;
 
 use App\Models\PaymentRefund;
-use App\Models\Quotation;
 use App\Support\ProjectTopupBudgetCalculator;
 use App\Support\QuotationReference;
+use App\Support\QuotationSettlement;
 use Illuminate\Http\Request;
 use Illuminate\Http\Resources\Json\JsonResource;
 
@@ -38,45 +38,27 @@ class QuotationResource extends JsonResource
             ->sum('amount'));
         $outboundAmount = $refundedAmount + $compensationAmount;
         $overCompensationAmount = max(0, $outboundAmount - $grossPaidAmount);
-        $paidAmount = max(0, $grossPaidAmount - $refundedAmount);
-        $totalAmount = round((float) $this->total_amount);
-        $storedDepositAmount = round((float) $this->deposit_amount);
         $metadata = is_array($this->metadata) ? $this->metadata : [];
-        $expectedTotalWithDeposit = (float) $this->subtotal_amount
-            + (float) $this->vat_amount
-            + $storedDepositAmount;
-        $usesNonTaxableDeposit = ($metadata['depositMode'] ?? null) === Quotation::DEPOSIT_MODE_NON_TAXABLE_ADDITION
-            || ($storedDepositAmount > 0
-                && abs($totalAmount - $expectedTotalWithDeposit) < 0.01);
-        $releasedDepositAmount = $usesNonTaxableDeposit
-            ? min($storedDepositAmount, $depositRefundedAmount)
-            : 0.0;
-        $isFullyRefunded = $grossPaidAmount > 0.01
-            && $paidAmount <= 0.01
-            && $refundedAmount >= $grossPaidAmount - 0.01;
-        $collectibleAmount = $isFullyRefunded
-            ? 0.0
-            : max(0, $totalAmount - $releasedDepositAmount);
-        $outstandingAmount = max(0, $collectibleAmount - $paidAmount);
-        $paymentStatus = $this->paymentStatus(
-            $grossPaidAmount,
-            $paidAmount,
-            $collectibleAmount,
-            $paymentRefundedAmount,
-            $isFullyRefunded,
+        $usesNonTaxableDeposit = QuotationSettlement::usesNonTaxableDeposit($this->resource);
+        $snapshot = QuotationSettlement::snapshot(
+            (float) $this->total_amount,
+            $usesNonTaxableDeposit ? (float) $this->deposit_amount : 0.0,
+            $grossPaidAmount, $refundedAmount, $depositRefundedAmount,
         );
-        $status = match (true) {
-            $isFullyRefunded => Quotation::STATUS_REFUNDED,
-            $collectibleAmount > 0.01 && $paidAmount >= $collectibleAmount - 0.01 => Quotation::STATUS_WON,
-            default => Quotation::STATUS_DRAFT,
-        };
-        $isPaymentLocked = $totalAmount > 0.01 && $grossPaidAmount >= $totalAmount - 0.01;
+        $paidAmount = $snapshot['received_amount'];
+        $totalAmount = $snapshot['total_amount'];
+        $isFullyRefunded = $snapshot['is_fully_refunded'];
+        $collectibleAmount = $snapshot['collectible_amount'];
+        $outstandingAmount = $snapshot['outstanding_amount'];
+        $paymentStatus = $snapshot['status'];
+        $status = $snapshot['quotation_status'];
+        $isPaymentLocked = $snapshot['is_payment_locked'];
         $topupBudget = ProjectTopupBudgetCalculator::calculateQuotation($this->resource);
 
         return [
             'id' => $this->id,
             'quotationCode' => $this->quotation_code,
-            'paymentContent' => QuotationReference::canonical($this->quotation_code),
+            'paymentContent' => $this->resource->isVoided() ? null : QuotationReference::canonical($this->quotation_code),
             'leadId' => $this->lead_id,
             'customerId' => $this->customer_id,
             'projectId' => $this->project_id,
@@ -84,11 +66,17 @@ class QuotationResource extends JsonResource
             'serviceId' => $this->service_id,
             'serviceCode' => $this->service_code,
             'serviceName' => $this->service_name,
-            'status' => $status,
+            'status' => $this->resource->isVoided() ? 'voided' : $status,
+            'isVoided' => $this->resource->isVoided(),
+            'voidedAt' => $this->voided_at?->toISOString(),
+            'voidDetails' => ($request->user()?->can('void', $this->resource) ?? false) ? $this->void_details : null,
+            'canVoid' => ! $this->resource->isVoided() && (bool) ($request->user()?->can('void', $this->resource) ?? false),
             'subtotalAmount' => $this->subtotal_amount,
             'vatRate' => $this->vat_rate,
             'vatAmount' => $this->vat_amount,
             'totalAmount' => $totalAmount,
+            'targetTotalAmount' => $metadata['targetTotalAmount'] ?? null,
+            'roundingAdjustment' => (float) ($metadata['roundingAdjustment'] ?? 0),
             'paidAmount' => round($paidAmount, 2),
             'grossPaidAmount' => round($grossPaidAmount, 2),
             'refundedAmount' => round($refundedAmount, 2),
@@ -99,11 +87,11 @@ class QuotationResource extends JsonResource
             'compensationAmount' => round($compensationAmount, 2),
             'outboundAmount' => round($outboundAmount, 2),
             'overCompensationAmount' => round($overCompensationAmount, 2),
-            'collectibleAmount' => round($collectibleAmount, 2),
-            'outstandingAmount' => round($outstandingAmount, 2),
-            'paymentStatus' => $paymentStatus,
+            'collectibleAmount' => $this->resource->isVoided() ? 0 : round($collectibleAmount, 2),
+            'outstandingAmount' => $this->resource->isVoided() ? 0 : round($outstandingAmount, 2),
+            'paymentStatus' => $this->resource->isVoided() ? 'voided' : $paymentStatus,
             'isFullyRefunded' => $isFullyRefunded,
-            'isPaymentLocked' => $isPaymentLocked,
+            'isPaymentLocked' => $this->resource->isVoided() || $isPaymentLocked,
             'depositAmount' => $usesNonTaxableDeposit ? $this->deposit_amount : 0,
             'topupCreditEnabled' => (bool) $this->topup_credit_enabled,
             'topupCreditLimit' => $this->topup_credit_limit,
@@ -162,31 +150,5 @@ class QuotationResource extends JsonResource
             'createdAt' => $this->created_at?->toISOString(),
             'updatedAt' => $this->updated_at?->toISOString(),
         ];
-    }
-
-    private function paymentStatus(
-        float $grossPaidAmount,
-        float $paidAmount,
-        float $collectibleAmount,
-        float $paymentRefundedAmount,
-        bool $isFullyRefunded,
-    ): string {
-        if ($isFullyRefunded) {
-            return 'refunded';
-        }
-
-        if ($grossPaidAmount <= 0.01 && $paidAmount <= 0.01) {
-            return 'unpaid';
-        }
-
-        if ($paidAmount < $collectibleAmount - 0.01) {
-            return $paymentRefundedAmount > 0.01 ? 'partially_refunded' : 'partial';
-        }
-
-        if ($paidAmount > $collectibleAmount + 0.01) {
-            return 'overpaid';
-        }
-
-        return 'paid';
     }
 }

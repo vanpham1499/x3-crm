@@ -7,6 +7,7 @@ import QrCode2RoundedIcon from '@mui/icons-material/QrCode2Rounded';
 import { Autocomplete, Button, IconButton, MenuItem, TextField } from '@mui/material';
 import { useQuery } from '@tanstack/react-query';
 import { MoneyInput } from '@/components/form/money-input';
+import { calculateQuotationTotals, roundQuotationMoney } from '@/lib/quotation-pricing';
 import { PageHeader } from '@/components/shell/page-header';
 import {
   SERVICE_QUOTE_CONFIG_GROUP,
@@ -43,7 +44,7 @@ const BANK_INFO = {
 };
 
 function formatMoney(value: number) {
-  return new Intl.NumberFormat('vi-VN').format(Math.round(value));
+  return new Intl.NumberFormat('vi-VN').format(roundQuotationMoney(value));
 }
 
 function formatCurrency(value: number) {
@@ -180,7 +181,7 @@ export function QuoteBuilder() {
 
   const quote = useMemo(() => {
     const allLines = [...autoLines, ...manualLines];
-    const vatRateValue = toNumber(vatRate) / 100;
+    const vatRateValue = toNumber(vatRate);
     const calculatedLines: CalculatedQuoteLine[] = allLines.map((line, index) => {
       const quantity = toNumber(line.quantity);
       const unitPrice = toNumber(line.unitPrice);
@@ -188,12 +189,13 @@ export function QuoteBuilder() {
       return {
         ...line,
         no: index + 1,
-        amount: quantity * unitPrice,
+        amount: roundQuotationMoney(quantity * unitPrice),
       };
     });
-    const subtotal = calculatedLines.reduce((sum, line) => sum + line.amount, 0);
-    const vatAmount = subtotal * vatRateValue;
-    const total = subtotal + vatAmount;
+    const { subtotal, vatAmount, total } = calculateQuotationTotals({
+      lines: calculatedLines,
+      vatRate: vatRateValue,
+    });
     const transferContent = [
       'TT bao gia',
       customerName.trim() || 'Khach hang',
@@ -487,7 +489,9 @@ export function QuoteBuilder() {
                       <td className="px-4 py-3 text-slate-700">{line.name || '-'}</td>
                       <td className="px-4 py-3 text-slate-600">{line.unit || '-'}</td>
                       <td className="px-4 py-3 text-right text-slate-600">
-                        {formatMoney(toNumber(line.quantity))}
+                        {new Intl.NumberFormat('vi-VN', { maximumFractionDigits: 20 }).format(
+                          toNumber(line.quantity),
+                        )}
                       </td>
                       <td className="px-4 py-3 text-right text-slate-700">
                         {formatCurrency(toNumber(line.unitPrice))}
@@ -509,7 +513,11 @@ export function QuoteBuilder() {
                   </tr>
                   <tr>
                     <td colSpan={5} className="px-4 py-3 text-right font-bold text-slate-700">
-                      Tổng thuế {formatMoney(toNumber(vatRate))}%
+                      Tổng thuế{' '}
+                      {new Intl.NumberFormat('vi-VN', { maximumFractionDigits: 20 }).format(
+                        toNumber(vatRate),
+                      )}
+                      %
                     </td>
                     <td className="px-4 py-3 text-right font-extrabold text-slate-950">
                       {formatCurrency(quote.vatAmount)}

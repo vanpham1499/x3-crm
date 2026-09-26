@@ -14,6 +14,7 @@ import { ConfirmDialog } from '@/components/feedback/confirm-dialog';
 import { CompactAutocompleteField } from '@/components/form/compact-autocomplete-field';
 import { CompactSearchField } from '@/components/form/compact-search-field';
 import { CompactSelectField } from '@/components/form/compact-select-field';
+import { FormDatePicker } from '@/components/form/form-date-picker';
 import { ListFilterBar } from '@/components/form/list-filter-bar';
 import { PageHeader } from '@/components/shell/page-header';
 import { AppDataTable } from '@/components/table/app-data-table';
@@ -26,6 +27,7 @@ import { formatUserLabel } from '@/lib/user-utils';
 import type { Quotation, QuotationFilters } from '@/types/quotation';
 import type { User } from '@/types/user';
 import { QuickQuotationBuilderDialog } from './quick-quotation-builder-dialog';
+import { QuotationVoidDialog } from './quotation-void-dialog';
 import { QuotationPreviewDialog } from './quotation-preview-dialog';
 
 type QuotationManagerProps = {
@@ -54,10 +56,12 @@ function formatCurrency(value: string | number | null | undefined) {
 const statusLabels: Record<string, string> = {
   draft: 'Báo phí',
   won: 'Đã thanh toán',
+  voided: 'Đã hủy',
   refunded: 'Đã hoàn tiền',
 };
 
 function quotationStatusClass(status?: string | null) {
+  if (status === 'voided') return 'bg-slate-100 text-slate-600 ring-slate-200';
   if (status === 'won') return 'bg-emerald-50 text-emerald-700 ring-emerald-100';
   if (status === 'refunded') return 'bg-rose-50 text-rose-700 ring-rose-100';
   return 'bg-rose-50 text-rose-700 ring-rose-100';
@@ -96,6 +100,7 @@ export function QuotationManager({
   const [deleteTarget, setDeleteTarget] = useState<Quotation | null>(null);
   const [previewTarget, setPreviewTarget] = useState<Quotation | null>(null);
   const [autoDownloadPdf, setAutoDownloadPdf] = useState(false);
+  const [voidTarget, setVoidTarget] = useState<Quotation | null>(null);
   const [quickBuilderOpen, setQuickBuilderOpen] = useState(false);
 
   const openActionMenu = (event: MouseEvent<HTMLButtonElement>, quotation: Quotation) => {
@@ -182,6 +187,7 @@ export function QuotationManager({
             options={[
               { value: 'draft', label: 'Báo phí' },
               { value: 'won', label: 'Đã thanh toán' },
+              { value: 'voided', label: 'Đã hủy' },
               { value: 'refunded', label: 'Đã hoàn tiền' },
             ]}
             onChange={(value) => updateFilters({ status: value })}
@@ -196,6 +202,20 @@ export function QuotationManager({
             }))}
             onChange={(value) => updateFilters({ created_by: value })}
             noOptionsText="Không tìm thấy người tạo"
+          />
+
+          <FormDatePicker
+            label="Từ ngày"
+            value={filters.date_from}
+            max={filters.date_to || undefined}
+            onChange={(date_from) => updateFilters({ date_from })}
+          />
+
+          <FormDatePicker
+            label="Đến ngày"
+            value={filters.date_to}
+            min={filters.date_from || undefined}
+            onChange={(date_to) => updateFilters({ date_to })}
           />
         </ListFilterBar>
 
@@ -318,6 +338,7 @@ export function QuotationManager({
                     <IconButton
                       size="small"
                       title="Tải PDF báo phí"
+                      disabled={quotation.isVoided}
                       aria-label={`Tải PDF báo phí ${quotation.quotationCode || quotation.id}`}
                       onClick={() => downloadPdf(quotation)}
                     >
@@ -359,7 +380,7 @@ export function QuotationManager({
           Chỉnh sửa
         </MenuItem>
         <MenuItem
-          disabled={!activeQuotation}
+          disabled={!activeQuotation || activeQuotation.isVoided}
           onClick={() => {
             if (activeQuotation) downloadPdf(activeQuotation);
             closeActionMenu();
@@ -368,6 +389,18 @@ export function QuotationManager({
           <DownloadRoundedIcon fontSize="small" className="mr-2 text-slate-500" />
           Tải PDF
         </MenuItem>
+        {activeQuotation?.canVoid ? (
+          <MenuItem
+            className="text-rose-600"
+            onClick={() => {
+              setVoidTarget(activeQuotation);
+              closeActionMenu();
+            }}
+          >
+            <DeleteRoundedIcon fontSize="small" className="mr-2" />
+            Hủy báo phí tạo nhầm
+          </MenuItem>
+        ) : null}
         <MenuItem
           className="text-rose-600"
           disabled={
@@ -382,6 +415,16 @@ export function QuotationManager({
           Xóa
         </MenuItem>
       </Menu>
+      {voidTarget ? (
+        <QuotationVoidDialog
+          key={voidTarget.id}
+          quotation={voidTarget}
+          onClose={() => {
+            setVoidTarget(null);
+            setPreviewTarget(null);
+          }}
+        />
+      ) : null}
 
       <QuotationPreviewDialog
         quotation={previewTarget}

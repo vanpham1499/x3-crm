@@ -1,5 +1,13 @@
 import { toCanvas } from 'html-to-image';
 
+export function getElementCaptureSize(element: HTMLElement) {
+  // offset sizes include borders but not a parent's mobile preview scale.
+  return {
+    width: Math.ceil(Math.max(element.scrollWidth, element.offsetWidth)),
+    height: Math.ceil(Math.max(element.scrollHeight, element.offsetHeight)),
+  };
+}
+
 async function waitForElementAssets(element: HTMLElement) {
   await document.fonts?.ready;
 
@@ -23,11 +31,12 @@ async function waitForElementAssets(element: HTMLElement) {
 export async function downloadElementAsPdf(element: HTMLElement, filename: string) {
   await waitForElementAssets(element);
 
-  const width = Math.ceil(Math.max(element.scrollWidth, element.getBoundingClientRect().width));
-  const height = Math.ceil(Math.max(element.scrollHeight, element.getBoundingClientRect().height));
+  const { width, height } = getElementCaptureSize(element);
   const canvas = await toCanvas(element, {
     backgroundColor: '#ffffff',
     cacheBust: true,
+    // Preserve QR amount and transfer content when caching embedded images.
+    includeQueryParams: true,
     width,
     height,
     pixelRatio: 2,

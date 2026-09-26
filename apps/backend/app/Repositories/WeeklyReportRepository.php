@@ -146,6 +146,8 @@ class WeeklyReportRepository extends BaseRepository
         /** @var WeeklyReport|null $report */
         $report = $this->query()
             ->with(['project.managerUser:id,department_id', 'project.salesUser:id,department_id', 'customer', 'reporter', 'approver', 'rejecter', 'items.assignee', 'items.createdBy:id,code,name', 'attachments.uploadedBy'])
+            // Mutation callers run inside a transaction. Serialize currency/lifecycle changes.
+            ->lockForUpdate()
             ->whereKey($id)
             ->first();
 

@@ -1,12 +1,14 @@
 import type { ProjectCost } from '@/types/project-cost';
+import { roundQuotationMoney } from './quotation-pricing';
 import type { Quotation } from '@/types/quotation';
 
 function quotationBudget(quotation: Quotation) {
   const budget = Number(quotation.metadata?.budget);
-  return Number.isFinite(budget) && budget > 0 ? budget : 0;
+  return Number.isFinite(budget) && budget > 0 ? roundQuotationMoney(budget) : 0;
 }
 
 export function calculateQuotationEligibleTopupBudget(quotation: Quotation) {
+  if (quotation.isVoided) return 0;
   const budget = quotationBudget(quotation);
   const vatRate = Math.max(0, Number(quotation.vatRate) || 0);
   const extraTopupBudget = (quotation.items || []).reduce((sum, item) => {
@@ -14,16 +16,20 @@ export function calculateQuotationEligibleTopupBudget(quotation: Quotation) {
 
     if (item.amountAfterVat !== null && item.amountAfterVat !== undefined) {
       const amountAfterVat = Number(item.amountAfterVat);
-      if (Number.isFinite(amountAfterVat)) return sum + amountAfterVat;
+      if (Number.isFinite(amountAfterVat)) return sum + roundQuotationMoney(amountAfterVat);
     }
 
     const amountBeforeVat = Number(item.amountBeforeVat) || 0;
     const itemVatRate = Math.max(0, Number(item.vatRate) || 0);
 
-    return sum + amountBeforeVat + Math.round((amountBeforeVat * itemVatRate) / 100);
+    const afterVat =
+      roundQuotationMoney((amountBeforeVat + (amountBeforeVat * itemVatRate) / 100) * 100) / 100;
+    return sum + roundQuotationMoney(afterVat);
   }, 0);
 
-  return Math.round(budget + Math.round((budget * vatRate) / 100) + extraTopupBudget);
+  return roundQuotationMoney(
+    budget + roundQuotationMoney((budget * vatRate) / 100) + extraTopupBudget,
+  );
 }
 
 function quotationTopupBreakdown(quotation: Quotation) {
@@ -38,10 +44,7 @@ function quotationTopupBreakdown(quotation: Quotation) {
   );
   const grossPaidAmount = Math.max(0, Math.round(Number(quotation.grossPaidAmount) || 0));
   const refundedAmount = Math.max(0, Math.round(Number(quotation.refundedAmount) || 0));
-  const budgetRefundedAmount = Math.max(
-    0,
-    Math.round(Number(quotation.budgetRefundedAmount) || 0),
-  );
+  const budgetRefundedAmount = Math.max(0, Math.round(Number(quotation.budgetRefundedAmount) || 0));
   const isFullyRefunded =
     quotation.isFullyRefunded === true ||
     quotation.paymentStatus === 'refunded' ||
@@ -161,7 +164,9 @@ export function calculateAvailableTopupBudget({
   const scopedQuotations = normalizedQuotationId
     ? quotations.filter((quotation) => String(quotation.id) === normalizedQuotationId)
     : quotations;
-  const quotationBudgets = scopedQuotations.map(quotationTopupBreakdown);
+  const quotationBudgets = scopedQuotations
+    .filter((quotation) => !quotation.isVoided)
+    .map(quotationTopupBreakdown);
   const eligibleBudget = quotationBudgets.reduce((sum, item) => sum + item.eligibleBudget, 0);
   const paidBudget = quotationBudgets.reduce((sum, item) => sum + item.paidBudget, 0);
   const creditBudget = quotationBudgets.reduce((sum, item) => sum + item.creditBudget, 0);
@@ -176,7 +181,8 @@ export function calculateAvailableTopupBudget({
     )
     .reduce((sum, cost) => sum + topupBudgetUsed(cost), 0);
   const editingCostUsed = editingCost?.status === 'completed' ? topupBudgetUsed(editingCost) : 0;
-  const usedBudget = savedUsedBudget + editingCostUsed;
+  // Match the backend: sum actual costs, round used once, then subtract.
+  const usedBudget = roundQuotationMoney(savedUsedBudget + editingCostUsed);
 
   return {
     eligibleBudget,
@@ -185,6 +191,6 @@ export function calculateAvailableTopupBudget({
     customerBudget,
     releasedBudget: customerBudget,
     usedBudget,
-    availableBudget: Math.round(customerBudget - usedBudget),
+    availableBudget: customerBudget - usedBudget,
   };
 }
