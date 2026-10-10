@@ -1,0 +1,131 @@
+name: x3-zalo-team-service
+
+x-backend: &backend
+  image: x3-zalo-team-api:local
+  build:
+    context: ../../../apps/backend
+    dockerfile: ../../tooling/zalo-team/service/backend.Dockerfile
+  restart: unless-stopped
+  init: true
+  env_file: service.env
+  environment:
+    ZALO_TEAM_RUNTIME: zalo
+    DB_PROFILE: default
+    DB_CONNECTION: pgsql
+    DB_HOST: database
+    DB_DATABASE: zalo_team
+    DB_USERNAME: zalo_team
+    ZALO_TEAM_ARCHIVE_PATH: /data/archive
+    ZALO_TEAM_BACKUP_PATH: /data/backups
+    ZALO_TEAM_CONNECTOR_URL: http://connector:9250
+    ZALO_TEAM_TOKEN_FILE: /run/secrets/connector_token
+    ZALO_TEAM_SERVICE_KEY_FILE: /run/secrets/service_key
+    CACHE_STORE: file
+    SESSION_DRIVER: file
+    LOG_CHANNEL: stderr
+  secrets: [service_key, connector_token]
+  volumes:
+    - archive:/data
+  depends_on:
+    database:
+      condition: service_healthy
+  cpus: 1.0
+  mem_limit: 512m
+  pids_limit: 64
+
+services:
+  database:
+    image: postgres:16-alpine
+    restart: unless-stopped
+    environment:
+      POSTGRES_DB: zalo_team
+      POSTGRES_USER: zalo_team
+      POSTGRES_PASSWORD_FILE: /run/secrets/database_password
+    secrets: [database_password]
+    volumes: [database:/var/lib/postgresql/data]
+    command: [postgres, -c, shared_buffers=128MB, -c, work_mem=4MB, -c, max_connections=30]
+    mem_limit: 512m
+    cpus: 1.0
+    healthcheck:
+      test: [CMD-SHELL, 'pg_isready -U zalo_team -d zalo_team']
+      interval: 10s
+      timeout: 5s
+      retries: 6
+  api:
+    <<: *backend
+  api-http:
+    image: nginx:1.27-alpine
+    restart: unless-stopped
+    volumes: ['./api.nginx.conf:/etc/nginx/nginx.conf:ro']
+    depends_on: [api]
+    mem_limit: 64m
+    cpus: 0.5
+  sync:
+    <<: *backend
+    command: [php, -d, memory_limit=192M, artisan, 'zalo-team:archive', --watch, --mode=sync, --budget=20, --max-seconds=1800]
+    mem_limit: 256m
+  backup:
+    <<: *backend
+    command: [php, -d, memory_limit=256M, artisan, 'zalo-team:archive', --watch, --mode=backup, --max-seconds=1800]
+    mem_limit: 384m
+    cpus: 0.5
+  frontend:
+    build:
+      context: ../../..
+      dockerfile: tooling/zalo-team/service/frontend.Dockerfile
+      args:
+        NEXT_PUBLIC_API_URL: ${CRM_PUBLIC_API_URL:?Set the public CRM API URL}
+    restart: unless-stopped
+    init: true
+    environment:
+      ZALO_TEAM_CRM_API_URL: ${CRM_INTERNAL_API_URL:?Set the private CRM API URL}
+      ZALO_TEAM_PUBLIC_ORIGIN: ${ZALO_PUBLIC_ORIGIN:?Set the HTTPS CRM public origin}
+      ZALO_TEAM_RUNTIME: zalo
+      ZALO_TEAM_API_URL: http://api-http:8080/api
+      ZALO_TEAM_SERVICE_KEY_FILE: /run/secrets/service_key
+      ZALO_TEAM_WEB_URL: http://connector:9250
+      ZALO_TEAM_WEB_TOKEN_FILE: /run/secrets/connector_token
+      ZALO_TEAM_CALL_URL: http://call:9260
+      ZALO_TEAM_CALL_AUTOSTART: 'false'
+      ZALO_TEAM_CALL_TOKEN_FILE: /run/secrets/call_token
+      NODE_OPTIONS: --max-old-space-size=384
+    secrets: [service_key, connector_token, call_token]
+    extra_hosts: ['host.docker.internal:host-gateway']
+    ports: ['${ZALO_BIND_IP:-127.0.0.1}:9300:3000']
+    mem_limit: 512m
+    cpus: 1.0
+    depends_on: [api-http, connector]
+  connector:
+    build:
+      context: ../../..
+      dockerfile: tooling/zalo-team/web/Dockerfile
+    init: true
+    restart: unless-stopped
+    environment:
+      CONNECTOR_TOKEN_FILE: /run/secrets/connector_token
+      DATA_DIR: /data
+    secrets: [connector_token]
+    volumes: [profiles:/data]
+    ports: ['127.0.0.1:9250:9250']
+    shm_size: 256m
+    # Use available host RAM; no per-container memory cap (requested 08/10).
+    cpus: 2.0
+    # Chromium uses many threads per account; leave room for a new QR session.
+    pids_limit: 1024
+    cap_drop: [ALL]
+    security_opt: [no-new-privileges:true]
+
+volumes:
+  database:
+  archive:
+  profiles:
+
+secrets:
+  service_key:
+    file: ./secrets/service-key
+  connector_token:
+    file: ./secrets/connector-token
+  call_token:
+    file: ./secrets/call-token
+  database_password:
+    file: ./secrets/database-password

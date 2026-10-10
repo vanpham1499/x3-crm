@@ -1,0 +1,21 @@
+[Unit]
+Description=X3 Zalo resource metrics snapshot
+After=docker.service
+
+[Service]
+Type=simple
+ExecStart=/usr/bin/python3 /opt/x3-zalo-team/apps/backend/integrations/zalo/metrics/server-metrics.py
+Restart=always
+RestartSec=10
+UMask=0022
+NoNewPrivileges=true
+ProtectSystem=strict
+ProtectHome=true
+ReadWritePaths=/opt/x3-zalo-team/metrics
+PrivateTmp=true
+MemoryMax=128M
+CPUQuota=20%
+Nice=10
+
+[Install]
+WantedBy=multi-user.target

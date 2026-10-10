@@ -1,0 +1,37 @@
+# Local CRM identity, same Zalo storage. No sync/backup/Drive workers here.
+# Production API and connector are not part of this Compose project.
+name: x3-zalo-team-dev-client
+services:
+  api:
+    image: x3-zalo-team-api:local
+    init: true
+    restart: unless-stopped
+    network_mode: host
+    env_file: service.env
+    environment:
+      ZALO_TEAM_CRM_API_URL: http://127.0.0.1:9341/api
+      ZALO_TEAM_PUBLIC_ORIGIN: http://localhost:3000
+      PHP_CLI_SERVER_WORKERS: '4'
+    command: [php, -S, '127.0.0.1:9345', -t, public, public/index.php]
+    secrets: [service_key, connector_token, drive_credentials]
+    volumes:
+      - /opt/x3-zalo-team/data:/data
+      - /opt/x3-zalo-team/metrics:/run/zalo-metrics:ro
+    mem_limit: 512m
+    cpus: 1.0
+    pids_limit: 32
+    logging:
+      driver: json-file
+      options: {max-size: 2m, max-file: '2'}
+    healthcheck:
+      test: [CMD, php, -r, "exit(@file_get_contents('http://127.0.0.1:9345/api/health') === false ? 1 : 0);"]
+      interval: 30s
+      timeout: 5s
+      retries: 3
+secrets:
+  service_key:
+    file: ./secrets/service-key
+  connector_token:
+    file: ./secrets/connector-token
+  drive_credentials:
+    file: ./secrets/drive-credentials.json

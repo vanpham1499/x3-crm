@@ -1,6 +1,7 @@
 ﻿'use client';
 
 import { useMemo, useState } from 'react';
+import { ZaloRouteButton } from '@/features/zalo-crm/zalo-document-share';
 import { useParams } from 'next/navigation';
 import { Alert } from '@mui/material';
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
@@ -152,6 +153,7 @@ export default function EditCustomerPage() {
           ]}
         />
 
+        <div className="my-4"><ZaloRouteButton kind="customer" id={customer.id} /></div>
         <CustomerApiForm
           mode="edit"
           customer={customer}

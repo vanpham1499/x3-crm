@@ -1,0 +1,52 @@
+# Run on CRM. Only containers in its existing private network can reach these ports.
+name: x3-zalo-edge
+services:
+  tunnel:
+    image: x3-zalo-edge:20261008
+    restart: unless-stopped
+    init: true
+    command:
+      - -NT
+      - -i
+      - /run/secrets/edge_key
+      - -o
+      - UserKnownHostsFile=/run/secrets/known_hosts
+      - -o
+      - StrictHostKeyChecking=yes
+      - -o
+      - BatchMode=yes
+      - -o
+      - ExitOnForwardFailure=yes
+      - -o
+      - ServerAliveInterval=15
+      - -o
+      - ServerAliveCountMax=3
+      - -L
+      - 0.0.0.0:9300:127.0.0.1:9300
+      - -L
+      - 0.0.0.0:9250:127.0.0.1:9250
+      - -R
+      - 127.0.0.1:9342:backend:4000
+      - x3-edge@14.225.198.183
+    secrets: [edge_key, known_hosts]
+    networks:
+      crm:
+        aliases: [zalo-tunnel]
+    mem_limit: 32m
+    cpus: 0.5
+    pids_limit: 16
+    read_only: true
+    cap_drop: [ALL]
+    security_opt: [no-new-privileges:true]
+    logging:
+      driver: json-file
+      options: {max-size: '2m', max-file: '2'}
+networks:
+  crm:
+    external: true
+    name: x3crm_default
+secrets:
+  edge_key:
+    file: ./secrets/zalo-edge
+  known_hosts:
+    file: ./secrets/zalo-known-hosts

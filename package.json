@@ -7,12 +7,18 @@
     "packages/*"
   ],
   "scripts": {
+    "test:zalo": "node tooling/tests/run-zalo.cjs",
     "dev:backend": "npm run dev --workspace=apps/backend",
     "dev:backend:x3sales": "npm run dev:backend:x3sales --workspace=apps/backend",
     "dev:frontend": "npm run dev --workspace=apps/frontend",
     "dev:reverb": ".\\tooling\\development\\dev-reverb.cmd",
     "dev:queue": ".\\tooling\\development\\dev-queue-worker.cmd",
     "dev:scheduler": ".\\tooling\\development\\dev-scheduler.cmd",
+    "dev:zalo-work": ".\\tooling\\development\\dev-zalo-work.cmd",
+    "dev:zalo-documents": ".\\tooling\\development\\dev-zalo-documents.cmd",
+    "dev:zalo-archive": ".\\tooling\\development\\dev-zalo-archive.cmd",
+    "zalo:pc": "node apps/backend/integrations/zalo/pc/export-history.mjs",
+    "dev:zalo-vps": "powershell -NoProfile -ExecutionPolicy Bypass -File tooling/zalo-team/service/tunnel.ps1 -Watch",
     "dev:realtime": "concurrently \"npm run dev:reverb\" \"npm run dev:queue\"",
     "dev": "concurrently \"npm run dev:backend\" \"npm run dev:frontend\" \"npm run dev:reverb\" \"npm run dev:queue\" \"npm run dev:scheduler\"",
     "dev:db": "docker compose -f tooling/development/compose.local.yml up -d postgres",

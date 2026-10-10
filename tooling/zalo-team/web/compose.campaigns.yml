@@ -1,0 +1,4 @@
+# Deployment overlay for the campaign-compatible connector image.
+services:
+  connector:
+    image: x3-zalo-team-web-connector:campaigns-20261008

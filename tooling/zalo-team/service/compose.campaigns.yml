@@ -1,0 +1,20 @@
+# Overlay on the dedicated Zalo VPS only. One production sender, no local worker.
+services:
+  campaigns:
+    image: x3-zalo-team-api:campaigns-20261008
+    restart: unless-stopped
+    init: true
+    network_mode: host
+    env_file: service.env
+    environment:
+      ZALO_TEAM_CAMPAIGN_WORKER: 'true'
+      ZALO_TEAM_CAMPAIGN_PATH: /data/campaigns
+    secrets: [service_key, connector_token]
+    volumes: [/opt/x3-zalo-team/data:/data]
+    command: [php, -d, memory_limit=192M, artisan, 'zalo-team:campaigns']
+    mem_limit: 256m
+    cpus: 0.5
+    pids_limit: 32
+    logging:
+      driver: json-file
+      options: {max-size: 2m, max-file: '2'}

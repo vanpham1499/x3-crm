@@ -1,10 +1,71 @@
 # X3 CRM
 
-Tài liệu tổng duy nhất của dự án X3Sales CRM. File này là nguồn chuẩn cho cách cài đặt, lệnh chạy,
+**10/10 — Menu CRM local:** đã bật lại mục **Zalo Team** ngay dưới Dashboard, mở `/zalo-team` trong tab mới. Quyền tài khoản Zalo vẫn do backend kiểm tra; chưa deploy thay đổi menu lên VPS.
+
+**CRM → Zalo, đợt 1 — 09/10:** đã triển khai local liên kết nhóm nhận, gửi báo phí/báo cáo đã duyệt trực tiếp bằng PDF/ảnh và lịch sử gửi. Hướng dẫn tại [README.ZALO-CRM.md](README.ZALO-CRM.md). Chưa gửi thật/nghiệm thu VPS; tự động báo thanh toán là đợt sau.
+
+**Zalo Team — hiện trạng 09/10:** local dùng chung kho/connector VPS; giao diện và chiến dịch mới có phần chưa deploy production. Đợt A đã clean source local, TypeScript/test/build Docker và standalone health đạt; giữ dữ liệu và dịch vụ VPS. Xem [hiện trạng chuẩn](README.ZALO-TEAM.md#hiện-trạng--nguồn-chuẩn-sau-audit-09102026), [audit/lộ trình](ZALO-TEAM-AUDIT-2026-10-09.md) và [runbook server](README.SERVER.md).
+
+Chạy frontend: `npm run dev:frontend`; backend: `npm run dev:backend`; kiểm thử Zalo offline: `npm run test:zalo`. Không tự khởi động thêm connector/worker kho local khi đang dùng VPS.
+
+**09/10 — D1–D4 local:** đã có hồ sơ/phân công, ghi chú nội bộ/@đồng nghiệp, đang xem/đang soạn, công việc từ tin nhắn, hạn và nhắc báo cáo tuần/gia hạn dự án. Trang `/zalo-team/work` có Việc của tôi và Điều hành đội theo quyền. Migration CRM local đã chạy; worker nhắc hạn riêng: `npm run dev:zalo-work` (không cần nếu đã chạy `npm run dev`/scheduler). Chi tiết kiểm thử, cách dùng và giới hạn tại [README Zalo Team](README.ZALO-TEAM.md#đợt-d--cộng-tác-công-việc-và-điều-hành-local-09102026). Chưa deploy VPS/nghiệm thu nhiều nhân sự; SLA tự động không được suy diễn từ mọi tin đến. Tiếp theo là C vận hành/restore/canary.
+
+**Tối ưu D — 09/10:** hướng dẫn chuyển khỏi UI sang mục đào tạo trong README Zalo Team; giảm query board/presence, tránh đọc panel lặp sau lưu, khóa bản sửa theo revision và sửa thông báo/lịch tuần. Migration biên nhận nhắc hạn cùng worker mới đã chạy local. 117 kiểm tra nghiệp vụ và hai cổng query đạt; chưa deploy production.
+
+
+**Rà UI D — 09/10:** đồng bộ panel/board/form công việc; menu ba chấm, hồ sơ/lịch sử thu gọn, nhắc theo dự án ở phần mở rộng. Sửa lựa chọn người nhận theo quyền và bộ đếm trên 50 việc. 125 checks và hai cổng query đạt; kiểm tra trình duyệt desktop/375px/768px, chưa deploy VPS.
+
+<details>
+
+<summary>Các mốc triển khai Zalo trước đợt A — lịch sử</summary>
+
+> 08/10 — local Zalo Team dùng chung kho VPS qua API riêng 9345, xác thực với backend local; production tiếp tục dùng 9340/9342. `npm run dev:frontend` kiểm tra và dùng lại đúng frontend đang chạy để tránh trùng cổng 3000. Xem README.ZALO-TEAM.md và README.SERVER.md.
+
+**08/10 — Zalo Team đã mở trên production:** truy cập trực tiếp **https://crm.x3sales.com/zalo-team** bằng phiên CRM. Menu Zalo Team đã bỏ khỏi sidebar trong source; sidebar CRM production vốn chưa có mục này và được giữ nguyên. Frontend Zalo `live-20261008` chạy VPS 14.225.198.183; xác thực/phân quyền qua CRM 45.252.251.120, không còn phụ thuộc CRM local. Đã kiểm tra inbox và kho bằng phiên production thật, giữ nguyên 4 tài khoản/2 quyền và mục Đã lưu trữ. Chờ người dùng nghiệm thu gửi/gọi/nhân sự; nhập file xuất Windows chưa có upload production. Các ghi chú chưa deploy bên dưới là mốc trước lần này; runbook hiện tại tại README.SERVER.md.
+
+**08/10 — lưu trữ hội thoại Zalo Team:** menu cuộc chat → **Lưu trữ hội thoại** để ẩn khỏi danh sách chính; vào **Đã lưu trữ** để xem và đưa lại. Lựa chọn riêng từng người dùng CRM, giữ tin nhắn và giữ hội thoại trong mục lưu trữ khi có tin mới. API đã triển khai VPS Zalo; giao diện local đã kiểm tra lưu trữ/tải lại/khôi phục, chưa triển khai frontend production. Chi tiết tại README.ZALO-TEAM.md.
+
+**08/10 — đợt 3 Zalo Team:** frontend production riêng đã chạy healthy trên VPS Zalo; build PDF và Origin sau HTTPS proxy đã sửa. 313 test đạt/1 skip, PHP phân quyền và backup/restore giả lập đạt. Domain CRM chưa cutover; đang chờ quyền chuyển hai khóa dịch vụ sang CRM. Chi tiết hiện trạng và bước còn lại ở README.ZALO-TEAM.md và README.SERVER.md.
+
+**08/10 — người gọi CRM:** bổ sung ánh xạ native call ID để cuộc gọi mới từ Team hiện giờ và tên CRM như tin nhắn. Web/gateway đã cập nhật VPS, route frontend local; giữ cuộc gọi từ app và lịch sử chưa có actor không gán tên. Chưa thực hiện cuộc gọi thật nghiệm thu sau bản vá.
+
+**08/10 — người gửi CRM trong Zalo Team:** tin mới gửi từ Team hiển thị cùng dòng thời gian, dạng “11:30 - Admin X3”; tin từ app/mobile chỉ hiện giờ. Lưu theo native client ID, giữ khi đọc kho và dùng chung tài khoản. Connector/API/worker đã cập nhật VPS; frontend/CRM local. Xem README.ZALO-TEAM.md.
+
+**08/10 — phân quyền Zalo Team:** thêm Phân quyền tại `/zalo-team/accounts`, dùng phòng ban/trưởng phòng CRM, chia nhiều người với quyền Chỉ xem/Sử dụng. API và kho kiểm tra quyền theo tài khoản; tài khoản chưa phân công chỉ admin. CRM local và VPS Zalo đã cập nhật; chưa deploy CRM production. Xem quy tắc, kiểm thử và giới hạn nghiệm thu trong [README.ZALO-TEAM.md](README.ZALO-TEAM.md).
+
+**08/10 — sửa liên kết Zalo:** giới hạn PID/luồng của connector VPS tăng 256 → 1024 và lưu vào Compose, giữ profile; sau đó bỏ mức trần RAM 2 GiB theo yêu cầu, Zalo Web dùng RAM khả dụng của VPS. QR thêm tài khoản đã hiển thị lại khi hai tài khoản cũ vẫn kết nối. Frontend local dùng Next.js 14.2.35, sửa lỗi request đã hủy gây `Response body object should not be disturbed or locked`; 3 regression và TypeScript đạt. Chưa nghiệm thu quét tài khoản mới; chưa deploy frontend lên VPS.
+
+**07/10 — tổng dọn source Zalo:** gỡ 178 file cũ, đưa 3 test helper đang dùng về backend; giữ dữ liệu/khóa/backup. Chạy `npm run test:zalo`: 280 đạt, 1 bài cần bản cài riêng được bỏ qua. Docker loại test khỏi image; lệnh cũ trong tài liệu được gỡ. Chỉ thay đổi local, chưa deploy VPS.
+
+**07/10 — tạm dừng tính năng, chỉnh cấu trúc theo yêu cầu:** mã dịch vụ Zalo đã chuyển về `apps/backend/integrations/zalo/{web,call,file-import,pc,shared}`; Laravel giữ API/nghiệp vụ, frontend giữ UI và Next.js API. Dockerfile/Compose/dev/deploy vẫn ở `tooling`; không thêm `services/` ngoài apps. Đã cập nhật đường dẫn, kiểm thử local và Docker COPY; chưa deploy/restart VPS. Trước đó đã dọn 784,54 MiB gói tạm. Xem [bản đồ thư mục](tooling/COMMANDS.md#vai-trò-các-thư-mục--rà-soát-07102026).
+
+Zalo Team gọi thoại: gateway ZRTC chạy Docker trên VPS 14.225.198.183, tự khởi động lại; micro/loa nằm trong trình duyệt. Dev dùng API tunnel 9262 → VPS 9260 và `ZALO_TEAM_CALL_AUTOSTART=false`; gateway Windows đã tắt. Production dùng mạng Docker `http://call:9260` với `compose.call.yml`. Đã kiểm tra âm thanh tổng hợp hai chiều qua Internet; chưa nghiệm thu cuộc gọi thật sau cutover. Xem [README.ZALO-TEAM.md](README.ZALO-TEAM.md).
+
+</details>
+
+Tài liệu tổng của dự án X3Sales CRM. File này là nguồn chuẩn cho cách cài đặt, lệnh chạy,
 kiến trúc, luồng nghiệp vụ, API, quy ước frontend/backend và vận hành VPS.
 
-> Cập nhật gần nhất: 26/09/2026. Khi thay đổi luồng, API, cấu trúc hoặc cách triển khai, cập nhật
-> trực tiếp file này; không tạo thêm README hoặc thư mục `docs` rời.
+> Cập nhật gần nhất: 09/10/2026. Khi thay đổi luồng, API, cấu trúc hoặc cách triển khai, cập nhật
+> trực tiếp file này. Zalo đang dùng [README.ZALO-TEAM.md](README.ZALO-TEAM.md); [README.ZALO.md](README.ZALO.md) chỉ ghi trạng thái hệ thống cũ đã ngừng dùng;
+> không tạo thêm tài liệu lịch sử hoặc README song song cho cùng một luồng.
+
+Zalo Team nhập file xuất tại **Đồng bộ & sao lưu → Nhập từ file**. Backend mở bộ đọc Windows khi người dùng bấm nhập; luồng PC cũ đã dừng autostart. Web, gọi thoại, kho và worker đồng bộ/sao lưu chạy trên VPS riêng; không chạy thêm worker kho local sau cutover. Tab **Điện thoại** đang ẩn.
+Từ 07/10, lệnh dev frontend/backend tự kiểm tra và mở lại tunnel nếu cấu hình dùng VPS qua cổng local 9340.
+Tunnel dùng tác vụ Windows đã được cho phép, có mutex chống chạy trùng; kết nối chưa sẵn sàng không chặn CRM khởi động.
+Chạy `npm run dev:zalo-vps` để theo dõi tunnel thủ công khi cần. Chi tiết ở README Zalo Team và README.SERVER.md.
+
+VPS mới `14.225.198.183`: thông tin kết nối và nhật ký vận hành nằm trong
+[README.SERVER.md](README.SERVER.md), theo yêu cầu tạo tài liệu server riêng ngày 30/09/2026.
+Tài liệu này không thay cấu hình production cũ hoặc quyết định luồng Zalo.
+
+## Sửa lỗi khởi tạo HTTP — 05/10/2026
+
+Callback cấu hình middleware chạy trước khi Laravel nạp config. Không đọc config/runtime trong
+callback này. Middleware EnsureCrmFrontendRequestsAreStateful quyết định chế độ Zalo tại lúc xử lý
+request: combined/crm giữ cookie và CSRF; zalo dùng service key. Regression trong
+`tooling/tests/zalo-team-http-bootstrap.php` khởi tạo HTTP kernel trực tiếp, không bootstrap console
+trước. Đã kiểm tra 14 trường hợp và HTTP local; chưa triển khai production. Quyền P2 không thay đổi.
 
 ## Quy tắc tiền và làm tròn — rà soát 19/09/2026
 
@@ -2060,6 +2121,16 @@ API `GET /api/dashboard?period_from=YYYY-MM&period_to=YYYY-MM` yêu cầu `dashb
 - Hỗ trợ chọn file hoặc dán `Ctrl+V`; ảnh clipboard phải qua bước preview rồi mới upload.
 - Định dạng: JPG, PNG, GIF, WEBP; tối đa 3 MB theo validation hiện tại.
 - Danh sách media hỗ trợ phân trang, keyword, debounce và hủy request cũ.
+
+## Zalo
+
+Luồng hiện tại là Zalo Web tại `/zalo-team`, theo [README.ZALO-TEAM.md](README.ZALO-TEAM.md).
+Từ 03/10/2026 có kho lịch sử và sao lưu mã hóa local tại `/zalo-team/archive`: đồng bộ nền theo tài khoản, chống trùng nhóm đã liên kết và tệp theo SHA-256. Hướng dẫn worker, lưu trữ, khôi phục và giới hạn nằm trong README Zalo Team; chưa triển khai VPS/offsite.
+Từ 03/10/2026, menu CRM mở Zalo Team; bookmark `/zalo` chuyển sang `/zalo-team`.
+API Laravel `/api/zalo/*` và bộ giao diện cũ đã được gỡ khỏi ứng dụng đang phát triển.
+Mã nguồn và tệp đính kèm cũ được lưu local tại `tooling/archive/zalo-legacy-2026-10-03/`, có manifest SHA-256.
+Core, profile, Docker và bộ test Zalo PC vẫn giữ để đối chiếu; xem [README.ZALO.md](README.ZALO.md).
+Các migration/bảng lịch sử và liên kết Zalo trong nghiệp vụ Lead/Project được giữ nguyên. Chưa thay đổi VPS.
 
 ## Màn hình frontend
 

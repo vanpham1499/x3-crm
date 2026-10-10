@@ -1,0 +1,16 @@
+# Overlay on /opt/x3crm/compose.yml. Apply only backend; preserve CRM workers/data.
+services:
+  backend:
+    image: x3crm-backend:zalo-stage3-20261008
+    env_file: [zalo-team.env]
+    environment:
+      ZALO_TEAM_RUNTIME: crm
+      ZALO_TEAM_CONNECTOR_URL: http://zalo-tunnel:9250
+      ZALO_TEAM_SERVICE_KEY_FILE: /run/secrets/zalo_service_key
+      ZALO_TEAM_TOKEN_FILE: /run/secrets/zalo_connector_token
+    secrets: [zalo_service_key, zalo_connector_token]
+secrets:
+  zalo_service_key:
+    file: ./secrets/service-key
+  zalo_connector_token:
+    file: ./secrets/connector-token

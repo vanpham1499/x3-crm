@@ -35,6 +35,8 @@ class DatabaseSeeder extends Seeder
         }
 
         $permissions = [
+            ['module' => 'zalo_team', 'code' => 'zalo_team.tags.manage', 'name' => 'Quản lý thẻ chung Zalo Team'],
+            ['module' => 'zalo_team', 'code' => 'zalo_team.campaigns.send', 'name' => 'Gửi chiến dịch Zalo'],
             ['module' => 'quotation', 'code' => 'quotation.void', 'name' => 'Hủy báo phí tạo nhầm và xử lý phân bổ'],
             ['module' => 'cost', 'code' => 'cost.manage', 'name' => 'Nạp, cập nhật chi phí'],
             ['module' => 'cost', 'code' => 'cost.manage_department', 'name' => 'Nạp, cập nhật chi phí trong phòng ban'],

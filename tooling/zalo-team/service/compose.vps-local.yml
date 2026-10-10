@@ -1,0 +1,75 @@
+# Local CRM development -> dedicated VPS. No public application/database ports.
+name: x3-zalo-team-service
+x-backend: &backend
+  image: x3-zalo-team-api:local
+  build:
+    context: ../../../apps/backend
+    dockerfile: ../../tooling/zalo-team/service/backend.Dockerfile
+  restart: unless-stopped
+  init: true
+  network_mode: host
+  env_file: service.env
+  secrets: [service_key, connector_token]
+  volumes:
+    - /opt/x3-zalo-team/data:/data
+    - ./fpm.local.conf:/usr/local/etc/php-fpm.d/zzz-local.conf:ro
+  mem_limit: 512m
+  cpus: 1.0
+  pids_limit: 64
+services:
+  database:
+    image: postgres:17-alpine
+    restart: unless-stopped
+    environment:
+      POSTGRES_DB: zalo_team
+      POSTGRES_USER: zalo_team
+      POSTGRES_PASSWORD_FILE: /run/secrets/database_password
+    secrets: [database_password]
+    volumes: [database:/var/lib/postgresql/data]
+    ports: ['127.0.0.1:5544:5432']
+    command: [postgres, -c, shared_buffers=128MB, -c, work_mem=4MB, -c, max_connections=30]
+    mem_limit: 512m
+    cpus: 1.0
+    healthcheck:
+      test: [CMD-SHELL, 'pg_isready -U zalo_team -d zalo_team']
+      interval: 10s
+      timeout: 5s
+      retries: 6
+  api:
+    <<: *backend
+    mem_limit: 3g
+    cpus: 4.0
+    volumes:
+      - /opt/x3-zalo-team/data:/data
+      - ./fpm.local.conf:/usr/local/etc/php-fpm.d/zzz-local.conf:ro
+      - /opt/x3-zalo-team/metrics:/run/zalo-metrics:ro
+  api-http:
+    image: nginx:1.27-alpine
+    restart: unless-stopped
+    network_mode: host
+    volumes: ['./api.local.nginx.conf:/etc/nginx/nginx.conf:ro']
+    mem_limit: 64m
+    cpus: 0.5
+    healthcheck:
+      test: [CMD, wget, -q, -O, /dev/null, 'http://127.0.0.1:9340/api/health']
+      interval: 30s
+      timeout: 5s
+      retries: 3
+  sync:
+    <<: *backend
+    command: [php, -d, memory_limit=192M, artisan, 'zalo-team:archive', --watch, --mode=sync, --budget=20, --max-seconds=1800]
+    mem_limit: 256m
+  backup:
+    <<: *backend
+    command: [php, -d, memory_limit=256M, artisan, 'zalo-team:archive', --watch, --mode=backup, --max-seconds=1800]
+    mem_limit: 384m
+    cpus: 1.0
+volumes:
+  database:
+secrets:
+  service_key:
+    file: ./secrets/service-key
+  connector_token:
+    file: ./secrets/connector-token
+  database_password:
+    file: ./secrets/database-password

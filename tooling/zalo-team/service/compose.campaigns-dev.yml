@@ -1,0 +1,26 @@
+# API and optional campaign worker for local CRM identity, hosted on the Zalo VPS.
+# Start the worker explicitly with --profile campaigns-local after connector update.
+services:
+  api:
+    image: x3-zalo-team-api:campaigns-20261009-media-fix
+  campaigns-local:
+    profiles: [campaigns-local]
+    image: x3-zalo-team-api:campaigns-20261009-media-fix
+    init: true
+    restart: unless-stopped
+    network_mode: host
+    env_file: service.env
+    environment:
+      ZALO_TEAM_CAMPAIGN_WORKER: 'true'
+      ZALO_TEAM_CAMPAIGN_PATH: /data/campaigns
+      ZALO_TEAM_CRM_API_URL: http://127.0.0.1:9341/api
+      ZALO_TEAM_PUBLIC_ORIGIN: http://localhost:3000
+    secrets: [service_key, connector_token]
+    volumes: [/opt/x3-zalo-team/data:/data]
+    command: [php, -d, memory_limit=192M, artisan, 'zalo-team:campaigns']
+    mem_limit: 256m
+    cpus: 0.5
+    pids_limit: 32
+    logging:
+      driver: json-file
+      options: {max-size: 2m, max-file: '2'}

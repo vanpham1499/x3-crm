@@ -44,7 +44,9 @@ class QuotationsController extends Controller
 
     public function show(string $id): JsonResponse
     {
-        return $this->success($this->quotations->findOne($id));
+        $data = $this->quotations->findOne($id);
+        if (empty($data['isVoided'])) $data['deliveryVersion'] = app(\App\Services\ZaloCrmDocuments::class)->source(request()->user(), 'quotation', (int) $id)['version'];
+        return $this->success($data);
     }
 
     public function store(CreateQuotationRequest $request): JsonResponse

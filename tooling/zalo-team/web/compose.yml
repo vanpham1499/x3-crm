@@ -1,0 +1,35 @@
+name: x3-zalo-team-web
+services:
+  connector:
+    build:
+      context: ../../..
+      dockerfile: tooling/zalo-team/web/Dockerfile
+    init: true
+    restart: unless-stopped
+    ports:
+      - "127.0.0.1:9250:9250"
+    volumes:
+      - web_profiles:/data
+    secrets:
+      - connector_token
+    environment:
+      CONNECTOR_TOKEN_FILE: /run/secrets/connector_token
+      DATA_DIR: /data
+    shm_size: 256m
+    # Use available host RAM; no per-container memory cap (requested 08/10).
+    cpus: 2.0
+    # Chromium uses many threads per account; leave room for a new QR session.
+    pids_limit: 1024
+    cap_drop: [ALL]
+    security_opt: [no-new-privileges:true]
+    stop_grace_period: 30s
+    healthcheck:
+      test: ["CMD", "node", "-e", "fetch('http://127.0.0.1:9250/health').then(r=>process.exit(r.ok?0:1)).catch(()=>process.exit(1))"]
+      interval: 30s
+      timeout: 5s
+      start_period: 20s
+volumes:
+  web_profiles:
+secrets:
+  connector_token:
+    file: ../.local/web-token

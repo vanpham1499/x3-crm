@@ -9,6 +9,28 @@ tooling/binaries/
 tooling/backups/
 tooling/deployment/.work/
 tooling/research/.salework-observer/
+tooling/zalo-bridge/.local/
+tooling/zalo-runtime/.local/
+tooling/zalo-team/.local/
+.local/zalo-web-research/
+.local
+# Tooling contains maintained source and deployment configuration too.
+# Ignore generated/private state, never the entire source directory.
+tooling/**/.local/
+tooling/**/.work/
+tooling/**/secrets/
+tooling/archive/
+tooling/**/service.env
+tooling/**/*.env
+tooling/**/*.env.before-*
+tooling/**/*.pem
+tooling/**/id_ed25519*
+tooling/**/id_rsa*
+tooling/**/__pycache__/
+tooling/**/*.pyc
+apps/backend/integrations/zalo/**/__pycache__/
+apps/backend/integrations/zalo/**/*.pyc
+
 
 # Build outputs
 dist/
@@ -30,6 +52,14 @@ yarn-error.log*
 # Laravel
 apps/backend/bootstrap/cache/*.php
 apps/backend/storage/**/*.log
+apps/backend/storage/framework/cache/data/**
+!apps/backend/storage/framework/cache/data/.gitignore
+apps/backend/storage/app/private/zalo-crm-documents/
+apps/backend/storage/app/private/zalo/
+apps/backend/storage/app/private/zalo-archive/
+apps/backend/storage/app/private/zalo-backups/
+apps/backend/storage/app/private/zalo-pc/
+apps/backend/storage/app/private/zalo-file-import/
 
 # OS
 .DS_Store

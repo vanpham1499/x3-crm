@@ -27,6 +27,9 @@ if not exist "%PHP%" (
 
 cd /d "%BACKEND_ROOT%"
 
+node "%TOOLING_ROOT%\zalo-team\service\ensure-tunnel.cjs"
+node "%TOOLING_ROOT%\zalo-team\call\ensure-local.cjs"
+
 set "ACTIVE_DB_PROFILE=%DB_PROFILE%"
 if "!ACTIVE_DB_PROFILE!"=="" (
   for /f "tokens=1,* delims==" %%A in ('findstr /B "DB_PROFILE=" ".env" 2^>nul') do set "ACTIVE_DB_PROFILE=%%B"
@@ -98,6 +101,8 @@ if not "%START_NGROK%"=="0" (
   echo [dev:backend] ngrok inspect: http://127.0.0.1:4040
   start "x3sales-ngrok" /min cmd /k ""!NGROK_EXE!" !NGROK_ARGS!"
 )
+
+rem Live Zalo PC history import has been retired. File import has no resident PC worker.
 
 echo [dev:backend] Starting API on http://127.0.0.1:%PORT%/api
 "%PHP%" -d extension=pdo_pgsql -d extension=pgsql -S 0.0.0.0:%PORT% -t public public/index.php

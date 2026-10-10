@@ -8,6 +8,7 @@ import AccountBalanceRoundedIcon from '@mui/icons-material/AccountBalanceRounded
 import AccountBalanceWalletRoundedIcon from '@mui/icons-material/AccountBalanceWalletRounded';
 import AdminPanelSettingsRoundedIcon from '@mui/icons-material/AdminPanelSettingsRounded';
 import CalendarMonthRoundedIcon from '@mui/icons-material/CalendarMonthRounded';
+import ChatRoundedIcon from '@mui/icons-material/ChatRounded';
 import CloseRoundedIcon from '@mui/icons-material/CloseRounded';
 import CreditCardRoundedIcon from '@mui/icons-material/CreditCardRounded';
 import CorporateFareRoundedIcon from '@mui/icons-material/CorporateFareRounded';
@@ -46,6 +47,12 @@ const navGroups = [
         label: 'Dashboard',
         icon: GridViewRoundedIcon,
         permissions: ['dashboard.view'],
+      },
+      {
+        href: '/zalo-team',
+        label: 'Zalo Team',
+        icon: ChatRoundedIcon,
+        permissions: [],
       },
       { href: '/leads', label: 'Lead', icon: PersonSearchRoundedIcon, permissions: ['lead.view'] },
       {
@@ -196,6 +203,7 @@ const navGroups = [
 ];
 
 function isNavItemVisible(item: { href: string; permissions?: string[] }, user: User | null) {
+  if (item.href === '/zalo-team') return Boolean(user?.id) && user?.isActive !== false;
   if (!item.permissions || item.permissions.length === 0) return true;
 
   return item.permissions.some((code) => hasPermission(user, code));
@@ -282,6 +290,9 @@ function SidebarNavigation({
                   >
                     <Link
                       href={item.href}
+                      prefetch={item.href === '/zalo-team' ? false : undefined}
+                      target={item.href === '/zalo-team' ? '_blank' : undefined}
+                      rel={item.href === '/zalo-team' ? 'noopener noreferrer' : undefined}
                       title={collapsed ? item.label : undefined}
                       onClick={onNavigate}
                       className={`group flex min-h-11 min-w-0 flex-1 items-center rounded-xl ${

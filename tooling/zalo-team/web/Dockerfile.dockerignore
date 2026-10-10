@@ -1,0 +1,15 @@
+**
+!apps/
+!apps/backend/
+!apps/backend/integrations/
+!apps/backend/integrations/zalo/
+!apps/backend/integrations/zalo/web/
+!apps/backend/integrations/zalo/web/*.mjs
+!apps/backend/integrations/zalo/web/package.json
+!apps/backend/integrations/zalo/web/package-lock.json
+!tooling/
+!tooling/zalo-team/
+!tooling/zalo-team/web/
+!tooling/zalo-team/web/Dockerfile
+**/*.test.*
+**/tests

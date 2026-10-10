@@ -71,6 +71,16 @@ class User extends Authenticatable
         return $this->role === self::ROLE_ADMIN;
     }
 
+    protected static function booted(): void
+    {
+        static::updated(function (self $user) {
+            if ($user->wasChanged('department_id') || ($user->wasChanged('is_active') && ! $user->is_active)) {
+                \App\Services\ZaloTeamAccess::revokeUser((int) $user->id);
+            }
+        });
+        static::deleted(fn (self $user) => \App\Services\ZaloTeamAccess::revokeUser((int) $user->id));
+    }
+
     public function isLeader(): bool
     {
         return $this->role === self::ROLE_LEADER;
