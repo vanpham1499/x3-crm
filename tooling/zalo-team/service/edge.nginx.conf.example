@@ -1,0 +1,12 @@
+# Include inside the EXISTING CRM TLS server block. Replace ZALO_PRIVATE_IP.
+# VPN/private network or TLS upstream required. Preserve the public Host for CSRF.
+location = /zalo-team { proxy_pass http://ZALO_PRIVATE_IP:9300; include /etc/nginx/snippets/zalo-proxy.conf; }
+location ^~ /zalo-team/ { proxy_pass http://ZALO_PRIVATE_IP:9300; include /etc/nginx/snippets/zalo-proxy.conf; }
+location ^~ /api/zalo-team/ { proxy_pass http://ZALO_PRIVATE_IP:9300; include /etc/nginx/snippets/zalo-proxy.conf; }
+location ^~ /zalo-team-assets/ {
+    rewrite ^/zalo-team-assets/(.*)$ /$1 break;
+    proxy_pass http://ZALO_PRIVATE_IP:9300;
+    include /etc/nginx/snippets/zalo-proxy.conf;
+}
+# Never expose the worker identity endpoint publicly. It is reached over private CRM API URL.
+location ^~ /api/internal/zalo-team/ { return 404; }

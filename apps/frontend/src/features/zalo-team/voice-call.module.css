@@ -1,0 +1,122 @@
+.overlay {
+  position: fixed;
+  inset: 0;
+  z-index: 1500;
+  display: grid;
+  place-items: center;
+  background: #0005;
+  font-family: 'ZaloTeamSegoe', 'Segoe UI', sans-serif;
+  color: #081b3a;
+}
+.dialog {
+  width: min(380px, calc(100vw - 32px));
+  padding: 0 24px 28px;
+  background: #fff;
+  border-radius: 8px;
+  box-shadow: 0 8px 36px #0003;
+  text-align: center;
+}
+.top {
+  height: 52px;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  font-size: 14px;
+  font-weight: 600;
+  border-bottom: 1px solid #eaedf0;
+  margin-bottom: 28px;
+}
+.top button {
+  border: 0;
+  background: none;
+  cursor: pointer;
+  color: inherit;
+  padding: 6px;
+  display: grid;
+  place-items: center;
+}
+.avatar {
+  display: flex;
+  justify-content: center;
+  margin-bottom: 16px;
+}
+.avatar img {
+  width: 100%;
+  height: 100%;
+  object-fit: cover;
+}
+.dialog h2 {
+  font-size: 20px;
+  line-height: 28px;
+  margin: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+.account {
+  font-size: 12px;
+  color: #75849a;
+  margin: 6px 0 20px;
+}
+.status {
+  font-size: 14px;
+  line-height: 21px;
+  margin: 0;
+  min-height: 42px;
+}
+.duration {
+  font-size: 14px;
+  font-variant-numeric: tabular-nums;
+}
+.controls {
+  display: flex;
+  justify-content: center;
+  align-items: center;
+  gap: 28px;
+  margin-top: 28px;
+}
+.controls button {
+  border: 0;
+  cursor: pointer;
+  display: grid;
+  place-items: center;
+}
+.mic,
+.hangup {
+  width: 48px;
+  height: 48px;
+  border-radius: 50%;
+}
+.mic {
+  background: #eef1f4;
+  color: #243958;
+}
+.muted {
+  background: #dceaff;
+  color: #0068ff;
+}
+.hangup {
+  background: #e94245;
+  color: #fff;
+}
+.hangup > span {
+  transform: rotate(135deg);
+}
+.done,
+.resume {
+  background: #0068ff;
+  color: #fff;
+  border-radius: 4px;
+  padding: 10px 28px;
+  border: 0;
+  cursor: pointer;
+}
+.resume {
+  margin-top: 12px;
+  font-size: 13px;
+  padding: 8px 16px;
+}
+.dialog button:focus-visible {
+  outline: 2px solid #0068ff;
+  outline-offset: 3px;
+}

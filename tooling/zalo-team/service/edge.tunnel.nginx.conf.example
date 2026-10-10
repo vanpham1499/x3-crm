@@ -1,0 +1,19 @@
+# Inside the existing CRM TLS server. The SSH sidecar is on its private network.
+location = /zalo-team {
+    proxy_pass http://zalo-tunnel:9300;
+    include /etc/nginx/snippets/zalo-proxy.conf;
+}
+location ^~ /zalo-team/ {
+    proxy_pass http://zalo-tunnel:9300;
+    include /etc/nginx/snippets/zalo-proxy.conf;
+}
+location ^~ /api/zalo-team/ {
+    proxy_pass http://zalo-tunnel:9300;
+    include /etc/nginx/snippets/zalo-proxy.conf;
+}
+location ^~ /zalo-team-assets/ {
+    rewrite ^/zalo-team-assets/(.*)$ /$1 break;
+    proxy_pass http://zalo-tunnel:9300;
+    include /etc/nginx/snippets/zalo-proxy.conf;
+}
+location ^~ /api/internal/zalo-team/ { return 404; }

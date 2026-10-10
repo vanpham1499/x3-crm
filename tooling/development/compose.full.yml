@@ -24,6 +24,8 @@ services:
       context: ../../apps/backend
       dockerfile: Dockerfile
     container_name: x3crm-backend
+    env_file:
+      - ../../apps/backend/.env
     environment:
       DB_CONNECTION: pgsql
       DB_HOST: postgres
@@ -34,6 +36,8 @@ services:
       JWT_SECRET: your-super-secret-jwt-key-change-in-production
       FRONTEND_URL: http://localhost:3000
       PORT: 4000
+      ZALO_TEAM_CONNECTOR_URL: http://host.docker.internal:9250
+      ZALO_TEAM_TOKEN_FILE: /run/secrets/zalo_team_web_token
       BROADCAST_CONNECTION: reverb
       QUEUE_CONNECTION: database
       REVERB_APP_ID: x3crm-local
@@ -44,9 +48,36 @@ services:
       REVERB_SCHEME: http
     ports:
       - '4000:4000'
+    volumes:
+      - ../zalo-team/.local/web-token:/run/secrets/zalo_team_web_token:ro
+      - zalo_archive:/app/storage/app/private/zalo-archive
+      - zalo_backups:/app/storage/app/private/zalo-backups
     depends_on:
       postgres:
         condition: service_healthy
+
+  zalo-archive:
+    image: x3crm-backend-local
+    env_file:
+      - ../../apps/backend/.env
+    restart: unless-stopped
+    command: php artisan zalo-team:archive --watch
+    environment:
+      DB_CONNECTION: pgsql
+      DB_HOST: postgres
+      DB_PORT: 5432
+      DB_DATABASE: x3crm
+      DB_USERNAME: x3crm
+      DB_PASSWORD: x3crm123
+      ZALO_TEAM_CONNECTOR_URL: http://host.docker.internal:9250
+      ZALO_TEAM_TOKEN_FILE: /run/secrets/zalo_team_web_token
+    volumes:
+      - ../zalo-team/.local/web-token:/run/secrets/zalo_team_web_token:ro
+      - zalo_archive:/app/storage/app/private/zalo-archive
+      - zalo_backups:/app/storage/app/private/zalo-backups
+    depends_on:
+      backend:
+        condition: service_started
 
   reverb:
     image: x3crm-backend-local
@@ -111,3 +142,5 @@ services:
 
 volumes:
   postgres_data:
+  zalo_archive:
+  zalo_backups:

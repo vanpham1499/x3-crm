@@ -1,0 +1,140 @@
+<?php
+putenv('ZALO_TEAM_REMOTE_API_URL=');
+putenv('ZALO_TEAM_MAINTENANCE=false');
+require __DIR__.'/../../apps/backend/vendor/autoload.php';
+$app = require __DIR__.'/../../apps/backend/bootstrap/app.php';
+$app->make(Illuminate\Contracts\Console\Kernel::class)->bootstrap();
+set_exception_handler(function(Throwable $e){fwrite(STDERR,'FAIL: '.$e->getMessage()."\n");exit(1);});
+use Illuminate\Support\Facades\DB;
+use Illuminate\Support\Facades\Schema;
+use Illuminate\Database\Schema\Blueprint;
+use App\Models\User;
+use App\Services\ZaloTeamArchive;
+use App\Services\ZaloTeamArchiveFiles;
+use App\Services\ZaloTeamPcImport;
+
+$root = sys_get_temp_dir().'/zt-pc-import-'.bin2hex(random_bytes(6));
+mkdir($root, 0700, true);
+config(['database.default'=>'pc_test', 'database.connections.pc_test'=>['driver'=>'sqlite','database'=>':memory:','prefix'=>'','foreign_key_constraints'=>true],
+    'zalo_team.archive_path'=>$root.'/archive', 'zalo_team.archive_max_file_bytes'=>262144000]);
+DB::purge('pc_test');
+if (DB::connection()->getDatabaseName() !== ':memory:') throw new Exception('Unsafe DB');
+Schema::create('users', fn(Blueprint $t) => $t->id());
+DB::table('users')->insert(['id'=>1]);
+foreach (['000200_create_zalo_team_archive','000204_create_zalo_archive_imports','000205_create_zalo_archive_versions'] as $m) (require __DIR__.'/../../apps/backend/database/migrations/2026_10_03_'.$m.'.php')->up();
+$u = new User(); $u->id = 1;
+$other = new User(); $other->id = 2;
+$archive = new ZaloTeamArchive(); $files = new ZaloTeamArchiveFiles(); $import = new ZaloTeamPcImport($archive, $files);
+$source = $archive->catalog($u,['accounts'=>[['id'=>1,'externalId'=>'123','name'=>'Owner','status'=>'connected']]],['conversations'=>[['accountId'=>1,'conversationId'=>'456','name'=>'Friend']]])[0];
+$base = ['id'=>'1','clientId'=>'101','time'=>1789000000000,'text'=>'old text','kind'=>'text','type'=>'MSG_TEXT','mine'=>false,'sender'=>['id'=>'456','name'=>'Friend'],'attachments'=>[],'quote'=>null];
+$checks = 0;
+function ok($v, $label) { global $checks; if (!$v) throw new Exception($label); $checks++; }
+function refuses($f, $label) { try { $f(); } catch (Throwable $e) { ok(true, $label); return; } throw new Exception($label); }
+function bundle($name, $rows, $assets=[]) {
+    global $root;
+    $dir=$root.'/'.$name; mkdir($dir); mkdir($dir.'/blobs');
+    file_put_contents($dir.'/messages.jsonl', implode('',array_map(fn($m)=>json_encode($m)."\n",$rows)));
+    $manifest=['format'=>'zalo-team-pc/1','accountId'=>'123','conversationId'=>'456','messages'=>['count'=>count($rows),'sha256'=>hash_file('sha256',$dir.'/messages.jsonl')], 'assets'=>$assets, 'coverage'=>['skipped'=>0,'complete'=>true]];
+    file_put_contents($dir.'/manifest.json',json_encode($manifest)); return $dir;
+}
+try {
+    $live=$base; $live['text']='Tin nhắn đã được thu hồi'; $live['kind']='recalled';
+    $archive->ingest($source,['accountId'=>1,'conversationId'=>'456','messages'=>[$live]]);
+    $older=$base; $older['id']='2'; $older['clientId']='102'; $older['time']-=86400000;
+    $dir=bundle('first',[$base,$older]);
+    $dry=$import->run($u,$source->id,$dir);
+    ok($dry['state']==='validated' && DB::table('zt_archive_observations')->count()===1,'validation has no writes');
+    $r=$import->run($u,$source->id,$dir,true);
+    ok($r['summary']['added']===1 && $r['summary']['existing']===1,'only missing history imported');
+    $history=$archive->history($u,$source->id);
+    ok(count($history['messages'])===2 && $history['messages'][1]['kind']==='recalled','live recall retained');
+    ok($history['messages'][0]['archiveOrigin']==='pc' && !$history['messages'][0]['canRecall'],'PC provenance and read-only actions');
+    $r2=$import->run($u,$source->id,$dir,true);
+    ok($r2['replayed']===true && DB::table('zt_archive_messages')->count()===2,'replay creates no data');
+    DB::table('zt_archive_imports')->where('id',$r['id'])->update(['state'=>'interrupted','summary'=>json_encode(array_replace($r['summary'],['processed'=>1,'added'=>0,'existing'=>1]))]);
+    $resume=$import->run($u,$source->id,$dir,true);
+    ok($resume['summary']['processed']===2 && DB::table('zt_archive_messages')->count()===2,'interrupted resume idempotent');
+    refuses(fn()=>$import->run($other,$source->id,$dir,true),'wrong owner rejected');
+    $bad=bundle('bad-account',[$older]); $m=json_decode(file_get_contents($bad.'/manifest.json'),true);$m['accountId']='789';file_put_contents($bad.'/manifest.json',json_encode($m));
+    refuses(fn()=>$import->run($u,$source->id,$bad,true),'wrong native account rejected');
+    $bad=bundle('bad-hash',[$older]);file_put_contents($bad.'/messages.jsonl',"{}\n",FILE_APPEND);
+    refuses(fn()=>$import->run($u,$source->id,$bad,true),'checksum checked before writes');
+    $conflict=$base; $conflict['clientId']='different'; $bad=bundle('conflict',[$conflict]);
+    ok($import->run($u,$source->id,$bad,true)['summary']['conflicts']===1,'same id different client kept out');
+    $png=base64_decode('iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAQAAAC1HAwCAAAAC0lEQVR42mP8/x8AAwMCAO+jP1sAAAAASUVORK5CYII=');$hash=hash('sha256',$png);
+    $image=$older;$image['id']='3';$image['clientId']='103';$image['kind']='media';$image['type']='MSG_PHOTO';$image['text']='';$image['attachments']=[['kind'=>'image','name'=>'x.png','size'=>strlen($png)]];
+    $asset=['messageId'=>'3','slot'=>'attachments.0.url','hash'=>$hash,'bytes'=>strlen($png)];
+    $media=bundle('media',[$image],[$asset]);file_put_contents($media.'/blobs/'.$hash,$png);
+    $r=$import->run($u,$source->id,$media,true);
+    ok($r['summary']['files']===1 && hash_file('sha256',$files->path($source->owner,$hash))===$hash,'local image stored independently');
+    $h=$archive->history($u,$source->id);$saved=array_values(array_filter($h['messages'],fn($m)=>$m['id']==='3'))[0];
+    ok($saved['attachments'][0]['archiveState']==='ready' && str_starts_with($saved['attachments'][0]['url'],'/api/zalo-team/archive/assets/'),'offline history uses Team URL');
+    $image['id']='4';$image['clientId']='104';$asset['messageId']='4';$media2=bundle('media2',[$image],[$asset]);file_put_contents($media2.'/blobs/'.$hash,$png);
+    $import->run($u,$source->id,$media2,true);
+    ok(count(glob(dirname($files->path($source->owner,$hash)).'/*'))===1,'same bytes saved once for multiple messages');
+    $broken=bundle('corrupt-media',[$image],[$asset]);file_put_contents($broken.'/blobs/'.$hash,'broken');
+    refuses(fn()=>$import->run($u,$source->id,$broken,true),'bad media fails preflight');
+    $different=$png."\0";$differentHash=hash('sha256',$different);
+    $conflictingImage=$image;$conflictingImage['clientId']='different';
+    $conflictingAsset=$asset;$conflictingAsset['hash']=$differentHash;$conflictingAsset['bytes']=strlen($different);
+    $conflictingBundle=bundle('conflicting-media',[$conflictingImage],[$conflictingAsset]);file_put_contents($conflictingBundle.'/blobs/'.$differentHash,$different);
+    $r=$import->run($u,$source->id,$conflictingBundle,true);
+    ok($r['summary']['conflicts']===1 && $r['summary']['files']===0 && !is_file($files->path($source->owner,$differentHash)),'conflicting identity never overwrites cached media');
+    $profileImage=$image;$profileImage['id']='profile-media';$profileImage['clientId']='profile-104';
+    $import->run($u,$source->id,bundle('missing-profile-media',[$profileImage]),true);
+    $profileImage['sender']['name']='Updated display name';$profileImage['reactions']=[['type'=>'heart','count'=>1]];
+    $profileAsset=array_replace($asset,['messageId'=>'profile-media']);
+    $profileBundle=bundle('changed-profile-media',[$profileImage],[$profileAsset]);file_put_contents($profileBundle.'/blobs/'.$hash,$png);
+    $profileResult=$import->run($u,$source->id,$profileBundle,true);
+    ok($profileResult['summary']['filesAdded']===1 && $profileResult['summary']['conflicts']===1,'profile/reaction change does not block missing bytes while content conflict remains retained');
+    $wrongSender=$profileImage;$wrongSender['sender']['id']='another-sender';
+    $wrongBundle=bundle('wrong-sender-media',[$wrongSender],[$profileAsset]);file_put_contents($wrongBundle.'/blobs/'.$hash,$png);
+    ok($import->run($u,$source->id,$wrongBundle,true)['summary']['files']===0,'different sender identity cannot supply bytes');
+    $wrongContent=$profileImage;$wrongContent['text']='different caption';
+    $wrongBundle=bundle('wrong-content-media',[$wrongContent],[$profileAsset]);file_put_contents($wrongBundle.'/blobs/'.$hash,$png);
+    ok($import->run($u,$source->id,$wrongBundle,true)['summary']['files']===0,'changed message content still blocks media binding');
+    $before=DB::table('zt_archive_observations')->count();
+    $fixed=$older;$fixed['archiveProjection']=2;$fixed['text']='corrected native text';
+    $liveFixed=$base;$liveFixed['archiveProjection']=2;
+    $repair=bundle('repair',[$fixed,$liveFixed]);
+    $r=$import->run($u,$source->id,$repair,true);
+    ok($r['summary']['repaired']===1 && $r['summary']['existing']===1,'repair touches old PC projection only');
+    ok(DB::table('zt_archive_observations')->count()===$before && DB::table('zt_archive_messages')->whereIn('id',DB::table('zt_archive_observations')->select('message_id'))->count()===$before,'repair does not duplicate active contents');
+    ok(DB::table('zt_archive_messages')->count()>$before,'retired PC content retained for recovery');
+    $h=$archive->history($u,$source->id);
+    $saved=array_values(array_filter($h['messages'],fn($m)=>$m['id']==='2'))[0];
+    ok($saved['text']==='corrected native text' && $saved['archiveProjection']===2,'repaired text persisted');
+    DB::table('zt_archive_observations')->where('source_id',$source->id)->where('native_id','2')->update(['deleted'=>true]);
+    $fixed['archiveProjection']=3;
+    $r=$import->run($u,$source->id,bundle('deleted-repair',[$fixed]),true);
+    ok(empty($r['summary']['repaired']) && DB::table('zt_archive_observations')->where('native_id','2')->value('deleted'),'repair never resurrects deleted observation');
+    // Real importer and DB contract: 500 -> replay -> 510, with older newly readable rows.
+    $batch=[];
+    for($i=0;$i<500;$i++){ $m=$base;$m['id']=(string)(1000+$i);$m['clientId']=$m['id'];$m['archiveProjection']=2;$batch[]=$m; }
+    $initial=DB::table('zt_archive_observations')->count();
+    $first=$import->run($u,$source->id,bundle('five-hundred',$batch),true);
+    ok($first['summary']['added']===500 && DB::table('zt_archive_observations')->count()===$initial+500,'500 baseline imported');
+    $again=$import->run($u,$source->id,bundle('five-hundred-again',array_reverse($batch)),true);
+    ok($again['summary']['added']===0 && $again['summary']['existing']===500 && DB::table('zt_archive_observations')->count()===$initial+500,'new export order still does not duplicate 500');
+    for($i=0;$i<10;$i++){ $m=$base;$m['id']=(string)(2000+$i);$m['clientId']=$m['id'];$m['archiveProjection']=2;$m['time']-=86400000*90;$batch[]=$m; }
+    $more=$import->run($u,$source->id,bundle('five-ten',$batch),true);
+    ok($more['summary']['added']===10 && DB::table('zt_archive_observations')->count()===$initial+510,'older newly readable 10 not skipped by high-water timestamp');
+    $index=(new App\Services\ZaloTeamPcIndex())->build($source);
+    ok(count((array)$index['messages'])>=510 && $index['messages']->{'1000'}['complete'],'index includes committed PC observations');
+    $same=json_decode(json_encode($batch[0]));
+    ok($index['messages']->{'1000'}['fingerprint']===App\Services\ZaloTeamPcIndex::fingerprint($same),'stored projection has same digest as export');
+    $changed=$batch[0];$changed['text']='Changed old PC text';
+    $conflicting=$import->run($u,$source->id,bundle('changed-pc',[$changed]),true);
+    ok($conflicting['summary']['conflicts']===1 && $conflicting['summary']['added']===0,'changed old projection retained as conflict, never silent success');
+    ok(DB::table('zt_archive_versions')->where('native_id','1000')->where('disposition','conflict')->exists(),'conflicting content retained for reconciliation');
+    $brokenPath=$files->path($source->owner,$hash);file_put_contents($brokenPath,str_repeat('x',strlen($png)));
+    $brokenIndex=(new App\Services\ZaloTeamPcIndex())->build($source);
+    ok(!in_array('attachments.0.url',$brokenIndex['messages']->{'3'}['readySlots']),'same-size corrupt bytes not treated as saved');
+    $repairBundle=bundle('repair-bytes',[$image],[$asset]);file_put_contents($repairBundle.'/blobs/'.$hash,$png);
+    $repairBytes=$import->run($u,$source->id,$repairBundle,true);
+    ok(DB::table('zt_archive_observations')->count()===$initial+510 && $repairBytes['summary']['filesAdded']===1 && hash_file('sha256',$brokenPath)===$hash,'corrupt saved blob repaired without another message');
+    echo "PASS $checks PC import checks\n";
+} finally {
+    $it=new RecursiveIteratorIterator(new RecursiveDirectoryIterator($root,FilesystemIterator::SKIP_DOTS),RecursiveIteratorIterator::CHILD_FIRST);
+    foreach($it as $entry) { $entry->isDir()?rmdir($entry->getPathname()):unlink($entry->getPathname()); } rmdir($root);
+}

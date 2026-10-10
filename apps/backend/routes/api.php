@@ -23,8 +23,16 @@ use App\Http\Controllers\UserNotificationsController;
 use App\Http\Controllers\UsersController;
 use App\Http\Controllers\WeeklyReportAttachmentsController;
 use App\Http\Controllers\WeeklyReportsController;
+use App\Http\Controllers\ZaloTeamArchiveController;
+use App\Http\Controllers\ZaloTeamTagsController;
 use Illuminate\Support\Facades\Route;
 
+if (\App\Services\ZaloTeamRuntime::role() === 'zalo') {
+    require __DIR__.'/zalo-team.php';
+    return;
+}
+
+require __DIR__.'/zalo-team-crm.php';
 
 Route::get('/', fn () => [
     'name' => 'X3 CRM Backend API',
@@ -36,6 +44,12 @@ Route::post('/auth/login', [AuthController::class, 'login']);
 Route::post('/payments/webhook', [PaymentsController::class, 'webhook'])->middleware('verify_payment_webhook');
 
 Route::middleware(['auth:sanctum', 'active'])->group(function (): void {
+    if (\App\Services\ZaloTeamRuntime::role() !== 'crm') {
+    Route::post('/zalo-team/campaigns', [\App\Http\Controllers\ZaloTeamCampaignController::class, 'command']);
+    Route::post('/zalo-team/tags', [ZaloTeamTagsController::class, 'command']);
+    Route::post('/zalo-team/archive', [ZaloTeamArchiveController::class, 'command']);
+    Route::get('/zalo-team/archive/assets/{id}', [ZaloTeamArchiveController::class, 'asset']);
+    }
     Route::get('/auth/profile', [AuthController::class, 'profile']);
     Route::get('/auth/me', [AuthController::class, 'profile']);
     Route::patch('/auth/profile', [AuthController::class, 'updateProfile']);

@@ -1,6 +1,7 @@
 'use client';
 
 import Image from 'next/image';
+import { ZaloDocumentButton } from '@/features/zalo-crm/zalo-document-share';
 import { useRef, useState, type ReactNode } from 'react';
 import AccountBalanceWalletOutlinedIcon from '@mui/icons-material/AccountBalanceWalletOutlined';
 import CalendarMonthOutlinedIcon from '@mui/icons-material/CalendarMonthOutlined';
@@ -62,7 +63,9 @@ export function WeeklyReportCustomerPreviewDialog({
   const customerSheetRef = useRef<HTMLElement | null>(null);
   const [isCopyingImage, setIsCopyingImage] = useState(false);
 
-  const { data: detailedReport, isFetching } = useQuery<WeeklyReport>({
+  const { data: detailedReport, isFetching } = useQuery<
+    WeeklyReport & { deliveryVersion?: string }
+  >({
     queryKey: ['weekly-reports', report ? String(report.id) : 'customer-preview'],
     queryFn: () =>
       api.get<WeeklyReport>(`/weekly-reports/${report?.id}`).then((response) => response.data),
@@ -149,14 +152,23 @@ export function WeeklyReportCustomerPreviewDialog({
       loading={isFetching && !detailedReport}
       onClose={onClose}
       actions={
-        <DialogActionButton
-          tone="primary"
-          startIcon={<PhotoCameraRoundedIcon />}
-          disabled={!detailedReport || isCopyingImage}
-          onClick={copyCustomerImage}
-        >
-          {isCopyingImage ? 'Đang lấy ảnh...' : 'Lấy ảnh'}
-        </DialogActionButton>
+        <>
+          <DialogActionButton
+            tone="primary"
+            startIcon={<PhotoCameraRoundedIcon />}
+            disabled={!detailedReport || isCopyingImage}
+            onClick={copyCustomerImage}
+          >
+            {isCopyingImage ? 'Đang lấy ảnh...' : 'Lấy ảnh'}
+          </DialogActionButton>
+          <ZaloDocumentButton
+            kind="report"
+            id={report.id}
+            version={detailedReport?.deliveryVersion}
+            getElement={() => customerSheetRef.current}
+            disabled={isFetching || currentReport.status !== 'approved'}
+          />
+        </>
       }
     >
       <div className="overflow-x-auto bg-slate-100 p-3 sm:p-6">

@@ -57,7 +57,7 @@ class WeeklyReportsController extends Controller
 
     public function show(string $id): JsonResponse
     {
-        return $this->success($this->reports->findOne($id));
+        return $this->success($this->reports->findOne($id) + ['deliveryVersion' => app(\App\Services\ZaloCrmDocuments::class)->source(request()->user(), 'report', (int) $id)['version']]);
     }
 
     public function store(CreateWeeklyReportRequest $request): JsonResponse

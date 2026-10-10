@@ -1,0 +1,12 @@
+{
+  "name": "zalo-team-web-worker",
+  "private": true,
+  "type": "module",
+  "scripts": {
+    "start": "node server.mjs",
+    "test": "node --test --test-isolation=none guards.test.mjs accounts.test.mjs conversations.test.mjs send.test.mjs uploads.test.mjs transport.test.mjs messages-loader.test.mjs rich-text.test.mjs message-actions.test.mjs conversation-settings.test.mjs polls.test.mjs topics.test.mjs"
+  },
+  "dependencies": {
+    "playwright": "1.63.0"
+  }
+}

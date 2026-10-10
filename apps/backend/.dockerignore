@@ -2,8 +2,17 @@
 .git
 vendor
 node_modules
+**/node_modules
+**/.local
+**/.work
+**/*.test.*
+**/*-test.py
+**/__pycache__
+**/*.pyc
+**/tests
 dist
 storage/logs/*
+storage/app/private/
 storage/framework/cache/*
 storage/framework/sessions/*
 storage/framework/views/*

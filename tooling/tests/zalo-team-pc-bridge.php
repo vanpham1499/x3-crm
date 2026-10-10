@@ -1,0 +1,90 @@
+<?php
+putenv('ZALO_TEAM_REMOTE_API_URL=');
+putenv('ZALO_TEAM_MAINTENANCE=false');
+require __DIR__.'/../../apps/backend/vendor/autoload.php';
+$app=require __DIR__.'/../../apps/backend/bootstrap/app.php';
+$app->make(Illuminate\Contracts\Console\Kernel::class)->bootstrap();
+use Illuminate\Support\Facades\{DB,Schema,Http,File};
+use Illuminate\Database\Schema\Blueprint;
+use Illuminate\Http\Request;
+use App\Services\{ZaloTeamCatalog,ZaloTeamArchive};
+use App\Http\Controllers\ZaloTeamPcBridgeController;
+$root=sys_get_temp_dir().'/zt-pc-bridge-'.bin2hex(random_bytes(6));mkdir($root,0700,true);file_put_contents($root.'/key',str_repeat('a',64));
+config(['database.default'=>'bridge_test','database.connections.bridge_test'=>['driver'=>'sqlite','database'=>':memory:','prefix'=>'','foreign_key_constraints'=>true],
+    'zalo_team.runtime'=>'zalo','zalo_team.service_key_file'=>$root.'/key','zalo_team.crm_api_url'=>'https://crm.test/api','zalo_team.archive_path'=>$root.'/archive']);
+DB::purge('bridge_test');if(DB::connection()->getDatabaseName()!==':memory:')throw new Exception('Unsafe DB');
+Schema::create('users',function(Blueprint $t){$t->unsignedBigInteger('id')->primary();$t->string('zalo_owner',64);});
+foreach(['2026_10_03_000200_create_zalo_team_archive','2026_10_03_000204_create_zalo_archive_imports','2026_10_03_000205_create_zalo_archive_versions','2026_10_04_000208_create_zalo_archive_pc_recoveries','2026_10_04_000209_add_pc_recovery_source_state'] as $m)(require __DIR__.'/../../apps/backend/database/migrations/'.$m.'.php')->up();
+Http::preventStrayRequests();$active=true;
+Http::fake(['crm.test/*'=>function($r)use(&$active){return Http::response(['id'=>1,'tenant_id'=>null,'company_id'=>null,'is_active'=>$active,'zalo_permissions'=>[]]);}]);
+$app->instance(ZaloTeamCatalog::class,new class extends ZaloTeamCatalog {public function command(App\Models\User $u,array $body):array{return ['accounts'=>[['id'=>7,'externalId'=>'123','name'=>'Test','status'=>'connected']]];}});
+$controller=new ZaloTeamPcBridgeController;$checks=0;
+function ok($v,$label){global $checks;if(!$v)throw new Exception($label);$checks++;}
+function refuses($fn,$label){try{$fn();}catch(Throwable){ok(true,$label);return;}throw new Exception('Accepted: '.$label);}
+function req($v,$key=true){$r=Request::create('/internal/zalo-team/pc/1','POST',$v);if($key)$r->headers->set('X-Zalo-Service-Key',str_repeat('a',64));return $r;}
+try {
+    refuses(fn()=>$controller->command(req(['action'=>'prepare'],false),1),'missing service key');
+    $active=false;refuses(fn()=>$controller->command(req(['action'=>'prepare']),1),'revoked user');$active=true;
+    refuses(fn()=>$controller->command(req(['action'=>'prepare','accountId'=>8,'externalId'=>'123']),1),'wrong account');
+    $v=$controller->command(req(['action'=>'prepare','accountId'=>7,'externalId'=>'123','conversationId'=>'456','name'=>'Test']),1);
+    $source=$v['source'];ok(count((array)$v['index']['messages'])===0,'empty index');
+    $message=['id'=>'1','clientId'=>'101','time'=>1789000000000,'text'=>'test','kind'=>'text','type'=>'MSG_TEXT','mine'=>false,'sender'=>['id'=>'456','name'=>'Test'],'attachments'=>[]];
+    $messages=ZaloTeamArchive::json($message)."\n";
+    $manifest=ZaloTeamArchive::json(['format'=>'zalo-team-pc/1','accountId'=>'123','conversationId'=>'456','messages'=>['count'=>1,'sha256'=>hash('sha256',$messages)],'assets'=>[],'coverage'=>['complete'=>true]]);
+    $batch=hash('sha256',$manifest);
+    $fast=$controller->command(req(['action'=>'prepare','accountId'=>7,'externalId'=>'123','conversationId'=>'456','name'=>'Test','fileImport'=>true]),1);
+    ok($fast['source']===$source && isset($fast['serverPreview']) && !isset($fast['index']),'file import skips full historical index and reports codec support');
+    $descriptor=fn($name,$data)=>['file'=>$name,'bytes'=>strlen($data),'sha256'=>hash('sha256',$data)];
+    $frame=fn($name,$data)=>json_encode($descriptor($name,$data))."\n".$data;
+    $pack=function($body,$length=null,$sourceOverride=null)use($controller,$source,$batch){
+        $r=Request::create('/upload-pack?'.http_build_query(['source'=>$sourceOverride??$source,'batch'=>$batch]),'PUT',[],[],[],[], $body);
+        $r->headers->set('X-Zalo-Service-Key',str_repeat('a',64));$r->headers->set('Content-Length',(string)($length??strlen($body)));
+        return $controller->uploadPack($r,1);
+    };
+    $magic=App\Services\ZaloTeamFilePack::MAGIC;
+    refuses(fn()=>$pack($magic.$frame('../escape','x')),'pack traversal');
+    refuses(fn()=>$pack($magic.$frame('blobs/'.str_repeat('d',64),'x')),'pack blob filename checksum identity');
+    refuses(fn()=>$pack($magic,App\Services\ZaloTeamFilePack::LIMIT+1),'pack size bounded');
+    refuses(fn()=>$pack($magic.$frame('manifest.json',$manifest),null,str_repeat('e',64)),'pack rejects foreign source');
+    $partial=$magic.$frame('manifest.json',$manifest).json_encode($descriptor('messages.jsonl',$messages))."\n".substr($messages,0,10);
+    refuses(fn()=>$pack($partial,strlen($partial)+strlen($messages)-10),'interrupted pack rejected');
+    $plan=['action'=>'file-plan','source'=>$source,'batch'=>$batch,'files'=>[$descriptor('manifest.json',$manifest),$descriptor('messages.jsonl',$messages)]];
+    ok($controller->command(req($plan),1)['ready']===['manifest.json'],'verified file survives interruption but partial file not ready');
+    $owner=DB::table('users')->value('zalo_owner');
+    ok(App\Services\ZaloTeamFileImportLease::active($owner),'active file import receives priority');
+    ok(!App\Services\ZaloTeamFileImportLease::active(str_repeat('f',64)),'priority isolated by owner');
+    touch($root.'/archive/locks/'.$owner.'.file-import',time()-121);
+    ok(!App\Services\ZaloTeamFileImportLease::active($owner),'priority expires automatically');
+    ok(count(glob($root.'/archive/pc-incoming/'.$owner.'/'.$batch.'/pack-*'))===0,'partial temporary file cleaned');
+    $corrupt=$magic.json_encode($descriptor('messages.jsonl',$messages))."\n".str_repeat('x',strlen($messages));
+    refuses(fn()=>$pack($corrupt),'pack corrupt checksum rejected');
+    refuses(fn()=>$pack($magic.$frame('manifest.json',$manifest).$frame('manifest.json',$manifest)),'duplicate file in pack rejected');
+    ok($pack($magic.$frame('messages.jsonl',$messages))['files']===1,'packed message file accepted');
+    ok(count($controller->command(req($plan),1)['ready'])===2,'plan finds all verified staged files');
+    $upload=function($name,$content,$hash=null)use($controller,$source,$batch){$r=Request::create('/upload?'.http_build_query(['source'=>$source,'batch'=>$batch,'file'=>$name]),'PUT',[],[],[],[], $content);$r->headers->set('X-Zalo-Service-Key',str_repeat('a',64));$r->headers->set('X-Content-SHA256',$hash??hash('sha256',$content));$r->headers->set('Content-Length',(string)strlen($content));return $controller->upload($r,1);};
+    refuses(fn()=>$upload('../escape','x'),'path traversal');
+    refuses(fn()=>$upload('manifest.json',$manifest,str_repeat('b',64)),'checksum mismatch');
+    $upload('manifest.json',$manifest);$upload('messages.jsonl',$messages);
+    $status=$controller->command(req(['action'=>'file-status','source'=>$source,'batch'=>$batch,'file'=>'messages.jsonl','sha256'=>hash('sha256',$messages),'bytes'=>strlen($messages)]),1);
+    ok($status['ready'],'resume verified file');
+    $r=$controller->command(req(['action'=>'commit','source'=>$source,'batch'=>$batch]),1);ok($r['state']==='ready','commit');
+    $r=$controller->command(req(['action'=>'commit','source'=>$source,'batch'=>$batch]),1);ok($r['replayed']??false,'repeated commit idempotent');
+    ok(DB::table('zt_archive_messages')->count()===1,'no duplicate messages');
+    refuses(fn()=>$controller->command(req(['action'=>'file-status','source'=>str_repeat('c',64),'batch'=>$batch,'file'=>'manifest.json','sha256'=>$batch,'bytes'=>strlen($manifest)]),1),'unknown source');
+    $controller->command(req(['action'=>'checked','source'=>$source,'batch'=>$batch,'receipts'=>[],'checks'=>[]]),1);
+    ok(!is_dir($root.'/archive/pc-incoming/'.DB::table('users')->value('zalo_owner').'/'.$batch),'confirmed transfer cleaned');
+    $owner=DB::table('users')->value('zalo_owner');
+    $content='verified blob';$hash=hash('sha256',$content);
+    $stored=app(App\Services\ZaloTeamArchiveFiles::class)->path($owner,$hash);mkdir(dirname($stored),0700,true);file_put_contents($stored,$content);
+    $asset=['id'=>hash('sha256','test-asset'),'owner'=>$owner,'message_id'=>DB::table('zt_archive_messages')->value('id'),'slot'=>'attachments.0.url','url'=>'','hash'=>$hash,'bytes'=>strlen($content),'state'=>'ready'];
+    $probe=['action'=>'file-status','source'=>$source,'batch'=>$batch,'file'=>'blobs/'.$hash,'sha256'=>$hash,'bytes'=>strlen($content)];
+    ok(!$controller->command(req($probe),1)['ready'],'unreferenced blob is not disclosed');
+    DB::table('zt_archive_assets')->insert($asset);
+    ok($controller->command(req($probe),1)['ready'],'verified owned blob reused without upload');
+    $staged=$root.'/archive/pc-incoming/'.$owner.'/'.$batch.'/blobs/'.$hash;ok(hash_file('sha256',$staged)===$hash,'reused blob hash matches');
+    unlink($staged);DB::table('zt_archive_assets')->where('id',$asset['id'])->update(['owner'=>str_repeat('e',64)]);
+    ok(!$controller->command(req($probe),1)['ready'],'foreign owner blob cannot be reused');
+    DB::table('zt_archive_assets')->where('id',$asset['id'])->update(['owner'=>$owner]);file_put_contents($stored,'corrupt');
+    ok(!$controller->command(req($probe),1)['ready'],'corrupt stored blob requires upload');
+    echo "PASS $checks PC bridge checks\n";
+}finally{File::deleteDirectory($root);}

@@ -2,6 +2,8 @@
 
 use App\Console\Commands\DispatchNotificationReminders;
 use App\Console\Commands\EnsureAdminUser;
+use App\Console\Commands\RestoreZaloTeamArchive;
+use App\Console\Commands\SyncZaloTeamArchive;
 use App\Http\Middleware\EnsureActiveUser;
 use App\Http\Middleware\EnsurePermission;
 use App\Http\Middleware\EnsureUserRole;
@@ -17,11 +19,23 @@ use Symfony\Component\HttpFoundation\Response;
 use Symfony\Component\HttpKernel\Exception\HttpExceptionInterface;
 
 return Application::configure(basePath: dirname(__DIR__))
+    ->withProviders([\App\Providers\ZaloTeamRuntimeProvider::class])
     ->withCommands([
+        \App\Console\Commands\DeliverZaloCrmDocuments::class,
+        \App\Console\Commands\DispatchZaloWorkReminders::class,
         EnsureAdminUser::class,
         DispatchNotificationReminders::class,
+        SyncZaloTeamArchive::class,
+        RestoreZaloTeamArchive::class,
     ])
     ->withSchedule(function (Schedule $schedule): void {
+        if (\App\Services\ZaloTeamRuntime::role() === 'combined') {
+            $schedule->command('zalo-team:archive')->everyMinute()->withoutOverlapping(30);
+        }
+        if (\App\Services\ZaloTeamRuntime::role() === 'zalo') { return; }
+        $schedule->command('zalo-team:deliver-documents')->everyMinute()->withoutOverlapping(10);
+        $schedule->command('zalo-team:deliver-documents --prune')->dailyAt('02:20')->withoutOverlapping(10);
+        $schedule->command('zalo-team:work-reminders')->everyMinute()->withoutOverlapping(10);
         $schedule->command('notifications:dispatch-reminders')
             ->everyMinute()
             ->withoutOverlapping(10);
@@ -30,13 +44,10 @@ return Application::configure(basePath: dirname(__DIR__))
         api: __DIR__.'/../routes/api.php',
         apiPrefix: 'api',
     )
-    ->withBroadcasting(__DIR__.'/../routes/channels.php', [
-        'middleware' => ['api', 'auth:sanctum', 'active'],
-    ])
     ->withMiddleware(function (Middleware $middleware): void {
-        $middleware->statefulApi();
-
-        $middleware->api(append: [
+        $middleware->api(prepend: [
+            \App\Http\Middleware\EnsureCrmFrontendRequestsAreStateful::class,
+        ], append: [
             HandleCors::class,
         ]);
 
@@ -51,7 +62,7 @@ return Application::configure(basePath: dirname(__DIR__))
         // Webhook callers may omit Accept: application/json. Preserve error status
         // codes while returning JSON instead of Laravel's HTML error page.
         $exceptions->shouldRenderJsonWhen(
-            fn (Request $request, \Throwable $exception): bool => $request->is('api/*') || $request->expectsJson(),
+            fn (Request $request, Throwable $exception): bool => $request->is('api/*') || $request->expectsJson(),
         );
         $exceptions->render(function (ValidationException $exception, Request $request) {
             if (! $request->is('api/*')) {

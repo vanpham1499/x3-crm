@@ -6,6 +6,249 @@
         "version": "1.0.0"
     },
     "paths": {
+        "/zalo-team/archive": {
+            "post": {
+                "tags": [
+                    "Zalo Team"
+                ],
+                "summary": "Manage private Zalo synchronization, stored history and encrypted backups",
+                "operationId": "zaloTeamArchiveCommand",
+                "requestBody": {
+                    "required": true,
+                    "content": {
+                        "application/json": {
+                            "schema": {
+                                "required": [
+                                    "kind"
+                                ],
+                                "properties": {
+                                    "kind": {
+                                        "type": "string",
+                                        "enum": [
+                                            "status",
+                                            "search-messages",
+                                            "media-library",
+                                            "list-conversations",
+                                            "search-conversations",
+                                            "days",
+                                            "configure",
+                                            "sync",
+                                            "history",
+                                            "timeline",
+                                            "hide-message",
+                                            "retry-files",
+                                            "backup",
+                                            "verify",
+                                            "restore",
+                                            "attachment-status",
+                                            "checkpoint",
+                                            "verify-checkpoint",
+                                            "pc-status",
+                                            "pc-connect",
+                                            "pc-import",
+                                            "pc-stop",
+                                            "pc-prioritize",
+                                            "pc-disconnect",
+                                            "phone-status",
+                                            "phone-start",
+                                            "phone-cancel"
+                                        ]
+                                    },
+                                    "requestId": {
+                                        "description": "Stable idempotency key for phone-start; job ID for phone-cancel. Phone commands require accountId. Transfer completion and archive persistence are separate; capabilities expose the actual Web session date range.",
+                                        "type": "string",
+                                        "format": "uuid"
+                                    },
+                                    "conversations": {
+                                        "type": "array",
+                                        "items": {
+                                            "type": "string"
+                                        },
+                                        "maxItems": 20000
+                                    },
+                                    "all": {
+                                        "type": "boolean"
+                                    },
+                                    "resume": {
+                                        "type": "boolean"
+                                    },
+                                    "start": {
+                                        "description": "pc-prioritize may start an idle verified session while retaining the rest of its queue.",
+                                        "type": "boolean"
+                                    },
+                                    "retryMode": {
+                                        "type": "string",
+                                        "enum": [
+                                            "scheduled",
+                                            "all"
+                                        ]
+                                    },
+                                    "assetId": {
+                                        "type": "string"
+                                    },
+                                    "section": {
+                                        "description": "media-library projects stored attachments for the requested account/conversation.",
+                                        "type": "string",
+                                        "enum": [
+                                            "overview",
+                                            "images",
+                                            "files",
+                                            "links"
+                                        ]
+                                    },
+                                    "sender": {
+                                        "description": "search-messages: all, me, others, or a numeric sender ID.",
+                                        "type": "string"
+                                    },
+                                    "days": {
+                                        "type": "integer",
+                                        "enum": [
+                                            0,
+                                            7,
+                                            30,
+                                            90
+                                        ]
+                                    },
+                                    "date": {
+                                        "type": "string",
+                                        "format": "date"
+                                    },
+                                    "checkpointId": {
+                                        "type": "string",
+                                        "format": "uuid"
+                                    },
+                                    "messageIds": {
+                                        "type": "array",
+                                        "items": {
+                                            "type": "string"
+                                        },
+                                        "maxItems": 300
+                                    },
+                                    "accounts": {
+                                        "type": "array",
+                                        "items": {
+                                            "type": "integer"
+                                        }
+                                    },
+                                    "enabled": {
+                                        "type": "boolean"
+                                    },
+                                    "media": {
+                                        "type": "boolean"
+                                    },
+                                    "daily_backup": {
+                                        "type": "boolean"
+                                    },
+                                    "source": {
+                                        "type": "string"
+                                    },
+                                    "accountId": {
+                                        "type": "integer"
+                                    },
+                                    "conversationId": {
+                                        "type": "string"
+                                    },
+                                    "offset": {
+                                        "type": "integer",
+                                        "minimum": 0
+                                    },
+                                    "query": {
+                                        "type": "string"
+                                    },
+                                    "before": {
+                                        "properties": {
+                                            "id": {
+                                                "type": "string"
+                                            },
+                                            "time": {
+                                                "type": "string"
+                                            }
+                                        },
+                                        "type": "object"
+                                    },
+                                    "backupId": {
+                                        "type": "string",
+                                        "format": "uuid"
+                                    },
+                                    "confirm": {
+                                        "type": "boolean"
+                                    }
+                                },
+                                "type": "object"
+                            }
+                        }
+                    }
+                },
+                "responses": {
+                    "200": {
+                        "description": "Scoped archive status/history or queued request. PC commands require local Windows, loopback access and an authenticated CRM owner; connect requires accountId and confirm. pc-status returns workerOnline, state, matched conversations, progress and results. pc-import accepts selected conversation IDs or all=true for the entire verified PC catalog. pc-prioritize moves a verified conversation to next after the current import; resume=true retains completed results and remaining queue across reconnection to the same account. retryMode=scheduled requests retries immediately; assetId narrows a retry. Completed batches keep the session ready; pc-stop preserves the connection and remaining queue, pc-disconnect closes it. An idle session expires after 15 minutes. PC reconciliation scans metadata and exports missing or changed messages; coverage includes mode, scanned, unchanged and reusedFiles, and import summary includes filesAdded/filesReused. This is not a native incremental cursor. HTTP never accepts filesystem paths. Sync/import/backup execute in background.",
+                        "content": {
+                            "application/json": {
+                                "schema": {
+                                    "type": "object"
+                                }
+                            }
+                        }
+                    },
+                    "401": {
+                        "description": "Login required"
+                    },
+                    "403": {
+                        "description": "Wrong account scope or non-local PC request"
+                    },
+                    "409": {
+                        "description": "Worker offline, archive busy or PC not ready"
+                    },
+                    "422": {
+                        "description": "Invalid request"
+                    }
+                },
+                "security": [
+                    {
+                        "cookieAuth": []
+                    }
+                ]
+            }
+        },
+        "/zalo-team/archive/assets/{id}": {
+            "get": {
+                "tags": [
+                    "Zalo Team"
+                ],
+                "summary": "Read a stored file owned by the current CRM user",
+                "operationId": "zaloTeamArchiveAsset",
+                "parameters": [
+                    {
+                        "name": "id",
+                        "in": "path",
+                        "required": true,
+                        "schema": {
+                            "type": "string",
+                            "pattern": "^[a-f0-9]{64}$"
+                        }
+                    }
+                ],
+                "responses": {
+                    "200": {
+                        "description": "Private file"
+                    },
+                    "206": {
+                        "description": "Byte range"
+                    },
+                    "401": {
+                        "description": "Login required"
+                    },
+                    "404": {
+                        "description": "File not accessible"
+                    }
+                },
+                "security": [
+                    {
+                        "cookieAuth": []
+                    }
+                ]
+            }
+        },
         "/": {
             "get": {
                 "tags": [
@@ -5424,6 +5667,125 @@
                     }
                 ]
             }
+        },
+        "/quotations/{id}/void-preview": {
+            "post": {
+                "tags": [
+                    "Quotations"
+                ],
+                "summary": "Preview cancellation and ledger/budget/KPI impact; requires quotation.void and allocation permission",
+                "operationId": "quotationVoidPreview",
+                "parameters": [
+                    {
+                        "name": "id",
+                        "in": "path",
+                        "required": true,
+                        "schema": {
+                            "type": "integer"
+                        }
+                    }
+                ],
+                "requestBody": {
+                    "required": true,
+                    "content": {
+                        "application/json": {
+                            "schema": {
+                                "$ref": "#/components/schemas/QuotationVoidPreviewRequest"
+                            }
+                        }
+                    }
+                },
+                "responses": {
+                    "200": {
+                        "description": "Preview with fingerprint, entries, blockers and warnings",
+                        "content": {
+                            "application/json": {
+                                "schema": {
+                                    "$ref": "#/components/schemas/GenericObject"
+                                }
+                            }
+                        }
+                    },
+                    "403": {
+                        "description": "Insufficient permissions"
+                    },
+                    "422": {
+                        "description": "Invalid destination"
+                    }
+                },
+                "security": [
+                    {
+                        "cookieAuth": []
+                    }
+                ],
+                "servers": [
+                    {
+                        "url": "http://localhost:4000/api",
+                        "description": "Local API server"
+                    }
+                ]
+            }
+        },
+        "/quotations/{id}/void": {
+            "post": {
+                "tags": [
+                    "Quotations"
+                ],
+                "summary": "Atomically cancel without deleting bank evidence. Replay same requestId/body safely.",
+                "operationId": "quotationVoid",
+                "parameters": [
+                    {
+                        "name": "id",
+                        "in": "path",
+                        "required": true,
+                        "schema": {
+                            "type": "integer"
+                        }
+                    }
+                ],
+                "requestBody": {
+                    "required": true,
+                    "content": {
+                        "application/json": {
+                            "schema": {
+                                "$ref": "#/components/schemas/QuotationVoidRequest"
+                            }
+                        }
+                    }
+                },
+                "responses": {
+                    "200": {
+                        "description": "Cancelled quotation and audit, or successful replay",
+                        "content": {
+                            "application/json": {
+                                "schema": {
+                                    "$ref": "#/components/schemas/GenericObject"
+                                }
+                            }
+                        }
+                    },
+                    "403": {
+                        "description": "Insufficient permissions"
+                    },
+                    "409": {
+                        "description": "Stale preview or conflicting request"
+                    },
+                    "422": {
+                        "description": "Refund, budget or confirmation blocker"
+                    }
+                },
+                "security": [
+                    {
+                        "cookieAuth": []
+                    }
+                ],
+                "servers": [
+                    {
+                        "url": "http://localhost:4000/api",
+                        "description": "Local API server"
+                    }
+                ]
+            }
         }
     },
     "components": {
@@ -5650,6 +6012,21 @@
                         "format": "date",
                         "nullable": true
                     },
+                    "currency": {
+                        "description": "Report amounts share this unit; no automatic FX conversion. Omit on update to preserve the saved currency.",
+                        "type": "string",
+                        "default": "VND",
+                        "enum": [
+                            "VND",
+                            "USD",
+                            "EUR",
+                            "AUD"
+                        ]
+                    },
+                    "currencyChangeConfirmed": {
+                        "description": "Required true when changing a saved report currency; required monetary measures must be supplied again; remainingAccountBudget may be null or omitted.",
+                        "type": "boolean"
+                    },
                     "weeklyCondition": {
                         "type": "string",
                         "maxLength": 50
@@ -5665,8 +6042,10 @@
                         "minimum": 0
                     },
                     "remainingAccountBudget": {
+                        "description": "Null or blank hides the customer-report balance card. Explicit zero is displayed. Omit on same-currency update to preserve the saved value.",
                         "type": "number",
                         "format": "float",
+                        "nullable": true,
                         "minimum": 0
                     },
                     "totalBudget": {
@@ -5811,6 +6190,66 @@
                     }
                 },
                 "type": "object"
+            },
+            "QuotationVoidPreviewRequest": {
+                "required": [
+                    "mode"
+                ],
+                "properties": {
+                    "mode": {
+                        "type": "string",
+                        "enum": [
+                            "release",
+                            "transfer"
+                        ]
+                    },
+                    "targetQuotationId": {
+                        "description": "Required for transfer; same customer/project, active and outstanding.",
+                        "type": "integer",
+                        "nullable": true
+                    }
+                },
+                "type": "object"
+            },
+            "QuotationVoidRequest": {
+                "required": [
+                    "mode",
+                    "reason",
+                    "confirmationCode",
+                    "fingerprint",
+                    "requestId"
+                ],
+                "properties": {
+                    "mode": {
+                        "type": "string",
+                        "enum": [
+                            "release",
+                            "transfer"
+                        ]
+                    },
+                    "targetQuotationId": {
+                        "type": "integer",
+                        "nullable": true
+                    },
+                    "reason": {
+                        "type": "string",
+                        "maxLength": 2000,
+                        "minLength": 5
+                    },
+                    "confirmationCode": {
+                        "type": "string"
+                    },
+                    "fingerprint": {
+                        "type": "string",
+                        "maxLength": 64,
+                        "minLength": 64
+                    },
+                    "requestId": {
+                        "type": "string",
+                        "format": "uuid"
+                    }
+                },
+                "type": "object"
             }
         },
         "securitySchemes": {
@@ -5882,6 +6321,10 @@
         },
         {
             "name": "Permissions"
+        },
+        {
+            "name": "Zalo Team",
+            "description": "Zalo Team"
         }
     ]
 }

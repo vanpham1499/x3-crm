@@ -1,0 +1,39 @@
+# Linux VPS voice process for the full production stack.
+services:
+  call:
+    build:
+      context: ../../..
+      dockerfile: tooling/zalo-team/service/call.Dockerfile
+    restart: unless-stopped
+    init: true
+    environment:
+      CALL_ENGINE: zrtc
+      CALL_BIND_ADDRESS: 0.0.0.0
+      CALL_MEDIA_ADDRESS: ${ZALO_MEDIA_IP:?Set the public Zalo VPS media address}
+      CALL_CONNECTOR_URL: http://connector:9250
+      CALL_CONNECTOR_TOKEN_FILE: /run/secrets/connector_token
+      CALL_TOKEN_FILE: /run/secrets/call_token
+    secrets: [call_token, connector_token]
+    ports:
+      - '127.0.0.1:9260:9260'
+      - '41000-41031:41000-41031/udp'
+    mem_limit: 384m
+    cpus: 1.0
+    pids_limit: 64
+    cap_drop: [ALL]
+    security_opt: [no-new-privileges:true]
+    read_only: true
+    tmpfs: ['/tmp:size=16m,mode=1777']
+    healthcheck:
+      test: [CMD, node, -e, 'fetch("http://127.0.0.1:9260/health").then(async r=>{const h=await r.json();process.exit(h.callReady&&h.provider==="zrtc"?0:1)}).catch(()=>process.exit(1))']
+      interval: 30s
+      timeout: 5s
+      start_period: 15s
+      retries: 3
+    logging:
+      driver: json-file
+      options: {max-size: '2m', max-file: '2'}
+    depends_on: [connector]
+  frontend:
+    environment:
+      ZALO_TEAM_CALL_URL: http://call:9260

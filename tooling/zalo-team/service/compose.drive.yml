@@ -1,0 +1,31 @@
+# Layer on compose.vps-local.yml after the restricted service account is configured.
+# docker compose -f compose.vps-local.yml -f compose.drive.yml up -d api sync backup drive
+services:
+  api:
+    secrets: [drive_credentials]
+  sync:
+    secrets: [drive_credentials]
+  backup:
+    secrets: [drive_credentials]
+  drive:
+    image: x3-zalo-team-api:local
+    restart: unless-stopped
+    init: true
+    network_mode: host
+    env_file: service.env
+    secrets: [drive_credentials]
+    volumes: [/opt/x3-zalo-team/data:/data]
+    command: [php, -d, memory_limit=192M, artisan, 'zalo-team:drive', --watch, --max-seconds=1800]
+    mem_limit: 256m
+    cpus: 1.0
+    pids_limit: 32
+    logging:
+      driver: json-file
+      options:
+        max-size: 2m
+        max-file: '2'
+    deploy:
+      replicas: 8
+secrets:
+  drive_credentials:
+    file: ./secrets/drive-credentials.json

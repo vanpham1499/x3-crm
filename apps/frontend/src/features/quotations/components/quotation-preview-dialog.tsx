@@ -1,6 +1,7 @@
 'use client';
 
 import Image from 'next/image';
+import { ZaloDocumentButton } from '@/features/zalo-crm/zalo-document-share';
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import CheckCircleRoundedIcon from '@mui/icons-material/CheckCircleRounded';
 import DownloadRoundedIcon from '@mui/icons-material/DownloadRounded';
@@ -395,11 +396,23 @@ function CustomerQuotationTable({ quotation }: { quotation: Quotation }) {
 }
 
 export function QuotationPreviewDialog({
-  quotation,
+  quotation: initialQuotation,
   onClose,
   autoDownloadPdf = false,
   onAutoDownloadPdfComplete,
 }: QuotationPreviewDialogProps) {
+  const { data: freshQuotation, isFetching: refreshingQuotation } = useQuery<
+    Quotation & { deliveryVersion?: string }
+  >({
+    queryKey: ['quotations', initialQuotation?.id, 'customer-delivery-preview'],
+    queryFn: ({ signal }) =>
+      api.get(`/quotations/${initialQuotation?.id}`, { signal }).then((r) => r.data),
+    enabled: !!initialQuotation && !initialQuotation.isVoided,
+    staleTime: 0,
+    retry: false,
+    refetchOnWindowFocus: false,
+  });
+  const quotation = freshQuotation || initialQuotation;
   const notify = useAppNotification();
   const customerSheetRef = useRef<HTMLElement | null>(null);
   const autoDownloadedQuotationIdRef = useRef<number | null>(null);
@@ -430,8 +443,10 @@ export function QuotationPreviewDialog({
 
   useEffect(() => {
     setMode('detail');
-    setRequestedPaymentAmount(quotation ? String(Math.round(payableAmount(quotation))) : '');
     autoDownloadedQuotationIdRef.current = null;
+  }, [initialQuotation]);
+  useEffect(() => {
+    setRequestedPaymentAmount(quotation ? String(Math.round(payableAmount(quotation))) : '');
   }, [quotation]);
 
   useEffect(() => {
@@ -664,6 +679,15 @@ export function QuotationPreviewDialog({
             >
               {isCopyingImage ? 'Đang lấy ảnh...' : 'Lấy ảnh'}
             </DialogActionButton>
+            <ZaloDocumentButton
+              kind="quotation"
+              id={quotation.id}
+              version={freshQuotation?.deliveryVersion}
+              getElement={() => customerSheetRef.current}
+              disabled={
+                refreshingQuotation || isFetchingSiteProfile || Boolean(requestedPaymentError)
+              }
+            />
           </>
         )
       }

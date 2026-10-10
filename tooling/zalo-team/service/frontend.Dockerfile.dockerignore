@@ -1,0 +1,13 @@
+**/node_modules
+**/.next
+**/.env*
+**/.local
+**/.work
+**/*.test.*
+**/tests
+.git
+**/storage
+**/vendor
+tooling
+!tooling/zalo-team/service/frontend.Dockerfile
+!tooling/zalo-team/service/frontend.Dockerfile.dockerignore

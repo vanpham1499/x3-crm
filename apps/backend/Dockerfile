@@ -6,8 +6,8 @@ RUN composer install --no-dev --no-interaction --prefer-dist --optimize-autoload
 FROM php:8.2-cli-alpine
 WORKDIR /app
 
-RUN apk add --no-cache postgresql-dev \
-  && docker-php-ext-install pdo pdo_pgsql pcntl
+RUN apk add --no-cache postgresql-dev libzip-dev \
+  && docker-php-ext-install pdo pdo_pgsql pcntl zip
 
 COPY . .
 COPY --from=vendor /app/vendor ./vendor

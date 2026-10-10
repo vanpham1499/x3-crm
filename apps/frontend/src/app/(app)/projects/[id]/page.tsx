@@ -1,6 +1,7 @@
 'use client';
 
 import { useState } from 'react';
+import { ZaloRouteButton } from '@/features/zalo-crm/zalo-document-share';
 import { useParams } from 'next/navigation';
 import DescriptionOutlinedIcon from '@mui/icons-material/DescriptionOutlined';
 import InfoOutlinedIcon from '@mui/icons-material/InfoOutlined';
@@ -370,6 +371,7 @@ export default function EditProjectPage() {
       </section>
 
       <div className="mt-4 flex flex-1 flex-col">
+        <div className="mb-4"><ZaloRouteButton kind="project" id={project.id} /></div>
         {activeTab === 'info' ? (
           <ProjectForm
             mode="edit"

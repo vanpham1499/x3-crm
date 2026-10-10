@@ -1,0 +1,46 @@
+# Add only the frontend to the existing VPS. No archive, database or profile volumes.
+name: x3-zalo-team-frontend
+services:
+  frontend:
+    image: ${ZALO_FRONTEND_IMAGE:?Set an immutable frontend release tag}
+    restart: unless-stopped
+    init: true
+    network_mode: host
+    env_file: frontend.env
+    environment:
+      HOSTNAME: 127.0.0.1
+      PORT: '9300'
+      ZALO_TEAM_RUNTIME: zalo
+      ZALO_TEAM_PUBLIC_ORIGIN: ${ZALO_PUBLIC_ORIGIN:?Set the HTTPS CRM public origin}
+      ZALO_TEAM_API_URL: http://127.0.0.1:9340/api
+      ZALO_TEAM_WEB_URL: http://127.0.0.1:9250
+      ZALO_TEAM_CALL_URL: http://127.0.0.1:9260
+      ZALO_TEAM_CALL_AUTOSTART: 'false'
+      ZALO_TEAM_SERVICE_KEY_FILE: /run/secrets/service_key
+      ZALO_TEAM_WEB_TOKEN_FILE: /run/secrets/connector_token
+      ZALO_TEAM_CALL_TOKEN_FILE: /run/secrets/call_token
+      NODE_OPTIONS: --max-old-space-size=1024
+    secrets: [service_key, connector_token, call_token]
+    mem_limit: 1536m
+    cpus: 2.0
+    pids_limit: 128
+    cap_drop: [ALL]
+    security_opt: [no-new-privileges:true]
+    read_only: true
+    tmpfs: ['/tmp:size=64m,mode=1777', '/app/apps/frontend/.next/cache:size=64m,uid=1000,gid=1000']
+    healthcheck:
+      test: [CMD, node, -e, 'fetch("http://127.0.0.1:9300/api/zalo-team/health").then(r=>process.exit(r.ok?0:1)).catch(()=>process.exit(1))']
+      interval: 30s
+      timeout: 5s
+      start_period: 30s
+      retries: 3
+    logging:
+      driver: json-file
+      options: {max-size: '5m', max-file: '3'}
+secrets:
+  service_key:
+    file: ./secrets/service-key
+  connector_token:
+    file: ./secrets/connector-token
+  call_token:
+    file: ./secrets/call-token
