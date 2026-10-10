@@ -1,5 +1,7 @@
 # X3 CRM
 
+**10/10 — Đã deploy production:** bản `team-20261010` từ nhánh `codex/zalo-team-crm-integration` đã chạy trên CRM và VPS Zalo. Menu Zalo Team, các màn mới, công việc/phân công và gửi tài liệu CRM đã lên server; kiểm tra Chrome đăng nhập thật: inbox 294 hội thoại/4 tài khoản, chiến dịch, công việc, đồng bộ, tạo preview PDF đạt. Chưa gửi tài liệu/tin nhắn thật để nghiệm thu. Xem [biên bản và rollback](tooling/deployment/production/RELEASE-2026-10-10.md). Các mục local bên dưới là nhật ký trước triển khai.
+
 **10/10 — Menu CRM local:** đã bật lại mục **Zalo Team** ngay dưới Dashboard, mở `/zalo-team` trong tab mới. Quyền tài khoản Zalo vẫn do backend kiểm tra; chưa deploy thay đổi menu lên VPS.
 
 **CRM → Zalo, đợt 1 — 09/10:** đã triển khai local liên kết nhóm nhận, gửi báo phí/báo cáo đã duyệt trực tiếp bằng PDF/ảnh và lịch sử gửi. Hướng dẫn tại [README.ZALO-CRM.md](README.ZALO-CRM.md). Chưa gửi thật/nghiệm thu VPS; tự động báo thanh toán là đợt sau.
