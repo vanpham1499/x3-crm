@@ -141,6 +141,19 @@ class ProjectWeeklySettingRepository extends BaseRepository
             return;
         }
 
+        $teamIds = $user->accessibleTeamIds();
+
+        if ($user->hasPermission('weeklyreport.view_team') && $teamIds !== []) {
+            $query->where(function (Builder $scope) use ($teamIds): void {
+                $scope
+                    ->whereHas('reportOwner', fn (Builder $owner) => $owner->whereIn('team_id', $teamIds))
+                    ->orWhereHas('project.managerUser', fn (Builder $manager) => $manager->whereIn('team_id', $teamIds))
+                    ->orWhereHas('project.salesUser', fn (Builder $sales) => $sales->whereIn('team_id', $teamIds));
+            });
+
+            return;
+        }
+
         if ($user->hasPermission('weeklyreport.view')) {
             $query->where(function (Builder $scope) use ($user): void {
                 $scope

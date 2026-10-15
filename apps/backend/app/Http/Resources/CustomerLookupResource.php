@@ -39,6 +39,7 @@ class CustomerLookupResource extends JsonResource
                 'name' => $this->salesUser->name,
                 'email' => $this->salesUser->email,
                 'departmentId' => $this->salesUser->department_id,
+                'teamId' => $this->salesUser->team_id,
             ] : null),
             'createdAt' => $this->created_at?->toISOString(),
             'updatedAt' => $this->updated_at?->toISOString(),

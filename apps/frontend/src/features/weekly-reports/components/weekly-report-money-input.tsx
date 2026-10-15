@@ -13,6 +13,7 @@ type WeeklyReportMoneyInputProps = Omit<
   value: string;
   currency: WeeklyReportCurrency;
   onValueChange: (value: string) => void;
+  readOnly?: boolean;
 };
 
 // A report-local decimal input; it does not change the global VND MoneyInput.
@@ -20,6 +21,7 @@ export function WeeklyReportMoneyInput({
   value,
   currency,
   onValueChange,
+  readOnly = false,
   error,
   helperText,
   className = '',
@@ -46,12 +48,15 @@ export function WeeklyReportMoneyInput({
       }
       onFocus={() => setFocused(true)}
       onBlur={() => {
-        if (amount !== null) onValueChange(amount);
+        if (!readOnly && amount !== null) onValueChange(amount);
         setFocused(false);
       }}
       onChange={(event) => onValueChange(event.target.value)}
       slotProps={{
-        input: { endAdornment: <InputAdornment position="end">{currency}</InputAdornment> },
+        input: {
+          readOnly,
+          endAdornment: <InputAdornment position="end">{currency}</InputAdornment>,
+        },
         htmlInput: { inputMode: 'decimal', autoComplete: 'off', maxLength: 24 },
       }}
     />

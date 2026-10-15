@@ -2,7 +2,13 @@
 
 import { useEffect, useRef, useState, type ReactNode } from 'react';
 import SaveRoundedIcon from '@mui/icons-material/SaveRounded';
-import { Alert, AlertTitle, MenuItem } from '@mui/material';
+import PhotoCameraRoundedIcon from '@mui/icons-material/PhotoCameraRounded';
+import LightbulbOutlinedIcon from '@mui/icons-material/LightbulbOutlined';
+import { ReportTemplatePicker } from './report-template-picker';
+import { insertTemplateText } from '../template-text';
+import { PrimaryActionButton } from '@/components/actions/primary-action-button';
+import { WeeklyReportCustomerPreviewDialog } from './weekly-report-customer-preview-dialog';
+import { Alert, AlertTitle, Button, MenuItem } from '@mui/material';
 import { useQuery } from '@tanstack/react-query';
 import { FormActionBar } from '@/components/form/form-action-bar';
 import { compactFormFieldClassName } from '@/components/form/form-field-styles';
@@ -15,6 +21,7 @@ import {
   getWeeklyReportCurrency,
   parseWeeklyReportAmount,
   weeklyReportMoneyDefaults,
+  calculateWeeklyBudget,
 } from '@/lib/weekly-report-money';
 import { PageHeader } from '@/components/shell/page-header';
 import { WeeklyReportAttachmentsPanel } from '@/features/weekly-reports/components/weekly-report-attachments-panel';
@@ -96,12 +103,45 @@ export function WeeklyReportForm({
   const moneyEdited = useRef(false);
   const [weeklyCondition, setWeeklyCondition] = useState('');
   const [weeklySpendAmount, setWeeklySpendAmount] = useState('0');
-  const [averageWeeklyBudget, setAverageWeeklyBudget] = useState('0');
+  const [savedAverageWeeklyBudget, setAverageWeeklyBudget] = useState('0');
   const [remainingAccountBudget, setRemainingAccountBudget] = useState('');
   const [totalBudget, setTotalBudget] = useState('0');
   const [summary, setSummary] = useState('');
+  const [suggestionsOpen, setSuggestionsOpen] = useState(false);
+  const [insertionUndo, setInsertionUndo] = useState<{ before: string; after: string } | null>(
+    null,
+  );
+  const summaryCaret = useRef<number | undefined>(undefined);
+  const summaryInput = useRef<HTMLTextAreaElement | null>(null);
+  useEffect(() => {
+    setInsertionUndo(null);
+    summaryCaret.current = undefined;
+    setSuggestionsOpen(false);
+  }, [report?.id, projectId]);
   const [draftMessages, setDraftMessages] = useState<WeeklyReportMessageDraft[]>([]);
   const [fieldErrors, setFieldErrors] = useState<Record<string, string>>({});
+  const [imagesBusy, setImagesBusy] = useState(false);
+  const [imageReport, setImageReport] = useState<WeeklyReport | null>(null);
+  const [preparingImage, setPreparingImage] = useState(false);
+  const imageRequestLock = useRef(false);
+  const totalChanged =
+    !report ||
+    currency !== getWeeklyReportCurrency(report.currency) ||
+    parseWeeklyReportAmount(totalBudget) !==
+      parseWeeklyReportAmount(report.totalBudget ?? report.monthlyBudget ?? '0');
+  const averageWeeklyBudget = totalChanged
+    ? calculateWeeklyBudget(totalBudget)
+    : savedAverageWeeklyBudget;
+  const hasUnsavedChanges = Boolean(
+    report &&
+    (totalChanged ||
+      weeklyCondition.trim() !== (report.weeklyCondition || '').trim() ||
+      summary.trim() !== (report.summary || '').trim() ||
+      parseWeeklyReportAmount(weeklySpendAmount) !==
+        parseWeeklyReportAmount(report.weeklySpendAmount ?? '0') ||
+      parseWeeklyReportAmount(remainingAccountBudget) !==
+        parseWeeklyReportAmount(report.remainingAccountBudget)),
+  );
 
   const selectedProject = projects.find((project) => String(project.id) === projectId) || null;
   const statusAllowsWeeklyReport = projectStatusRequiresWeeklyReport(selectedProject?.statusOption);
@@ -223,7 +263,20 @@ export function WeeklyReportForm({
     setRemainingAccountBudget(String(report.remainingAccountBudget ?? ''));
     setTotalBudget(String(report.totalBudget ?? report.monthlyBudget ?? '0'));
     setSummary(report.summary || '');
-  }, [report, reportDueDate]);
+    // An attachment/presence refetch must not erase unsaved text or amounts.
+  }, [
+    report?.id,
+    report?.projectId,
+    report?.currency,
+    report?.monthlyBudget,
+    report?.weeklyCondition,
+    report?.weeklySpendAmount,
+    report?.averageWeeklyBudget,
+    report?.remainingAccountBudget,
+    report?.totalBudget,
+    report?.summary,
+    reportDueDate,
+  ]);
 
   const applyCurrency = (next: WeeklyReportCurrency) => {
     moneyEdited.current = true;
@@ -313,9 +366,22 @@ export function WeeklyReportForm({
 
     try {
       setFieldErrors({});
-      await onSubmit(payload);
+      return (await onSubmit(payload)) as WeeklyReport;
     } catch (error) {
       setFieldErrors(getApiFieldErrors(error));
+    }
+  };
+
+  const takeImage = async () => {
+    if (!report || imagesBusy || isSubmitting || imageRequestLock.current) return;
+    imageRequestLock.current = true;
+    setPreparingImage(true);
+    try {
+      const saved = !isReadOnly && hasUnsavedChanges ? await submitForm() : report;
+      if (saved?.id) setImageReport(saved);
+    } finally {
+      setPreparingImage(false);
+      imageRequestLock.current = false;
     }
   };
 
@@ -345,7 +411,25 @@ export function WeeklyReportForm({
             </span>
           ) : undefined
         }
-        actions={headerActions}
+        actions={
+          <div className="flex flex-wrap items-center gap-2">
+            {report && (
+              <PrimaryActionButton
+                tone="secondary"
+                startIcon={<PhotoCameraRoundedIcon />}
+                disabled={isSubmitting || imagesBusy || preparingImage}
+                onClick={takeImage}
+              >
+                {preparingImage
+                  ? 'Đang chuẩn bị ảnh...'
+                  : !isReadOnly && hasUnsavedChanges
+                    ? 'Lưu và lấy ảnh'
+                    : 'Lấy ảnh'}
+              </PrimaryActionButton>
+            )}
+            {headerActions}
+          </div>
+        }
       />
 
       {report?.status === 'rejected' && report.rejectionReason ? (
@@ -524,16 +608,57 @@ export function WeeklyReportForm({
             </div>
           </FormSection>
 
-          <FormSection title="3. Đánh giá & phương án triển khai">
+          <FormSection
+            title="3. Đánh giá & phương án triển khai"
+            action={
+              !isReadOnly ? (
+                <Button
+                  type="button"
+                  className="!shrink-0 !min-h-11"
+                  startIcon={<LightbulbOutlinedIcon />}
+                  disabled={isSubmitting}
+                  onClick={() => setSuggestionsOpen(true)}
+                >
+                  Gợi ý
+                </Button>
+              ) : undefined
+            }
+          >
             <FormInputField
               multiline
               minRows={4}
               label="Ghi chú gửi khách"
               value={summary}
+              inputRef={summaryInput}
+              onSelect={() => {
+                summaryCaret.current = summaryInput.current?.selectionStart;
+              }}
               disabled={isReadOnly}
               helperText="Đây là nội dung duy nhất của mục 3 xuất hiện trong bản gửi khách."
-              onChange={(event) => setSummary(event.target.value)}
+              onChange={(event) => {
+                setSummary(event.target.value);
+                setInsertionUndo(null);
+              }}
             />
+            {insertionUndo && summary === insertionUndo.after && !isReadOnly && (
+              <div
+                className="flex items-center justify-between gap-3 text-sm text-slate-500"
+                role="status"
+              >
+                <span>Đã chèn nội dung gợi ý</span>
+                <Button
+                  type="button"
+                  disabled={isSubmitting}
+                  onClick={() => {
+                    setSummary(insertionUndo.before);
+                    setInsertionUndo(null);
+                    summaryCaret.current = undefined;
+                  }}
+                >
+                  Hoàn tác
+                </Button>
+              </div>
+            )}
 
             <WeeklyReportConversation
               mode={mode}
@@ -552,6 +677,7 @@ export function WeeklyReportForm({
               reportId={report.id}
               attachments={report.attachments || []}
               readOnly={isReadOnly}
+              onBusyChange={setImagesBusy}
             />
           ) : (
             <WeeklyReportAttachmentsPanel
@@ -613,14 +739,6 @@ export function WeeklyReportForm({
                   <MenuItem disabled>Chưa có đơn vị tiền tệ được cấu hình</MenuItem>
                 ) : null}
               </FormSelectField>
-              <p className="text-xs font-medium leading-5 text-slate-500">
-                Cả bốn chỉ tiêu dùng cùng đơn vị {currency}. Nhập trực tiếp số trên tài khoản quảng
-                cáo; chấp nhận dấu phẩy hoặc dấu chấm thập phân, tối đa 2 chữ số. Không tự quy đổi
-                tỷ giá.
-                {currency !== 'VND'
-                  ? ' Ngân sách VND của Project không tự điền vào báo cáo ngoại tệ.'
-                  : ''}
-              </p>
             </div>
             <div className="grid gap-3 md:grid-cols-2">
               <WeeklyReportMoneyInput
@@ -650,15 +768,15 @@ export function WeeklyReportForm({
                 currency={currency}
                 required
                 error={Boolean(fieldErrors.averageWeeklyBudget)}
-                helperText={fieldErrors.averageWeeklyBudget}
+                helperText={
+                  fieldErrors.averageWeeklyBudget ||
+                  (totalChanged ? 'Tổng ngân sách / 30 × 7' : undefined)
+                }
+                readOnly
                 disabled={
                   isReadOnly || isSubmitting || (mode === 'create' && isProjectSettingsLoading)
                 }
-                onValueChange={(value) => {
-                  moneyEdited.current = true;
-                  setAverageWeeklyBudget(value);
-                  setFieldErrors((current) => ({ ...current, averageWeeklyBudget: '' }));
-                }}
+                onValueChange={() => {}}
                 className={compactFormFieldClassName}
               />
               <WeeklyReportMoneyInput
@@ -669,10 +787,7 @@ export function WeeklyReportForm({
                 currency={currency}
                 placeholder="Không có số liệu"
                 error={Boolean(fieldErrors.remainingAccountBudget)}
-                helperText={
-                  fieldErrors.remainingAccountBudget ||
-                  'Không bắt buộc. Để trống để ẩn mục này trên bản gửi khách; nhập 0 nếu số dư bằng 0.'
-                }
+                helperText={fieldErrors.remainingAccountBudget}
                 disabled={
                   isReadOnly || isSubmitting || (mode === 'create' && isProjectSettingsLoading)
                 }
@@ -737,6 +852,26 @@ export function WeeklyReportForm({
           if (pendingCurrency) applyCurrency(pendingCurrency);
         }}
       />
+      <ReportTemplatePicker
+        open={suggestionsOpen && !isReadOnly}
+        onClose={() => setSuggestionsOpen(false)}
+        serviceId={selectedProject?.serviceId}
+        onInsert={(texts) => {
+          if (isReadOnly || isSubmitting) return;
+          const result = insertTemplateText(summary, texts, summaryCaret.current);
+          setInsertionUndo({ before: summary, after: result.text });
+          setSummary(result.text);
+          summaryCaret.current = result.caret;
+        }}
+      />
+      {imageReport && (
+        <WeeklyReportCustomerPreviewDialog
+          key={imageReport.id}
+          report={imageReport}
+          autoCopyImage
+          onClose={() => setImageReport(null)}
+        />
+      )}
     </form>
   );
 }

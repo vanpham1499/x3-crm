@@ -33,6 +33,13 @@ import type { AppOption } from '@/types/option';
 
 const SETTING_LINKS = [
   {
+    href: '/settings/weekly-report-templates',
+    label: 'Mẫu báo cáo tuần',
+    permission: 'weeklytemplate.manage',
+    icon: GradingRoundedIcon,
+    iconClassName: 'bg-primary/10 text-primary',
+  },
+  {
     href: '/settings/services',
     label: 'Dịch vụ',
     permission: 'service.view',

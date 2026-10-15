@@ -92,6 +92,15 @@ class P2PointRepository extends BaseRepository
             );
         }
 
+        $teamIds = $user->accessibleTeamIds();
+
+        if ($user->hasPermission('p2point.view_team') && $teamIds !== []) {
+            return $query->whereHas(
+                'user',
+                fn (Builder $pointUser) => $pointUser->whereIn('team_id', $teamIds),
+            );
+        }
+
         if ($user->hasPermission('p2point.view')) {
             return $query->where('user_id', $user->id);
         }

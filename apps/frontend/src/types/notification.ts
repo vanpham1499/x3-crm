@@ -3,7 +3,8 @@ export type NotificationSeverity = 'info' | 'success' | 'warning' | 'error';
 
 export type UserNotification = {
   id: number;
-  module: 'lead' | 'project' | 'meeting' | 'weekly_report' | 'cost' | 'payment' | 'p2point' | string;
+  module:
+    'lead' | 'project' | 'meeting' | 'weekly_report' | 'cost' | 'payment' | 'p2point' | string;
   eventKey: string;
   title: string;
   message?: string | null;
@@ -19,6 +20,9 @@ export type UserNotification = {
   createdAt: string;
   isRead: boolean;
   isResolved: boolean;
+  isDone: boolean;
+  handledAt?: string | null;
+  doneSource?: 'manual' | 'workflow' | 'legacy_archive' | null;
   actor?: {
     id: number;
     code: string;
@@ -28,6 +32,8 @@ export type UserNotification = {
 
 export type NotificationSummary = {
   totalCount: number;
+  doneCount: number;
+  modules: Array<{ module: string; pendingCount: number; doneCount: number; unreadCount: number }>;
   archivedCount: number;
   unreadCount: number;
   pendingActionCount: number;

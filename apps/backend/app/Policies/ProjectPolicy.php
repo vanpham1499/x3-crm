@@ -49,6 +49,10 @@ class ProjectPolicy
             return true;
         }
 
+        if ($user->hasPermission("project.{$action}_team") && $project->isInTeamOf($user)) {
+            return true;
+        }
+
         return $user->hasPermission("project.{$action}")
             && ($project->isManagedBy($user) || $project->isAssignedTo($user));
     }
@@ -63,6 +67,14 @@ class ProjectPolicy
             ($user->hasPermission('project.view_department')
                 || $user->hasPermission('project.update_department'))
             && $customer->isInDepartmentOf($user)
+        ) {
+            return true;
+        }
+
+        if (
+            ($user->hasPermission('project.view_team')
+                || $user->hasPermission('project.update_team'))
+            && $customer->isInTeamOf($user)
         ) {
             return true;
         }

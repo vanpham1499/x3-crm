@@ -56,11 +56,31 @@ export type ProjectCostCidIncident = {
 };
 
 export type ProjectCost = {
+  fundingSource?: 'cash' | 'promotion';
+  promotionCode?: string | null;
+  promotionExpiresOn?: string | null;
+  promotionUsedAmount?: string | number | null;
+  promotionRevokedAmount?: string | number | null;
+  promotionAvailableAmount?: string | number | null;
+  promotionEvidenceUrl?: string | null;
+  promotionHistory?: {
+    at: string;
+    actor: string;
+    note?: string | null;
+    before: Record<string, unknown> | null;
+    after: Record<string, unknown>;
+  }[];
   id: number;
   projectId: number;
   quotationId?: number | null;
   entryType: ProjectCostEntryType;
   transactionDate?: string | null;
+  workPeriod?: string | null;
+  usesPaymentLedger?: boolean;
+  partnerPaidAmount?: number | string | null;
+  partnerPayableAmount?: number | string | null;
+  partnerRecognizedAmount?: number | string | null;
+  recognitionAllocations?: { period: string; amount: number }[];
   status: ProjectCostStatus;
   cid?: string | null;
   adAccount?: string | null;
@@ -154,6 +174,13 @@ export type ProjectCostCidIncidentInput = {
 };
 
 export type ProjectCostFormValues = {
+  fundingSource: 'cash' | 'promotion';
+  promotionCode: string;
+  promotionExpiresOn: string;
+  promotionUsedAmount: string;
+  promotionRevokedAmount: string;
+  promotionEvidenceUrl: string;
+  workPeriod: string;
   quotationId: string;
   transactionDate: string;
   cid: string;

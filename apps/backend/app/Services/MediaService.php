@@ -5,6 +5,7 @@ namespace App\Services;
 use App\Http\Resources\AttachmentResource;
 use App\Models\Attachment;
 use App\Models\Customer;
+use App\Models\ProjectCost;
 use App\Models\Quotation;
 use App\Models\User;
 use App\Models\WeeklyReportAttachment;
@@ -59,6 +60,15 @@ class MediaService extends BaseService
                 $query->whereHas(
                     'uploadedBy',
                     fn (Builder $uploader) => $uploader->whereIn('department_id', $departmentIds),
+                );
+            }
+
+            $teamIds = $user->accessibleTeamIds();
+
+            if ($user->hasPermission('media.view_team') && $teamIds !== []) {
+                $query->whereHas(
+                    'uploadedBy',
+                    fn (Builder $uploader) => $uploader->whereIn('team_id', $teamIds),
                 );
             } else {
                 $query->where('uploaded_by', $user->id);
@@ -137,6 +147,10 @@ class MediaService extends BaseService
             $attachment = $this->findAccessibleImage($id, $user, 'delete');
             $this->attachUsageMetadata(collect([$attachment]));
             $usages = $attachment->getRelation('mediaUsages')?->all() ?? [];
+
+            if (collect($usages)->contains('type', 'ad_promotion')) {
+                throw new ConflictHttpException('Ảnh xác nhận MKM được giữ để đối soát lịch sử, không thể xóa khỏi thư viện.');
+            }
 
             if ($usages !== [] && ! $detachUsage) {
                 $sources = collect($usages)
@@ -318,6 +332,30 @@ class MediaService extends BaseService
                     'label' => $label ?: "Báo cáo #{$report->id}",
                     'href' => "/weekly-reports/{$report->id}",
                 ]);
+            }
+        }
+
+        if (Schema::hasColumn('project_costs', 'promotion_evidence_url')) {
+            $promotions = ProjectCost::withTrashed()->where('funding_source', 'promotion')
+                ->where(function ($query) use ($urls): void {
+                    $query->whereIn('promotion_evidence_url', $urls);
+                    foreach ($urls as $url) {
+                        $query->orWhereJsonContains('promotion_history', [['after' => ['promotion_evidence_url' => $url]]]);
+                        $query->orWhereJsonContains('promotion_history', [['before' => ['promotion_evidence_url' => $url]]]);
+                    }
+                })->get();
+            foreach ($promotions as $promotion) {
+                $references = collect([$promotion->promotion_evidence_url]);
+                foreach ($promotion->promotion_history ?? [] as $event) {
+                    $references->push($event['before']['promotion_evidence_url'] ?? null, $event['after']['promotion_evidence_url'] ?? null);
+                }
+                foreach ($references->filter()->unique() as $url) {
+                    $appendUsage($url, [
+                        'type' => 'ad_promotion', 'typeLabel' => 'Mã khuyến mãi', 'entityId' => $promotion->id,
+                        'label' => $promotion->promotion_code.' · CID '.$promotion->cid,
+                        'href' => "/projects/{$promotion->project_id}",
+                    ]);
+                }
             }
         }
 

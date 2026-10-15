@@ -10,7 +10,7 @@ export type MeetingType = 'online' | 'onsite' | 'phone';
 
 export type MeetingRelatedType = 'lead' | 'customer' | 'project';
 
-export type MeetingParticipant = Pick<User, 'id' | 'code' | 'name' | 'departmentId'> & {
+export type MeetingParticipant = Pick<User, 'id' | 'code' | 'name' | 'departmentId' | 'teamId'> & {
   attendanceStatus?: string | null;
 };
 

@@ -16,6 +16,8 @@ class UserResource extends JsonResource
             'email' => $this->email,
             'roleId' => $this->role_id,
             'departmentId' => $this->department_id,
+            'teamId' => $this->team_id,
+            'ledTeamIds' => $this->when($this->relationLoaded('ledTeams'), fn () => $this->ledTeams->pluck('id')->all()),
             'ledDepartmentIds' => $this->when(
                 $this->relationLoaded('ledDepartments'),
                 fn (): array => $this->ledDepartments

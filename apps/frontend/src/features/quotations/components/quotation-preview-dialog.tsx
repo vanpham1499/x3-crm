@@ -32,6 +32,7 @@ import api from '@/services/api/client';
 import type { AppOption } from '@/types/option';
 import type { Quotation, QuotationItem } from '@/types/quotation';
 import { QuotationItemsTable, type QuotationTableLine } from './quotation-items-table';
+import { QuotationPromotionSummary } from './quotation-promotion-summary';
 import { QuotationVoidHistory } from './quotation-void-history';
 import { QuotationSheetViewport } from './quotation-sheet-viewport';
 
@@ -768,6 +769,7 @@ export function QuotationPreviewDialog({
             />
           </section>
 
+          <QuotationPromotionSummary quotation={quotation} />
           <PaymentDetails quotation={quotation} />
 
           {reconciliationImages.length > 0 ? (
@@ -940,6 +942,7 @@ export function QuotationPreviewDialog({
               ) : null}
 
               <CustomerQuotationTable quotation={quotation} />
+              <QuotationPromotionSummary quotation={quotation} />
 
               {quotation.note ? (
                 <section className="mt-5 rounded-lg border border-slate-200 bg-slate-50 px-4 py-3">

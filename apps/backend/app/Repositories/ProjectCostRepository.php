@@ -25,6 +25,17 @@ class ProjectCostRepository extends BaseRepository
         return $this->filteredQuery($filters, $user)->get();
     }
 
+    public function financeCosts(User $user): Collection
+    {
+        $query = $this->query()->where('entry_type', ProjectCost::TYPE_PARTNER_COST)
+            ->where('status', '!=', ProjectCost::STATUS_CANCELLED)->whereHas('project')
+            ->with(['partnerPayments', 'partnerOption', 'project.managerUser', 'project.salesUser',
+                'project.quotations.items', 'project.quotations.paymentAllocations.payment', 'project.quotations.paymentRefunds',
+                'project.quotations.project']);
+        $this->applyVisibilityScope($query, $user);
+        return $query->orderBy('project_id')->orderBy('id')->get();
+    }
+
     public function findPaginated(array $filters, int $perPage, int $page, User $user): LengthAwarePaginator
     {
         if (! filter_var($filters['group_by_project'] ?? false, FILTER_VALIDATE_BOOL)) {
@@ -113,6 +124,7 @@ class ProjectCostRepository extends BaseRepository
             ->when($keyword !== '', fn ($query) => $query->where(function ($query) use ($keyword): void {
                 $query
                     ->where('cid', 'ilike', "%{$keyword}%")
+                    ->orWhere('promotion_code', 'ilike', "%{$keyword}%")
                     ->orWhere('ad_account', 'ilike', "%{$keyword}%")
                     ->orWhereHas('cidIncident', fn ($relation) => $relation
                         ->where('note', 'ilike', "%{$keyword}%"))
@@ -188,6 +200,22 @@ class ProjectCostRepository extends BaseRepository
             return;
         }
 
+        $teamIds = $user->accessibleTeamIds();
+
+        if ($user->hasPermission('cost.view_team') && $teamIds !== []) {
+            $query->where(function (Builder $scope) use ($teamIds, $user): void {
+                $scope
+                    ->where('created_by', $user->id)
+                    ->orWhereHas('project', fn (Builder $project) => $project
+                        ->whereHas('managerUser', fn (Builder $manager) => $manager
+                            ->whereIn('team_id', $teamIds))
+                        ->orWhereHas('salesUser', fn (Builder $sales) => $sales
+                            ->whereIn('team_id', $teamIds)));
+            });
+
+            return;
+        }
+
         $query->where(function (Builder $scope) use ($user): void {
             $scope
                 ->where('created_by', $user->id)
@@ -201,8 +229,8 @@ class ProjectCostRepository extends BaseRepository
     {
         return [
             'project.customer',
-            'project.managerUser:id,department_id',
-            'project.salesUser:id,department_id',
+            'project.managerUser:id,department_id,team_id',
+            'project.salesUser:id,department_id,team_id',
             'project.quotations.items',
             'project.costs.cidIncident',
             'quotation',
@@ -210,6 +238,8 @@ class ProjectCostRepository extends BaseRepository
             'partnerOption',
             'reconciledBy',
             'adjustments',
+            'partnerPayments',
+            'financeRecognition',
             'cidIncident.reportedBy',
             'cidIncident.confirmedBy',
         ];

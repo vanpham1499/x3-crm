@@ -209,8 +209,12 @@ class ProjectsService extends BaseService
 
     public function remove(string $id): array
     {
-        return $this->transaction(function () use ($id): array {
+        return \App\Support\FinancialMutation::run(function () use ($id): array {
             $this->authorize('delete', $this->projects->findOrFail($id));
+            if (DB::table('partner_finance_recognitions')->where('project_id', $id)->exists()
+                || DB::table('partner_cost_payments')->join('project_costs', 'project_costs.id', '=', 'partner_cost_payments.project_cost_id')->where('project_costs.project_id', $id)->exists()) {
+                throw ValidationException::withMessages(['project' => ['Dự án đã có sổ ghi nhận/thanh toán đối tác. Giữ dự án để đối soát lịch sử.']]);
+            }
             $this->projects->delete($id);
 
             return ['message' => 'Xóa dự án thành công'];

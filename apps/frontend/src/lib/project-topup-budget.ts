@@ -2,17 +2,41 @@ import type { ProjectCost } from '@/types/project-cost';
 import { roundQuotationMoney } from './quotation-pricing';
 import type { Quotation } from '@/types/quotation';
 
-function quotationBudget(quotation: Quotation) {
-  const budget = Number(quotation.metadata?.budget);
-  return Number.isFinite(budget) && budget > 0 ? roundQuotationMoney(budget) : 0;
+function metadataFlag(value: unknown) {
+  return (
+    value === true ||
+    value === 1 ||
+    ['1', 'true', 'yes', 'on'].includes(String(value).toLowerCase())
+  );
+}
+
+export function quotationProjectType(quotation: Quotation) {
+  for (const value of [
+    quotation.metadata?.projectType,
+    String(quotation.metadata?.projectCodeBase || '').split('.')[2],
+    quotation.quotationCode?.split('.')[2],
+  ]) {
+    const type = String(value || '')
+      .trim()
+      .toUpperCase();
+    if (['K', 'M', 'O', 'N'].includes(type)) return type;
+  }
+  return null;
 }
 
 export function calculateQuotationEligibleTopupBudget(quotation: Quotation) {
-  if (quotation.isVoided) return 0;
-  const budget = quotationBudget(quotation);
+  if (quotation.isVoided || quotationProjectType(quotation) === 'K') return 0;
+  const hasBudgetLine = (quotation.items || []).some((item) => String(item.itemCode) === '-1');
+  const budget =
+    !hasBudgetLine && quotationProjectType(quotation) === 'M'
+      ? Math.max(0, roundQuotationMoney(Number(quotation.metadata?.budget) || 0))
+      : 0;
   const vatRate = Math.max(0, Number(quotation.vatRate) || 0);
   const extraTopupBudget = (quotation.items || []).reduce((sum, item) => {
-    if (item.metadata?.countsTowardTopupBudget !== true) return sum;
+    if (metadataFlag(item.metadata?.excludedFromTotal)) return sum;
+    if (['-2', '-3'].includes(String(item.itemCode))) return sum;
+    if (String(item.itemCode) !== '-1' && !metadataFlag(item.metadata?.countsTowardTopupBudget))
+      return sum;
 
     if (item.amountAfterVat !== null && item.amountAfterVat !== undefined) {
       const amountAfterVat = Number(item.amountAfterVat);
@@ -23,12 +47,15 @@ export function calculateQuotationEligibleTopupBudget(quotation: Quotation) {
     const itemVatRate = Math.max(0, Number(item.vatRate) || 0);
 
     const afterVat =
-      roundQuotationMoney((amountBeforeVat + (amountBeforeVat * itemVatRate) / 100) * 100) / 100;
+      amountBeforeVat +
+      (item.vatAmount != null
+        ? Number(item.vatAmount)
+        : roundQuotationMoney(amountBeforeVat * itemVatRate) / 100);
     return sum + roundQuotationMoney(afterVat);
   }, 0);
 
   return roundQuotationMoney(
-    budget + roundQuotationMoney((budget * vatRate) / 100) + extraTopupBudget,
+    Math.max(0, budget + roundQuotationMoney((budget * vatRate) / 100) + extraTopupBudget),
   );
 }
 
@@ -38,9 +65,11 @@ function quotationTopupBreakdown(quotation: Quotation) {
     quotation.topupEligibleAmount !== undefined &&
     Number.isFinite(Number(quotation.topupEligibleAmount));
   const eligibleBudget = Math.round(
-    hasServerEligibleBudget
-      ? Number(quotation.topupEligibleAmount)
-      : calculateQuotationEligibleTopupBudget(quotation),
+    quotationProjectType(quotation) === 'K'
+      ? 0
+      : hasServerEligibleBudget
+        ? Number(quotation.topupEligibleAmount)
+        : calculateQuotationEligibleTopupBudget(quotation),
   );
   const grossPaidAmount = Math.max(0, Math.round(Number(quotation.grossPaidAmount) || 0));
   const refundedAmount = Math.max(0, Math.round(Number(quotation.refundedAmount) || 0));
@@ -71,7 +100,7 @@ function quotationTopupBreakdown(quotation: Quotation) {
     ? 0
     : Math.min(eligibleBudget, Math.max(0, grossPaidAmount - heldDepositAmount));
   const paidBudget = hasServerPaidBudget
-    ? Math.max(0, Math.round(Number(quotation.topupPaidBudget)))
+    ? Math.min(eligibleBudget, Math.max(0, Math.round(Number(quotation.topupPaidBudget))))
     : Math.max(0, fundedBudget - budgetRefundedAmount);
   const remainingEligibleBudget = Math.max(0, eligibleBudget - fundedBudget);
   const creditBudget =
@@ -91,7 +120,8 @@ function quotationTopupBreakdown(quotation: Quotation) {
   };
 }
 
-function topupBudgetUsed(cost: ProjectCost) {
+export function topupBudgetUsed(cost: ProjectCost) {
+  if (cost.fundingSource === 'promotion') return 0;
   const topupAmount = Math.max(0, Number(cost.totalAmount) || Number(cost.amountBeforeVat) || 0);
 
   if (cost.entryType === 'ad_spend' && cost.cidIsDead) {
@@ -116,6 +146,10 @@ function topupBudgetUsed(cost: ProjectCost) {
 
 export function calculateRealizedProjectCost(costs: ProjectCost[]) {
   return costs.reduce((sum, cost) => {
+    if (cost.fundingSource === 'promotion') return sum;
+    if (cost.entryType === 'partner_cost' && cost.usesPaymentLedger) {
+      return cost.status === 'cancelled' ? sum : sum + (Number(cost.partnerPaidAmount) || 0);
+    }
     if (cost.status !== 'completed') return sum;
 
     if (cost.realizedCostAmount !== undefined && cost.realizedCostAmount !== null) {
@@ -192,5 +226,8 @@ export function calculateAvailableTopupBudget({
     releasedBudget: customerBudget,
     usedBudget,
     availableBudget: customerBudget - usedBudget,
+    hasTopupBudgetSource: quotationBudgets.some(
+      (item) => item.eligibleBudget > 0 && !item.isFullyRefunded,
+    ),
   };
 }

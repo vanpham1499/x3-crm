@@ -50,6 +50,7 @@ class UpdateQuotationRequest extends BaseRequest
             // Otherwise Laravel drops every metadata key except targetTotalAmount.
             'metadata.*' => ['nullable'],
             'metadata.targetTotalAmount' => ['sometimes', 'nullable', 'integer', 'min:1'],
+            'metadata.promotionBudget' => ['sometimes', 'nullable', 'numeric', 'min:0', 'max:9999999999999', 'decimal:0,2'],
             'topup_budget_item_ids' => ['sometimes', 'array'],
             'topup_budget_item_ids.*' => ['integer'],
             'topupBudgetItemIds' => ['sometimes', 'array'],

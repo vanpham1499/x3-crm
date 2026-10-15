@@ -14,6 +14,7 @@ use App\Support\ProjectTopupBudgetCalculator;
 use App\Support\QuotationMoneyCalculator;
 use App\Support\QuotationReference;
 use App\Support\QuotationSettlement;
+use App\Support\QuotationFinancialBasis;
 use Illuminate\Auth\Access\AuthorizationException;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Str;
@@ -90,6 +91,9 @@ class QuotationsService extends BaseService
         return FinancialMutation::run(function () use ($id, $data): array {
             $currentQuotation = $this->quotations->findForUpdateOrFail($id);
             $this->authorize('update', $currentQuotation);
+            if (array_diff(array_keys($this->normalizeKeys($data)), ['note']) !== []) {
+                \App\Support\PartnerFinance::protectSource('revenue', $id);
+            }
 
             if ($this->isPaymentLocked($currentQuotation)) {
                 $requestedData = $this->normalizeKeys($data);
@@ -140,6 +144,15 @@ class QuotationsService extends BaseService
             }
             $data['project_id'] = $data['project_id'] ?? $currentQuotation->project_id;
             $data = $this->applyProjectDefaults($data);
+            if ((string) $data['project_id'] === (string) $currentQuotation->project_id) {
+                $snapshotType = QuotationFinancialBasis::projectType($currentQuotation);
+                if ($snapshotType !== null) {
+                    $data['metadata']['projectType'] = $snapshotType;
+                }
+                if (isset($currentQuotation->metadata['projectCodeBase'])) {
+                    $data['metadata']['projectCodeBase'] = $currentQuotation->metadata['projectCodeBase'];
+                }
+            }
             $this->authorizeParentView($data);
             $quotationVatRate = array_key_exists('vat_rate', $data)
                 ? (float) $data['vat_rate']
@@ -180,6 +193,7 @@ class QuotationsService extends BaseService
         return FinancialMutation::run(function () use ($id): array {
             $quotation = $this->quotations->findForUpdateOrFail($id);
             $this->authorize('delete', $quotation);
+            \App\Support\PartnerFinance::protectSource('revenue', $id);
 
             if ($quotation->paymentAllocations->isNotEmpty()) {
                 throw ValidationException::withMessages([
@@ -528,6 +542,9 @@ class QuotationsService extends BaseService
                     && $itemCode === '-1'
                     && ($metadata['locked'] ?? false) === true;
                 $metadata['excludedFromTotal'] = $excludedFromTotal;
+                $metadata['countsTowardTopupBudget'] = ! $excludeBudgetFromTotal
+                    && ! in_array($itemCode, self::AUTO_ITEM_CODES, true)
+                    && filter_var($metadata['countsTowardTopupBudget'] ?? false, FILTER_VALIDATE_BOOLEAN);
                 $vatRate = $excludedFromTotal
                     ? 0.0
                     : ($quotationVatRate ?? (float) ($item['vat_rate'] ?? 0));
@@ -661,6 +678,11 @@ class QuotationsService extends BaseService
 
     private function syncTopupBudgetItems(Quotation $quotation, array $itemIds): void
     {
+        if ($itemIds !== [] && QuotationFinancialBasis::projectType($quotation) === 'K') {
+            throw ValidationException::withMessages([
+                'topupBudgetItemIds' => ['Báo phí loại K chỉ thu phí dịch vụ, không tạo ngân sách nạp.'],
+            ]);
+        }
         $selectedIds = collect($itemIds)
             ->map(fn ($itemId): int => (int) $itemId)
             ->filter(fn (int $itemId): bool => $itemId > 0)
@@ -668,7 +690,15 @@ class QuotationsService extends BaseService
             ->values()
             ->all();
 
-        $quotation->items()->get()->each(function ($item) use ($selectedIds): void {
+        $items = $quotation->items()->get();
+        $allowedIds = $items->filter(fn ($item) => ! in_array((string) $item->item_code, self::AUTO_ITEM_CODES, true)
+            && ! QuotationFinancialBasis::excluded($item))->pluck('id')->all();
+        if (array_diff($selectedIds, $allowedIds) !== []) {
+            throw ValidationException::withMessages([
+                'topupBudgetItemIds' => ['Chỉ chọn hạng mục nhập thêm trong báo phí này; phí quản lý và setup không phải ngân sách nạp.'],
+            ]);
+        }
+        $items->each(function ($item) use ($selectedIds): void {
             $metadata = is_array($item->metadata) ? $item->metadata : [];
             $metadata['countsTowardTopupBudget'] = in_array((int) $item->id, $selectedIds, true);
             $item->update(['metadata' => $metadata]);

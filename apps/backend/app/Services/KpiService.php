@@ -16,6 +16,7 @@ use App\Models\Service;
 use App\Models\User;
 use App\Repositories\KpiReportRepository;
 use App\Repositories\KpiTargetRepository;
+use App\Support\KpiFeeBasis;
 use App\Support\QuotationSettlement;
 use Carbon\CarbonImmutable;
 use Illuminate\Auth\Access\AuthorizationException;
@@ -37,6 +38,10 @@ class KpiService extends BaseService
         ?User $viewer = null,
     ): array {
         [$rangeStart, $rangeEnd] = $this->periodRange($periodFrom, $periodTo);
+        $viewerScope = $viewer ? $this->viewerScope($viewer) : $this->allViewerScope();
+        if ($viewerScope['level'] === 'team') {
+            return $this->teamReport($rangeStart, $rangeEnd, $viewerScope);
+        }
         $rangeEndExclusive = $rangeEnd->addMonth();
         $periodStarts = collect();
 
@@ -98,6 +103,11 @@ class KpiService extends BaseService
             ->all();
         $paidFirstQuotationByProject = $this->paidFirstQuotations($quotations, $allocations);
 
+        $feeEvents = KpiFeeBasis::applies($rangeEnd->format('Y-m'))
+            ? KpiFeeEvents::build($quotations, $allocations, $this->reports->completedRefunds(
+                '1970-01-01', $rangeEndExclusive->toDateTimeString(), $projectIds, $quotationIds,
+            )) : collect();
+
         $periods = $periodStarts->map(fn (CarbonImmutable $periodStart): array => $this->buildMonthlyReport(
             $periodStart->format('Y-m'),
             $services,
@@ -113,31 +123,42 @@ class KpiService extends BaseService
             $targetsByPeriod->get($periodStart->format('Y-m'), collect()),
             $refundsByPeriod->get($periodStart->format('Y-m'), collect()),
             $costsByPeriod->get($periodStart->format('Y-m'), collect()),
+            $feeEvents->filter(fn ($event) => $event['at']->format('Y-m') === $periodStart->format('Y-m')),
         ))->values();
-        $viewerScope = $viewer ? $this->viewerScope($viewer) : $this->allViewerScope();
-
         if ($viewer) {
             $periods = $this->scopePeriods($periods, $viewerScope);
         }
 
+        return $this->reportPayload($rangeStart, $rangeEnd, $viewerScope, $periods);
+    }
+
+    /** Internal projection; callers resolve the authorized group ids before invoking. */
+    public function teamReport(CarbonImmutable $start, CarbonImmutable $end, array $scope): array
+    {
+        return $this->reportPayload($start, $end, $scope, app(TeamKpiService::class)->periods($start, $end, $scope['teamIds']));
+    }
+
+    private function reportPayload(CarbonImmutable $rangeStart, CarbonImmutable $rangeEnd, array $viewerScope, Collection $periods): array
+    {
         return [
             'periodFrom' => $rangeStart->format('Y-m'),
             'periodTo' => $rangeEnd->format('Y-m'),
             'viewerScope' => $viewerScope,
             'calculationBasis' => [
+                'feePolicyStartsAt' => KpiFeeBasis::START,
+                'feePolicy' => 'management_fee_v1',
                 'currency' => 'VND',
                 'sourceAmountBasis' => 'gross_including_vat',
                 'profitAmountBasis' => 'before_vat',
                 'projectScope' => 'existing_projects',
                 'sourceDepositIncluded' => true,
                 'serviceProfitDepositIncluded' => false,
-                'acquisitionProfitDepositIncluded' => true,
-                'acquisitionProfitDepositScope' => 'project_type_k_only',
+                'acquisitionProfitDepositIncluded' => ! KpiFeeBasis::applies($rangeStart->format('Y-m')),
+                'acquisitionProfitDepositScope' => KpiFeeBasis::applies($rangeStart->format('Y-m')) ? 'none' : 'project_type_k_before_2026_10',
             ],
             'periods' => $periods,
         ];
     }
-
     public function upsertTarget(array $data): array
     {
         $scopeType = (string) $data['scopeType'];
@@ -160,11 +181,25 @@ class KpiService extends BaseService
 
     public function detail(string $period, string $scopeType, int $scopeId, User $viewer): array
     {
+        $teamScope = \App\Support\TeamScope::selected($viewer, 'kpi');
+        if ($scopeType === 'team' || $teamScope !== null) {
+            $allowed = \App\Support\TeamScope::available($viewer, 'kpi');
+            if ($scopeType === 'team') {
+                if (! in_array($scopeId, $allowed, true)) throw new AuthorizationException('Bạn không có quyền xem KPI nhóm này.');
+                return app(TeamKpiService::class)->detail($period, $scopeType, $scopeId, [$scopeId]);
+            }
+            if ($scopeType !== 'employee') throw new AuthorizationException('Chỉ xem KPI trong nhóm được quản lý.');
+            return app(TeamKpiService::class)->detail($period, $scopeType, $scopeId, $teamScope);
+        }
         $periodStart = $this->periodStart($period);
         $periodEnd = $periodStart->addMonth();
         [$scopeName, $serviceRootIds, $scopeUser] = $this->detailScopeContext($scopeType, $scopeId);
 
         $this->authorizeDetailScope($viewer, $scopeType, $scopeId, $scopeUser);
+
+        if (KpiFeeBasis::applies($period)) {
+            return $this->feeDetail($period, $scopeType, $scopeId, $scopeName, $serviceRootIds);
+        }
 
         $services = $this->reports->services();
         $projects = $this->reports->activeProjects();
@@ -422,6 +457,7 @@ class KpiService extends BaseService
         Collection $targets,
         Collection $refunds,
         Collection $costs,
+        Collection $feeEvents,
     ): array {
         $serviceActuals = $this->emptyServiceActuals($rootServiceIds);
         $departmentActuals = $this->emptyDepartmentActuals($departments->pluck('id'));
@@ -429,41 +465,47 @@ class KpiService extends BaseService
         $targetMap = $targets
             ->keyBy(fn (KpiTarget $target): string => $target->scope_type.':'.$target->scope_id);
 
-        $this->applyReceivedRevenue(
-            $periodKey,
-            $allocations,
-            $quotationMap,
-            $projectMap,
-            $projectRootServices,
-            $serviceActuals,
-            $departmentActuals,
-            $employeeActuals,
-        );
-        $this->applyCosts(
-            $costs,
-            $projectMap,
-            $projectRootServices,
-            $serviceActuals,
-            $departmentActuals,
-            $employeeActuals,
-        );
-        $this->applyAcquisitionCredits(
-            $periodKey,
-            $paidFirstQuotationByProject,
-            $projectMap,
-            $departmentActuals,
-            $employeeActuals,
-        );
-        $this->applyRefunds(
-            $refunds,
-            $quotationMap,
-            $projectMap,
-            $projectRootServices,
-            $paidFirstQuotationByProject,
-            $serviceActuals,
-            $departmentActuals,
-            $employeeActuals,
-        );
+        if (KpiFeeBasis::applies($periodKey)) {
+            foreach ($feeEvents as $event) {
+                $this->applyFeeEvent($event, $serviceActuals, $departmentActuals, $employeeActuals);
+            }
+        } else {
+            $this->applyReceivedRevenue(
+                $periodKey,
+                $allocations,
+                $quotationMap,
+                $projectMap,
+                $projectRootServices,
+                $serviceActuals,
+                $departmentActuals,
+                $employeeActuals,
+            );
+            $this->applyCosts(
+                $costs,
+                $projectMap,
+                $projectRootServices,
+                $serviceActuals,
+                $departmentActuals,
+                $employeeActuals,
+            );
+            $this->applyAcquisitionCredits(
+                $periodKey,
+                $paidFirstQuotationByProject,
+                $projectMap,
+                $departmentActuals,
+                $employeeActuals,
+            );
+            $this->applyRefunds(
+                $refunds,
+                $quotationMap,
+                $projectMap,
+                $projectRootServices,
+                $paidFirstQuotationByProject,
+                $serviceActuals,
+                $departmentActuals,
+                $employeeActuals,
+            );
+        }
 
         $serviceRows = $this->buildServiceRows(
             $services,
@@ -537,6 +579,7 @@ class KpiService extends BaseService
 
         return [
             'period' => $periodKey,
+            'metric' => KpiFeeBasis::applies($periodKey) ? 'management_fee' : 'legacy_profit',
             'services' => $serviceRows,
             'departments' => $departmentRows,
             'employees' => $employeeRows,
@@ -545,6 +588,94 @@ class KpiService extends BaseService
                 'departments' => $this->summary($departmentRows),
                 'employees' => $this->summary($employeeRows),
             ],
+        ];
+    }
+
+    /** One source for table, detail and dashboard projections under the fee policy. */
+    public function feeEvents(string $from, string $to): Collection
+    {
+        $projects = $this->reports->activeProjects();
+        $quotations = $this->reports->quotations($projects->pluck('id'));
+
+        return KpiFeeEvents::build(
+            $quotations,
+            $this->reports->allocations($quotations->pluck('id')),
+            $this->reports->completedRefunds('1970-01-01', $to, $projects->pluck('id'), $quotations->pluck('id')),
+        )->filter(fn ($event) => $event['at']->greaterThanOrEqualTo(CarbonImmutable::parse($from))
+            && $event['at']->lessThan(CarbonImmutable::parse($to)));
+    }
+
+    private function applyFeeEvent(array $event, array &$services, array &$departments, array &$employees): void
+    {
+        $basis = $event['basis'];
+        $amount = abs($event['amount']);
+        $field = $event['refund'] ? 'refund' : 'received';
+        $source = $event['sourceAmount'];
+        $root = $basis['serviceId'];
+        if (isset($services[$root])) {
+            $services[$root][$field.'Amount'] += $source;
+            $services[$root][$field.'BeforeVatAmount'] += $amount;
+        }
+        foreach (['implementation' => ['managerId', 'managerDepartmentId'], 'acquisition' => ['salesId', 'salesDepartmentId']] as $branch => [$userKey, $departmentKey]) {
+            if ($branch === 'acquisition' && ! $basis['firstQuotation']) {
+                continue;
+            }
+            $name = $branch === 'acquisition'
+                ? ($event['refund'] ? 'acquisitionRefund' : 'acquisitionCredit')
+                : ($event['refund'] ? 'implementationRefund' : 'implementationReceived');
+            if (isset($employees[$basis[$userKey]])) {
+                $employees[$basis[$userKey]][$name.'Amount'] += $source;
+                $employees[$basis[$userKey]][$name.'BeforeVatAmount'] += $amount;
+            }
+            if (isset($departments[$basis[$departmentKey]])) {
+                $departments[$basis[$departmentKey]][$name.'Amount'] += $source;
+                $departments[$basis[$departmentKey]][$name.'BeforeVatAmount'] += $amount;
+            }
+        }
+    }
+
+    private function feeDetail(string $period, string $scopeType, int $scopeId, string $scopeName, array $serviceRootIds): array
+    {
+        $start = $this->periodStart($period);
+        $projects = $this->reports->activeProjects()->keyBy('id');
+        $isService = in_array($scopeType, [KpiTarget::SCOPE_SERVICE, KpiTarget::SCOPE_SERVICE_GROUP], true);
+        $entries = collect();
+        foreach ($this->feeEvents($start->toDateString(), $start->addMonth()->toDateString()) as $event) {
+            $basis = $event['basis'];
+            $project = $projects->get($event['projectId']);
+            if (! $project) {
+                continue;
+            }
+            $branches = $isService ? ['service'] : ['implementation', 'acquisition'];
+            foreach ($branches as $branch) {
+                $matches = match ($branch) {
+                    'service' => in_array((int) $basis['serviceId'], $serviceRootIds, true),
+                    'implementation' => (int) $basis[$scopeType === KpiTarget::SCOPE_DEPARTMENT ? 'managerDepartmentId' : 'managerId'] === $scopeId,
+                    'acquisition' => $basis['firstQuotation'] && (int) $basis[$scopeType === KpiTarget::SCOPE_DEPARTMENT ? 'salesDepartmentId' : 'salesId'] === $scopeId,
+                };
+                if (! $matches) {
+                    continue;
+                }
+                $kind = $event['refund'] ? 'refund' : 'received';
+                if ($branch === 'acquisition') {
+                    $kind = $event['refund'] ? 'acquisition_refund' : 'acquisition_credit';
+                }
+                $entries->push($this->detailEntry(
+                    $branch.'-'.$event['id'], $branch, $kind,
+                    $event['refund'] ? 'Hoàn phí quản lý' : 'Phí quản lý đã thu',
+                    $event['at'], $event['sourceAmount'], abs($event['amount']), $event['amount'],
+                    $project, $event['quotation'], $event['reference'],
+                ));
+            }
+        }
+        $entries = $entries->sortByDesc('eventAt')->values();
+        $labels = $isService ? ['service' => 'Dịch vụ'] : ['implementation' => 'Nhánh triển khai', 'acquisition' => 'Nhánh phụ trách khách hàng'];
+
+        return [
+            'period' => $period, 'metric' => 'management_fee',
+            'scope' => ['type' => $scopeType, 'id' => $scopeId, 'name' => $scopeName],
+            'totals' => $this->detailTotals($entries),
+            'branches' => collect($labels)->map(fn ($label, $key) => $this->detailBranch($key, $label, $entries->where('branch', $key)->values()))->values(),
         ];
     }
 
@@ -1068,6 +1199,7 @@ class KpiService extends BaseService
      */
     private function costAmounts(ProjectCost $cost): array
     {
+        if ($cost->isPromotion()) return ['gross' => 0.0, 'beforeVat' => 0.0];
         $actualGross = $cost->actualCostAmount();
         $invoiceGrossBeforeDiscount = (float) $cost->amount_before_vat + (float) $cost->vat_amount;
         $baseBeforeVat = $invoiceGrossBeforeDiscount > self::MONEY_EPSILON
@@ -1372,6 +1504,7 @@ class KpiService extends BaseService
                 ->where('is_active', true)
                 ->exists(),
             KpiTarget::SCOPE_DEPARTMENT => Department::query()->whereKey($scopeId)->exists(),
+            KpiTarget::SCOPE_TEAM => \App\Models\Team::whereKey($scopeId)->exists(),
             KpiTarget::SCOPE_EMPLOYEE => User::query()->whereKey($scopeId)->exists(),
             default => false,
         };
@@ -1391,6 +1524,15 @@ class KpiService extends BaseService
             throw new AuthorizationException('Bạn không có quyền cập nhật kế hoạch KPI.');
         }
 
+        if ($scopeType === KpiTarget::SCOPE_TEAM) {
+            $team = \App\Models\Team::findOrFail($scopeId);
+            if ($viewer->hasPermission('kpi.manage_all')
+                || ($viewer->hasPermission('kpi.manage_department') && $viewer->canAccessDepartment($team->department_id))
+                || ($viewer->hasPermission('kpi.manage_team') && in_array($scopeId, $viewer->accessibleTeamIds(), true))) return;
+            throw new AuthorizationException('Bạn không có quyền lập kế hoạch KPI cho nhóm này.');
+        }
+        if ($scopeType === KpiTarget::SCOPE_EMPLOYEE && $viewer->hasPermission('kpi.manage_team')
+            && $viewer->sharesTeamWith(User::find($scopeId))) return;
         if ($viewer->hasPermission('kpi.manage_all')) {
             return;
         }
@@ -1426,6 +1568,8 @@ class KpiService extends BaseService
 
     private function viewerScope(User $viewer): array
     {
+        $teamIds = \App\Support\TeamScope::selected($viewer, 'kpi');
+        if ($teamIds !== null) return ['level' => 'team', 'userId' => (int) $viewer->id, 'departmentId' => $viewer->department_id, 'departmentIds' => [], 'teamIds' => $teamIds];
         if ($viewer->hasPermission('kpi.view_all') || $viewer->hasPermission('kpi.manage_all')) {
             return $this->allViewerScope($viewer);
         }

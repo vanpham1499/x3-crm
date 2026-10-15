@@ -1,4 +1,4 @@
-export type KpiScopeType = 'service' | 'service_group' | 'department' | 'employee';
+export type KpiScopeType = 'service' | 'service_group' | 'department' | 'team' | 'employee';
 export type KpiPeriodMode = 'month' | 'quarter' | 'year' | 'range';
 
 export type KpiSummary = {
@@ -25,7 +25,8 @@ export type ServiceKpiRow = {
 
 export type DepartmentKpiRow = {
   id: number;
-  scopeType: 'department';
+  scopeType: 'department' | 'team';
+  canManageTarget?: boolean;
   name: string;
   targetAmount: number;
   implementationReceivedAmount: number;
@@ -45,6 +46,7 @@ export type EmployeeKpiRow = {
   code?: string | null;
   name: string;
   departmentId?: number | null;
+  teamId?: number | null;
   departmentName?: string | null;
   isActive: boolean;
   targetAmount: number;
@@ -61,6 +63,7 @@ export type EmployeeKpiRow = {
 
 export type KpiMonthlyReport = {
   period: string;
+  metric?: 'management_fee' | 'legacy_profit';
   services: ServiceKpiRow[];
   departments: DepartmentKpiRow[];
   employees: EmployeeKpiRow[];
@@ -75,20 +78,23 @@ export type KpiReport = {
   periodFrom: string;
   periodTo: string;
   viewerScope: {
-    level: 'own' | 'department' | 'all';
+    level: 'own' | 'team' | 'department' | 'all';
+    teamIds?: number[];
     userId: number | null;
     departmentId: number | null;
     departmentIds?: number[];
   };
   calculationBasis: {
+    feePolicyStartsAt?: string;
+    feePolicy?: string;
     currency: 'VND';
     sourceAmountBasis: 'gross_including_vat';
     profitAmountBasis: 'before_vat';
     projectScope: 'existing_projects';
     sourceDepositIncluded: true;
     serviceProfitDepositIncluded: false;
-    acquisitionProfitDepositIncluded: true;
-    acquisitionProfitDepositScope: 'project_type_k_only';
+    acquisitionProfitDepositIncluded: boolean;
+    acquisitionProfitDepositScope: 'none' | 'project_type_k_before_2026_10' | 'project_type_k_only';
   };
   periods: KpiMonthlyReport[];
 };
@@ -140,6 +146,7 @@ export type KpiDetailEntry = {
 
 export type KpiDetailReport = {
   period: string;
+  metric?: 'management_fee' | 'legacy_profit';
   scope: {
     type: KpiScopeType;
     id: number;

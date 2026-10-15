@@ -217,6 +217,35 @@ class QuotationRepository extends BaseRepository
             return;
         }
 
+        $teamIds = $user->hasPermission('quotation.view_team') ? $user->accessibleTeamIds() : [];
+        if ($teamIds !== []) {
+            $query->where(function (Builder $scope) use ($teamIds): void {
+                $scope
+                    ->where(function (Builder $projectScope) use ($teamIds): void {
+                        $projectScope
+                            ->whereNotNull('project_id')
+                            ->whereHas('project', fn (Builder $project) => $project
+                                ->where(fn (Builder $owners) => $owners
+                                    ->whereHas('managerUser', fn (Builder $manager) => $manager->whereIn('team_id', $teamIds))
+                                    ->orWhereHas('salesUser', fn (Builder $sales) => $sales->whereIn('team_id', $teamIds))));
+                    })
+                    ->orWhere(function (Builder $customerScope) use ($teamIds): void {
+                        $customerScope
+                            ->whereNull('project_id')
+                            ->whereNotNull('customer_id')
+                            ->whereHas('customer.salesUser', fn (Builder $sales) => $sales->whereIn('team_id', $teamIds));
+                    })
+                    ->orWhere(function (Builder $leadScope) use ($teamIds): void {
+                        $leadScope
+                            ->whereNull('project_id')
+                            ->whereNull('customer_id')
+                            ->whereHas('lead.assignedUser', fn (Builder $assigned) => $assigned->whereIn('team_id', $teamIds));
+                    });
+            });
+
+            return;
+        }
+
         if ($user->hasPermission('quotation.view')) {
             $query->where(function (Builder $scope) use ($user): void {
                 $scope

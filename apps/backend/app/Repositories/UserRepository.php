@@ -41,6 +41,7 @@ class UserRepository extends BaseRepository
                 $scope->whereIn('department_id', $departmentIds)
                     ->when($includeId, fn ($scope) => $scope->orWhere('users.id', $includeId));
             }))
+            ->when(array_key_exists('team_ids', $filters), fn ($query) => $query->where(fn ($scope) => $scope->whereIn('team_id', $filters['team_ids'])->orWhere('users.id', $includeId)))
             ->when($isActive !== null && $isActive !== '', function ($query) use ($isActive): void {
                 $query->where('is_active', filter_var($isActive, FILTER_VALIDATE_BOOLEAN));
             })

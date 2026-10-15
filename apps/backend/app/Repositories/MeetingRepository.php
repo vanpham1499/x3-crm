@@ -79,6 +79,20 @@ class MeetingRepository extends BaseRepository
                 ->get();
         }
 
+        $teamIds = $user->accessibleTeamIds();
+        $hasTeamScope = collect(['view', 'create', 'update', 'delete'])->contains(fn (string $action): bool => $user->hasPermission("meeting.{$action}_team"));
+
+        if ($hasTeamScope && $teamIds !== []) {
+            return $query
+                ->where(function (Builder $scope) use ($teamIds, $user): void {
+                    $scope
+                        ->whereIn('team_id', $teamIds)
+                        ->orWhere('users.id', $user->id);
+                })
+                ->orderBy('code')
+                ->get();
+        }
+
         return $query
             ->whereKey($user->id)
             ->orderBy('code')
@@ -196,6 +210,21 @@ class MeetingRepository extends BaseRepository
                     ->orWhereHas('project.managerUser', fn (Builder $manager) => $manager->whereIn('department_id', $departmentIds))
                     ->orWhereHas('project.salesUser', fn (Builder $sales) => $sales->whereIn('department_id', $departmentIds))
                     ->orWhereHas('createdBy', fn (Builder $creator) => $creator->whereIn('department_id', $departmentIds));
+            });
+        }
+
+        $teamIds = $user->accessibleTeamIds();
+
+        if ($user->hasPermission('meeting.view_team') && $teamIds !== []) {
+            return $query->where(function (Builder $visible) use ($teamIds): void {
+                $visible
+                    ->whereHas('organizer', fn (Builder $organizer) => $organizer->whereIn('team_id', $teamIds))
+                    ->orWhereHas('participants', fn (Builder $participants) => $participants->whereIn('users.team_id', $teamIds))
+                    ->orWhereHas('lead.assignedUser', fn (Builder $assigned) => $assigned->whereIn('team_id', $teamIds))
+                    ->orWhereHas('customer.salesUser', fn (Builder $sales) => $sales->whereIn('team_id', $teamIds))
+                    ->orWhereHas('project.managerUser', fn (Builder $manager) => $manager->whereIn('team_id', $teamIds))
+                    ->orWhereHas('project.salesUser', fn (Builder $sales) => $sales->whereIn('team_id', $teamIds))
+                    ->orWhereHas('createdBy', fn (Builder $creator) => $creator->whereIn('team_id', $teamIds));
             });
         }
 

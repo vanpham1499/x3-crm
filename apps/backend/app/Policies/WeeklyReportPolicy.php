@@ -34,6 +34,13 @@ class WeeklyReportPolicy
             return true;
         }
 
+        if (
+            $user->hasPermission('weeklyreport.view_team')
+            && $project->isInTeamOf($user)
+        ) {
+            return true;
+        }
+
         return $project->isManagedBy($user) || $project->isAssignedTo($user);
     }
 
@@ -65,6 +72,14 @@ class WeeklyReportPolicy
             return true;
         }
 
+        if (
+            $user->hasPermission('weeklyreport.approve_team')
+            && (int) $report->reporter_user_id !== (int) $user->id
+            && $this->belongsToTeamScope($user, $report)
+        ) {
+            return true;
+        }
+
         if (! $user->hasPermission('weeklyreport.approve')) {
             return false;
         }
@@ -92,6 +107,13 @@ class WeeklyReportPolicy
             return true;
         }
 
+        if (
+            $user->hasPermission("weeklyreport.{$action}_team")
+            && $this->belongsToTeamScope($user, $report)
+        ) {
+            return true;
+        }
+
         return $user->hasPermission("weeklyreport.{$action}")
             && (
                 $report->reporter_user_id === $user->id
@@ -108,5 +130,15 @@ class WeeklyReportPolicy
 
         return $user->sharesDepartmentWith($report->reporter)
             || ($report->project?->isInDepartmentOf($user) ?? false);
+    }
+
+    private function belongsToTeamScope(User $user, WeeklyReport $report): bool
+    {
+        if ($user->accessibleTeamIds() === []) {
+            return false;
+        }
+
+        return $user->sharesTeamWith($report->reporter)
+            || ($report->project?->isInTeamOf($user) ?? false);
     }
 }

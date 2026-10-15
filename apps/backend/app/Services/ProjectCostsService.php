@@ -71,8 +71,13 @@ class ProjectCostsService extends BaseService
     public function create(array $data): array
     {
         return FinancialMutation::run(function () use ($data): array {
+            $data['status'] = ProjectCost::STATUS_PENDING;
             $data = $this->preparePayload($data);
             $data['status'] = ProjectCost::STATUS_PENDING;
+            if ($data['entry_type'] === ProjectCost::TYPE_PARTNER_COST) {
+                $data['uses_payment_ledger'] = true;
+                $data['transaction_date'] = null;
+            }
             $project = Project::query()->findOrFail($data['project_id']);
             $this->authorize('manageProject', [ProjectCost::class, $project]);
             /** @var ProjectCost $cost */
@@ -92,6 +97,25 @@ class ProjectCostsService extends BaseService
             $existing->load('project.managerUser', 'project.salesUser');
             $this->ensureNotReconciled($existing);
             $normalized = $this->normalizeKeys($data);
+            if ($existing->isPromotion() && $existing->status === ProjectCost::STATUS_COMPLETED) {
+                $this->authorize('fund', $existing);
+            }
+            if (array_diff(array_keys($normalized), ['note']) !== []) {
+                \App\Support\PartnerFinance::protectSource('cost', $existing->id);
+            }
+            if ($existing->uses_payment_ledger) {
+                if (isset($normalized['status']) && $normalized['status'] !== $existing->status) {
+                    throw ValidationException::withMessages(['status' => ['Dùng Công nợ & lợi nhuận để ghi hoặc hủy thanh toán đối tác.']]);
+                }
+                if (($normalized['entry_type'] ?? $existing->entry_type) !== $existing->entry_type
+                    || (string) ($normalized['project_id'] ?? $existing->project_id) !== (string) $existing->project_id) {
+                    throw ValidationException::withMessages(['cost' => ['Khoản có sổ thanh toán không được chuyển loại hoặc dự án.']]);
+                }
+                unset($normalized['transaction_date']);
+                if (isset($normalized['amount_before_vat']) && \App\Support\PartnerFinance::cents($normalized['amount_before_vat']) < \App\Support\PartnerFinance::cents($existing->partnerPaidAmount())) {
+                    throw ValidationException::withMessages(['amountBeforeVat' => ['Giá trị không được nhỏ hơn số tiền đã trả.']]);
+                }
+            }
             $hasStatus = array_key_exists('status', $normalized);
             $statusChanged = $hasStatus && $normalized['status'] !== $existing->status;
             $businessFields = array_diff(array_keys($normalized), ['status']);
@@ -116,6 +140,13 @@ class ProjectCostsService extends BaseService
             }
 
             $data = $this->preparePayload($normalized, $existing);
+            if ($existing->entry_type === ProjectCost::TYPE_PARTNER_COST && !$existing->uses_payment_ledger) {
+                $dates = array_filter([$existing->transaction_date, $data['transaction_date'] ?? null]);
+                \App\Support\PartnerFinance::assertOpen(array_map(fn ($date) => \Carbon\CarbonImmutable::parse($date)->format('Y-m'), $dates));
+            }
+            if ($existing->uses_payment_ledger) {
+                $data['status'] = \App\Support\PartnerFinance::cents($existing->partnerPaidAmount()) >= \App\Support\PartnerFinance::cents($data['total_amount']) ? 'completed' : 'pending';
+            }
             $this->ensureWithinTopupBudget($existing, $data);
 
             if ((string) $data['project_id'] !== (string) $existing->project_id) {
@@ -123,9 +154,12 @@ class ProjectCostsService extends BaseService
                 $this->authorize('manageProject', [ProjectCost::class, $project]);
             }
 
+            $workflowBefore = [$existing->status, $existing->reconciliation_result];
             $this->costs->update($id, $data);
             $cost = $this->costs->findWithRelationsOrFail($id);
-            $this->notifyCostWorkflow($cost);
+            if ($workflowBefore !== [$cost->status, $cost->reconciliation_result]) {
+                $this->notifyCostWorkflow($cost);
+            }
 
             return $this->apiResource($cost, ProjectCostResource::class);
         });
@@ -139,6 +173,10 @@ class ProjectCostsService extends BaseService
             $this->authorize('fund', $cost);
             $this->ensureNotReconciled($cost);
             $this->ensurePendingForDelete($cost);
+            \App\Support\PartnerFinance::protectSource('cost', $cost->id);
+            if ($cost->uses_payment_ledger && $cost->partnerPayments()->exists()) {
+                throw ValidationException::withMessages(['cost' => ['Khoản có lịch sử thanh toán phải được giữ lại để đối soát.']]);
+            }
             $this->notifications->resolve('project_cost', $cost->id, [
                 'cost_funding_required',
                 'cost_reconciliation_required',
@@ -160,6 +198,9 @@ class ProjectCostsService extends BaseService
             $cost->load('adjustments');
             $data = $this->normalizeKeys($data);
             $adjustments = $data['adjustments'] ?? [];
+            if ($cost->isPromotion()) {
+                throw ValidationException::withMessages(['cost' => ['MKM được xác nhận cấp và theo dõi sử dụng riêng, không đối soát như tiền chi.']]);
+            }
 
             $this->validateAdjustmentBalance($cost, $adjustments);
 
@@ -231,7 +272,7 @@ class ProjectCostsService extends BaseService
         });
     }
 
-    private function notifyCostWorkflow(ProjectCost $cost): void
+    public function notifyCostWorkflow(ProjectCost $cost): void
     {
         $this->notifications->resolve('project_cost', $cost->id, [
             'cost_funding_required',
@@ -239,7 +280,8 @@ class ProjectCostsService extends BaseService
             'cost_reconciliation_unmatched',
         ]);
 
-        if ($cost->status === ProjectCost::STATUS_CANCELLED) {
+        if ($cost->status === ProjectCost::STATUS_CANCELLED || $cost->reconciliation_result === 'matched'
+            || ($cost->isPromotion() && $cost->status === ProjectCost::STATUS_COMPLETED)) {
             return;
         }
 
@@ -249,9 +291,9 @@ class ProjectCostsService extends BaseService
             $this->notifications->send($this->notificationRecipients->projectCostFunders($cost), [
                 'module' => 'cost',
                 'event_key' => 'cost_funding_required',
-                'title' => $cost->entry_type === ProjectCost::TYPE_AD_SPEND
+                'title' => $cost->isPromotion() ? 'Có MKM đang chờ xác nhận được cấp' : ($cost->entry_type === ProjectCost::TYPE_AD_SPEND
                     ? 'Có yêu cầu nạp ngân sách đang chờ duyệt'
-                    : 'Có khoản chi đang chờ duyệt',
+                    : 'Có khoản chi đang chờ duyệt'),
                 'message' => $cost->project?->project_name,
                 'kind' => 'action',
                 'severity' => 'warning',
@@ -434,6 +476,9 @@ class ProjectCostsService extends BaseService
             'cid_is_dead', 'cid_spent_amount', 'cid_refunded_amount',
             'bank_account_option_id', 'partner_option_id', 'amount_before_vat', 'vat_rate',
             'discount_amount', 'status', 'acceptance_status', 'input_invoice_status', 'note',
+            'work_period',
+            'funding_source', 'promotion_code', 'promotion_expires_on', 'promotion_used_amount',
+            'promotion_revoked_amount', 'promotion_evidence_url',
         ];
 
         $base = [];
@@ -478,7 +523,6 @@ class ProjectCostsService extends BaseService
                 ? round(max(0, $data['total_amount'] - $refundedAmount), 2)
                 : 0;
         } else {
-            $data['quotation_id'] = null;
             $data['bank_account_option_id'] = null;
             $data['cid'] = null;
             $data['ad_account'] = null;
@@ -493,6 +537,7 @@ class ProjectCostsService extends BaseService
             $data['input_invoice_status'] = null;
         }
 
+        $data = \App\Support\AdPromotion::prepare($data, $existing);
         $this->validateQuotationProject($data, $existing);
 
         return $data;
@@ -505,6 +550,13 @@ class ProjectCostsService extends BaseService
             'quotationId' => 'quotation_id',
             'entryType' => 'entry_type',
             'transactionDate' => 'transaction_date',
+            'workPeriod' => 'work_period',
+            'fundingSource' => 'funding_source',
+            'promotionCode' => 'promotion_code',
+            'promotionExpiresOn' => 'promotion_expires_on',
+            'promotionUsedAmount' => 'promotion_used_amount',
+            'promotionRevokedAmount' => 'promotion_revoked_amount',
+            'promotionEvidenceUrl' => 'promotion_evidence_url',
             'adAccount' => 'ad_account',
             'cidIsDead' => 'cid_is_dead',
             'cidRefundedAmount' => 'cid_refunded_amount',
@@ -538,6 +590,10 @@ class ProjectCostsService extends BaseService
             }
         }
 
+        if (isset($data['work_period']) && preg_match('/^\d{4}-\d{2}$/', (string) $data['work_period'])) {
+            $data['work_period'] .= '-01';
+        }
+
         return $data;
     }
 
@@ -567,6 +623,7 @@ class ProjectCostsService extends BaseService
     {
         if (
             ($data['entry_type'] ?? null) !== ProjectCost::TYPE_AD_SPEND
+            || ($data['funding_source'] ?? 'cash') === 'promotion'
             || ($data['status'] ?? null) !== ProjectCost::STATUS_COMPLETED
         ) {
             return;
@@ -613,6 +670,7 @@ class ProjectCostsService extends BaseService
         if (
             $user->hasPermission('cost.view')
             || $user->hasPermission('cost.view_department')
+            || $user->hasPermission('cost.view_team')
             || $user->hasPermission('cost.view_all')
         ) {
             return;
@@ -623,7 +681,7 @@ class ProjectCostsService extends BaseService
 
     private function ensureCidIncidentEligible(ProjectCost $cost): void
     {
-        if ($cost->entry_type !== ProjectCost::TYPE_AD_SPEND) {
+        if ($cost->entry_type !== ProjectCost::TYPE_AD_SPEND || $cost->isPromotion()) {
             throw ValidationException::withMessages([
                 'cidIncident' => ['Chỉ khoản nạp quảng cáo mới có thể báo CID ngừng hoạt động.'],
             ]);
@@ -660,7 +718,8 @@ class ProjectCostsService extends BaseService
         }
         $quotationProjectId = $quotation?->project_id;
 
-        if ($quotationProjectId && (string) $quotationProjectId !== (string) $data['project_id']) {
+        if (($quotationProjectId || ($data['entry_type'] ?? null) === ProjectCost::TYPE_PARTNER_COST || ($data['funding_source'] ?? null) === 'promotion')
+            && (string) $quotationProjectId !== (string) $data['project_id']) {
             throw ValidationException::withMessages([
                 'quotationId' => ['Báo phí không thuộc dự án này.'],
             ]);

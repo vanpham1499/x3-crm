@@ -5,9 +5,11 @@ import { useMemo } from 'react';
 import { keepPreviousData, useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import { useAppNotification } from '@/components/feedback/notification-provider';
 import { ContentLoading } from '@/components/shell/content-loading';
+import { ErrorState } from '@/components/feedback/error-state';
 import { KpiManager } from '@/features/kpi/components/kpi-manager';
 import { getApiErrorMessage } from '@/lib/api-error';
 import { hasPermission } from '@/lib/ownership';
+import { TeamScopeSelect } from '@/components/filters/team-scope-select';
 import api from '@/services/api/client';
 import { useAuthStore } from '@/stores/auth-store';
 import type { KpiPeriodFilters, KpiReport, KpiTargetPayload } from '@/types/kpi';
@@ -61,6 +63,7 @@ export default function KpiPage() {
   const queryClient = useQueryClient();
   const notify = useAppNotification();
   const currentUser = useAuthStore((state) => state.user);
+  const [teamId, setTeamId] = useState('');
   const initialMonth = currentPeriod();
   const [filters, setFilters] = useState<KpiPeriodFilters>({
     mode: 'month',
@@ -76,19 +79,21 @@ export default function KpiPage() {
     data: report,
     isLoading,
     isFetching,
+    isError,
+    refetch,
   } = useQuery<KpiReport>({
-    queryKey: ['kpi', range.periodFrom, range.periodTo],
+    queryKey: ['kpi', currentUser?.id, teamId, range.periodFrom, range.periodTo],
     queryFn: ({ signal }) =>
       api
         .get<KpiReport>('/kpi', {
           params: {
+            team_id: teamId || undefined,
             period_from: range.periodFrom,
             period_to: range.periodTo,
           },
           signal,
         })
         .then((response) => response.data),
-    placeholderData: keepPreviousData,
   });
 
   const targetMutation = useMutation({
@@ -100,17 +105,33 @@ export default function KpiPage() {
     onError: (error) => notify.error(getApiErrorMessage(error, 'Không thể cập nhật kế hoạch KPI')),
   });
 
+  if (isError)
+    return (
+      <ErrorState
+        compact
+        code="KPI"
+        title="Chưa tải được KPI"
+        description="Vui lòng tải lại dữ liệu trong phạm vi được phân quyền."
+        onRetry={() => {
+          setTeamId('');
+          void refetch();
+        }}
+      />
+    );
+
   if (isLoading || !report) {
     return <ContentLoading />;
   }
 
   return (
     <KpiManager
+      scopeActions={<TeamScopeSelect context="kpi" value={teamId} onChange={setTeamId} />}
       report={report}
       filters={filters}
       canManage={
         hasPermission(currentUser, 'kpi.manage') ||
         hasPermission(currentUser, 'kpi.manage_department') ||
+        hasPermission(currentUser, 'kpi.manage_team') ||
         hasPermission(currentUser, 'kpi.manage_all')
       }
       isFetching={isFetching}

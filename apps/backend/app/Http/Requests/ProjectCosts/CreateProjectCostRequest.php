@@ -27,6 +27,19 @@ class CreateProjectCostRequest extends BaseRequest
             'entryType' => ['required_without:entry_type', Rule::in([ProjectCost::TYPE_AD_SPEND, ProjectCost::TYPE_PARTNER_COST])],
             'transaction_date' => ['nullable', 'date'],
             'transactionDate' => ['nullable', 'date'],
+            'workPeriod' => ['nullable', 'date_format:Y-m'],
+            'fundingSource' => ['sometimes', Rule::in(['cash', 'promotion'])],
+            'promotionCode' => ['nullable', 'string', 'max:255'],
+            'promotionExpiresOn' => ['nullable', 'date_format:Y-m-d'],
+            'promotionUsedAmount' => ['nullable', 'numeric', 'min:0', 'decimal:0,2'],
+            'promotionRevokedAmount' => ['nullable', 'numeric', 'min:0', 'decimal:0,2'],
+            'promotionEvidenceUrl' => ['nullable', 'string', 'max:2000', function ($attribute, $value, $fail) {
+                $local = preg_match('~^/uploads/[a-zA-Z0-9/_\-.]+$~', $value) && ! str_contains($value, '..');
+                $remote = filter_var($value, FILTER_VALIDATE_URL) && in_array(parse_url($value, PHP_URL_SCHEME), ['http', 'https'], true);
+                if (! $local && ! $remote) {
+                    $fail('Ảnh xác nhận không hợp lệ.');
+                }
+            }],
             'status' => ['nullable', Rule::in([ProjectCost::STATUS_PENDING, ProjectCost::STATUS_COMPLETED, ProjectCost::STATUS_CANCELLED])],
             'cid' => ['nullable', 'string', 'max:100'],
             'ad_account' => ['nullable', 'string', 'max:255'],

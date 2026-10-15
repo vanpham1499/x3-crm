@@ -66,6 +66,7 @@ class ProjectResource extends JsonResource
                 'name' => $this->managerUser->name,
                 'email' => $this->managerUser->email,
                 'departmentId' => $this->managerUser->department_id,
+                'teamId' => $this->managerUser->team_id,
             ] : null),
             'salesUser' => $this->whenLoaded('salesUser', fn () => $this->salesUser ? [
                 'id' => $this->salesUser->id,
@@ -73,6 +74,7 @@ class ProjectResource extends JsonResource
                 'name' => $this->salesUser->name,
                 'email' => $this->salesUser->email,
                 'departmentId' => $this->salesUser->department_id,
+                'teamId' => $this->salesUser->team_id,
             ] : null),
             'createdBy' => $this->whenLoaded('createdBy', fn () => $this->createdBy ? [
                 'id' => $this->createdBy->id,

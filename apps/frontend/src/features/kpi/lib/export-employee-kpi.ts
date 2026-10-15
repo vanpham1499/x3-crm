@@ -65,6 +65,9 @@ function summaryRows(results: EmployeeExportResult[]) {
 
     return [
       result.period,
+      result.detail.metric === 'management_fee'
+        ? 'Phí quản lý trước VAT'
+        : 'Công thức lợi nhuận cũ',
       result.employee.code || '',
       result.employee.name,
       result.employee.departmentName || '',
@@ -91,6 +94,9 @@ function detailRows(results: EmployeeExportResult[]) {
     result.detail.branches.flatMap((branchItem) =>
       branchItem.entries.map((entry) => [
         result.period,
+        result.detail.metric === 'management_fee'
+          ? 'Phí quản lý trước VAT'
+          : 'Công thức lợi nhuận cũ',
         result.employee.code || '',
         result.employee.name,
         result.employee.departmentName || '',
@@ -133,6 +139,10 @@ export async function exportEmployeeKpiWorkbook(
         params: {
           period: task.period,
           scope_type: 'employee',
+          team_id:
+            report.viewerScope.level === 'team' && report.viewerScope.teamIds?.length === 1
+              ? report.viewerScope.teamIds[0]
+              : undefined,
           scope_id: task.employee.id,
         },
       });
@@ -151,22 +161,23 @@ export async function exportEmployeeKpiWorkbook(
       name: 'Tổng hợp KPI',
       columns: [
         { header: 'Tháng', width: 12 },
+        { header: 'Công thức KPI', width: 28 },
         { header: 'Mã nhân sự', width: 14 },
         { header: 'Nhân sự', width: 24 },
         { header: 'Phòng ban', width: 22 },
         { header: 'Trạng thái', width: 17 },
         { header: 'Kế hoạch', width: 18 },
-        { header: 'Ghi nhận có VAT', width: 20 },
+        { header: 'Giao dịch đối soát có VAT', width: 20 },
         { header: 'Chi phí có VAT', width: 18 },
         { header: 'Hoàn tiền có VAT', width: 20 },
-        { header: 'Lợi nhuận trước VAT', width: 22 },
-        { header: 'Triển khai - Ghi nhận có VAT', width: 25 },
+        { header: 'KPI ghi nhận', width: 22 },
+        { header: 'Triển khai - Giao dịch đối soát có VAT', width: 25 },
         { header: 'Triển khai - Chi phí có VAT', width: 24 },
         { header: 'Triển khai - Hoàn tiền có VAT', width: 26 },
-        { header: 'Triển khai - Lợi nhuận trước VAT', width: 28 },
-        { header: 'Phụ trách KH - Ghi nhận có VAT', width: 28 },
+        { header: 'Triển khai - KPI ghi nhận', width: 28 },
+        { header: 'Phụ trách KH - Giao dịch đối soát có VAT', width: 28 },
         { header: 'Phụ trách KH - Hoàn tiền có VAT', width: 28 },
-        { header: 'Phụ trách KH - Lợi nhuận trước VAT', width: 30 },
+        { header: 'Phụ trách KH - KPI ghi nhận', width: 30 },
         { header: 'Hoàn thành', width: 15 },
       ],
       rows: summaryRows(results),
@@ -175,6 +186,7 @@ export async function exportEmployeeKpiWorkbook(
       name: 'Chi tiết đối soát',
       columns: [
         { header: 'Tháng', width: 12 },
+        { header: 'Công thức KPI', width: 28 },
         { header: 'Mã nhân sự', width: 14 },
         { header: 'Nhân sự', width: 24 },
         { header: 'Phòng ban', width: 22 },
@@ -190,7 +202,7 @@ export async function exportEmployeeKpiWorkbook(
         { header: 'Tham chiếu', width: 34 },
         { header: 'Số nguồn có VAT', width: 20 },
         { header: 'Giá trị trước VAT', width: 20 },
-        { header: 'Tác động LN trước VAT', width: 24 },
+        { header: 'KPI trước VAT', width: 24 },
       ],
       rows: detailRows(results),
     },

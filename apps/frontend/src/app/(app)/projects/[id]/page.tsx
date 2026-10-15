@@ -22,6 +22,7 @@ import { AD_TOPUP_CARD_OPTION_GROUP } from '@/lib/ad-topup-card-options';
 import { getApiErrorMessage } from '@/lib/api-error';
 import { formatCustomerIdentity } from '@/lib/customer-utils';
 import { canEditProject } from '@/lib/ownership';
+import { calculateProjectServiceFinance } from '@/lib/project-service-finance';
 import {
   calculateAvailableTopupBudget,
   calculateRealizedProjectCost,
@@ -119,7 +120,11 @@ export default function EditProjectPage() {
         .then((response) => response.data),
   });
 
-  const { data: projectQuotations = [] } = useQuery<Quotation[]>({
+  const {
+    data: projectQuotations = [],
+    isPending: quotationsPending,
+    isError: quotationsError,
+  } = useQuery<Quotation[]>({
     queryKey: ['quotations', 'by-project', id],
     queryFn: () =>
       api
@@ -127,7 +132,11 @@ export default function EditProjectPage() {
         .then((response) => response.data),
   });
 
-  const { data: projectCosts = [] } = useQuery<ProjectCost[]>({
+  const {
+    data: projectCosts = [],
+    isPending: costsPending,
+    isError: costsError,
+  } = useQuery<ProjectCost[]>({
     queryKey: ['project-costs', 'by-project', id],
     queryFn: () =>
       api
@@ -145,7 +154,11 @@ export default function EditProjectPage() {
         .then((response) => response.data),
   });
 
-  const { data: originQuotation } = useQuery<Quotation>({
+  const {
+    data: originQuotation,
+    isPending: originPending,
+    isError: originError,
+  } = useQuery<Quotation>({
     queryKey: ['quotations', 'project-origin', project?.quotationId],
     queryFn: () =>
       api.get<Quotation>(`/quotations/${project?.quotationId}`).then((response) => response.data),
@@ -204,7 +217,12 @@ export default function EditProjectPage() {
   const configOption = getConfigForRoot(quoteConfigs, rootService);
   const config = configOption ? getServiceQuoteConfigMeta(configOption, rootService) : null;
   const revenueGroup = getProjectRevenueGroupInfo(Boolean(config?.enabled)).group;
-  const billableQuotations = quotations;
+  const billableQuotations = quotations.filter((quotation) => !quotation.isVoided);
+  const financePending =
+    quotationsPending || costsPending || (Boolean(project.quotationId) && originPending);
+  const financeError =
+    quotationsError || costsError || (Boolean(project.quotationId) && originError);
+  const serviceFinance = calculateProjectServiceFinance(billableQuotations, projectCosts);
   const totalDeposit = billableQuotations.reduce(
     (sum, quotation) => sum + (Number(quotation.depositAmount) || 0),
     0,
@@ -223,24 +241,7 @@ export default function EditProjectPage() {
   );
   const heldDeposit = Math.max(0, totalDepositReceived - totalDepositRefunded);
   const pendingDeposit = Math.max(0, totalDeposit - totalDepositReceived);
-  const grossReceived = billableQuotations.reduce(
-    (sum, quotation) =>
-      sum +
-      (Number(quotation.grossPaidAmount) ||
-        (Number(quotation.paidAmount) || 0) + (Number(quotation.refundedAmount) || 0)),
-    0,
-  );
-  const refundedAmount = billableQuotations.reduce(
-    (sum, quotation) => sum + (Number(quotation.refundedAmount) || 0),
-    0,
-  );
-  const compensationAmount = billableQuotations.reduce(
-    (sum, quotation) => sum + (Number(quotation.compensationAmount) || 0),
-    0,
-  );
   const realizedCost = calculateRealizedProjectCost(projectCosts);
-  const realizedProfit =
-    grossReceived - refundedAmount - compensationAmount - heldDeposit - realizedCost;
   const outstanding = billableQuotations.reduce(
     (sum, quotation) => sum + (Number(quotation.outstandingAmount) || 0),
     0,
@@ -250,6 +251,7 @@ export default function EditProjectPage() {
     creditBudget: creditTopupBudget,
     usedBudget: usedTopupBudget,
     availableBudget: availableTopupBudget,
+    eligibleBudget: eligibleTopupBudget,
   } = calculateAvailableTopupBudget({ quotations, costs: projectCosts });
   const depositNotes = [
     heldDeposit > 0 ? `Đang giữ ${formatCurrency(heldDeposit)}` : '',
@@ -273,20 +275,33 @@ export default function EditProjectPage() {
     {
       label: 'Số tiền có thể nạp',
       value: availableTopupBudget,
+      display: eligibleTopupBudget === 0 && usedTopupBudget === 0 ? 'Không áp dụng' : undefined,
       className: availableTopupBudget < 0 ? 'text-rose-700' : 'text-blue-700',
-      note: `Đã thu ${formatCurrency(paidTopupBudget)} · Nợ ${formatCurrency(creditTopupBudget)} · Đã nạp ${formatCurrency(usedTopupBudget)}`,
+      note:
+        availableTopupBudget < 0
+          ? 'Vượt nguồn nạp · Cần đối soát'
+          : eligibleTopupBudget > 0
+            ? `Đã thu ${formatCurrency(paidTopupBudget)} · Nợ ${formatCurrency(creditTopupBudget)} · Đã nạp ${formatCurrency(usedTopupBudget)}`
+            : 'Không có ngân sách thu hộ để nạp',
     },
     {
       label: 'Chi phí đã chi',
       value: realizedCost,
       className: 'text-rose-700',
-      note: 'Chỉ tính khoản chi đã hoàn tất',
+      note: 'Theo khoản đã nạp và số tiền thực trả đối tác',
     },
     {
-      label: 'Lợi nhuận thực nhận',
-      value: realizedProfit,
-      className: realizedProfit < 0 ? 'text-rose-700' : 'text-emerald-700',
-      note: 'Sau hoàn tiền, cọc giữ và chi phí',
+      label: revenueGroup === '2.1' ? 'Lợi nhuận dịch vụ' : 'Chênh lệch thu – chi dịch vụ',
+      value: serviceFinance.serviceProfit ?? 0,
+      display: serviceFinance.needsReview ? 'Cần đối soát' : undefined,
+      className: serviceFinance.needsReview
+        ? 'text-amber-700'
+        : (serviceFinance.serviceProfit ?? 0) < 0
+          ? 'text-rose-700'
+          : 'text-emerald-700',
+      note: serviceFinance.needsReview
+        ? 'Kiểm tra cơ cấu báo phí và hoàn tiền'
+        : `Phí đã thu trước VAT ${formatCurrency(serviceFinance.collectedBeforeVat ?? 0)}`,
     },
   ];
   const activeTabIndex = PROJECT_TABS.indexOf(activeTab);
@@ -328,9 +343,13 @@ export default function EditProjectPage() {
                   {metric.label}
                 </p>
                 <p className={`mt-1 text-lg font-extrabold tabular-nums ${metric.className}`}>
-                  {formatCurrency(metric.value)}
+                  {financeError
+                    ? 'Chưa tải được'
+                    : financePending
+                      ? 'Đang tải…'
+                      : (metric.display ?? formatCurrency(metric.value))}
                 </p>
-                {'note' in metric && metric.note ? (
+                {!financeError && !financePending && metric.note ? (
                   <p
                     className="mt-1 truncate text-[10px] font-semibold text-slate-500"
                     title={metric.note}
@@ -371,7 +390,9 @@ export default function EditProjectPage() {
       </section>
 
       <div className="mt-4 flex flex-1 flex-col">
-        <div className="mb-4"><ZaloRouteButton kind="project" id={project.id} /></div>
+        <div className="mb-4">
+          <ZaloRouteButton kind="project" id={project.id} />
+        </div>
         {activeTab === 'info' ? (
           <ProjectForm
             mode="edit"

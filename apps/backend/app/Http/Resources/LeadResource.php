@@ -37,6 +37,7 @@ class LeadResource extends JsonResource
                 'name' => $this->assignedUser->name,
                 'email' => $this->assignedUser->email,
                 'departmentId' => $this->assignedUser->department_id,
+                'teamId' => $this->assignedUser->team_id,
             ] : null),
             'createdBy' => $this->whenLoaded('createdBy', fn () => $this->createdBy ? [
                 'id' => $this->createdBy->id,

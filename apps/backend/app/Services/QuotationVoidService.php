@@ -45,6 +45,7 @@ class QuotationVoidService extends BaseService
         return FinancialMutation::run(function () use ($id, $data): array {
             $source = Quotation::withVoided()->lockForUpdate()->findOrFail($id);
             $this->authorize('void', $source);
+            \App\Support\PartnerFinance::protectSource('revenue', $id);
             $requestHash = hash('sha256', json_encode([
                 $this->currentUser()->id, $data['mode'], isset($data['targetQuotationId']) ? (int) $data['targetQuotationId'] : null,
                 trim($data['reason']), trim($data['confirmationCode']),

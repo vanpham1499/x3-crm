@@ -46,6 +46,13 @@ class MeetingPolicy
             return true;
         }
 
+        if (
+            $user->hasPermission("meeting.{$action}_team")
+            && $this->belongsToTeamScope($user, $meeting)
+        ) {
+            return true;
+        }
+
         return $user->hasPermission("meeting.{$action}")
             && $this->belongsToOwnScope($user, $meeting);
     }
@@ -101,6 +108,29 @@ class MeetingPolicy
                     ->orWhereHas('project.managerUser', fn (Builder $manager) => $manager->whereIn('department_id', $departmentIds))
                     ->orWhereHas('project.salesUser', fn (Builder $sales) => $sales->whereIn('department_id', $departmentIds))
                     ->orWhereHas('createdBy', fn (Builder $creator) => $creator->whereIn('department_id', $departmentIds));
+            })
+            ->exists();
+    }
+
+    private function belongsToTeamScope(User $user, Meeting $meeting): bool
+    {
+        $teamIds = $user->accessibleTeamIds();
+
+        if ($teamIds === []) {
+            return false;
+        }
+
+        return Meeting::query()
+            ->whereKey($meeting->id)
+            ->where(function (Builder $query) use ($teamIds): void {
+                $query
+                    ->whereHas('organizer', fn (Builder $organizer) => $organizer->whereIn('team_id', $teamIds))
+                    ->orWhereHas('participants', fn (Builder $participants) => $participants->whereIn('users.team_id', $teamIds))
+                    ->orWhereHas('lead.assignedUser', fn (Builder $assigned) => $assigned->whereIn('team_id', $teamIds))
+                    ->orWhereHas('customer.salesUser', fn (Builder $sales) => $sales->whereIn('team_id', $teamIds))
+                    ->orWhereHas('project.managerUser', fn (Builder $manager) => $manager->whereIn('team_id', $teamIds))
+                    ->orWhereHas('project.salesUser', fn (Builder $sales) => $sales->whereIn('team_id', $teamIds))
+                    ->orWhereHas('createdBy', fn (Builder $creator) => $creator->whereIn('team_id', $teamIds));
             })
             ->exists();
     }

@@ -37,6 +37,10 @@ class CustomerPolicy
             return true;
         }
 
+        if ($user->hasPermission("customer.{$action}_team") && $customer->isInTeamOf($user)) {
+            return true;
+        }
+
         return $user->hasPermission("customer.{$action}") && $customer->isAssignedTo($user);
     }
 }

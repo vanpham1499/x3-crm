@@ -2,10 +2,21 @@
 
 namespace App\Models;
 
+use App\Support\KpiFeeBasis;
 use Illuminate\Database\Eloquent\Relations\BelongsTo;
 
 class PaymentAllocation extends BaseModel
 {
+    protected static function booted(): void
+    {
+        parent::booted();
+        static::created(function (self $allocation): void {
+            if ($quotation = $allocation->quotation) {
+                KpiFeeBasis::freeze($quotation);
+            }
+        });
+    }
+
     protected $fillable = [
         'payment_id',
         'quotation_id',

@@ -70,6 +70,9 @@ export type Quotation = {
   topupReleasedBudget?: string | number | null;
   topupUsablePaidAmount?: string | number | null;
   topupHeldDepositAmount?: string | number | null;
+  serviceRevenueBeforeVat?: string | number | null;
+  serviceCollectedBeforeVat?: string | number | null;
+  financialNeedsReview?: boolean;
   accountReconciliationImageUrls?: string[];
   validUntil?: string | null;
   note?: string | null;

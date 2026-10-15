@@ -77,6 +77,8 @@ class NotificationDispatchService
                     'read_at' => null,
                     'resolved_at' => null,
                     'archived_at' => null,
+                    'handled_at' => null,
+                    'inbox_reopened_at' => null,
                 ])->save();
                 UserNotificationsChanged::dispatch($userId, 'reopened', (int) $notification->id);
             }
@@ -87,15 +89,18 @@ class NotificationDispatchService
         return $notifications;
     }
 
-    public function resolve(string $entityType, int|string $entityId, array $eventKeys = []): int
+    public function resolve(string $entityType, int|string $entityId, array $eventKeys = [], array $dataFilters = []): int
     {
         $query = UserNotification::query()
             ->where('entity_type', $entityType)
             ->where('entity_id', $entityId)
             ->whereNull('resolved_at')
             ->when($eventKeys !== [], fn ($query) => $query->whereIn('event_key', $eventKeys));
+        foreach ($dataFilters as $key => $value) {
+            $query->where('data->'.$key, $value);
+        }
         $recipientIds = (clone $query)->distinct()->pluck('user_id');
-        $updated = $query->update(['resolved_at' => now()]);
+        $updated = $query->update(['resolved_at' => now(), 'inbox_reopened_at' => null]);
 
         if ($updated > 0) {
             $recipientIds->each(fn ($userId) => UserNotificationsChanged::dispatch(

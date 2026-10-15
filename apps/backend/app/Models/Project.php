@@ -97,6 +97,12 @@ class Project extends BaseModel
             || $user->sharesDepartmentWith($this->salesUser);
     }
 
+    public function isInTeamOf(User $user): bool
+    {
+        return $user->sharesTeamWith($this->managerUser)
+            || $user->sharesTeamWith($this->salesUser);
+    }
+
     public function contracts(): HasMany
     {
         return $this->hasMany(Contract::class);

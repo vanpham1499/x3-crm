@@ -5,6 +5,7 @@ import { keepPreviousData, useQuery } from '@tanstack/react-query';
 import { ErrorState } from '@/components/feedback/error-state';
 import { ContentLoading } from '@/components/shell/content-loading';
 import { DashboardOverview } from '@/features/dashboard/components/dashboard-overview';
+import { TeamScopeSelect } from '@/components/filters/team-scope-select';
 import api from '@/services/api/client';
 import { useAuthStore } from '@/stores/auth-store';
 import type { DashboardPeriodFilters, DashboardReport } from '@/types/dashboard';
@@ -56,6 +57,7 @@ function resolvePeriodRange(filters: DashboardPeriodFilters) {
 
 export default function DashboardPage() {
   const currentUserId = useAuthStore((state) => state.user?.id ?? null);
+  const [teamId, setTeamId] = useState('');
   const initialMonth = currentPeriod();
   const [filters, setFilters] = useState<DashboardPeriodFilters>({
     mode: 'month',
@@ -73,18 +75,18 @@ export default function DashboardPage() {
     isError,
     refetch,
   } = useQuery<DashboardReport>({
-    queryKey: ['dashboard', currentUserId, range.periodFrom, range.periodTo],
+    queryKey: ['dashboard', currentUserId, teamId, range.periodFrom, range.periodTo],
     queryFn: ({ signal }) =>
       api
         .get<DashboardReport>('/dashboard', {
           params: {
+            team_id: teamId || undefined,
             period_from: range.periodFrom,
             period_to: range.periodTo,
           },
           signal,
         })
         .then((response) => response.data),
-    placeholderData: keepPreviousData,
   });
 
   if (isError) {
@@ -107,6 +109,7 @@ export default function DashboardPage() {
 
   return (
     <DashboardOverview
+      scopeActions={<TeamScopeSelect context="project" value={teamId} onChange={setTeamId} />}
       report={report}
       filters={filters}
       isFetching={isFetching}

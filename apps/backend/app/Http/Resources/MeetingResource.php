@@ -61,6 +61,7 @@ class MeetingResource extends JsonResource
                 'code' => $this->organizer->code,
                 'name' => $this->organizer->name,
                 'departmentId' => $this->organizer->department_id,
+                'teamId' => $this->organizer->team_id,
                 'department' => $this->organizer->relationLoaded('department') && $this->organizer->department ? [
                     'id' => $this->organizer->department->id,
                     'name' => $this->organizer->department->name,
@@ -71,6 +72,7 @@ class MeetingResource extends JsonResource
                 'code' => $participant->code,
                 'name' => $participant->name,
                 'departmentId' => $participant->department_id,
+                'teamId' => $participant->team_id,
                 'attendanceStatus' => $participant->pivot?->attendance_status,
             ])->values()),
             'guests' => $this->whenLoaded('guests', fn () => $this->guests->map(fn ($guest) => [

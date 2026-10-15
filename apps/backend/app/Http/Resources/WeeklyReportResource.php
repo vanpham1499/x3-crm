@@ -53,6 +53,7 @@ class WeeklyReportResource extends JsonResource
                 'code' => $this->reporter->code,
                 'name' => $this->reporter->name,
                 'departmentId' => $this->reporter->department_id,
+                'teamId' => $this->reporter->team_id,
             ] : null),
             'approver' => $this->whenLoaded('approver', fn () => $this->approver ? [
                 'id' => $this->approver->id,

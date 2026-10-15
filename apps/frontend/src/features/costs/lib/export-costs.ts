@@ -1,4 +1,5 @@
 import { getAdTopupCardLabel } from '@/lib/ad-topup-card-options';
+import { isAdPromotion, promotionStatus } from '@/lib/ad-promotion';
 import { formatCustomerIdentity } from '@/lib/customer-utils';
 import { downloadXlsxWorkbook, type XlsxCell } from '@/lib/xlsx-workbook';
 import api from '@/services/api/client';
@@ -80,6 +81,7 @@ function userLabel(user?: { code?: string | null; name?: string | null } | null)
 }
 
 function sourceLabel(cost: ProjectCost) {
+  if (isAdPromotion(cost)) return `MKM · ${cost.promotionCode || ''}`;
   if (cost.entryType === 'ad_spend') {
     return cost.bankAccountOption ? getAdTopupCardLabel(cost.bankAccountOption) : '';
   }
@@ -113,7 +115,7 @@ export async function exportCostsWorkbook(filters: ProjectCostFilters) {
       name: 'Tổng hợp chi phí',
       columns: [
         { header: 'ID chi phí', width: 14 },
-        { header: 'Ngày chi', width: 16 },
+        { header: 'Ngày chi gần nhất', width: 18 },
         { header: 'Loại chi phí', width: 20 },
         { header: 'Trạng thái chi', width: 20 },
         { header: 'ID dự án', width: 12 },
@@ -133,7 +135,7 @@ export async function exportCostsWorkbook(filters: ProjectCostFilters) {
         { header: 'Thuế suất VAT (%)', width: 18 },
         { header: 'Tiền VAT', width: 18 },
         { header: 'Giảm trừ', width: 18 },
-        { header: 'Tổng chi', width: 18 },
+        { header: 'Giá trị khoản (gồm MKM)', width: 24 },
         { header: 'Dòng tiền đã chi', width: 20 },
         { header: 'Chi phí thực tế', width: 20 },
         { header: 'Hạn mức đã trả lại', width: 22 },
@@ -148,12 +150,26 @@ export async function exportCostsWorkbook(filters: ProjectCostFilters) {
         { header: 'Ghi chú chi phí', width: 40 },
         { header: 'Ngày tạo', width: 20 },
         { header: 'Cập nhật lần cuối', width: 20 },
+        { header: 'Kỳ ghi nhận đối tác', width: 32 },
+        { header: 'Còn phải trả đối tác', width: 22 },
+        { header: 'Nguồn ngân sách', width: 22 },
+        { header: 'Mã khuyến mãi', width: 28 },
+        { header: 'MKM đã dùng', width: 20 },
+        { header: 'MKM thu hồi', width: 20 },
+        { header: 'MKM còn hiệu lực', width: 20 },
+        { header: 'MKM hết hạn', width: 18 },
       ],
       rows: costs.map((cost) => [
         cost.id,
         cost.transactionDate || '',
-        ENTRY_TYPE_LABELS[cost.entryType] || cost.entryType,
-        STATUS_LABELS[cost.status] || cost.status,
+        isAdPromotion(cost) ? 'Mã khuyến mãi' : ENTRY_TYPE_LABELS[cost.entryType] || cost.entryType,
+        isAdPromotion(cost)
+          ? promotionStatus(cost)
+          : cost.usesPaymentLedger &&
+              cost.status === 'pending' &&
+              Number(cost.partnerPaidAmount) > 0
+            ? 'Đã trả một phần'
+            : STATUS_LABELS[cost.status] || cost.status,
         cost.projectId,
         cost.project?.projectCode || '',
         cost.project?.projectName || '',
@@ -172,15 +188,21 @@ export async function exportCostsWorkbook(filters: ProjectCostFilters) {
         numberCell(cost.vatAmount),
         numberCell(cost.discountAmount),
         numberCell(cost.totalAmount),
-        numberCell(cost.cashOutAmount),
+        numberCell(cost.usesPaymentLedger ? cost.partnerPaidAmount : cost.cashOutAmount),
         numberCell(cost.actualCostAmount),
         numberCell(cost.releasedBalanceAmount),
         numberCell(cost.remainingBalanceAmount),
-        numberCell(cost.realizedCostAmount),
+        numberCell(
+          cost.entryType === 'partner_cost'
+            ? cost.partnerRecognizedAmount
+            : cost.realizedCostAmount,
+        ),
         BALANCE_STATUS_LABELS[cost.balanceStatus || ''] || cost.balanceStatus || '',
-        RECONCILIATION_LABELS[cost.reconciliationResult || ''] ||
-          cost.reconciliationResult ||
-          'Chưa đối soát',
+        isAdPromotion(cost)
+          ? 'Không chi tiền'
+          : RECONCILIATION_LABELS[cost.reconciliationResult || ''] ||
+            cost.reconciliationResult ||
+            'Chưa đối soát',
         cost.invoiceNumber || '',
         cost.reconciliationNote || '',
         userLabel(cost.reconciledBy),
@@ -188,6 +210,14 @@ export async function exportCostsWorkbook(filters: ProjectCostFilters) {
         cost.note || '',
         dateTimeCell(cost.createdAt),
         dateTimeCell(cost.updatedAt),
+        (cost.recognitionAllocations || []).map((row) => `${row.period}: ${row.amount}`).join('; '),
+        numberCell(cost.partnerPayableAmount),
+        cost.fundingSource === 'promotion' ? 'MKM nền tảng tặng' : 'Tiền thật',
+        cost.promotionCode || '',
+        numberCell(cost.promotionUsedAmount),
+        numberCell(cost.promotionRevokedAmount),
+        numberCell(cost.promotionAvailableAmount),
+        cost.promotionExpiresOn || '',
       ]),
     },
     {

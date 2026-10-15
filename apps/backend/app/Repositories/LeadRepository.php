@@ -100,6 +100,15 @@ class LeadRepository extends BaseRepository
             return;
         }
 
+        $teamIds = $user->accessibleTeamIds();
+
+        if ($user->hasPermission('lead.view_team') && $teamIds !== []) {
+            $query->whereHas('assignedUser', fn (Builder $assignedUser) => $assignedUser
+                ->whereIn('team_id', $teamIds));
+
+            return;
+        }
+
         if ($user->hasPermission('lead.view')) {
             $query->where('assigned_user_id', $user->id);
 

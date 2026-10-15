@@ -40,6 +40,11 @@ class CreatePaymentRequest extends BaseRequest
             'reconciledStatus' => ['nullable', 'string', 'max:50'],
             'note' => ['nullable', 'string'],
             'reference' => ['nullable', 'string', 'max:255'],
+            'paymentChannel' => ['nullable', Rule::in(['bank', 'paypal', 'cash', 'other'])],
+            'platformFeeAmount' => ['nullable', 'numeric', 'min:0'],
+            'sourcePaymentId' => ['nullable', 'integer', Rule::exists('payments', 'id')->whereNull('deleted_at')],
+            'changeReason' => ['nullable', 'string', 'max:1000'],
+            'expectedUpdatedAt' => ['nullable', 'date'],
         ];
     }
 }

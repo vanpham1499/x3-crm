@@ -43,6 +43,7 @@ class DepartmentsService extends BaseService
     public function update(string $id, array $data): array
     {
         return $this->transaction(function () use ($id, $data): array {
+            Department::whereKey($id)->lockForUpdate()->firstOrFail();
             $payload = $this->normalizePayload($data);
 
             /** @var Department $department */
@@ -59,7 +60,11 @@ class DepartmentsService extends BaseService
     public function remove(string $id): array
     {
         return $this->transaction(function () use ($id): array {
+            Department::whereKey($id)->lockForUpdate()->firstOrFail();
             $department = $this->departments->findWithRelationsOrFail($id);
+            if (\App\Models\Team::where('department_id', $department->id)->exists()) {
+                throw \Illuminate\Validation\ValidationException::withMessages(['department' => ['Hãy chuyển hoặc xóa các nhóm trực thuộc trước khi xóa phòng ban.']]);
+            }
             $this->clearMembers($department);
             $department->forceFill(['leader_user_id' => null])->save();
             $this->departments->delete($id);
@@ -117,21 +122,21 @@ class DepartmentsService extends BaseService
         User::query()
             ->where('department_id', $department->id)
             ->whereNotIn('id', $memberUserIds)
-            ->update(array_merge(['department_id' => null], $auditValues));
+            ->orderBy('id')->lockForUpdate()->get()->each(fn (User $user) => $user->forceFill(array_merge(['department_id' => null], $auditValues))->save());
 
         User::query()
             ->whereIn('id', $memberUserIds)
-            ->update(array_merge(['department_id' => $department->id], $auditValues));
+            ->orderBy('id')->lockForUpdate()->get()->each(fn (User $user) => $user->forceFill(array_merge(['department_id' => $department->id], $auditValues))->save());
     }
 
     private function clearMembers(Department $department): void
     {
         User::query()
             ->where('department_id', $department->id)
-            ->update([
+            ->orderBy('id')->lockForUpdate()->get()->each(fn (User $user) => $user->forceFill([
                 'department_id' => null,
                 'updated_by' => $this->currentUser()?->id,
                 'updated_at' => now(),
-            ]);
+            ])->save());
     }
 }

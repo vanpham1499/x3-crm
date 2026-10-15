@@ -42,11 +42,16 @@ class MeetingsService extends BaseService
         );
     }
 
-    public function summary(): array
+    public function summary(?array $teamIds = null): array
     {
         $this->authorize('viewAny', Meeting::class);
 
         $query = $this->meetings->visibleBaseQuery($this->requiredUser());
+        if ($teamIds !== null) {
+            $query->where(fn ($scope) => $scope
+                ->whereHas('organizer', fn ($person) => $person->whereIn('team_id', $teamIds))
+                ->orWhereHas('participants', fn ($person) => $person->whereIn('team_id', $teamIds)));
+        }
         $timezone = config('app.timezone', 'Asia/Ho_Chi_Minh');
         $todayStart = CarbonImmutable::today($timezone)->utc();
         $todayEnd = $todayStart->addDay();
@@ -154,6 +159,7 @@ class MeetingsService extends BaseService
 
             if ($timeChanged) {
                 $payload['status'] = Meeting::STATUS_SCHEDULED;
+                $this->notifications->resolve('meeting', $meeting->id, ['meeting_reminder_24h', 'meeting_reminder_30m']);
             }
 
             $meeting->fill($payload)->save();
@@ -229,6 +235,7 @@ class MeetingsService extends BaseService
                 'nextActionDate' => $meeting->next_action_date?->toDateString(),
             ]);
             $this->recordTimeline($meeting, 'meeting_completed', 'Hoàn thành lịch hẹn');
+            $this->notifications->resolve('meeting', $meeting->id, ['meeting_reminder_24h', 'meeting_reminder_30m']);
 
             return $this->resource($meeting);
         });
@@ -292,6 +299,9 @@ class MeetingsService extends BaseService
             }
 
             $meeting->update(['status' => $toStatus]);
+            if (! in_array($toStatus, Meeting::ACTIVE_STATUSES, true)) {
+                $this->notifications->resolve('meeting', $meeting->id, ['meeting_reminder_24h', 'meeting_reminder_30m']);
+            }
             $this->recordHistory($meeting, $historyAction, ['status' => $toStatus]);
             $this->recordTimeline($meeting, $timelineAction, $timelineTitle);
 

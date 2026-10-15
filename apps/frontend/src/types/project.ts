@@ -6,7 +6,7 @@ import type { Quotation } from '@/types/quotation';
 import type { ServiceItem } from '@/types/service';
 import type { User } from '@/types/user';
 
-export type ProjectUserSummary = Pick<User, 'id' | 'code' | 'name' | 'email' | 'departmentId'>;
+export type ProjectUserSummary = Pick<User, 'id' | 'code' | 'name' | 'email' | 'departmentId' | 'teamId'>;
 
 export type ProjectType = 'K' | 'M' | 'O';
 export type StoredProjectType = ProjectType | 'N';

@@ -126,6 +126,16 @@ class PaymentRefundRepository extends BaseRepository
                     continue;
                 }
 
+                $teamIds = $user->accessibleTeamIds();
+                if ($user->hasPermission('payment.view_team') && $teamIds !== []) {
+                    $scope->orWhereHas(
+                        $relation.'.managerUser',
+                        fn (Builder $manager) => $manager->whereIn('team_id', $teamIds),
+                    );
+
+                    continue;
+                }
+
                 $scope->orWhereHas(
                     $relation,
                     fn (Builder $project) => $project->where('manager_user_id', $user->id),

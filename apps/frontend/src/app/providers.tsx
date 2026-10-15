@@ -10,6 +10,7 @@ import 'dayjs/locale/vi';
 import { AppNotificationProvider } from '@/components/feedback/notification-provider';
 import { useAuthStore } from '@/stores/auth-store';
 import { muiTheme } from '@/theme/mui-theme';
+import { KpiLiveRefresh } from '@/features/kpi/components/kpi-live-refresh';
 
 export function Providers({ children }: { children: React.ReactNode }) {
   const initAuth = useAuthStore((state) => state.init);
@@ -30,6 +31,7 @@ export function Providers({ children }: { children: React.ReactNode }) {
         <LocalizationProvider dateAdapter={AdapterDayjs} adapterLocale="vi">
           <CssBaseline />
           <QueryClientProvider client={queryClient}>
+            <KpiLiveRefresh />
             <AppNotificationProvider>{children}</AppNotificationProvider>
           </QueryClientProvider>
         </LocalizationProvider>

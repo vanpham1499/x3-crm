@@ -14,7 +14,9 @@ class UserNotificationsController extends Controller
     public function index(Request $request): JsonResponse
     {
         $validated = $request->validate([
-            'filter' => ['nullable', Rule::in(['all', 'unread', 'action', 'archived'])],
+            'filter' => ['nullable', Rule::in(['all', 'done', 'unread', 'action', 'archived'])],
+            'module' => ['nullable', 'string', 'max:40'],
+            'unread' => ['nullable', 'boolean'],
             'page' => ['nullable', 'integer', 'min:1'],
             'per_page' => ['nullable', 'integer', 'min:1', 'max:50'],
         ]);
@@ -23,6 +25,8 @@ class UserNotificationsController extends Controller
             $validated['filter'] ?? 'all',
             (int) ($validated['per_page'] ?? 20),
             (int) ($validated['page'] ?? 1),
+            $validated['module'] ?? null,
+            (bool) ($validated['unread'] ?? false),
         );
 
         return $this->success($result['data'], 200, $result['meta']);
@@ -48,6 +52,11 @@ class UserNotificationsController extends Controller
     public function archive(Request $request, string $id): JsonResponse
     {
         return $this->success($this->notifications->archive($request->user(), $id));
+    }
+
+    public function handle(Request $request, string $id): JsonResponse
+    {
+        return $this->success($this->notifications->handle($request->user(), $id));
     }
 
     public function restore(Request $request, string $id): JsonResponse

@@ -37,6 +37,10 @@ class LeadPolicy
             return true;
         }
 
+        if ($user->hasPermission("lead.{$action}_team") && $lead->isInTeamOf($user)) {
+            return true;
+        }
+
         return $user->hasPermission("lead.{$action}") && $lead->isAssignedTo($user);
     }
 }

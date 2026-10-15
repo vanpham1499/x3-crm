@@ -2,7 +2,8 @@
 
 import Image from 'next/image';
 import { ZaloDocumentButton } from '@/features/zalo-crm/zalo-document-share';
-import { useRef, useState, type ReactNode } from 'react';
+import { useCallback, useEffect, useRef, useState, type ReactNode } from 'react';
+import DownloadRoundedIcon from '@mui/icons-material/DownloadRounded';
 import AccountBalanceWalletOutlinedIcon from '@mui/icons-material/AccountBalanceWalletOutlined';
 import CalendarMonthOutlinedIcon from '@mui/icons-material/CalendarMonthOutlined';
 import CalendarViewWeekOutlinedIcon from '@mui/icons-material/CalendarViewWeekOutlined';
@@ -25,6 +26,7 @@ import { formatWeeklyReportMoney, getWeeklyReportCurrency } from '@/lib/weekly-r
 type WeeklyReportCustomerPreviewDialogProps = {
   report: WeeklyReport | null;
   onClose: () => void;
+  autoCopyImage?: boolean;
 };
 
 function MetricCard({
@@ -58,19 +60,50 @@ function MetricCard({
 export function WeeklyReportCustomerPreviewDialog({
   report,
   onClose,
+  autoCopyImage = false,
 }: WeeklyReportCustomerPreviewDialogProps) {
   const notify = useAppNotification();
   const customerSheetRef = useRef<HTMLElement | null>(null);
+  const [sheetReady, setSheetReady] = useState(false);
+  const attachSheet = useCallback((node: HTMLElement | null) => {
+    customerSheetRef.current = node;
+    setSheetReady(Boolean(node));
+  }, []);
   const [isCopyingImage, setIsCopyingImage] = useState(false);
+  const [downloadBlob, setDownloadBlob] = useState<Blob | null>(null);
+  const attemptedAutoCopy = useRef(false);
+  const copyImageRef = useRef<(() => Promise<void>) | null>(null);
+  const copyLock = useRef(false);
 
-  const { data: detailedReport, isFetching } = useQuery<
-    WeeklyReport & { deliveryVersion?: string }
-  >({
+  const {
+    data: detailedReport,
+    isFetching,
+    isError,
+  } = useQuery<WeeklyReport & { deliveryVersion?: string }>({
     queryKey: ['weekly-reports', report ? String(report.id) : 'customer-preview'],
     queryFn: () =>
       api.get<WeeklyReport>(`/weekly-reports/${report?.id}`).then((response) => response.data),
     enabled: Boolean(report),
   });
+
+  useEffect(() => {
+    if (!report) {
+      attemptedAutoCopy.current = false;
+      setDownloadBlob(null);
+      return;
+    }
+    if (
+      autoCopyImage &&
+      sheetReady &&
+      detailedReport &&
+      !isFetching &&
+      !isError &&
+      !attemptedAutoCopy.current
+    ) {
+      attemptedAutoCopy.current = true;
+      void copyImageRef.current?.();
+    }
+  }, [report, autoCopyImage, sheetReady, detailedReport, isFetching, isError]);
 
   if (!report) return null;
 
@@ -87,32 +120,37 @@ export function WeeklyReportCustomerPreviewDialog({
     (attachment) => !attachment.mimeType || attachment.mimeType.startsWith('image/'),
   );
   const copyCustomerImage = async () => {
-    if (!customerSheetRef.current || isCopyingImage) return;
+    if (!customerSheetRef.current || copyLock.current || isFetching || isError) return;
 
+    copyLock.current = true;
     setIsCopyingImage(true);
+    setDownloadBlob(null);
 
     try {
-      if (!navigator.clipboard?.write || typeof ClipboardItem === 'undefined') {
-        throw new Error('Trình duyệt không hỗ trợ sao chép ảnh vào clipboard');
-      }
-
       const sheet = customerSheetRef.current;
-      await document.fonts?.ready;
-      const images = Array.from(sheet.querySelectorAll('img'));
-      await Promise.all(
-        images.map(
-          (image) =>
-            new Promise<void>((resolve) => {
-              if (image.complete) {
-                resolve();
-                return;
+      let timer: ReturnType<typeof setTimeout> | undefined;
+      try {
+        await Promise.race([
+          Promise.all([
+            document.fonts?.ready,
+            ...Array.from(sheet.querySelectorAll('img')).map(async (image) => {
+              // Includes images below the dialog fold; refuse partial exports on broken media.
+              image.loading = 'eager';
+              try {
+                await image.decode();
+              } catch {
+                throw new Error('Có ảnh chưa tải được. Hãy tải lại ảnh trước khi xuất báo cáo.');
               }
-
-              image.addEventListener('load', () => resolve(), { once: true });
-              image.addEventListener('error', () => resolve(), { once: true });
+              if (!image.naturalWidth) throw new Error('Có ảnh chưa tải được. Hãy thử lại.');
             }),
-        ),
-      );
+          ]),
+          new Promise<never>((_, reject) => {
+            timer = setTimeout(() => reject(new Error('Ảnh tải quá lâu. Hãy thử lại sau.')), 20000);
+          }),
+        ]);
+      } finally {
+        if (timer) clearTimeout(timer);
+      }
 
       const width = Math.ceil(Math.max(sheet.scrollWidth, sheet.getBoundingClientRect().width));
       const height = Math.ceil(Math.max(sheet.scrollHeight, sheet.getBoundingClientRect().height));
@@ -133,13 +171,32 @@ export function WeeklyReportCustomerPreviewDialog({
 
       if (!blob) throw new Error('Không thể tạo ảnh báo cáo tuần');
 
-      await navigator.clipboard.write([new ClipboardItem({ 'image/png': blob })]);
-      notify.success('Đã lấy ảnh báo cáo. Bạn có thể Ctrl+V để gửi khách.');
+      setDownloadBlob(blob);
+      try {
+        if (!navigator.clipboard?.write || typeof ClipboardItem === 'undefined')
+          throw new Error('Clipboard unavailable');
+        await navigator.clipboard.write([new ClipboardItem({ 'image/png': blob })]);
+        notify.success('Đã sao chép ảnh. Nhấn Ctrl+V để gửi.');
+      } catch {
+        notify.info('Ảnh đã sẵn sàng. Bấm Tải ảnh PNG nếu trình duyệt không cho sao chép.');
+      }
     } catch (error) {
       notify.error(error instanceof Error ? error.message : 'Không thể lấy ảnh báo cáo tuần');
     } finally {
       setIsCopyingImage(false);
+      copyLock.current = false;
     }
+  };
+  copyImageRef.current = copyCustomerImage;
+
+  const downloadImage = () => {
+    if (!downloadBlob) return;
+    const url = URL.createObjectURL(downloadBlob);
+    const anchor = document.createElement('a');
+    anchor.href = url;
+    anchor.download = `bao-cao-tuan-${currentReport.id}-${currentReport.weekStartDate}.png`;
+    anchor.click();
+    setTimeout(() => URL.revokeObjectURL(url), 1000);
   };
 
   return (
@@ -156,11 +213,16 @@ export function WeeklyReportCustomerPreviewDialog({
           <DialogActionButton
             tone="primary"
             startIcon={<PhotoCameraRoundedIcon />}
-            disabled={!detailedReport || isCopyingImage}
+            disabled={!detailedReport || isFetching || isError || isCopyingImage}
             onClick={copyCustomerImage}
           >
             {isCopyingImage ? 'Đang lấy ảnh...' : 'Lấy ảnh'}
           </DialogActionButton>
+          {downloadBlob && (
+            <DialogActionButton startIcon={<DownloadRoundedIcon />} onClick={downloadImage}>
+              Tải ảnh PNG
+            </DialogActionButton>
+          )}
           <ZaloDocumentButton
             kind="report"
             id={report.id}
@@ -173,7 +235,7 @@ export function WeeklyReportCustomerPreviewDialog({
     >
       <div className="overflow-x-auto bg-slate-100 p-3 sm:p-6">
         <article
-          ref={customerSheetRef}
+          ref={attachSheet}
           className="mx-auto max-w-[1040px] overflow-hidden rounded-xl border border-slate-200 bg-white text-slate-900"
         >
           <div className="space-y-5 px-6 py-6">

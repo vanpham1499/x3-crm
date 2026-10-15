@@ -15,6 +15,7 @@ import WorkRoundedIcon from '@mui/icons-material/WorkRounded';
 import { CircularProgress, IconButton, Menu, MenuItem } from '@mui/material';
 import { DialogActionButton } from '@/components/actions/dialog-action-button';
 import { PrimaryActionButton } from '@/components/actions/primary-action-button';
+import { isAdPromotion, promotionStatus } from '@/lib/ad-promotion';
 import { AppDetailDialog } from '@/components/dialog/app-detail-dialog';
 import { AppFormDialog } from '@/components/dialog/app-form-dialog';
 import { CompactSearchField } from '@/components/form/compact-search-field';
@@ -131,6 +132,9 @@ function statusClass(status: ProjectCostStatus) {
 }
 
 function costStatusLabel(cost: ProjectCost) {
+  if (isAdPromotion(cost)) return promotionStatus(cost);
+  if (cost.usesPaymentLedger && cost.status === 'pending' && Number(cost.partnerPaidAmount) > 0)
+    return 'Đã trả một phần';
   if (cost.status === 'completed') {
     return cost.entryType === 'ad_spend' ? 'Đã nạp' : 'Đã chi';
   }
@@ -152,12 +156,12 @@ function costStatusOptions(cost: ProjectCost) {
   return [
     {
       value: 'pending',
-      label: isAdSpend ? 'Chờ nạp' : 'Chờ chi',
+      label: isAdPromotion(cost) ? 'Chờ cấp MKM' : isAdSpend ? 'Chờ nạp' : 'Chờ chi',
       color: costStatusColor('pending'),
     },
     {
       value: 'completed',
-      label: isAdSpend ? 'Đã nạp' : 'Đã chi',
+      label: isAdPromotion(cost) ? 'Đã cấp MKM' : isAdSpend ? 'Đã nạp' : 'Đã chi',
       color: costStatusColor('completed'),
     },
     {
@@ -246,7 +250,9 @@ function CostDetailDialog({
     <AppDetailDialog
       open
       maxWidth="md"
-      title={ENTRY_TYPE_LABELS[cost.entryType]}
+      title={
+        isAdPromotion(cost) ? 'Mã khuyến mãi nền tảng tặng' : ENTRY_TYPE_LABELS[cost.entryType]
+      }
       eyebrow={projectCode}
       subtitle={formatDate(cost.transactionDate)}
       onClose={onClose}
@@ -273,6 +279,38 @@ function CostDetailDialog({
       }
     >
       <div className="space-y-4 bg-slate-50/60 p-4">
+        {isAdPromotion(cost) && (
+          <section className="rounded-xl border border-slate-200 bg-white p-4">
+            <h3 className="text-sm font-semibold text-slate-900">{cost.promotionCode}</h3>
+            <p className="mt-1 text-xs text-slate-500">
+              CID {cost.cid} · Hạn sử dụng:{' '}
+              {cost.promotionExpiresOn ? formatDate(cost.promotionExpiresOn) : 'Không ghi nhận hạn'}
+            </p>
+            <dl className="mt-4 grid grid-cols-2 gap-4 sm:grid-cols-4">
+              {[
+                ['Giá trị MKM', cost.totalAmount],
+                ['Đã dùng', cost.promotionUsedAmount],
+                ['Thu hồi', cost.promotionRevokedAmount],
+                ['Còn hiệu lực', cost.promotionAvailableAmount],
+              ].map(([label, value]) => (
+                <div key={String(label)}>
+                  <dt className="text-xs text-slate-500">{label}</dt>
+                  <dd className="mt-1 font-semibold tabular-nums">{formatCurrency(value)}</dd>
+                </div>
+              ))}
+            </dl>
+            {cost.promotionEvidenceUrl && (
+              <a
+                className="mt-4 inline-block text-sm font-medium text-emerald-700 hover:underline"
+                href={cost.promotionEvidenceUrl}
+                target="_blank"
+                rel="noreferrer"
+              >
+                Xem ảnh xác nhận MKM
+              </a>
+            )}
+          </section>
+        )}
         <section className="grid overflow-hidden rounded-xl border border-slate-200 bg-white sm:grid-cols-4 sm:divide-x sm:divide-slate-200">
           <div className="px-4 py-3">
             <p className="text-xs font-bold uppercase tracking-wide text-slate-400">
@@ -318,9 +356,11 @@ function CostDetailDialog({
             <DetailRow
               label="Đối soát"
               value={
-                cost.reconciledAt
-                  ? `Đã khớp · ${formatDateTime(cost.reconciledAt)}${cost.reconciledBy ? ` · ${formatUserLabel(cost.reconciledBy)}` : ''}`
-                  : 'Chưa khớp'
+                isAdPromotion(cost)
+                  ? 'Không chi tiền'
+                  : cost.reconciledAt
+                    ? `Đã khớp · ${formatDateTime(cost.reconciledAt)}${cost.reconciledBy ? ` · ${formatUserLabel(cost.reconciledBy)}` : ''}`
+                    : 'Chưa khớp'
               }
             />
             <DetailRow label="Số hóa đơn" value={cost.invoiceNumber} />
@@ -685,21 +725,30 @@ export function CostManager({
       <PageHeader
         title="Chi phí"
         actions={
-          <PrimaryActionButton
-            tone="secondary"
-            startIcon={
-              isExporting ? (
-                <CircularProgress size={16} color="inherit" />
-              ) : (
-                <DownloadRoundedIcon fontSize="small" />
-              )
-            }
-            disabled={isExporting || totalItems === 0}
-            title="Xuất toàn bộ chi phí và dữ liệu đối soát theo bộ lọc hiện tại"
-            onClick={onExport}
-          >
-            {isExporting ? 'Đang xuất...' : 'Xuất Excel'}
-          </PrimaryActionButton>
+          <div className="flex flex-wrap items-center gap-2">
+            <PrimaryActionButton
+              href="/costs/partner-finance"
+              tone="secondary"
+              startIcon={<HandshakeRoundedIcon fontSize="small" />}
+            >
+              Công nợ & lợi nhuận
+            </PrimaryActionButton>
+            <PrimaryActionButton
+              tone="secondary"
+              startIcon={
+                isExporting ? (
+                  <CircularProgress size={16} color="inherit" />
+                ) : (
+                  <DownloadRoundedIcon fontSize="small" />
+                )
+              }
+              disabled={isExporting || totalItems === 0}
+              title="Xuất toàn bộ chi phí và dữ liệu đối soát theo bộ lọc hiện tại"
+              onClick={onExport}
+            >
+              {isExporting ? 'Đang xuất...' : 'Xuất Excel'}
+            </PrimaryActionButton>
+          </div>
         }
       />
 
@@ -793,7 +842,7 @@ export function CostManager({
           emptyText="Chưa có chi phí dự án"
           minWidthClassName="min-w-[1220px]"
         >
-          {costGroups.flatMap((group) => {
+          {costGroups.flatMap((group, groupIndex) => {
             const firstCost = group.costs[0];
             const project = firstCost?.project;
             const rowSpan = group.costs.length;
@@ -801,7 +850,7 @@ export function CostManager({
             const hasTopupBudget =
               project?.availableTopupBudget !== null &&
               project?.availableTopupBudget !== undefined &&
-              project?.hasTopupBudgetSource !== false;
+              (project?.hasTopupBudgetSource !== false || availableTopupBudget < 0);
 
             return group.costs.map((cost, rowIndex) => {
               const isFirstRow = rowIndex === 0;
@@ -809,11 +858,9 @@ export function CostManager({
               return (
                 <tr
                   key={cost.id}
-                  className={
-                    isFirstRow
-                      ? 'group border-t-2 border-slate-200 first:border-t-0 hover:bg-slate-50/80'
-                      : 'group hover:bg-slate-50/80'
-                  }
+                  className={`group hover:bg-sky-50 focus-within:bg-sky-50 ${
+                    groupIndex % 2 === 0 ? 'bg-white' : 'bg-slate-50/70'
+                  } ${isFirstRow ? '[&>td]:border-t [&>td]:border-t-slate-300' : ''}`}
                 >
                   <td className="px-3 py-3.5 font-semibold tabular-nums text-slate-800">
                     <span className="whitespace-nowrap">{formatDate(cost.transactionDate)}</span>
@@ -827,7 +874,7 @@ export function CostManager({
                       ) : (
                         <HandshakeRoundedIcon className="!text-[16px]" />
                       )}
-                      {ENTRY_TYPE_LABELS[cost.entryType]}
+                      {isAdPromotion(cost) ? 'Mã khuyến mãi' : ENTRY_TYPE_LABELS[cost.entryType]}
                     </span>
                   </td>
                   <td className="px-3 py-3.5 text-right">
@@ -835,6 +882,11 @@ export function CostManager({
                       <span className="whitespace-nowrap font-extrabold tabular-nums text-rose-700">
                         {formatCurrency(cost.cashOutAmount ?? cost.totalAmount)}
                       </span>
+                      {isAdPromotion(cost) && (
+                        <span className="text-xs text-sky-700">
+                          MKM {formatCurrency(cost.totalAmount)}
+                        </span>
+                      )}
                       {cost.balanceStatus && cost.balanceStatus !== 'none' ? (
                         <span
                           className={`whitespace-nowrap text-xs font-bold tabular-nums ${
@@ -881,7 +933,9 @@ export function CostManager({
                   {isFirstRow ? (
                     <td
                       rowSpan={rowSpan}
-                      className="border-l border-slate-100 bg-slate-50/50 px-3 py-3.5 align-middle"
+                      className={`border-x border-x-slate-200/70 px-3 py-3.5 align-top ${
+                        groupIndex % 2 === 0 ? 'bg-sky-50/40' : 'bg-slate-50'
+                      }`}
                     >
                       <div className="flex min-w-0 flex-col gap-1.5">
                         <div className="flex min-w-0 items-center gap-2">
@@ -914,7 +968,7 @@ export function CostManager({
                     </td>
                   ) : null}
                   <td className="px-3 py-3.5 text-center">
-                    {cost.canFund && !cost.reconciledAt ? (
+                    {cost.canFund && !cost.reconciledAt && !cost.usesPaymentLedger ? (
                       <InlineStatusSelect
                         value={cost.status}
                         label={costStatusLabel(cost)}
@@ -957,6 +1011,8 @@ export function CostManager({
                         <WarningAmberRoundedIcon className="!text-[15px]" />
                         CID chờ xác nhận
                       </span>
+                    ) : isAdPromotion(cost) ? (
+                      <span className="text-xs text-slate-500">Không chi tiền</span>
                     ) : cost.reconciledAt && cost.canApprove ? (
                       <button
                         type="button"
@@ -1026,6 +1082,15 @@ export function CostManager({
       <Menu anchorEl={menuAnchorEl} open={Boolean(menuAnchorEl)} onClose={closeActionMenu}>
         {activeCost ? (
           <>
+            {activeCost.entryType === 'partner_cost' && (
+              <MenuItem
+                component={Link}
+                href={`/costs/partner-finance?project=${activeCost.projectId}`}
+                onClick={closeActionMenu}
+              >
+                Kỳ ghi nhận & thanh toán
+              </MenuItem>
+            )}
             {activeCost.cidIncident?.status === 'pending' && activeCost.canApprove ? (
               <MenuItem
                 className="!text-amber-700"
@@ -1038,7 +1103,9 @@ export function CostManager({
                 Xác nhận CID ngừng
               </MenuItem>
             ) : null}
-            {activeCost.canApprove && activeCost.status === 'completed' ? (
+            {activeCost.canApprove &&
+            activeCost.status === 'completed' &&
+            !isAdPromotion(activeCost) ? (
               <MenuItem
                 onClick={() => {
                   openReconcileDialog(activeCost);

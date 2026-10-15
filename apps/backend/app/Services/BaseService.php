@@ -87,6 +87,14 @@ abstract class BaseService
             return;
         }
 
+        if (
+            $assignee
+            && $currentUser->hasPermission($module.'.update_team')
+            && $currentUser->sharesTeamWith($assignee)
+        ) {
+            return;
+        }
+
         throw ValidationException::withMessages([
             $field => ['Bạn chỉ có thể chọn nhân sự thuộc phạm vi dữ liệu được cấp.'],
         ]);

@@ -28,6 +28,8 @@ class PaymentsController extends Controller
             'projectId' => $request->query('project_id'),
             'contractId' => $request->query('contract_id'),
             'status' => $request->query('status'),
+            'payment_channel' => $request->query('payment_channel'),
+            'receipt_type' => $request->query('receipt_type'),
             'reconciledStatus' => $request->query('reconciled_status'),
             'dateFrom' => $request->query('date_from'),
             'dateTo' => $request->query('date_to'),
@@ -48,6 +50,12 @@ class PaymentsController extends Controller
     public function show(string $id): JsonResponse
     {
         return $this->success($this->payments->findOne($id));
+    }
+
+    public function recognition(string $id): JsonResponse
+    {
+        $payment = app(\App\Repositories\PaymentRepository::class)->findWithRelationsOrFail($id, request()->user());
+        return $this->success(app(\App\Services\PaymentRecognitionService::class)->describe($payment));
     }
 
     public function refundIndex(Request $request): JsonResponse

@@ -312,6 +312,14 @@ class ZaloTeamWorkspace
                         }
                     });
                 }
+                if ($user->hasPermission($kind.'.view_team')) {
+                    $q->orWhere(function ($team) use ($user, $kind, $relation) {
+                        $team->whereHas($relation, fn ($person) => $person->whereIn('team_id', $user->accessibleTeamIds()));
+                        if ($kind === 'project') {
+                            $team->orWhereHas('managerUser', fn ($person) => $person->whereIn('team_id', $user->accessibleTeamIds()));
+                        }
+                    });
+                }
             });
         }
         $name = $kind === 'project' ? 'project_name' : 'customer_name';

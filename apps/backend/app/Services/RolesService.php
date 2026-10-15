@@ -27,6 +27,7 @@ class RolesService extends BaseService
         'media' => 'media.view',
         'user' => 'user.view',
         'department' => 'department.view',
+        'team' => 'team.view',
         'role' => 'role.view',
         'permission' => 'permission.view',
         'option' => 'option.view',
@@ -38,6 +39,7 @@ class RolesService extends BaseService
     ];
 
     private const SUPPORT_PERMISSIONS_BY_MODULE = [
+        'team' => ['user.lookup', 'department.lookup'],
         'lead' => ['user.lookup'],
         'customer' => ['user.lookup'],
         'project' => ['user.lookup', 'customer.lookup'],
@@ -171,8 +173,8 @@ class RolesService extends BaseService
         $normalizedIds = $permissions->pluck('id');
         $scopeBaseCodes = $permissions
             ->pluck('code')
-            ->filter(fn (string $code): bool => str_ends_with($code, '_department') || str_ends_with($code, '_all'))
-            ->map(fn (string $code): string => preg_replace('/_(department|all)$/', '', $code) ?? $code)
+            ->filter(fn (string $code): bool => str_ends_with($code, '_team') || str_ends_with($code, '_department') || str_ends_with($code, '_all'))
+            ->map(fn (string $code): string => preg_replace('/_(team|department|all)$/', '', $code) ?? $code)
             ->unique();
 
         if ($scopeBaseCodes->isNotEmpty()) {
@@ -199,7 +201,7 @@ class RolesService extends BaseService
         }
 
         $scopedPageCodes = $permissions
-            ->filter(fn ($permission): bool => str_ends_with($permission->code, '_department') || str_ends_with($permission->code, '_all'))
+            ->filter(fn ($permission): bool => str_ends_with($permission->code, '_team') || str_ends_with($permission->code, '_department') || str_ends_with($permission->code, '_all'))
             ->filter(fn ($permission): bool => $permission->module !== 'cost'
                 || str_starts_with($permission->code, 'cost.view'))
             ->map(function ($permission): ?string {
@@ -209,7 +211,7 @@ class RolesService extends BaseService
                     return null;
                 }
 
-                return $pageCode.(str_ends_with($permission->code, '_all') ? '_all' : '_department');
+                return $pageCode.(str_ends_with($permission->code, '_all') ? '_all' : (str_ends_with($permission->code, '_team') ? '_team' : '_department'));
             })
             ->filter()
             ->unique();

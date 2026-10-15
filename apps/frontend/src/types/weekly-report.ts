@@ -65,7 +65,7 @@ export type WeeklyReport = {
   rejectedAt?: string | null;
   project?: Pick<ProjectItem, 'id' | 'projectCode' | 'projectName' | 'managerUserId'> | null;
   customer?: Pick<Customer, 'id' | 'customerCode' | 'customerName'> | null;
-  reporter?: Pick<User, 'id' | 'code' | 'name' | 'departmentId'> | null;
+  reporter?: Pick<User, 'id' | 'code' | 'name' | 'departmentId' | 'teamId'> | null;
   approver?: Pick<User, 'id' | 'code' | 'name'> | null;
   rejecter?: Pick<User, 'id' | 'code' | 'name'> | null;
   items?: WeeklyReportItem[];
@@ -88,6 +88,7 @@ export type WeeklyReportDueStatus = 'not_due' | 'due_today' | 'overdue' | 'on_ti
 export type WeeklyReportProgressStatus = WeeklyReportStatus | 'not_created';
 
 export type WeeklyReportBoardFilters = {
+  dateScope: 'all' | 'today' | 'past' | 'upcoming';
   keyword: string;
   reportOwnerUserId: string;
   reportWeekday: string;
@@ -123,6 +124,7 @@ export type WeeklyReportBoardRow = {
 };
 
 export type WeeklyReportBoardSummary = {
+  reportingToday: number;
   total: number;
   dueToday: number;
   overdue: number;

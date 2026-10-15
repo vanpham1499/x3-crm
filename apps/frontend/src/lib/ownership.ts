@@ -26,6 +26,14 @@ function canAccessDepartment(
     .some((candidateId) => Number(candidateId) === Number(departmentId));
 }
 
+function canAccessTeam(user: User | null | undefined, teamId: number | null | undefined): boolean {
+  if (!user || !teamId) return false;
+
+  return [user.teamId, ...(user.ledTeamIds || [])]
+    .filter(Boolean)
+    .some((candidateId) => Number(candidateId) === Number(teamId));
+}
+
 // ---- Lead — mirrors LeadPolicy ----
 
 export function canCreateLead(user: User | null | undefined): boolean {
@@ -42,6 +50,9 @@ export function canEditLead(user: User | null | undefined, lead: Lead): boolean 
   ) {
     return true;
   }
+  if (hasPermission(user, 'lead.update_team') && canAccessTeam(user, lead.assignedUser?.teamId)) {
+    return true;
+  }
 
   return hasPermission(user, 'lead.update') && lead.assignedUserId === user.id;
 }
@@ -54,6 +65,9 @@ export function canDeleteLead(user: User | null | undefined, lead: Lead): boolea
     hasPermission(user, 'lead.delete_department') &&
     canAccessDepartment(user, lead.assignedUser?.departmentId)
   ) {
+    return true;
+  }
+  if (hasPermission(user, 'lead.delete_team') && canAccessTeam(user, lead.assignedUser?.teamId)) {
     return true;
   }
 
@@ -76,6 +90,12 @@ export function canEditCustomer(user: User | null | undefined, customer: Custome
   ) {
     return true;
   }
+  if (
+    hasPermission(user, 'customer.update_team') &&
+    canAccessTeam(user, customer.salesUser?.teamId)
+  ) {
+    return true;
+  }
 
   return hasPermission(user, 'customer.update') && customer.salesUserId === user.id;
 }
@@ -87,6 +107,12 @@ export function canDeleteCustomer(user: User | null | undefined, customer: Custo
   if (
     hasPermission(user, 'customer.delete_department') &&
     canAccessDepartment(user, customer.salesUser?.departmentId)
+  ) {
+    return true;
+  }
+  if (
+    hasPermission(user, 'customer.delete_team') &&
+    canAccessTeam(user, customer.salesUser?.teamId)
   ) {
     return true;
   }
@@ -111,6 +137,13 @@ export function canEditProject(user: User | null | undefined, project: ProjectIt
   ) {
     return true;
   }
+  if (
+    hasPermission(user, 'project.update_team') &&
+    (canAccessTeam(user, project.managerUser?.teamId) ||
+      canAccessTeam(user, project.salesUser?.teamId))
+  ) {
+    return true;
+  }
 
   return (
     hasPermission(user, 'project.update') &&
@@ -126,6 +159,13 @@ export function canDeleteProject(user: User | null | undefined, project: Project
     hasPermission(user, 'project.delete_department') &&
     (canAccessDepartment(user, project.managerUser?.departmentId) ||
       canAccessDepartment(user, project.salesUser?.departmentId))
+  ) {
+    return true;
+  }
+  if (
+    hasPermission(user, 'project.delete_team') &&
+    (canAccessTeam(user, project.managerUser?.teamId) ||
+      canAccessTeam(user, project.salesUser?.teamId))
   ) {
     return true;
   }
@@ -149,6 +189,13 @@ export function canManageProjectCosts(
   ) {
     return true;
   }
+  if (
+    hasPermission(user, 'cost.manage_team') &&
+    (canAccessTeam(user, project.managerUser?.teamId) ||
+      canAccessTeam(user, project.salesUser?.teamId))
+  ) {
+    return true;
+  }
 
   return (
     hasPermission(user, 'cost.manage') &&
@@ -163,6 +210,13 @@ export function canFundProjectCosts(user: User | null | undefined, project: Proj
     hasPermission(user, 'cost.fund_department') &&
     (canAccessDepartment(user, project.managerUser?.departmentId) ||
       canAccessDepartment(user, project.salesUser?.departmentId))
+  ) {
+    return true;
+  }
+  if (
+    hasPermission(user, 'cost.fund_team') &&
+    (canAccessTeam(user, project.managerUser?.teamId) ||
+      canAccessTeam(user, project.salesUser?.teamId))
   ) {
     return true;
   }
@@ -186,6 +240,12 @@ export function canCreateProjectForCustomer(
   if (
     hasPermission(user, 'customer.update_department') &&
     canAccessDepartment(user, customer.salesUser?.departmentId)
+  ) {
+    return true;
+  }
+  if (
+    hasPermission(user, 'customer.update_team') &&
+    canAccessTeam(user, customer.salesUser?.teamId)
   ) {
     return true;
   }
@@ -266,6 +326,13 @@ export function canApproveWeeklyReport(
   ) {
     return true;
   }
+  if (
+    hasPermission(user, 'weeklyreport.approve_team') &&
+    report.reporterUserId !== user?.id &&
+    canAccessTeam(user, report.reporter?.teamId)
+  ) {
+    return true;
+  }
   if (!hasPermission(user, 'weeklyreport.approve')) return false;
 
   const managerUserId = report.project?.managerUserId;
@@ -288,6 +355,7 @@ export function canOpenP2CreateDialog(user: User | null | undefined): boolean {
   return (
     hasPermission(user, 'p2point.create_all') ||
     hasPermission(user, 'p2point.create_department') ||
+    hasPermission(user, 'p2point.create_team') ||
     hasPermission(user, 'p2point.create')
   );
 }
@@ -300,6 +368,9 @@ export function canApproveP2Point(user: User | null | undefined, point: P2Point)
     hasPermission(user, 'p2point.approve_department') &&
     canAccessDepartment(user, point.user?.departmentId)
   ) {
+    return true;
+  }
+  if (hasPermission(user, 'p2point.approve_team') && canAccessTeam(user, point.user?.teamId)) {
     return true;
   }
   if (!hasPermission(user, 'p2point.approve')) return false;

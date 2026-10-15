@@ -14,6 +14,7 @@ use App\Http\Controllers\P2PointsController;
 use App\Http\Controllers\PaymentsController;
 use App\Http\Controllers\PermissionsController;
 use App\Http\Controllers\ProjectCostsController;
+use App\Http\Controllers\PartnerFinanceController;
 use App\Http\Controllers\ProjectsController;
 use App\Http\Controllers\ProjectWeeklySettingsController;
 use App\Http\Controllers\QuotationsController;
@@ -44,6 +45,15 @@ Route::post('/auth/login', [AuthController::class, 'login']);
 Route::post('/payments/webhook', [PaymentsController::class, 'webhook'])->middleware('verify_payment_webhook');
 
 Route::middleware(['auth:sanctum', 'active'])->group(function (): void {
+    Route::middleware('permission:weeklyreport.view,weeklytemplate.manage')->group(function (): void {
+        Route::get('/weekly-report-templates/options', [\App\Http\Controllers\WeeklyReportTemplatesController::class, 'options']);
+        Route::get('/weekly-report-templates', [\App\Http\Controllers\WeeklyReportTemplatesController::class, 'index']);
+        Route::post('/weekly-report-templates/selection', [\App\Http\Controllers\WeeklyReportTemplatesController::class, 'selection']);
+    });
+    Route::middleware('permission:weeklytemplate.manage')->group(function (): void {
+        Route::post('/weekly-report-templates', [\App\Http\Controllers\WeeklyReportTemplatesController::class, 'store']);
+        Route::put('/weekly-report-templates/{id}', [\App\Http\Controllers\WeeklyReportTemplatesController::class, 'update']);
+    });
     if (\App\Services\ZaloTeamRuntime::role() !== 'crm') {
     Route::post('/zalo-team/campaigns', [\App\Http\Controllers\ZaloTeamCampaignController::class, 'command']);
     Route::post('/zalo-team/tags', [ZaloTeamTagsController::class, 'command']);
@@ -61,13 +71,14 @@ Route::middleware(['auth:sanctum', 'active'])->group(function (): void {
     Route::post('/notifications/read-all', [UserNotificationsController::class, 'markAllRead']);
     Route::patch('/notifications/{id}/read', [UserNotificationsController::class, 'markRead']);
     Route::post('/notifications/{id}/archive', [UserNotificationsController::class, 'archive']);
+    Route::post('/notifications/{id}/handle', [UserNotificationsController::class, 'handle']);
     Route::post('/notifications/{id}/restore', [UserNotificationsController::class, 'restore']);
 
     Route::middleware('permission:media.view')->group(function (): void {
         Route::get('/media', [MediaController::class, 'index']);
         Route::post('/media/upload', [MediaController::class, 'upload'])->middleware('permission:media.create');
-        Route::patch('/media/{id}', [MediaController::class, 'update'])->middleware('permission:media.update,media.update_department,media.update_all');
-        Route::delete('/media/{id}', [MediaController::class, 'destroy'])->middleware('permission:media.delete,media.delete_department,media.delete_all');
+        Route::patch('/media/{id}', [MediaController::class, 'update'])->middleware('permission:media.update,media.update_team,media.update_department,media.update_all');
+        Route::delete('/media/{id}', [MediaController::class, 'destroy'])->middleware('permission:media.delete,media.delete_team,media.delete_department,media.delete_all');
     });
 
     Route::get('/options', [OptionsController::class, 'index']);
@@ -91,7 +102,7 @@ Route::middleware(['auth:sanctum', 'active'])->group(function (): void {
     });
 
     Route::get('/users/lookup', [UsersController::class, 'lookup'])
-        ->middleware('permission:user.lookup,user.view,department.view');
+        ->middleware('permission:user.lookup,user.view,department.view,team.view');
     Route::get('/users', [UsersController::class, 'index'])->middleware('permission:user.view');
     Route::get('/users/stats', [UsersController::class, 'stats'])->middleware('permission:user.view');
     Route::get('/users/{id}', [UsersController::class, 'show'])->middleware('permission:user.view');
@@ -100,8 +111,15 @@ Route::middleware(['auth:sanctum', 'active'])->group(function (): void {
     Route::patch('/users/{id}', [UsersController::class, 'update'])->middleware('permission:user.update');
     Route::delete('/users/{id}', [UsersController::class, 'destroy'])->middleware('permission:user.delete');
 
+    Route::get('/teams/lookup', [\App\Http\Controllers\TeamsController::class, 'lookup'])->middleware('permission:team.view,dashboard.view,kpi.view');
+    Route::get('/teams', [\App\Http\Controllers\TeamsController::class, 'index'])->middleware('permission:team.view');
+    Route::get('/teams/{id}/history', [\App\Http\Controllers\TeamsController::class, 'history'])->middleware('permission:team.view');
+    Route::post('/teams', [\App\Http\Controllers\TeamsController::class, 'store'])->middleware('permission:team.create');
+    Route::put('/teams/{id}', [\App\Http\Controllers\TeamsController::class, 'update'])->middleware('permission:team.update');
+    Route::delete('/teams/{id}', [\App\Http\Controllers\TeamsController::class, 'destroy'])->middleware('permission:team.delete');
+
     Route::get('/departments/lookup', [DepartmentsController::class, 'index'])
-        ->middleware('permission:department.lookup,department.view');
+        ->middleware('permission:department.lookup,department.view,team.view');
     Route::get('/departments', [DepartmentsController::class, 'index'])->middleware('permission:department.view');
     Route::get('/departments/{id}', [DepartmentsController::class, 'show'])->middleware('permission:department.view');
     Route::post('/departments', [DepartmentsController::class, 'store'])->middleware('permission:user.create');
@@ -111,82 +129,92 @@ Route::middleware(['auth:sanctum', 'active'])->group(function (): void {
 
     Route::get('/leads', [LeadsController::class, 'index'])->middleware('permission:lead.view');
     Route::post('/leads', [LeadsController::class, 'store'])->middleware('permission:lead.create');
-    Route::post('/leads/{id}/convert', [LeadsController::class, 'convert'])->middleware('permission:lead.update,lead.update_department,lead.update_all');
+    Route::post('/leads/{id}/convert', [LeadsController::class, 'convert'])->middleware('permission:lead.update,lead.update_team,lead.update_department,lead.update_all');
     Route::get('/leads/{id}', [LeadsController::class, 'show'])->middleware('permission:lead.view');
-    Route::put('/leads/{id}', [LeadsController::class, 'update'])->middleware('permission:lead.update,lead.update_department,lead.update_all');
-    Route::patch('/leads/{id}', [LeadsController::class, 'update'])->middleware('permission:lead.update,lead.update_department,lead.update_all');
-    Route::delete('/leads/{id}', [LeadsController::class, 'destroy'])->middleware('permission:lead.delete,lead.delete_department,lead.delete_all');
+    Route::put('/leads/{id}', [LeadsController::class, 'update'])->middleware('permission:lead.update,lead.update_team,lead.update_department,lead.update_all');
+    Route::patch('/leads/{id}', [LeadsController::class, 'update'])->middleware('permission:lead.update,lead.update_team,lead.update_department,lead.update_all');
+    Route::delete('/leads/{id}', [LeadsController::class, 'destroy'])->middleware('permission:lead.delete,lead.delete_team,lead.delete_department,lead.delete_all');
 
     Route::get('/customers/lookup', [CustomersController::class, 'lookup'])
-        ->middleware('permission:customer.lookup,customer.view,customer.view_department,customer.view_all');
+        ->middleware('permission:customer.lookup,customer.view,customer.view_team,customer.view_department,customer.view_all');
     Route::get('/customers/lookup/{id}', [CustomersController::class, 'lookupShow'])
-        ->middleware('permission:customer.lookup,customer.view,customer.view_department,customer.view_all');
+        ->middleware('permission:customer.lookup,customer.view,customer.view_team,customer.view_department,customer.view_all');
     Route::get('/customers', [CustomersController::class, 'index'])->middleware('permission:customer.view');
     Route::post('/customers', [CustomersController::class, 'store'])->middleware('permission:customer.create');
     Route::get('/customers/{id}', [CustomersController::class, 'show'])->middleware('permission:customer.view');
-    Route::put('/customers/{id}', [CustomersController::class, 'update'])->middleware('permission:customer.update,customer.update_department,customer.update_all');
-    Route::patch('/customers/{id}', [CustomersController::class, 'update'])->middleware('permission:customer.update,customer.update_department,customer.update_all');
-    Route::delete('/customers/{id}', [CustomersController::class, 'destroy'])->middleware('permission:customer.delete,customer.delete_department,customer.delete_all');
+    Route::put('/customers/{id}', [CustomersController::class, 'update'])->middleware('permission:customer.update,customer.update_team,customer.update_department,customer.update_all');
+    Route::patch('/customers/{id}', [CustomersController::class, 'update'])->middleware('permission:customer.update,customer.update_team,customer.update_department,customer.update_all');
+    Route::delete('/customers/{id}', [CustomersController::class, 'destroy'])->middleware('permission:customer.delete,customer.delete_team,customer.delete_department,customer.delete_all');
 
     Route::get('/projects', [ProjectsController::class, 'index'])->middleware('permission:project.view');
     Route::post('/projects', [ProjectsController::class, 'store'])->middleware('permission:project.create');
     Route::get('/projects/{id}', [ProjectsController::class, 'show'])->middleware('permission:project.view');
-    Route::put('/projects/{id}', [ProjectsController::class, 'update'])->middleware('permission:project.update,project.update_department,project.update_all');
-    Route::patch('/projects/{id}', [ProjectsController::class, 'update'])->middleware('permission:project.update,project.update_department,project.update_all');
-    Route::delete('/projects/{id}', [ProjectsController::class, 'destroy'])->middleware('permission:project.delete,project.delete_department,project.delete_all');
+    Route::put('/projects/{id}', [ProjectsController::class, 'update'])->middleware('permission:project.update,project.update_team,project.update_department,project.update_all');
+    Route::patch('/projects/{id}', [ProjectsController::class, 'update'])->middleware('permission:project.update,project.update_team,project.update_department,project.update_all');
+    Route::delete('/projects/{id}', [ProjectsController::class, 'destroy'])->middleware('permission:project.delete,project.delete_team,project.delete_department,project.delete_all');
 
-    Route::get('/project-costs', [ProjectCostsController::class, 'index'])->middleware('permission:cost.view,cost.view_department,cost.view_all,project.view,project.view_department,project.view_all');
-    Route::post('/project-costs', [ProjectCostsController::class, 'store'])->middleware('permission:cost.manage,cost.manage_department,cost.manage_all');
-    Route::post('/project-costs/{id}/reconcile', [ProjectCostsController::class, 'reconcile'])->middleware('permission:cost.approve,cost.approve_department,cost.approve_all');
-    Route::put('/project-costs/{id}/cid-incident', [ProjectCostsController::class, 'reportCidIncident'])->middleware('permission:cost.manage,cost.manage_department,cost.manage_all');
-    Route::post('/project-costs/{id}/cid-incident/confirm', [ProjectCostsController::class, 'confirmCidIncident'])->middleware('permission:cost.approve,cost.approve_department,cost.approve_all');
-    Route::delete('/project-costs/{id}/cid-incident', [ProjectCostsController::class, 'cancelCidIncident'])->middleware('permission:cost.manage,cost.manage_department,cost.manage_all');
-    Route::get('/project-costs/{id}', [ProjectCostsController::class, 'show'])->middleware('permission:cost.view,cost.view_department,cost.view_all,project.view,project.view_department,project.view_all');
-    Route::put('/project-costs/{id}', [ProjectCostsController::class, 'update'])->middleware('permission:cost.manage,cost.manage_department,cost.manage_all,cost.fund,cost.fund_department,cost.fund_all');
-    Route::patch('/project-costs/{id}', [ProjectCostsController::class, 'update'])->middleware('permission:cost.manage,cost.manage_department,cost.manage_all,cost.fund,cost.fund_department,cost.fund_all');
-    Route::delete('/project-costs/{id}', [ProjectCostsController::class, 'destroy'])->middleware('permission:cost.fund,cost.fund_department,cost.fund_all');
+    Route::prefix('partner-finance')->middleware('permission:cost.view,cost.view_team,cost.view_department,cost.view_all')->group(function (): void {
+        Route::get('/', [PartnerFinanceController::class, 'report']);
+        Route::post('/payments', [PartnerFinanceController::class, 'payBatch']);
+        Route::put('/periods/{period}', [PartnerFinanceController::class, 'period']);
+        Route::put('/{type}/{id}/recognition', [PartnerFinanceController::class, 'confirm']);
+        Route::delete('/{type}/{id}/recognition', [PartnerFinanceController::class, 'unconfirm']);
+        Route::get('/{type}/{id}/history', [PartnerFinanceController::class, 'history']);
+        Route::post('/cost/{id}/payments', [PartnerFinanceController::class, 'pay']);
+        Route::delete('/cost/{id}/payments/{paymentId}', [PartnerFinanceController::class, 'voidPayment']);
+    });
+    Route::get('/project-costs', [ProjectCostsController::class, 'index'])->middleware('permission:cost.view,cost.view_team,cost.view_department,cost.view_all,project.view,project.view_team,project.view_department,project.view_all');
+    Route::post('/project-costs', [ProjectCostsController::class, 'store'])->middleware('permission:cost.manage,cost.manage_team,cost.manage_department,cost.manage_all');
+    Route::post('/project-costs/{id}/reconcile', [ProjectCostsController::class, 'reconcile'])->middleware('permission:cost.approve,cost.approve_team,cost.approve_department,cost.approve_all');
+    Route::put('/project-costs/{id}/cid-incident', [ProjectCostsController::class, 'reportCidIncident'])->middleware('permission:cost.manage,cost.manage_team,cost.manage_department,cost.manage_all');
+    Route::post('/project-costs/{id}/cid-incident/confirm', [ProjectCostsController::class, 'confirmCidIncident'])->middleware('permission:cost.approve,cost.approve_team,cost.approve_department,cost.approve_all');
+    Route::delete('/project-costs/{id}/cid-incident', [ProjectCostsController::class, 'cancelCidIncident'])->middleware('permission:cost.manage,cost.manage_team,cost.manage_department,cost.manage_all');
+    Route::get('/project-costs/{id}', [ProjectCostsController::class, 'show'])->middleware('permission:cost.view,cost.view_team,cost.view_department,cost.view_all,project.view,project.view_team,project.view_department,project.view_all');
+    Route::put('/project-costs/{id}', [ProjectCostsController::class, 'update'])->middleware('permission:cost.manage,cost.manage_team,cost.manage_department,cost.manage_all,cost.fund,cost.fund_team,cost.fund_department,cost.fund_all');
+    Route::patch('/project-costs/{id}', [ProjectCostsController::class, 'update'])->middleware('permission:cost.manage,cost.manage_team,cost.manage_department,cost.manage_all,cost.fund,cost.fund_team,cost.fund_department,cost.fund_all');
+    Route::delete('/project-costs/{id}', [ProjectCostsController::class, 'destroy'])->middleware('permission:cost.fund,cost.fund_team,cost.fund_department,cost.fund_all');
 
     Route::get('/quotations', [QuotationsController::class, 'index'])->middleware('permission:quotation.view');
     Route::post('/quotations', [QuotationsController::class, 'store'])->middleware('permission:quotation.create');
     Route::post('/quotations/{id}/void-preview', [QuotationsController::class, 'voidPreview'])->middleware('permission:quotation.void')->name('quotations.void-preview');
     Route::post('/quotations/{id}/void', [QuotationsController::class, 'voidQuotation'])->middleware('permission:quotation.void')->name('quotations.void');
     Route::get('/quotations/{id}', [QuotationsController::class, 'show'])->middleware('permission:quotation.view');
-    Route::put('/quotations/{id}', [QuotationsController::class, 'update'])->middleware('permission:quotation.update,quotation.update_department,quotation.update_all');
-    Route::patch('/quotations/{id}', [QuotationsController::class, 'update'])->middleware('permission:quotation.update,quotation.update_department,quotation.update_all');
-    Route::delete('/quotations/{id}', [QuotationsController::class, 'destroy'])->middleware('permission:quotation.delete,quotation.delete_department,quotation.delete_all');
+    Route::put('/quotations/{id}', [QuotationsController::class, 'update'])->middleware('permission:quotation.update,quotation.update_team,quotation.update_department,quotation.update_all');
+    Route::patch('/quotations/{id}', [QuotationsController::class, 'update'])->middleware('permission:quotation.update,quotation.update_team,quotation.update_department,quotation.update_all');
+    Route::delete('/quotations/{id}', [QuotationsController::class, 'destroy'])->middleware('permission:quotation.delete,quotation.delete_team,quotation.delete_department,quotation.delete_all');
 
     Route::get('/contracts', [ContractsController::class, 'index'])->middleware('permission:project.view');
-    Route::post('/contracts', [ContractsController::class, 'store'])->middleware('permission:project.update,project.update_department,project.update_all');
+    Route::post('/contracts', [ContractsController::class, 'store'])->middleware('permission:project.update,project.update_team,project.update_department,project.update_all');
     Route::get('/contracts/{id}', [ContractsController::class, 'show'])->middleware('permission:project.view');
-    Route::put('/contracts/{id}', [ContractsController::class, 'update'])->middleware('permission:project.update,project.update_department,project.update_all');
-    Route::patch('/contracts/{id}', [ContractsController::class, 'update'])->middleware('permission:project.update,project.update_department,project.update_all');
-    Route::delete('/contracts/{id}', [ContractsController::class, 'destroy'])->middleware('permission:project.delete,project.delete_department,project.delete_all');
+    Route::put('/contracts/{id}', [ContractsController::class, 'update'])->middleware('permission:project.update,project.update_team,project.update_department,project.update_all');
+    Route::patch('/contracts/{id}', [ContractsController::class, 'update'])->middleware('permission:project.update,project.update_team,project.update_department,project.update_all');
+    Route::delete('/contracts/{id}', [ContractsController::class, 'destroy'])->middleware('permission:project.delete,project.delete_team,project.delete_department,project.delete_all');
 
     Route::get('/project-weekly-settings', [ProjectWeeklySettingsController::class, 'index'])->middleware('permission:weeklyreport.view');
     Route::get('/project-weekly-settings/assignment-summary', [ProjectWeeklySettingsController::class, 'assignmentSummary'])->middleware('permission:weeklyreport.view');
-    Route::post('/project-weekly-settings', [ProjectWeeklySettingsController::class, 'store'])->middleware('permission:project.update,project.update_department,project.update_all');
+    Route::post('/project-weekly-settings', [ProjectWeeklySettingsController::class, 'store'])->middleware('permission:project.update,project.update_team,project.update_department,project.update_all');
     Route::get('/project-weekly-settings/{id}', [ProjectWeeklySettingsController::class, 'show'])->middleware('permission:weeklyreport.view');
-    Route::put('/project-weekly-settings/{id}', [ProjectWeeklySettingsController::class, 'update'])->middleware('permission:project.update,project.update_department,project.update_all');
-    Route::patch('/project-weekly-settings/{id}', [ProjectWeeklySettingsController::class, 'update'])->middleware('permission:project.update,project.update_department,project.update_all');
-    Route::delete('/project-weekly-settings/{id}', [ProjectWeeklySettingsController::class, 'destroy'])->middleware('permission:project.delete,project.delete_department,project.delete_all');
+    Route::put('/project-weekly-settings/{id}', [ProjectWeeklySettingsController::class, 'update'])->middleware('permission:project.update,project.update_team,project.update_department,project.update_all');
+    Route::patch('/project-weekly-settings/{id}', [ProjectWeeklySettingsController::class, 'update'])->middleware('permission:project.update,project.update_team,project.update_department,project.update_all');
+    Route::delete('/project-weekly-settings/{id}', [ProjectWeeklySettingsController::class, 'destroy'])->middleware('permission:project.delete,project.delete_team,project.delete_department,project.delete_all');
 
     Route::middleware('permission:weeklyreport.view')->group(function (): void {
         Route::get('/weekly-reports/board', [WeeklyReportsController::class, 'board']);
         Route::get('/weekly-reports', [WeeklyReportsController::class, 'index']);
         Route::post('/weekly-reports', [WeeklyReportsController::class, 'store'])->middleware('permission:weeklyreport.create');
         Route::get('/weekly-reports/{id}', [WeeklyReportsController::class, 'show']);
-        Route::put('/weekly-reports/{id}', [WeeklyReportsController::class, 'update'])->middleware('permission:weeklyreport.update,weeklyreport.update_department,weeklyreport.update_all');
-        Route::patch('/weekly-reports/{id}', [WeeklyReportsController::class, 'update'])->middleware('permission:weeklyreport.update,weeklyreport.update_department,weeklyreport.update_all');
+        Route::put('/weekly-reports/{id}', [WeeklyReportsController::class, 'update'])->middleware('permission:weeklyreport.update,weeklyreport.update_team,weeklyreport.update_department,weeklyreport.update_all');
+        Route::patch('/weekly-reports/{id}', [WeeklyReportsController::class, 'update'])->middleware('permission:weeklyreport.update,weeklyreport.update_team,weeklyreport.update_department,weeklyreport.update_all');
         Route::post('/weekly-reports/{id}/messages', [WeeklyReportsController::class, 'addMessage']);
         Route::patch('/weekly-reports/{id}/messages/{messageId}', [WeeklyReportsController::class, 'updateMessage']);
         Route::delete('/weekly-reports/{id}/messages/{messageId}', [WeeklyReportsController::class, 'deleteMessage']);
-        Route::delete('/weekly-reports/{id}', [WeeklyReportsController::class, 'destroy'])->middleware('permission:weeklyreport.delete,weeklyreport.delete_department,weeklyreport.delete_all');
-        Route::post('/weekly-reports/{id}/submit', [WeeklyReportsController::class, 'submit'])->middleware('permission:weeklyreport.update,weeklyreport.update_department,weeklyreport.update_all');
-        Route::post('/weekly-reports/{id}/approve', [WeeklyReportsController::class, 'approve'])->middleware('permission:weeklyreport.approve,weeklyreport.approve_department,weeklyreport.approve_all');
-        Route::post('/weekly-reports/{id}/reject', [WeeklyReportsController::class, 'reject'])->middleware('permission:weeklyreport.approve,weeklyreport.approve_department,weeklyreport.approve_all');
-        Route::post('/weekly-reports/{id}/return-to-draft', [WeeklyReportsController::class, 'returnToDraft'])->middleware('permission:weeklyreport.approve,weeklyreport.approve_department,weeklyreport.approve_all');
-        Route::post('/weekly-reports/{id}/attachments', [WeeklyReportAttachmentsController::class, 'store'])->middleware('permission:weeklyreport.update,weeklyreport.update_department,weeklyreport.update_all');
-        Route::delete('/weekly-report-attachments/{id}', [WeeklyReportAttachmentsController::class, 'destroy'])->middleware('permission:weeklyreport.update,weeklyreport.update_department,weeklyreport.update_all');
+        Route::delete('/weekly-reports/{id}', [WeeklyReportsController::class, 'destroy'])->middleware('permission:weeklyreport.delete,weeklyreport.delete_team,weeklyreport.delete_department,weeklyreport.delete_all');
+        Route::post('/weekly-reports/{id}/submit', [WeeklyReportsController::class, 'submit'])->middleware('permission:weeklyreport.update,weeklyreport.update_team,weeklyreport.update_department,weeklyreport.update_all');
+        Route::post('/weekly-reports/{id}/approve', [WeeklyReportsController::class, 'approve'])->middleware('permission:weeklyreport.approve,weeklyreport.approve_team,weeklyreport.approve_department,weeklyreport.approve_all');
+        Route::post('/weekly-reports/{id}/reject', [WeeklyReportsController::class, 'reject'])->middleware('permission:weeklyreport.approve,weeklyreport.approve_team,weeklyreport.approve_department,weeklyreport.approve_all');
+        Route::post('/weekly-reports/{id}/return-to-draft', [WeeklyReportsController::class, 'returnToDraft'])->middleware('permission:weeklyreport.approve,weeklyreport.approve_team,weeklyreport.approve_department,weeklyreport.approve_all');
+        Route::post('/weekly-reports/{id}/attachments', [WeeklyReportAttachmentsController::class, 'store'])->middleware('permission:weeklyreport.update,weeklyreport.update_team,weeklyreport.update_department,weeklyreport.update_all');
+        Route::delete('/weekly-report-attachments/{id}', [WeeklyReportAttachmentsController::class, 'destroy'])->middleware('permission:weeklyreport.update,weeklyreport.update_team,weeklyreport.update_department,weeklyreport.update_all');
     });
 
     Route::middleware('permission:meeting.view')->group(function (): void {
@@ -195,32 +223,35 @@ Route::middleware(['auth:sanctum', 'active'])->group(function (): void {
         Route::get('/meetings', [MeetingsController::class, 'index']);
         Route::post('/meetings', [MeetingsController::class, 'store'])->middleware('permission:meeting.create');
         Route::get('/meetings/{id}', [MeetingsController::class, 'show']);
-        Route::put('/meetings/{id}', [MeetingsController::class, 'update'])->middleware('permission:meeting.update,meeting.update_department,meeting.update_all');
-        Route::patch('/meetings/{id}', [MeetingsController::class, 'update'])->middleware('permission:meeting.update,meeting.update_department,meeting.update_all');
-        Route::delete('/meetings/{id}', [MeetingsController::class, 'destroy'])->middleware('permission:meeting.delete,meeting.delete_department,meeting.delete_all');
-        Route::post('/meetings/{id}/confirm', [MeetingsController::class, 'confirm'])->middleware('permission:meeting.update,meeting.update_department,meeting.update_all');
-        Route::post('/meetings/{id}/complete', [MeetingsController::class, 'complete'])->middleware('permission:meeting.update,meeting.update_department,meeting.update_all');
-        Route::post('/meetings/{id}/cancel', [MeetingsController::class, 'cancel'])->middleware('permission:meeting.update,meeting.update_department,meeting.update_all');
-        Route::post('/meetings/{id}/no-show', [MeetingsController::class, 'markNoShow'])->middleware('permission:meeting.update,meeting.update_department,meeting.update_all');
+        Route::put('/meetings/{id}', [MeetingsController::class, 'update'])->middleware('permission:meeting.update,meeting.update_team,meeting.update_department,meeting.update_all');
+        Route::patch('/meetings/{id}', [MeetingsController::class, 'update'])->middleware('permission:meeting.update,meeting.update_team,meeting.update_department,meeting.update_all');
+        Route::delete('/meetings/{id}', [MeetingsController::class, 'destroy'])->middleware('permission:meeting.delete,meeting.delete_team,meeting.delete_department,meeting.delete_all');
+        Route::post('/meetings/{id}/confirm', [MeetingsController::class, 'confirm'])->middleware('permission:meeting.update,meeting.update_team,meeting.update_department,meeting.update_all');
+        Route::post('/meetings/{id}/complete', [MeetingsController::class, 'complete'])->middleware('permission:meeting.update,meeting.update_team,meeting.update_department,meeting.update_all');
+        Route::post('/meetings/{id}/cancel', [MeetingsController::class, 'cancel'])->middleware('permission:meeting.update,meeting.update_team,meeting.update_department,meeting.update_all');
+        Route::post('/meetings/{id}/no-show', [MeetingsController::class, 'markNoShow'])->middleware('permission:meeting.update,meeting.update_team,meeting.update_department,meeting.update_all');
     });
 
     Route::get('/p2-points', [P2PointsController::class, 'index'])->middleware('permission:p2point.view');
-    Route::post('/p2-points', [P2PointsController::class, 'store'])->middleware('permission:p2point.create,p2point.create_department,p2point.create_all');
+    Route::post('/p2-points', [P2PointsController::class, 'store'])->middleware('permission:p2point.create,p2point.create_team,p2point.create_department,p2point.create_all');
     Route::get('/p2-points/{id}', [P2PointsController::class, 'show'])->middleware('permission:p2point.view');
-    Route::put('/p2-points/{id}', [P2PointsController::class, 'update'])->middleware('permission:p2point.update,p2point.update_department,p2point.update_all');
-    Route::patch('/p2-points/{id}', [P2PointsController::class, 'update'])->middleware('permission:p2point.update,p2point.update_department,p2point.update_all');
-    Route::delete('/p2-points/{id}', [P2PointsController::class, 'destroy'])->middleware('permission:p2point.delete,p2point.delete_department,p2point.delete_all');
-    Route::post('/p2-points/{id}/approve', [P2PointsController::class, 'approve'])->middleware('permission:p2point.approve,p2point.approve_department,p2point.approve_all');
+    Route::put('/p2-points/{id}', [P2PointsController::class, 'update'])->middleware('permission:p2point.update,p2point.update_team,p2point.update_department,p2point.update_all');
+    Route::patch('/p2-points/{id}', [P2PointsController::class, 'update'])->middleware('permission:p2point.update,p2point.update_team,p2point.update_department,p2point.update_all');
+    Route::delete('/p2-points/{id}', [P2PointsController::class, 'destroy'])->middleware('permission:p2point.delete,p2point.delete_team,p2point.delete_department,p2point.delete_all');
+    Route::post('/p2-points/{id}/approve', [P2PointsController::class, 'approve'])->middleware('permission:p2point.approve,p2point.approve_team,p2point.approve_department,p2point.approve_all');
 
     Route::get('/kpi', [KpiController::class, 'report'])->middleware('permission:kpi.view');
+    Route::get('/kpi/revision', [KpiController::class, 'revision'])->middleware('permission:kpi.view,dashboard.view');
     Route::get('/kpi/details', [KpiController::class, 'detail'])->middleware('permission:kpi.view');
-    Route::put('/kpi/targets', [KpiController::class, 'upsertTarget'])->middleware('permission:kpi.manage,kpi.manage_department,kpi.manage_all');
+    Route::put('/kpi/targets', [KpiController::class, 'upsertTarget'])->middleware('permission:kpi.manage,kpi.manage_team,kpi.manage_department,kpi.manage_all');
     Route::get('/dashboard', [DashboardController::class, 'report'])->middleware('permission:dashboard.view');
 
     Route::middleware('permission:payment.view')->group(function (): void {
         Route::get('/payment-refunds', [PaymentsController::class, 'refundIndex']);
         Route::get('/payments', [PaymentsController::class, 'index']);
         Route::get('/payments/{id}', [PaymentsController::class, 'show']);
+        Route::get('/payments/{id}/recognition', [PaymentsController::class, 'recognition'])
+            ->middleware('permission:kpi.view_all,kpi.manage_all');
 
         Route::post('/payments/{id}/allocations', [PaymentsController::class, 'allocate'])
             ->middleware('permission:payment.allocate,payment.manage');

@@ -10,6 +10,7 @@ import { LineChart } from '@mui/x-charts/LineChart';
 import { hasPermission } from '@/lib/ownership';
 import { formatUserLabel } from '@/lib/user-utils';
 import { useAuthStore } from '@/stores/auth-store';
+import { siteConfig } from '@/config/site';
 import type {
   DashboardLeadEmployee,
   DashboardLeadReport,
@@ -261,7 +262,7 @@ function EmployeeCountChart({
   if (!hasData) {
     return (
       <EmptyChart
-        text={kind === 'lead' ? 'Chưa có Lead theo nhân sự' : 'Chưa có Dự án theo nhân sự'}
+        text={kind === 'lead' ? 'Chưa có Lead theo nhân sự' : 'Chưa có dự án mới trong kỳ đã chọn'}
       />
     );
   }
@@ -286,6 +287,7 @@ function EmployeeCountChart({
       yAxis={[
         {
           min: 0,
+          tickMinStep: 1,
           width: 42,
           valueFormatter: (value) => integerFormatter.format(Number(value)),
           tickLabelStyle: { fill: '#64748b', fontSize: 10, fontWeight: 700 },
@@ -305,7 +307,7 @@ function EmployeeCountChart({
         valueFormatter: (value: number | null) =>
           value === null
             ? ''
-            : `${integerFormatter.format(value)} ${kind === 'lead' ? 'Lead' : 'Dự án'}`,
+            : `${integerFormatter.format(value)} ${kind === 'lead' ? 'Lead' : 'dự án mới'}`,
       }))}
       sx={{
         '& .MuiChartsGrid-line': { stroke: '#e8edf3', strokeDasharray: '3 5' },
@@ -315,6 +317,47 @@ function EmployeeCountChart({
       }}
     />
   );
+}
+
+function ProjectMonthlyChart({ periods }: { periods: DashboardProjectReport['periods'] }) {
+  if (!periods.some(period => period.total > 0)) {
+    return <EmptyChart text="Chưa có dự án mới trong kỳ đã chọn" />;
+  }
+
+  return <>
+    <BarChart
+      height={260}
+      hideLegend
+      borderRadius={5}
+      grid={{ horizontal: true }}
+      margin={{ top: 16, right: 12, bottom: 6, left: 4 }}
+      xAxis={[{
+        scaleType: 'band',
+        data: periods.map(period => period.label),
+        categoryGapRatio: periods.length <= 2 ? 0.88 : 0.55,
+        height: 40,
+        tickLabelStyle: { fill: '#64748b', fontSize: 11 },
+      }]}
+      yAxis={[{ min: 0, tickMinStep: 1, width: 42, valueFormatter: value => integerFormatter.format(Number(value)) }]}
+      series={[{
+        id: 'new-projects-monthly',
+        label: 'Dự án mới',
+        data: periods.map(period => period.total),
+        color: siteConfig.brand.primary,
+        barLabel: countBarLabel,
+        valueFormatter: value => value === null ? '' : `${integerFormatter.format(value)} dự án mới`,
+      }]}
+      sx={{
+        '& .MuiChartsGrid-line': { stroke: '#e8edf3', strokeDasharray: '3 5' },
+        '& .MuiBarLabel-root': { fill: '#334155', fontSize: 12, fontWeight: 700 },
+      }}
+    />
+    <table className="sr-only">
+      <caption>Dự án mới theo tháng</caption>
+      <thead><tr><th scope="col">Tháng</th><th scope="col">Dự án mới</th></tr></thead>
+      <tbody>{periods.map(period => <tr key={period.period}><th scope="row">{period.label}</th><td>{period.total}</td></tr>)}</tbody>
+    </table>
+  </>;
 }
 
 function EmployeeProfitChart({
@@ -329,7 +372,7 @@ function EmployeeProfitChart({
   );
 
   if (!hasData) {
-    return <EmptyChart text="Chưa có lợi nhuận triển khai theo nhân sự trong kỳ" />;
+    return <EmptyChart text="Chưa có KPI triển khai theo nhân sự trong kỳ" />;
   }
 
   return (
@@ -388,7 +431,7 @@ function StatusChart({
   periods: Array<{ label: string }>;
   employees: StatusEmployee[];
   periodIndex: number;
-  unit: 'Lead' | 'Dự án';
+  unit: 'Lead' | 'Dự án mới';
 }) {
   const safePeriodIndex = Math.min(Math.max(periodIndex, 0), Math.max(periods.length - 1, 0));
   const statusSeries = useMemo(() => {
@@ -589,6 +632,8 @@ export function TeamReportSection({
 
   const leadTotal = leadReport?.periods.reduce((sum, period) => sum + period.total, 0) ?? 0;
   const projectTotal = projectReport?.periods.reduce((sum, period) => sum + period.total, 0) ?? 0;
+  const projectCountEmployees = projectReport?.employees.filter(employee => employee.total > 0) ?? [];
+  const projectPeople = projectView === 'profit' ? projectReport?.employees ?? [] : projectCountEmployees;
   const projectProfit =
     projectReport?.periods.reduce((sum, period) => sum + period.profitAmount, 0) ?? 0;
   const isLead = activeModule === 'lead';
@@ -647,8 +692,8 @@ export function TeamReportSection({
               value={projectView}
               onChange={setProjectView}
               items={[
-                { value: 'count', label: 'Số dự án' },
-                { value: 'profit', label: 'Lợi nhuận' },
+                { value: 'count', label: 'Dự án mới' },
+                { value: 'profit', label: 'KPI' },
                 { value: 'status', label: 'Theo trạng thái' },
               ]}
             />
@@ -665,11 +710,11 @@ export function TeamReportSection({
               </>
             ) : (
               <>
-                <StatPill label="Dự án" value={integerFormatter.format(projectTotal)} />
-                <StatPill label="Lợi nhuận" value={formatMoney(projectProfit)} />
+                <StatPill label="Dự án mới" value={integerFormatter.format(projectTotal)} />
+                <StatPill label="KPI" value={formatMoney(projectProfit)} />
                 <StatPill
                   label="Nhân sự"
-                  value={integerFormatter.format(projectReport?.employees.length ?? 0)}
+                  value={integerFormatter.format(projectPeople.filter(employee => employee.id > 0).length)}
                 />
               </>
             )}
@@ -690,18 +735,18 @@ export function TeamReportSection({
               )}
               {!isLead && projectView === 'count' && projectReport && (
                 <div className="flex flex-wrap items-center gap-x-4 gap-y-2">
-                  <p className="text-sm font-black text-slate-900">Dự án theo nhân sự</p>
+                  <h3 className="text-sm font-bold text-slate-900">Dự án mới theo nhân sự</h3>
                   <PeriodLegend periods={projectReport.periods} />
                 </div>
               )}
               {!isLead && projectView === 'profit' && projectReport && (
                 <div className="flex flex-wrap items-center gap-x-4 gap-y-2">
-                  <p className="text-sm font-black text-slate-900">Lợi nhuận theo nhân sự</p>
+                  <p className="text-sm font-black text-slate-900">KPI theo nhân sự</p>
                   <PeriodLegend periods={projectReport.periods} />
                 </div>
               )}
               {((isLead && leadView === 'status') || (!isLead && projectView === 'status')) && (
-                <p className="text-sm font-black text-slate-900">Trạng thái theo từng nhân sự</p>
+                <p className="text-sm font-black text-slate-900">{isLead ? 'Trạng thái theo từng nhân sự' : 'Trạng thái dự án mới theo nhân sự'}</p>
               )}
             </div>
 
@@ -723,7 +768,7 @@ export function TeamReportSection({
 
           <div
             role="img"
-            aria-label={isLead ? 'Báo cáo Lead theo team' : 'Báo cáo Dự án theo team'}
+            aria-label={isLead ? 'Báo cáo Lead theo team' : projectView === 'count' ? `Dự án mới theo nhân sự: ${projectTotal} dự án trong kỳ` : 'Báo cáo Dự án theo team'}
           >
             {isLead && leadView === 'trend' && leadReport && (
               <LeadTrendChart periods={leadReport.periods} />
@@ -747,7 +792,7 @@ export function TeamReportSection({
               <EmployeeCountChart
                 kind="project"
                 periods={projectReport.periods}
-                employees={projectReport.employees}
+                employees={projectCountEmployees}
               />
             )}
             {!isLead && projectView === 'profit' && projectReport && (
@@ -758,14 +803,23 @@ export function TeamReportSection({
             )}
             {!isLead && projectView === 'status' && projectReport && (
               <StatusChart
-                unit="Dự án"
+                unit="Dự án mới"
                 periods={projectReport.periods}
-                employees={projectReport.employees}
+                employees={projectCountEmployees}
                 periodIndex={activeProjectStatusPeriodIndex}
               />
             )}
           </div>
         </div>
+        {!isLead && projectView === 'count' && projectReport && (
+          <section className="mt-4 min-w-0 rounded-2xl border border-slate-200 bg-white p-3 sm:p-4" aria-labelledby="new-projects-monthly-title">
+            <div className="mb-3 flex min-h-10 flex-wrap items-center justify-between gap-2">
+              <h3 id="new-projects-monthly-title" className="text-sm font-bold text-slate-900">Dự án mới theo tháng</h3>
+              <span className="text-xs text-slate-500">Tổng <strong className="font-semibold tabular-nums text-slate-900">{integerFormatter.format(projectTotal)}</strong> dự án mới</span>
+            </div>
+            <ProjectMonthlyChart periods={projectReport.periods} />
+          </section>
+        )}
       </div>
     </section>
   );

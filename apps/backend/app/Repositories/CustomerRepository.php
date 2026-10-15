@@ -104,6 +104,19 @@ class CustomerRepository extends BaseRepository
             return;
         }
 
+        $teamIds = $user->accessibleTeamIds();
+
+        if (
+            $teamIds !== []
+            && ($user->hasPermission('project.view_team')
+                || $user->hasPermission('project.update_team'))
+        ) {
+            $query->whereHas('salesUser', fn (Builder $salesUser) => $salesUser
+                ->whereIn('team_id', $teamIds));
+
+            return;
+        }
+
         $query->where('sales_user_id', $user->id);
     }
 
@@ -161,6 +174,15 @@ class CustomerRepository extends BaseRepository
         if ($user->hasPermission('customer.view_department') && $departmentIds !== []) {
             $query->whereHas('salesUser', fn (Builder $salesUser) => $salesUser
                 ->whereIn('department_id', $departmentIds));
+
+            return;
+        }
+
+        $teamIds = $user->accessibleTeamIds();
+
+        if ($user->hasPermission('customer.view_team') && $teamIds !== []) {
+            $query->whereHas('salesUser', fn (Builder $salesUser) => $salesUser
+                ->whereIn('team_id', $teamIds));
 
             return;
         }
