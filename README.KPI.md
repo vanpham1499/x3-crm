@@ -2,7 +2,7 @@
 
 ## Trạng thái
 
-Đã triển khai và khởi tạo dữ liệu **local** ngày 13/10/2026. Chưa đưa bản này lên GitHub/VPS.
+Đã triển khai **production** ngày 15/10/2026, source `7c31934`: đã khởi tạo bản chụp KPI cho báo phí đã thu, tổng hợp tháng 9 khớp trước/sau. [Ghi chú phát hành](tooling/deployment/production/RELEASE-2026-10-15.md). Các kết quả local phía dưới là nhật ký kiểm thử trước deploy.
 
 Lợi nhuận dịch vụ thuê đối tác/FL theo tháng công việc được xem riêng tại **Chi phí → Công nợ & lợi nhuận**. Ngày chi đối tác chỉ cập nhật sổ thanh toán; không thay đổi chính sách KPI phí quản lý dưới đây. Hướng dẫn xác nhận kỳ, phân bổ và đối soát lịch sử nằm trong [README](README.md#công-nợ-đối-tác-và-lợi-nhuận-theo-kỳ).
 

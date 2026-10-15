@@ -2,7 +2,7 @@
 
 ## Phạm vi
 
-MKM ở đây là ngân sách quảng cáo nền tảng **tặng miễn phí**, không phải mã mua từ đối tác. Đã triển khai local; chưa deploy production. Nguồn tiền nạp và nguồn MKM được lưu riêng, không suy diễn nguồn tiền từ tên thẻ.
+MKM ở đây là ngân sách quảng cáo nền tảng **tặng miễn phí**, không phải mã mua từ đối tác. Đã triển khai production ngày 15/10/2026. Nguồn tiền nạp và nguồn MKM được lưu riêng, không suy diễn nguồn tiền từ tên thẻ. [Biên bản triển khai](tooling/deployment/production/RELEASE-2026-10-15.md).
 
 ## Ví dụ 3 triệu tiền + 3 triệu MKM
 

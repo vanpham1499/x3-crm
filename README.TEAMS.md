@@ -61,7 +61,7 @@ Kế hoạch nhóm được nhập độc lập theo tháng. Trong màn đóng g
 - Migration chỉ thêm quyền mới cho ADMIN. Các vai trò khác giữ nguyên cho đến khi admin cấu hình.
 - Có ràng buộc một lịch sử thành viên đang mở/người, tên nhóm không trùng trong cùng phòng khi chưa xóa, và chỉ mục cho tra cứu thành viên/trưởng nhóm.
 - Không tạo sẵn nhóm thật, không chuyển nhân sự thật, không thay quyền các vai trò khác.
-- Đã áp dụng migration trên DB local `127.0.0.1:5433`. Chưa triển khai production.
+- Đã áp dụng migration trên DB local và production. Production cập nhật ngày 15/10/2026; nhóm thật còn trống để admin cấu hình. [Biên bản triển khai](tooling/deployment/production/RELEASE-2026-10-15.md).
 
 ### Kiểm thử
 

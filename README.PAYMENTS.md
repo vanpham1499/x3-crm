@@ -2,7 +2,7 @@
 
 ## Hiện trạng — 13/10/2026
 
-Đã triển khai local, migration `2026_10_13_000600_add_payment_receipt_origin` đã chạy. Chưa push/deploy lên VPS. Không sửa ngày, số tiền, phân bổ hoặc nhân sự của giao dịch thật.
+Đã triển khai production ngày 15/10/2026, migration `2026_10_13_000600_add_payment_receipt_origin` đã chạy. Không sửa ngày, số tiền, phân bổ hoặc nhân sự của giao dịch thật. [Biên bản triển khai](tooling/deployment/production/RELEASE-2026-10-15.md).
 
 ## Cách sử dụng
 

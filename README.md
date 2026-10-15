@@ -1,6 +1,7 @@
 # X3 CRM
 
-- 14/10/2026: Thêm cấp **Toàn nhóm**, quản lý nhóm nội bộ, lịch sử thành viên, quyền từng thao tác và Dashboard/KPI theo nhóm. Migration đã chạy local; chưa deploy. Hướng dẫn: [README.TEAMS.md](README.TEAMS.md).
+- **15/10/2026 — Đã deploy CRM production:** toàn bộ bản cập nhật `7c31934` (tài chính, KPI, Dashboard, thông báo, báo cáo tuần, cấp nhóm) đã chạy tại https://crm.x3sales.com. Các ghi chú “local/chưa deploy” ngày 13–14/10 bên dưới là nhật ký tại thời điểm đó. Xem [ghi chú phát hành](tooling/deployment/production/RELEASE-2026-10-15.md).
+- 14/10/2026: Thêm cấp **Toàn nhóm**, quản lý nhóm nội bộ, lịch sử thành viên, quyền từng thao tác và Dashboard/KPI theo nhóm. Hướng dẫn: [README.TEAMS.md](README.TEAMS.md).
 
 - 14/10/2026: Dashboard cá nhân/phòng ban dùng KPI lũy kế, so cùng mốc thời gian và hiển thị còn thiếu/vượt cùng kỳ; chi tiết và kiểm chứng trong [README.DASHBOARD-FINANCE.md](README.DASHBOARD-FINANCE.md#kpi-lũy-kế-cá-nhânphòng-ban-14102026-local).
 

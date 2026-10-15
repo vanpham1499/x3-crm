@@ -2,7 +2,7 @@
 
 ## Trạng thái
 
-Triển khai local ngày 13/10/2026. Chưa push/deploy VPS. Dùng sổ ghi nhận từ migration `2026_10_13_000400`; không cần migration mới và không tự sửa dữ liệu lịch sử.
+Đã triển khai production ngày 15/10/2026. Dùng sổ ghi nhận từ migration `2026_10_13_000400`; không tự sửa dữ liệu lịch sử. [Biên bản triển khai](tooling/deployment/production/RELEASE-2026-10-15.md).
 
 ## Tiền thu từ khách
 
