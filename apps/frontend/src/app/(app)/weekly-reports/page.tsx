@@ -35,6 +35,7 @@ const WEEKLY_REPORTS_LIST_QUERY_KEY = ['weekly-reports', 'list'] as const;
 const WEEKLY_REPORTS_BOARD_QUERY_KEY = ['weekly-reports', 'board'] as const;
 
 const INITIAL_BOARD_FILTERS: WeeklyReportBoardFilters = {
+  dateScope: 'all',
   keyword: '',
   reportOwnerUserId: '',
   reportWeekday: '',
@@ -101,6 +102,7 @@ export default function WeeklyReportsPage() {
         .get<WeeklyReportBoardResponse>('/weekly-reports/board', {
           params: {
             week_start: selectedWeekStart,
+            date_scope: boardState.requestFilters.dateScope,
             keyword: boardState.requestFilters.keyword || undefined,
             report_owner_user_id: boardState.requestFilters.reportOwnerUserId || undefined,
             report_weekday: boardState.requestFilters.reportWeekday || undefined,
@@ -144,7 +146,7 @@ export default function WeeklyReportsPage() {
     to: null,
     weekStart: selectedWeekStart,
     weekEnd: selectedWeekStart,
-    summary: { total: 0, dueToday: 0, overdue: 0, waitingApproval: 0, completed: 0 },
+    summary: { total: 0, reportingToday: 0, dueToday: 0, overdue: 0, waitingApproval: 0, completed: 0 },
   };
   const historyMeta = reportsPage?.meta || {
     currentPage: historyPage,
@@ -255,6 +257,7 @@ export default function WeeklyReportsPage() {
                 void queryClient.cancelQueries({ queryKey: WEEKLY_REPORTS_BOARD_QUERY_KEY });
                 setActiveTab(0);
                 boardState.setPage(1);
+                boardState.onFiltersChange({ ...boardState.filters, dateScope: 'all' });
                 setSelectedWeekStart(weekStart);
               }}
             />

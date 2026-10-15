@@ -32,6 +32,7 @@ class NotificationRecipientResolver
     {
         return $this->usersWithAnyPermission([
             'weeklyreport.approve',
+            'weeklyreport.approve_team',
             'weeklyreport.approve_department',
             'weeklyreport.approve_all',
         ])->filter(fn (User $user) => Gate::forUser($user)->allows('approve', $report))->values();
@@ -42,6 +43,7 @@ class NotificationRecipientResolver
     {
         return $this->usersWithAnyPermission([
             'cost.approve',
+            'cost.approve_team',
             'cost.approve_department',
             'cost.approve_all',
         ])->filter(fn (User $user) => Gate::forUser($user)->allows('approve', $cost))->values();
@@ -52,6 +54,7 @@ class NotificationRecipientResolver
     {
         return $this->usersWithAnyPermission([
             'cost.fund',
+            'cost.fund_team',
             'cost.fund_department',
             'cost.fund_all',
         ])->filter(fn (User $user) => Gate::forUser($user)->allows('fund', $cost))->values();
@@ -68,6 +71,7 @@ class NotificationRecipientResolver
     {
         return $this->usersWithAnyPermission([
             'p2point.approve',
+            'p2point.approve_team',
             'p2point.approve_department',
             'p2point.approve_all',
         ])->filter(fn (User $user) => Gate::forUser($user)->allows('approve', $point))->values();

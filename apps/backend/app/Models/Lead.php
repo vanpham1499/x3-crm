@@ -61,6 +61,11 @@ class Lead extends BaseModel
         return $user->sharesDepartmentWith($this->assignedUser);
     }
 
+    public function isInTeamOf(User $user): bool
+    {
+        return $user->sharesTeamWith($this->assignedUser);
+    }
+
     public function sourceOption(): BelongsTo
     {
         return $this->belongsTo(Option::class, 'source_option_id');

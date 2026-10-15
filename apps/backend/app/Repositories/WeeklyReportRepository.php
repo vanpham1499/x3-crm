@@ -40,7 +40,7 @@ class WeeklyReportRepository extends BaseRepository
         }
 
         return $this->query()
-            ->with(['project.managerUser:id,department_id', 'project.salesUser:id,department_id', 'customer', 'reporter', 'approver', 'rejecter'])
+            ->with(['project.managerUser:id,department_id,team_id', 'project.salesUser:id,department_id,team_id', 'customer', 'reporter', 'approver', 'rejecter'])
             ->whereIn('project_id', $projectIds)
             ->whereBetween('week_start_date', [$minimumPeriodStart, $maximumPeriodStart])
             ->orderByDesc('created_at')
@@ -73,7 +73,7 @@ class WeeklyReportRepository extends BaseRepository
     private function filteredQuery(User $user, array $filters): Builder
     {
         $query = $this->query()
-            ->with(['project.managerUser:id,department_id', 'project.salesUser:id,department_id', 'customer', 'reporter', 'approver', 'rejecter'])
+            ->with(['project.managerUser:id,department_id,team_id', 'project.salesUser:id,department_id,team_id', 'customer', 'reporter', 'approver', 'rejecter'])
             ->when($filters['project_id'] ?? null, fn ($query, $value) => $query->where('project_id', $value))
             ->when($filters['reporter_user_id'] ?? null, fn ($query, $value) => $query->where('reporter_user_id', $value))
             ->when($filters['status'] ?? null, fn ($query, $value) => $query->where('status', $value))
@@ -103,6 +103,17 @@ class WeeklyReportRepository extends BaseRepository
             });
         }
 
+        $teamIds = $user->accessibleTeamIds();
+
+        if ($user->hasPermission('weeklyreport.view_team') && $teamIds !== []) {
+            return $query->where(function (Builder $scope) use ($teamIds): void {
+                $scope
+                    ->whereHas('reporter', fn (Builder $reporter) => $reporter->whereIn('team_id', $teamIds))
+                    ->orWhereHas('project.managerUser', fn (Builder $manager) => $manager->whereIn('team_id', $teamIds))
+                    ->orWhereHas('project.salesUser', fn (Builder $sales) => $sales->whereIn('team_id', $teamIds));
+            });
+        }
+
         if ($user->hasPermission('weeklyreport.view')) {
             return $query->where(function (Builder $scope) use ($user): void {
                 $scope
@@ -121,8 +132,8 @@ class WeeklyReportRepository extends BaseRepository
         /** @var WeeklyReport|null $report */
         $report = $this->applyViewScope(
             $this->query()->with([
-                'project.managerUser:id,department_id',
-                'project.salesUser:id,department_id',
+                'project.managerUser:id,department_id,team_id',
+                'project.salesUser:id,department_id,team_id',
                 'customer',
                 'reporter',
                 'approver',
@@ -145,7 +156,7 @@ class WeeklyReportRepository extends BaseRepository
     {
         /** @var WeeklyReport|null $report */
         $report = $this->query()
-            ->with(['project.managerUser:id,department_id', 'project.salesUser:id,department_id', 'customer', 'reporter', 'approver', 'rejecter', 'items.assignee', 'items.createdBy:id,code,name', 'attachments.uploadedBy'])
+            ->with(['project.managerUser:id,department_id,team_id', 'project.salesUser:id,department_id,team_id', 'customer', 'reporter', 'approver', 'rejecter', 'items.assignee', 'items.createdBy:id,code,name', 'attachments.uploadedBy'])
             // Mutation callers run inside a transaction. Serialize currency/lifecycle changes.
             ->lockForUpdate()
             ->whereKey($id)

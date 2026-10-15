@@ -14,6 +14,7 @@ import MoreVertRoundedIcon from '@mui/icons-material/MoreVertRounded';
 import ReceiptLongRoundedIcon from '@mui/icons-material/ReceiptLongRounded';
 import ReplyRoundedIcon from '@mui/icons-material/ReplyRounded';
 import VisibilityRoundedIcon from '@mui/icons-material/VisibilityRounded';
+import EditRoundedIcon from '@mui/icons-material/EditRounded';
 import WorkRoundedIcon from '@mui/icons-material/WorkRounded';
 import { Button, CircularProgress, IconButton, Menu, MenuItem } from '@mui/material';
 import { DialogActionButton } from '@/components/actions/dialog-action-button';
@@ -37,6 +38,7 @@ import {
   canDeletePayments,
   canManagePayments,
   canUpdatePendingPaymentRefund,
+  hasPermission,
 } from '@/lib/ownership';
 import { PageHeader } from '@/components/shell/page-header';
 import { IconTabs } from '@/components/navigation/icon-tabs';
@@ -57,6 +59,8 @@ import type {
 import type { Quotation } from '@/types/quotation';
 import type { User } from '@/types/user';
 import { PaymentRefundPanel } from '@/features/payments/components/payment-refund-panel';
+import { PaymentReceiptDialog } from './payment-receipt-dialog';
+import { PaymentRecognitionPanel } from './payment-recognition-panel';
 
 type PaymentManagerProps = {
   payments: Payment[];
@@ -391,6 +395,7 @@ function PaymentDetailDialog({
   onAllocate,
   onRefund,
   onInvoice,
+  onEditReceipt,
   onRemoveAllocation,
 }: {
   payment: Payment | null;
@@ -400,6 +405,7 @@ function PaymentDetailDialog({
   onAllocate: () => void;
   onRefund: () => void;
   onInvoice: () => void;
+  onEditReceipt: () => void;
   onRemoveAllocation: (allocation: PaymentAllocation) => void;
 }) {
   if (!payment) return null;
@@ -424,6 +430,11 @@ function PaymentDetailDialog({
       onClose={onClose}
       actions={
         <>
+          {canManage && (
+            <DialogActionButton startIcon={<EditRoundedIcon />} onClick={onEditReceipt}>
+              Đối soát khoản tiền
+            </DialogActionButton>
+          )}
           <DialogActionButton
             startIcon={<DescriptionRoundedIcon />}
             disabled={isMutating || !canManage}
@@ -573,8 +584,35 @@ function PaymentDetailDialog({
           </section>
         ) : null}
 
+        {(hasPermission(currentUser, 'kpi.view_all') ||
+          hasPermission(currentUser, 'kpi.manage_all')) && (
+          <PaymentRecognitionPanel payment={payment} />
+        )}
+
         <section className="overflow-hidden rounded-xl border border-slate-200 bg-white px-5">
           <dl>
+            <DetailRow
+              label="Kênh nhận tiền"
+              value={
+                payment.paymentChannel
+                  ? { bank: 'Ngân hàng', paypal: 'PayPal', cash: 'Tiền mặt', other: 'Khác' }[
+                      payment.paymentChannel
+                    ]
+                  : 'Chưa phân loại'
+              }
+            />
+            {payment.paymentChannel === 'paypal' && (
+              <>
+                <DetailRow label="Phí PayPal" value={formatCurrency(payment.platformFeeAmount)} />
+                <DetailRow
+                  label="Thực nhận ròng"
+                  value={formatCurrency(payment.netReceivedAmount)}
+                />
+              </>
+            )}
+            {payment.sourcePaymentId && (
+              <DetailRow label="Khoản PayPal gốc" value={`Giao dịch #${payment.sourcePaymentId}`} />
+            )}
             <DetailRow label="Thời gian chuyển" value={transferMoment.full} />
             <DetailRow
               label="Tài khoản nhận"
@@ -1113,7 +1151,9 @@ function RefundDialog({
             <div className="rounded-lg border border-emerald-200 bg-emerald-50 px-3 py-2.5 sm:col-span-2">
               <span className="text-sm font-semibold text-emerald-700">Tổng trả khách: </span>
               <span className="text-sm font-extrabold tabular-nums text-emerald-800">
-                {formatCurrency((Number(budgetRefundAmount) || 0) + (Number(serviceFeeRefundAmount) || 0))}
+                {formatCurrency(
+                  (Number(budgetRefundAmount) || 0) + (Number(serviceFeeRefundAmount) || 0),
+                )}
               </span>
               <p className="mt-1 text-xs font-medium text-emerald-700">
                 Chỉ phần ngân sách hoàn về làm giảm số tiền có thể nạp của dự án.
@@ -1285,6 +1325,7 @@ export function PaymentManager({
   onRemoveAllocation,
 }: PaymentManagerProps) {
   const [viewTarget, setViewTarget] = useState<Payment | null>(null);
+  const [receiptEditor, setReceiptEditor] = useState<{ payment: Payment | null } | null>(null);
   const [allocationTarget, setAllocationTarget] = useState<Payment | null>(null);
   const [refundTarget, setRefundTarget] = useState<Payment | null>(null);
   const [invoiceTarget, setInvoiceTarget] = useState<Payment | null>(null);
@@ -1320,21 +1361,31 @@ export function PaymentManager({
       <PageHeader
         title="Thanh toán"
         actions={
-          <PrimaryActionButton
-            tone="secondary"
-            startIcon={
-              isExporting ? (
-                <CircularProgress size={16} color="inherit" />
-              ) : (
-                <DownloadRoundedIcon fontSize="small" />
-              )
-            }
-            disabled={isExporting}
-            title="Xuất toàn bộ khoản thu, phân bổ và hoàn tiền theo bộ lọc hiện tại"
-            onClick={onExport}
-          >
-            {isExporting ? 'Đang xuất...' : 'Xuất Excel'}
-          </PrimaryActionButton>
+          <div className="flex flex-wrap items-center gap-2">
+            {canManagePayments(currentUser) && (
+              <PrimaryActionButton
+                startIcon={<AddRoundedIcon />}
+                onClick={() => setReceiptEditor({ payment: null })}
+              >
+                Ghi nhận khoản tiền
+              </PrimaryActionButton>
+            )}
+            <PrimaryActionButton
+              tone="secondary"
+              startIcon={
+                isExporting ? (
+                  <CircularProgress size={16} color="inherit" />
+                ) : (
+                  <DownloadRoundedIcon fontSize="small" />
+                )
+              }
+              disabled={isExporting}
+              title="Xuất toàn bộ khoản thu, phân bổ và hoàn tiền theo bộ lọc hiện tại"
+              onClick={onExport}
+            >
+              {isExporting ? 'Đang xuất...' : 'Xuất Excel'}
+            </PrimaryActionButton>
+          </div>
         }
       />
 
@@ -1700,6 +1751,10 @@ export function PaymentManager({
 
       <PaymentDetailDialog
         payment={viewTarget}
+        onEditReceipt={() => {
+          setReceiptEditor({ payment: viewTarget });
+          setViewTarget(null);
+        }}
         isMutating={isMutating}
         currentUser={currentUser}
         onClose={() => setViewTarget(null)}
@@ -1710,6 +1765,16 @@ export function PaymentManager({
           viewTarget && setRemoveTarget({ payment: viewTarget, allocation })
         }
       />
+      {receiptEditor && (
+        <PaymentReceiptDialog
+          payment={receiptEditor.payment}
+          onClose={() => setReceiptEditor(null)}
+          onSaved={(updated) => {
+            applyUpdatedPayment(updated);
+            setViewTarget(updated);
+          }}
+        />
+      )}
       <AllocationDialog
         payment={allocationTarget}
         submitting={isMutating}

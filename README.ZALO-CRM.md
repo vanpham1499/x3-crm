@@ -1,8 +1,8 @@
 # CRM → Zalo: gửi tài liệu khách hàng
 
-## Hiện trạng 09/10/2026
+## Hiện trạng 10/10/2026
 
-Đợt 1 đã triển khai **local**: cấu hình nhóm nhận trên dự án/khách hàng, gửi báo phí và báo cáo tuần đã duyệt, xem trước PDF/ảnh và lịch sử. Migration `2026_10_09_000260_create_zalo_crm_deliveries` đã chạy trên PostgreSQL local. Chưa deploy VPS và chưa gửi tài liệu thật để nghiệm thu.
+Đợt 1 đã triển khai **local và production** trong release `team-20261010`: cấu hình nhóm nhận trên dự án/khách hàng, gửi báo phí và báo cáo tuần đã duyệt, xem trước PDF/ảnh và lịch sử. Migration `2026_10_09_000260_create_zalo_crm_deliveries` đã chạy trên PostgreSQL CRM production. Scheduler gửi tài liệu/nhắc hạn đã chạy; tài liệu riêng và cache khóa nằm trong Docker volumes dùng chung backend/worker. Chrome production đã tạo preview PDF 0,50 MB, đọc cấu hình và danh sách 4 tài khoản. Không lưu thử nhóm nhận; chưa gửi tài liệu thật để nghiệm thu. [Biên bản triển khai](tooling/deployment/production/RELEASE-2026-10-10.md).
 
 Mỗi dự án/khách hàng chọn **một nhóm nhận chính và một tài khoản gửi cố định**. Chưa có gửi tự động theo thanh toán, gửi báo cáo theo lịch, hay nhiều nhóm nhận theo từng loại thông báo.
 

@@ -2,7 +2,9 @@
 
 Tài liệu theo dõi riêng cho luồng Zalo Team mới trong frontend CRM.
 
-**CRM → Zalo, đợt 1 — 09/10:** local có nhóm nhận theo dự án/khách hàng, gửi báo phí và báo cáo đã duyệt bằng PDF/ảnh, lịch sử và tiếp tục phần chưa gửi. Xem [cách dùng, vận hành và giới hạn](README.ZALO-CRM.md). 33 kiểm tra nghiệp vụ cô lập và regression chiến dịch đạt; chưa gửi tài liệu thật, chưa deploy VPS. Thanh toán tự động thuộc đợt tiếp theo.
+**10/10 — production team-20261010:** đã deploy UI/API/connector mới, menu CRM, luồng D và tích hợp tài liệu trên hai VPS. Chrome đăng nhập thật đã kiểm tra inbox, tài khoản, chiến dịch, công việc, đồng bộ và preview PDF báo phí. Worker production tách identity với local. [Biên bản/rollback](tooling/deployment/production/RELEASE-2026-10-10.md). Chưa gửi/gọi thật, chưa nghiệm thu đa nhân sự/soak/restore.
+
+**CRM → Zalo, đợt 1:** nhóm nhận theo dự án/khách hàng, gửi báo phí và báo cáo đã duyệt bằng PDF/ảnh, lịch sử và tiếp tục phần chưa gửi đã lên production. Xem [cách dùng, vận hành và giới hạn](README.ZALO-CRM.md). 33 kiểm tra nghiệp vụ cô lập và regression chiến dịch đạt trước triển khai. Thanh toán tự động thuộc đợt tiếp theo.
 
 ## Quy tắc cập nhật
 
@@ -33,16 +35,16 @@ Tài liệu theo dõi riêng cho luồng Zalo Team mới trong frontend CRM.
 | Phần | Hiện trạng | Giới hạn |
 |---|---|---|
 | Frontend local | Inbox, Danh bạ, Thẻ, Chiến dịch, Tài khoản, Đồng bộ & sao lưu; các chỉnh UI ngày 09/10 | Không suy ra đã deploy production |
-| Production | Mốc triển khai đã ghi nhận: frontend `live-20261008` trên VPS Zalo, xác thực CRM production | Xem README.SERVER.md; chưa kiểm tra lại live trong đợt cleanup A |
+| Production | CRM + Team frontend/API/connector `team-20261010`, identity CRM production 9342; Chrome thật đã kiểm tra | Xem README.SERVER.md; chưa nghiệm thu gửi/gọi thật, tải nhiều người và restore |
 | Local ↔ VPS | Local dùng chung kho/connector VPS, API local 9345 theo identity CRM local | Không phải dữ liệu thử riêng; không tự chạy thêm connector/worker local |
 | Quyền | Admin toàn bộ; leader/phòng ban và user được chia tài khoản; tài khoản chưa phân công chỉ admin | Phân công do quản trị chọn; cache không thay quyền backend |
-| Chiến dịch | UI/lifecycle mới ở local; API/worker local trên VPS có origin riêng | Không tự chạy chiến dịch hoặc coi worker local là worker production |
+| Chiến dịch | UI/lifecycle mới đã lên production; một worker production và worker local có origin riêng | Production không hiển thị/chạy lại chiến dịch thử local; chưa gửi thật sau deploy |
 | Gọi điện | Gateway trên VPS; micro/loa tại trình duyệt; giữ adapter tương thích trong source | Gateway hiện một phiên hoạt động; chưa mở rộng đa cuộc gọi |
 | Nhập file | UI Nhập từ file + helper đọc export trên Windows; hỗ trợ tiếp tục | Nhập PC trực tiếp đã nghỉ; chưa có upload/import production tương đương |
 | Drive/backup | Media dài hạn và backup kho; backend kiểm tra hash/quyền | Backup kho chưa phải backup toàn dịch vụ; xem audit OPS-01 |
-| Đợt A | Đã clean local: 6 module UI + 3 launcher/probe, CSS thừa; metrics runtime về backend; layout dùng chung và tài liệu | TypeScript/test/build Docker/health đạt; không đổi dữ liệu/secret/phiên Zalo, không deploy VPS |
-| Đợt B | Source local có summary theo tab, phân trang ngày/chiến dịch, batch search/media và virtual list inbox/danh bạ | Đã kiểm thử fixture/UI local; chưa deploy API VPS. Thống kê dung lượng 100.000 tệp chưa đạt đều mục tiêu 300 ms; cần canary/load test |
-| D1–D4 — Cộng tác và công việc | Hồ sơ/phân công, ghi chú/@, presence, việc/nhắc hạn, màn Việc của tôi/Điều hành đội; migration CRM local và worker nhắc hạn local đã chạy | Chưa deploy VPS/nghiệm thu đa người dùng; chỉ số chờ dựa trên trạng thái thủ công, chưa tính SLA tự động |
+| Đợt A | Source đã clean; layout/FE mới đã deploy 10/10; metrics source về backend | Collector metrics trên VPS giữ bản đang chạy; không thay dữ liệu/secret |
+| Đợt B | Summary theo tab, phân trang ngày/chiến dịch, batch search/media và virtual list inbox/danh bạ đã deploy 10/10 | Thống kê 100.000 tệp chưa đạt đều mục tiêu 300 ms; cần canary/load test |
+| D1–D4 — Cộng tác và công việc | Hồ sơ/phân công, ghi chú/@, presence, việc/nhắc hạn, màn Việc của tôi/Điều hành đội đã deploy; migration CRM và scheduler production đã chạy | Chưa nghiệm thu đa người dùng; chỉ số chờ dựa trên trạng thái thủ công, chưa tính SLA tự động |
 
 - Chạy local: `npm run dev:backend`, `npm run dev:frontend`. Frontend dùng launcher chống trùng cổng; tunnel đã cấu hình sẽ được kiểm tra tự động.
 - Kiểm thử offline: `npm run test:zalo`. Metrics: `python -B apps/backend/integrations/zalo/metrics/server-metrics-test.py` (dùng `python3` trên Linux).

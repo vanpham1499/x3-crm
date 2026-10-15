@@ -101,7 +101,9 @@ class PaymentRepository extends BaseRepository
                 'allocations.quotation.customer',
                 'allocations.quotation.project',
                 'refunds',
-            ]);
+            ])
+            ->when($filters['payment_channel'] ?? null, fn ($q, $v) => $q->where('payment_channel', $v))
+            ->when($filters['receipt_type'] ?? null, fn ($q, $v) => $q->where('receipt_type', $v));
 
         $this->applyViewScope($query, $user);
 
@@ -278,6 +280,16 @@ class PaymentRepository extends BaseRepository
                     $scope->orWhereHas(
                         $relation.'.managerUser',
                         fn (Builder $manager) => $manager->whereIn('department_id', $departmentIds),
+                    );
+
+                    continue;
+                }
+
+                $teamIds = $user->accessibleTeamIds();
+                if ($user->hasPermission('payment.view_team') && $teamIds !== []) {
+                    $scope->orWhereHas(
+                        $relation.'.managerUser',
+                        fn (Builder $manager) => $manager->whereIn('team_id', $teamIds),
                     );
 
                     continue;

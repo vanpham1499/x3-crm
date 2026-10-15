@@ -19,6 +19,39 @@ final class WeeklyReportMoney
         'monthly_budget' => 'monthlyBudget',
     ];
 
+    /** Amounts here have already passed decimal validation. No intermediate rounding. */
+    public static function calculateWeeklyBudget(string $total): string
+    {
+        $cents = self::cents($total);
+        $weekly = intdiv($cents * 7 + 15, 30);
+
+        return intdiv($weekly, 100).'.'.str_pad((string) ($weekly % 100), 2, '0', STR_PAD_LEFT);
+    }
+
+    public static function applyWeeklyBudget(array $data, ?WeeklyReport $existing = null): array
+    {
+        $total = $data['total_budget'] ?? $existing?->total_budget ?? '0.00';
+        $changed = $existing === null
+            || (string) ($data['currency'] ?? $existing->currency) !== (string) $existing->currency
+            || (array_key_exists('total_budget', $data)
+                && self::cents((string) $total) !== self::cents((string) ($existing->total_budget ?? '0')));
+        if ($changed) {
+            $data['average_weekly_budget'] = self::calculateWeeklyBudget((string) $total);
+        } else {
+            // Updating notes or resubmitting a legacy total must preserve its saved average.
+            unset($data['average_weekly_budget']);
+        }
+
+        return $data;
+    }
+
+    private static function cents(string $amount): int
+    {
+        [$whole, $fraction] = array_pad(explode('.', $amount, 2), 2, '');
+
+        return (int) $whole * 100 + (int) str_pad($fraction, 2, '0');
+    }
+
     /**
      * @return array<int, string>
      */
@@ -70,7 +103,7 @@ final class WeeklyReportMoney
         // Required measures must be entered in the chosen unit; remaining balance is optional.
         if ($changed || ($existing === null && $currency !== 'VND')) {
             foreach (array_slice(self::FIELDS, 0, 4, true) as $field => $apiField) {
-                if ($field === 'remaining_account_budget') {
+                if (in_array($field, ['remaining_account_budget', 'average_weekly_budget'], true)) {
                     continue;
                 }
                 if (! array_key_exists($field, $data) || $data[$field] === null || $data[$field] === '') {

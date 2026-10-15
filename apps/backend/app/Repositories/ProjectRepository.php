@@ -93,6 +93,18 @@ class ProjectRepository extends BaseRepository
             return;
         }
 
+        $teamIds = $user->accessibleTeamIds();
+
+        if ($user->hasPermission('project.view_team') && $teamIds !== []) {
+            $query->where(function (Builder $scope) use ($teamIds): void {
+                $scope
+                    ->whereHas('managerUser', fn (Builder $manager) => $manager->whereIn('team_id', $teamIds))
+                    ->orWhereHas('salesUser', fn (Builder $sales) => $sales->whereIn('team_id', $teamIds));
+            });
+
+            return;
+        }
+
         if ($user->hasPermission('project.view')) {
             $query->where(function (Builder $scope) use ($user): void {
                 $scope

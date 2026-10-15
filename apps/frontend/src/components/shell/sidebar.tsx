@@ -119,7 +119,7 @@ const navGroups = [
         href: '/users',
         label: 'Tài khoản',
         icon: ManageAccountsRoundedIcon,
-        permissions: ['user.view', 'department.view', 'role.view', 'permission.view'],
+        permissions: ['user.view', 'department.view', 'team.view', 'role.view', 'permission.view'],
         children: [
           {
             href: '/users',
@@ -132,6 +132,12 @@ const navGroups = [
             label: 'Phòng ban',
             icon: CorporateFareRoundedIcon,
             permissions: ['department.view'],
+          },
+          {
+            href: '/users/teams',
+            label: 'Nhóm',
+            icon: PeopleRoundedIcon,
+            permissions: ['team.view'],
           },
           {
             href: '/users/roles',
@@ -152,6 +158,7 @@ const navGroups = [
         label: 'Cài đặt',
         icon: SettingsRoundedIcon,
         permissions: [
+          'weeklytemplate.manage',
           'service.view',
           'partner.view',
           'bankaccount.view',
@@ -165,6 +172,12 @@ const navGroups = [
             label: 'Dịch vụ',
             icon: DesignServicesRoundedIcon,
             permissions: ['service.view'],
+          },
+          {
+            href: '/settings/weekly-report-templates',
+            label: 'Mẫu báo cáo tuần',
+            icon: EventNoteRoundedIcon,
+            permissions: ['weeklytemplate.manage'],
           },
           {
             href: '/settings/partners',
@@ -230,6 +243,7 @@ function isSettingsUserPath(pathname: string) {
 
   return ![
     '/users/departments',
+    '/users/teams',
     '/users/roles',
     '/users/permissions',
     '/users/role-permissions',

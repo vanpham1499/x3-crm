@@ -82,7 +82,7 @@ const DUE_STATUS_LABELS: Record<string, string> = {
   not_due: 'Chưa đến hạn',
   due_today: 'Đến hạn hôm nay',
   overdue: 'Quá hạn',
-  on_time: 'Đúng hạn',
+  on_time: 'Nộp đúng hạn',
   late: 'Nộp muộn',
 };
 
@@ -118,7 +118,7 @@ export function WeeklyReportSummary({
 }: WeeklyReportSummaryProps) {
   const metricItems = [
     {
-      label: 'Cần báo cáo',
+      label: 'Cả tuần',
       helper: 'Tất cả dự án trong kỳ',
       value: summary.total,
       dueStatus: '',
@@ -127,10 +127,11 @@ export function WeeklyReportSummary({
       icon: <AssignmentOutlinedIcon />,
     },
     {
-      label: 'Đến hạn hôm nay',
-      helper: 'Cần gửi báo cáo trong hôm nay',
-      value: summary.dueToday,
-      dueStatus: 'due_today',
+      label: 'Hôm nay',
+      helper: 'Tất cả báo cáo có hạn hôm nay',
+      value: summary.reportingToday,
+      dateScope: 'today' as const,
+      dueStatus: '',
       progressStatus: '',
       tone: 'amber' as const,
       icon: <TodayOutlinedIcon />,
@@ -154,7 +155,7 @@ export function WeeklyReportSummary({
       icon: <PendingActionsRoundedIcon />,
     },
     {
-      label: 'Đã hoàn thành',
+      label: 'Đã duyệt',
       helper: 'Báo cáo đã được duyệt',
       value: summary.completed,
       dueStatus: '',
@@ -168,6 +169,7 @@ export function WeeklyReportSummary({
     <section className="mb-4 grid gap-3 sm:grid-cols-2 xl:grid-cols-5">
       {metricItems.map((item) => {
         const active =
+          filters.dateScope === (item.dateScope ?? 'all') &&
           filters.dueStatus === item.dueStatus && filters.progressStatus === item.progressStatus;
 
         return (
@@ -182,6 +184,8 @@ export function WeeklyReportSummary({
             onClick={() =>
               onFiltersChange({
                 ...filters,
+                dateScope: item.dateScope ?? 'all',
+                weeklyCondition: '',
                 dueStatus: item.dueStatus,
                 progressStatus: item.progressStatus,
               })

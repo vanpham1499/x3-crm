@@ -8,6 +8,8 @@ class KpiTarget extends BaseModel
 
     public const SCOPE_SERVICE_GROUP = 'service_group';
 
+    public const SCOPE_TEAM = 'team';
+
     public const SCOPE_DEPARTMENT = 'department';
 
     public const SCOPE_EMPLOYEE = 'employee';
@@ -16,6 +18,7 @@ class KpiTarget extends BaseModel
         self::SCOPE_SERVICE,
         self::SCOPE_SERVICE_GROUP,
         self::SCOPE_DEPARTMENT,
+        self::SCOPE_TEAM,
         self::SCOPE_EMPLOYEE,
     ];
 

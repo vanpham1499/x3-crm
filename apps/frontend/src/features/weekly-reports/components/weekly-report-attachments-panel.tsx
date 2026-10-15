@@ -1,6 +1,6 @@
 'use client';
 
-import { useState } from 'react';
+import { useEffect, useState } from 'react';
 import ImageRoundedIcon from '@mui/icons-material/ImageRounded';
 import { LinearProgress } from '@mui/material';
 import { useMutation, useQueryClient } from '@tanstack/react-query';
@@ -18,6 +18,7 @@ type ExistingModeProps = {
   reportId: number;
   attachments: WeeklyReportAttachment[];
   readOnly?: boolean;
+  onBusyChange?: (busy: boolean) => void;
 };
 
 type PendingModeProps = {
@@ -96,6 +97,7 @@ function ExistingImagesPanel({
   reportId,
   attachments,
   readOnly = false,
+  onBusyChange,
 }: ExistingModeProps) {
   const [isUploading, setIsUploading] = useState(false);
   const queryClient = useQueryClient();
@@ -106,8 +108,8 @@ function ExistingImagesPanel({
   const attachMutation = useMutation({
     mutationFn: (mediaUrl: string) =>
       api.post(`/weekly-reports/${reportId}/attachments`, { media_url: mediaUrl }),
-    onSuccess: () => {
-      queryClient.invalidateQueries({ queryKey: ['weekly-reports', String(reportId)] });
+    onSuccess: async () => {
+      await queryClient.invalidateQueries({ queryKey: ['weekly-reports', String(reportId)] });
     },
     onError: (error) =>
       notify.error(getApiErrorMessage(error, 'Không thể gắn ảnh vào báo cáo tuần')),
@@ -116,14 +118,17 @@ function ExistingImagesPanel({
   const deleteMutation = useMutation({
     mutationFn: (attachment: WeeklyReportAttachment) =>
       api.delete(`/weekly-report-attachments/${attachment.id}`),
-    onSuccess: () => {
-      queryClient.invalidateQueries({ queryKey: ['weekly-reports', String(reportId)] });
+    onSuccess: async () => {
+      await queryClient.invalidateQueries({ queryKey: ['weekly-reports', String(reportId)] });
       notify.success('Đã xóa ảnh khỏi báo cáo');
     },
     onError: (error) => notify.error(getApiErrorMessage(error, 'Xóa ảnh thất bại')),
   });
 
   const isBusy = isUploading || attachMutation.isPending || deleteMutation.isPending;
+  useEffect(() => {
+    onBusyChange?.(isBusy);
+  }, [isBusy, onBusyChange]);
 
   const updateImages = (nextUrls: string[]) => {
     const addedUrl = nextUrls.find((url) => !imageUrls.includes(url));

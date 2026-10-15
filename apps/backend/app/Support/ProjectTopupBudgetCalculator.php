@@ -6,7 +6,6 @@ use App\Models\PaymentRefund;
 use App\Models\Project;
 use App\Models\ProjectCost;
 use App\Models\Quotation;
-use App\Models\QuotationItem;
 
 class ProjectTopupBudgetCalculator
 {
@@ -38,7 +37,7 @@ class ProjectTopupBudgetCalculator
         $paidBudget = round((float) $quotationBudgets->sum('paidBudget'));
         $creditBudget = round((float) $quotationBudgets->sum('creditBudget'));
         $hasTopupBudgetSource = $quotationBudgets
-            ->contains(fn (array $budget): bool => ! $budget['isFullyRefunded']);
+            ->contains(fn (array $budget): bool => ! $budget['isFullyRefunded'] && $budget['eligibleBudget'] > 0);
         $releasedBudget = round($paidBudget + $creditBudget);
         $usedBudget = round((float) $project->costs
             ->where('entry_type', ProjectCost::TYPE_AD_SPEND)
@@ -55,6 +54,9 @@ class ProjectTopupBudgetCalculator
             'usedBudget' => $usedBudget,
             'availableBudget' => round($releasedBudget - $usedBudget),
             'hasTopupBudgetSource' => $hasTopupBudgetSource,
+            'promotionGranted' => round((float) $project->costs->filter(fn ($cost) => $cost->isPromotion() && $cost->status === 'completed')->sum('total_amount'), 2),
+            'promotionUsed' => round((float) $project->costs->filter(fn ($cost) => $cost->isPromotion() && $cost->status === 'completed')->sum('promotion_used_amount'), 2),
+            'promotionAvailable' => round((float) $project->costs->sum(fn ($cost) => $cost->promotionAvailableAmount()), 2),
         ];
     }
 
@@ -80,7 +82,7 @@ class ProjectTopupBudgetCalculator
         }
         $quotation->loadMissing(['items', 'paymentAllocations', 'paymentRefunds']);
 
-        $eligibleBudget = self::quotationBudget($quotation);
+        $eligibleBudget = QuotationFinancialBasis::eligibleBudget($quotation);
         $grossPaidAmount = round((float) $quotation->paymentAllocations->sum('amount'));
         $completedRefunds = $quotation->paymentRefunds
             ->where('status', PaymentRefund::STATUS_COMPLETED);
@@ -132,43 +134,9 @@ class ProjectTopupBudgetCalculator
         ];
     }
 
-    private static function quotationBudget(Quotation $quotation): float
-    {
-        $metadata = is_array($quotation->metadata) ? $quotation->metadata : [];
-        $budget = max(0, round((float) ($metadata['budget'] ?? 0)));
-        $quotationVatRate = max(0, (float) ($quotation->vat_rate ?? 0));
-        $budgetWithVat = $budget + round($budget * $quotationVatRate / 100);
-        $extraBudget = (float) $quotation->items
-            ->filter(fn (QuotationItem $item): bool => self::countsTowardTopupBudget($item))
-            ->sum(fn (QuotationItem $item): float => round(self::itemAmountAfterVat($item)));
-
-        return round($budgetWithVat + $extraBudget);
-    }
-
     private static function usesNonTaxableDeposit(Quotation $quotation): bool
     {
         return QuotationSettlement::usesNonTaxableDeposit($quotation);
     }
 
-    private static function countsTowardTopupBudget(QuotationItem $item): bool
-    {
-        $metadata = is_array($item->metadata) ? $item->metadata : [];
-
-        return filter_var(
-            $metadata['countsTowardTopupBudget'] ?? false,
-            FILTER_VALIDATE_BOOLEAN,
-        );
-    }
-
-    private static function itemAmountAfterVat(QuotationItem $item): float
-    {
-        if ($item->amount_after_vat !== null) {
-            return (float) $item->amount_after_vat;
-        }
-
-        $amountBeforeVat = (float) ($item->amount_before_vat ?? 0);
-        $vatRate = max(0, (float) ($item->vat_rate ?? 0));
-
-        return round($amountBeforeVat + ($amountBeforeVat * $vatRate / 100), 2);
-    }
 }

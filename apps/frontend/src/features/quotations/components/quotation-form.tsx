@@ -32,6 +32,7 @@ import {
   roundQuotationMoney,
 } from '@/lib/quotation-pricing';
 import { hasPermission } from '@/lib/ownership';
+import { quotationProjectType } from '@/lib/project-topup-budget';
 import { formatUserLabel } from '@/lib/user-utils';
 import {
   SERVICE_QUOTE_CONFIG_GROUP,
@@ -164,6 +165,7 @@ export function QuotationForm({
   const [selectedBankAccountId, setSelectedBankAccountId] = useState('');
   const [setupPackageKey, setSetupPackageKey] = useState(NO_SETUP_PACKAGE_KEY);
   const [budget, setBudget] = useState('0');
+  const [promotionBudget, setPromotionBudget] = useState('0');
   const [targetTotalAmount, setTargetTotalAmount] = useState('');
   const [accountReconciliationImageUrls, setAccountReconciliationImageUrls] = useState<string[]>(
     [],
@@ -352,8 +354,7 @@ export function QuotationForm({
           }
         : null,
     );
-    const storedProjectType =
-      getMetadataValue(metadata, 'projectType') || quotation.project?.projectType;
+    const storedProjectType = quotationProjectType(quotation) || quotation.project?.projectType;
     setProjectType(normalizeProjectType(storedProjectType, 'M'));
     const storedVatRate = String(Number(quotation.vatRate ?? 8));
     setVatRate(
@@ -368,6 +369,7 @@ export function QuotationForm({
     setNote(quotation.note || '');
     setSelectedServiceId(idToString(quotation.serviceId));
     setBudget(getMetadataValue(metadata, 'budget') || '0');
+    setPromotionBudget(getMetadataValue(metadata, 'promotionBudget') || '0');
     setTargetTotalAmount(
       idToString(quotation.targetTotalAmount ?? (metadata.targetTotalAmount as number | null)),
     );
@@ -414,8 +416,12 @@ export function QuotationForm({
 
     setProjectId(String(selectedProject.id));
     setSelectedServiceId(idToString(selectedProject.serviceId));
-    setProjectType(normalizeProjectType(selectedProject.projectType));
-  }, [selectedProject]);
+    const storedType =
+      quotation && String(quotation.projectId) === String(selectedProject.id)
+        ? quotationProjectType(quotation)
+        : null;
+    setProjectType(normalizeProjectType(String(storedType || selectedProject.projectType || '')));
+  }, [selectedProject, quotation]);
 
   const updateLine = (lineId: number, values: Partial<QuotationLineFormValue>) => {
     setManualLines((current) =>
@@ -520,6 +526,7 @@ export function QuotationForm({
         projectName: selectedProject?.projectName || quotation?.project?.projectName || '',
         projectType,
         budget: String(effectiveBudget),
+        promotionBudget: canUseAutoQuote ? toNumber(promotionBudget) : 0,
         targetTotalAmount: hasTargetTotal ? toNumber(targetTotalAmount) : null,
         setupPackageKey,
         depositMode: NON_TAXABLE_DEPOSIT_MODE,
@@ -590,7 +597,7 @@ export function QuotationForm({
           ? {
               note: note.trim() || null,
               topupBudgetItemIds: manualLines
-                .filter((line) => line.countsTowardTopupBudget)
+                .filter((line) => projectType === 'M' && line.countsTowardTopupBudget)
                 .map((line) => line.id),
             }
           : payload,
@@ -773,6 +780,17 @@ export function QuotationForm({
                         </MenuItem>
                       ))}
                     </FormSelectField>
+                    <MoneyInput
+                      fullWidth
+                      size="small"
+                      label="MKM nền tảng tặng (dự kiến)"
+                      value={promotionBudget}
+                      onValueChange={setPromotionBudget}
+                      disabled={isPaymentLocked}
+                      className={`${compactFormFieldClassName} md:col-span-12`}
+                      helperText="Không cộng vào tiền thanh toán hoặc cơ sở tính phí quản lý."
+                      error={Boolean(fieldErrors['metadata.promotionBudget'])}
+                    />
                     <MoneyInput
                       fullWidth
                       size="small"

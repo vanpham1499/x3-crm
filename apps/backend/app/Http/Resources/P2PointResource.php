@@ -28,6 +28,7 @@ class P2PointResource extends JsonResource
                 'code' => $this->user->code,
                 'name' => $this->user->name,
                 'departmentId' => $this->user->department_id,
+                'teamId' => $this->user->team_id,
             ] : null),
             'project' => $this->whenLoaded('project', fn () => $this->project ? [
                 'id' => $this->project->id,

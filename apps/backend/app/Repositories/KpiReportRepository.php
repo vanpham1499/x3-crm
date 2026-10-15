@@ -38,7 +38,7 @@ class KpiReportRepository
             ->with('department:id,name')
             ->orderBy('code')
             ->orderBy('name')
-            ->get(['id', 'code', 'name', 'department_id', 'is_active', 'deleted_at']);
+            ->get(['id', 'code', 'name', 'department_id', 'team_id', 'is_active', 'deleted_at']);
     }
 
     public function activeProjects(): Collection
@@ -48,14 +48,14 @@ class KpiReportRepository
             ->with([
                 'managerUser' => fn ($query) => $query
                     ->withTrashed()
-                    ->select(['id', 'code', 'name', 'department_id', 'deleted_at']),
+                    ->select(['id', 'code', 'name', 'department_id', 'team_id', 'deleted_at']),
                 'salesUser' => fn ($query) => $query
                     ->withTrashed()
-                    ->select(['id', 'code', 'name', 'department_id', 'deleted_at']),
+                    ->select(['id', 'code', 'name', 'department_id', 'team_id', 'deleted_at']),
                 'customer:id,sales_user_id',
                 'customer.salesUser' => fn ($query) => $query
                     ->withTrashed()
-                    ->select(['id', 'code', 'name', 'department_id', 'deleted_at']),
+                    ->select(['id', 'code', 'name', 'department_id', 'team_id', 'deleted_at']),
                 'statusOption:id,key,label',
             ])
             ->get([
@@ -87,6 +87,7 @@ class KpiReportRepository
                 'vat_amount',
                 'total_amount',
                 'deposit_amount',
+                'kpi_fee_basis',
                 'created_at',
             ]);
     }

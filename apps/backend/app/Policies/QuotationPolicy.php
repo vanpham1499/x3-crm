@@ -49,6 +49,10 @@ class QuotationPolicy
             return true;
         }
 
+        if ($user->hasPermission("quotation.{$action}_team") && $quotation->isInTeamOf($user)) {
+            return true;
+        }
+
         return $user->hasPermission("quotation.{$action}") && $quotation->isOwnedBy($user);
     }
 }

@@ -43,7 +43,20 @@ export function initializeCsrfProtection() {
 }
 
 api.interceptors.response.use(
-  (response) => response,
+  (response) => {
+    const method = response.config.method?.toLowerCase();
+    if (
+      typeof window !== 'undefined' &&
+      method &&
+      !['get', 'head', 'options'].includes(method) &&
+      /^\/(payments|payment-allocations|payment-refunds|quotations|project-costs|costs|kpi|projects|partner-finance)(\/|$)/.test(
+        response.config.url || '',
+      )
+    ) {
+      window.dispatchEvent(new Event('crm:finance-changed'));
+    }
+    return response;
+  },
   (error) => {
     if (typeof window !== 'undefined' && error.response?.status === 401) {
       if (window.location.pathname !== '/login') {

@@ -15,12 +15,6 @@ import RoomServiceRoundedIcon from '@mui/icons-material/RoomServiceRounded';
 import TrendingUpRoundedIcon from '@mui/icons-material/TrendingUpRounded';
 import { LinearProgress } from '@mui/material';
 import { BarChart } from '@mui/x-charts/BarChart';
-import { ChartsContainer } from '@mui/x-charts/ChartsContainer';
-import { ChartsGrid } from '@mui/x-charts/ChartsGrid';
-import { ChartsTooltip } from '@mui/x-charts/ChartsTooltip';
-import { ChartsXAxis } from '@mui/x-charts/ChartsXAxis';
-import { ChartsYAxis } from '@mui/x-charts/ChartsYAxis';
-import { AreaPlot, LinePlot } from '@mui/x-charts/LineChart';
 import { PieChart } from '@mui/x-charts/PieChart';
 import { IconTabs } from '@/components/navigation/icon-tabs';
 import { PageHeader } from '@/components/shell/page-header';
@@ -39,8 +33,11 @@ import type {
 } from '@/types/dashboard';
 import { DashboardPeriodFilterBar } from './dashboard-period-filters';
 import { TeamReportSection } from './team-report-section';
+import { ScopedKpiTrendChart } from './scoped-kpi-trend-chart';
+import { CashComparisonCard, ProjectProfitCard } from './dashboard-finance-charts';
 
 type DashboardOverviewProps = {
+  scopeActions?: import('react').ReactNode;
   report: DashboardReport;
   filters: DashboardPeriodFilters;
   isFetching: boolean;
@@ -508,186 +505,6 @@ function FinanceMetric({
   );
 }
 
-function CashTrendChart({ report }: { report: DashboardReport }) {
-  const data = report.trend.points;
-  const lastPoint = data[data.length - 1];
-  const hasData = data.some(
-    (point) =>
-      point.quotationAmount !== 0 || point.receivedAmount !== 0 || point.refundAmount !== 0,
-  );
-  const tickStep = Math.max(1, Math.ceil(data.length / 12));
-  const chartTitle =
-    report.trend.granularity === 'day' ? 'Dòng tiền từng ngày' : 'Dòng tiền từng tháng';
-  const legendItems = [
-    {
-      label: 'Báo phí',
-      value: lastPoint?.cumulativeQuotationAmount ?? 0,
-      color: '#60a5fa',
-      secondary: true,
-    },
-    {
-      label: 'Đã thu',
-      value: lastPoint?.cumulativeReceivedAmount ?? 0,
-      color: PRIMARY_COLOR,
-      secondary: false,
-    },
-    {
-      label: 'Hoàn tiền',
-      value: lastPoint?.cumulativeRefundAmount ?? 0,
-      color: ERROR_COLOR,
-      secondary: true,
-    },
-    {
-      label: 'Thu ròng',
-      value: lastPoint?.cumulativeNetAmount ?? 0,
-      color: BRAND_BLUE_COLOR,
-      secondary: false,
-    },
-  ];
-
-  return (
-    <section className="flex h-full min-h-[430px] flex-col overflow-hidden rounded-2xl border border-slate-100 bg-white p-5 shadow-[0_1px_2px_rgba(15,23,42,0.02),0_12px_32px_rgba(15,23,42,0.04)] xl:p-6">
-      <div>
-        <h2 className="text-lg font-extrabold tracking-[-0.01em] text-slate-900">{chartTitle}</h2>
-        <div className="mt-4 grid grid-cols-2 gap-x-5 gap-y-3 sm:grid-cols-4">
-          {legendItems.map((item) => (
-            <div key={item.label} className={item.secondary ? 'opacity-75' : ''}>
-              <span className="flex items-center gap-2 text-[11px] font-bold text-slate-500">
-                <span
-                  className={`shrink-0 ${item.secondary ? 'h-0 w-3 border-t-2 border-dashed' : 'size-2.5 rounded-full'}`}
-                  style={
-                    item.secondary ? { borderColor: item.color } : { backgroundColor: item.color }
-                  }
-                />
-                {item.label}
-              </span>
-              <span
-                className={`mt-1 block tabular-nums text-slate-900 ${item.secondary ? 'text-sm font-bold' : 'text-base font-black'}`}
-                title={formatCurrency(item.value)}
-              >
-                {formatCompactMoney(item.value)}
-              </span>
-            </div>
-          ))}
-        </div>
-      </div>
-
-      <div className="mt-3 h-[270px] min-h-0 flex-1">
-        {!hasData ? (
-          <div className="grid h-full min-h-[250px] place-items-center rounded-xl bg-slate-50/70 px-6 text-center text-sm font-semibold text-slate-400">
-            Chưa có dòng tiền trong kỳ đã chọn
-          </div>
-        ) : (
-          <ChartsContainer
-            height={270}
-            margin={{ top: 14, right: 8, bottom: 2, left: 0 }}
-            series={[
-              {
-                id: 'quotation',
-                type: 'line',
-                label: 'Báo phí',
-                data: data.map((point) => point.cumulativeQuotationAmount),
-                color: '#60a5fa',
-                curve: 'monotoneX',
-                showMark: false,
-                valueFormatter: (value) => (value === null ? '' : formatCurrency(value)),
-              },
-              {
-                id: 'received',
-                type: 'line',
-                label: 'Đã thu',
-                data: data.map((point) => point.cumulativeReceivedAmount),
-                color: PRIMARY_COLOR,
-                curve: 'monotoneX',
-                area: true,
-                showMark: false,
-                valueFormatter: (value) => (value === null ? '' : formatCurrency(value)),
-              },
-              {
-                id: 'refund',
-                type: 'line',
-                label: 'Hoàn tiền',
-                data: data.map((point) => point.cumulativeRefundAmount),
-                color: ERROR_COLOR,
-                curve: 'monotoneX',
-                showMark: false,
-                valueFormatter: (value) => (value === null ? '' : formatCurrency(value)),
-              },
-              {
-                id: 'net',
-                type: 'line',
-                label: 'Thu ròng',
-                data: data.map((point) => point.cumulativeNetAmount),
-                color: BRAND_BLUE_COLOR,
-                curve: 'monotoneX',
-                area: true,
-                showMark: false,
-                valueFormatter: (value) => (value === null ? '' : formatCurrency(value)),
-              },
-            ]}
-            xAxis={[
-              {
-                id: 'period',
-                scaleType: 'point',
-                data: data.map((point) => point.label),
-                tickLabelInterval: (_value, index) =>
-                  index % tickStep === 0 || index === data.length - 1,
-                height: 28,
-                tickLabelStyle: { fill: '#64748b', fontSize: 11, fontWeight: 700 },
-              },
-            ]}
-            yAxis={[
-              {
-                id: 'money',
-                width: 54,
-                valueFormatter: (value) => formatCompactMoney(Number(value)),
-                tickLabelStyle: { fill: '#64748b', fontSize: 11, fontWeight: 700 },
-              },
-            ]}
-            sx={{
-              '& .MuiChartsGrid-line': {
-                stroke: '#e8edf3',
-                strokeDasharray: '3 5',
-              },
-              '& .MuiLineChart-area[data-series="received"]': {
-                fill: PRIMARY_COLOR,
-                fillOpacity: 0.08,
-              },
-              '& .MuiLineChart-area[data-series="net"]': {
-                fill: BRAND_BLUE_COLOR,
-                fillOpacity: 0.04,
-              },
-              '& .MuiLineChart-line[data-series="quotation"]': {
-                strokeDasharray: '5 5',
-                strokeWidth: 1.75,
-              },
-              '& .MuiLineChart-line[data-series="received"]': {
-                filter: 'drop-shadow(0 3px 4px rgb(0 171 85 / 0.15))',
-                strokeWidth: 2.75,
-              },
-              '& .MuiLineChart-line[data-series="refund"]': {
-                strokeDasharray: '4 5',
-                strokeWidth: 1.75,
-              },
-              '& .MuiLineChart-line[data-series="net"]': {
-                filter: 'drop-shadow(0 3px 4px rgb(11 125 179 / 0.12))',
-                strokeWidth: 2.75,
-              },
-            }}
-          >
-            <ChartsGrid horizontal />
-            <AreaPlot />
-            <LinePlot />
-            <ChartsXAxis axisId="period" disableLine disableTicks />
-            <ChartsYAxis axisId="money" disableLine disableTicks />
-            <ChartsTooltip trigger="axis" />
-          </ChartsContainer>
-        )}
-      </div>
-    </section>
-  );
-}
-
 function ProfitTargetCard({ report }: { report: DashboardReport }) {
   const { profitAmount, targetAmount, completionRate } = report.summary;
   const topServices = [...report.services]
@@ -705,11 +522,19 @@ function ProfitTargetCard({ report }: { report: DashboardReport }) {
 
   return (
     <section className="flex h-full min-h-[500px] flex-col rounded-3xl border border-slate-200 bg-white p-5 shadow-[0_16px_38px_rgba(15,23,42,0.05)] xl:p-6">
-      <h2 className="text-lg font-black text-slate-950">Hiệu quả KPI theo dịch vụ</h2>
+      <div className="flex flex-wrap items-center justify-between gap-2">
+        <h2 className="text-lg font-black text-slate-950">Hiệu quả KPI theo dịch vụ</h2>
+        <Link
+          href="/costs/partner-finance"
+          className="text-xs font-semibold text-primary hover:underline"
+        >
+          Lợi nhuận đối tác theo kỳ
+        </Link>
+      </div>
 
       <div className="mt-4 grid grid-cols-3 gap-2">
         <div className="rounded-xl bg-primary/5 px-3 py-3">
-          <p className="text-[11px] font-bold text-slate-500">Lợi nhuận trước VAT</p>
+          <p className="text-[11px] font-bold text-slate-500">KPI ghi nhận</p>
           <p
             className={`mt-1 truncate text-sm font-black tabular-nums ${amountTone(profitAmount)}`}
             title={formatCurrency(profitAmount)}
@@ -736,7 +561,7 @@ function ProfitTargetCard({ report }: { report: DashboardReport }) {
 
       <div className="mt-4 flex flex-wrap gap-x-4 gap-y-2 text-[11px] font-extrabold text-slate-600">
         <span className="inline-flex items-center gap-1.5">
-          <span className="size-2.5 rounded-sm bg-primary" /> Lợi nhuận
+          <span className="size-2.5 rounded-sm bg-primary" /> KPI
         </span>
         <span className="inline-flex items-center gap-1.5">
           <span className="size-2.5 rounded-sm bg-brand-blue" /> Kế hoạch
@@ -748,7 +573,7 @@ function ProfitTargetCard({ report }: { report: DashboardReport }) {
 
       <div className="mt-2 min-h-[300px] flex-1">
         {topServices.length === 0 ? (
-          <EmptyChart text="Chưa có lợi nhuận hoặc kế hoạch dịch vụ trong kỳ" />
+          <EmptyChart text="Chưa có KPI hoặc kế hoạch dịch vụ trong kỳ" />
         ) : (
           <BarChart
             height={310}
@@ -792,7 +617,7 @@ function ProfitTargetCard({ report }: { report: DashboardReport }) {
             series={[
               {
                 dataKey: 'profit',
-                label: 'Lợi nhuận trước VAT',
+                label: 'KPI ghi nhận',
                 yAxisId: 'money',
                 color: PRIMARY_COLOR,
                 colorGetter: ({ value }) =>
@@ -874,7 +699,7 @@ function ServiceDashboard({
     <AppDataTable
       columns={[
         { key: 'service', label: 'Dịch vụ', className: 'w-[210px]' },
-        { key: 'profit', label: 'Lợi nhuận trước VAT', className: 'w-[170px] text-right' },
+        { key: 'profit', label: 'KPI ghi nhận', className: 'w-[170px] text-right' },
         { key: 'target', label: 'Kế hoạch', className: 'w-[145px] text-right' },
         { key: 'completion', label: 'Hoàn thành', className: 'w-[135px] text-right' },
       ]}
@@ -926,7 +751,7 @@ function DepartmentDashboard({
     <AppDataTable
       columns={[
         { key: 'department', label: 'Phòng ban', className: 'w-[210px]' },
-        { key: 'actual', label: 'Lợi nhuận trước VAT', className: 'w-[170px] text-right' },
+        { key: 'actual', label: 'KPI ghi nhận', className: 'w-[170px] text-right' },
         { key: 'target', label: 'Kế hoạch', className: 'w-[145px] text-right' },
         { key: 'completion', label: 'Hoàn thành', className: 'w-[135px] text-right' },
       ]}
@@ -967,6 +792,7 @@ function ScopedMetricCard({
   value,
   icon,
   change,
+  comparisonText,
   tone = 'primary',
   valueClassName = 'text-slate-950',
 }: {
@@ -974,6 +800,7 @@ function ScopedMetricCard({
   value: string;
   icon: React.ReactNode;
   change?: number | null;
+  comparisonText?: string;
   tone?: 'primary' | 'brand';
   valueClassName?: string;
 }) {
@@ -1003,104 +830,10 @@ function ScopedMetricCard({
         </span>
       </div>
       <div className="mt-4 flex min-h-7 items-end justify-end">
-        {change !== undefined && <ChangeBadge value={change} />}
-      </div>
-    </section>
-  );
-}
-
-function ScopedProfitTrendChart({ report }: { report: DashboardReport }) {
-  const trend = report.profitTrend;
-  const data = trend?.points ?? [];
-  const hasData = data.some(
-    (point) => point.profitAmount !== 0 || point.previousProfitAmount !== 0,
-  );
-  const tickStep = Math.max(1, Math.ceil(data.length / 12));
-  const comparisonLabel = formatPeriodLabel(
-    report.comparison.periodFrom,
-    report.comparison.periodTo,
-  );
-  const title = trend?.granularity === 'month' ? 'Lợi nhuận từng tháng' : 'Lợi nhuận từng ngày';
-
-  return (
-    <section className="flex h-full min-h-[500px] flex-col rounded-3xl border border-slate-200 bg-white p-5 shadow-[0_16px_38px_rgba(15,23,42,0.05)] xl:p-6">
-      <div className="flex min-h-[44px] flex-wrap items-start justify-between gap-3">
-        <div>
-          <h2 className="text-lg font-black text-slate-950">{title}</h2>
-        </div>
-        <div className="flex flex-wrap justify-end gap-x-4 gap-y-2 text-[11px] font-extrabold text-slate-600">
-          <span className="inline-flex items-center gap-1.5">
-            <span className="h-0.5 w-5 bg-primary" /> Kỳ đang xem
-          </span>
-          <span className="inline-flex items-center gap-1.5">
-            <span className="h-0.5 w-5 bg-brand-blue opacity-55" /> {comparisonLabel}
-          </span>
-        </div>
-      </div>
-
-      <div className="mt-4 h-[330px] rounded-2xl border border-slate-200 bg-slate-50/80">
-        {!trend || !hasData ? (
-          <EmptyChart text="Chưa có lợi nhuận phát sinh trong kỳ hoặc kỳ so sánh" />
+        {comparisonText ? (
+          <span className="text-xs font-semibold text-slate-500">{comparisonText}</span>
         ) : (
-          <ChartsContainer
-            height={328}
-            margin={{ top: 10, right: 10, bottom: 4, left: 4 }}
-            series={[
-              {
-                id: 'current-profit',
-                type: 'line',
-                label: 'Kỳ đang xem',
-                data: data.map((point) => point.profitAmount),
-                color: PRIMARY_COLOR,
-                curve: 'monotoneX',
-                showMark: data.length <= 12,
-                valueFormatter: (value) => (value === null ? '' : formatCurrency(value)),
-              },
-              {
-                id: 'previous-profit',
-                type: 'line',
-                label: comparisonLabel,
-                data: data.map((point) => point.previousProfitAmount),
-                color: BRAND_BLUE_COLOR,
-                curve: 'monotoneX',
-                showMark: false,
-                valueFormatter: (value) => (value === null ? '' : formatCurrency(value)),
-              },
-            ]}
-            xAxis={[
-              {
-                id: 'period',
-                scaleType: 'point',
-                data: data.map((point) => point.label),
-                tickLabelInterval: (_value, index) =>
-                  index % tickStep === 0 || index === data.length - 1,
-                height: 28,
-                tickLabelStyle: { fill: '#64748b', fontSize: 11, fontWeight: 700 },
-              },
-            ]}
-            yAxis={[
-              {
-                id: 'profit',
-                width: 54,
-                valueFormatter: (value) => formatCompactMoney(Number(value)),
-                tickLabelStyle: { fill: '#64748b', fontSize: 11, fontWeight: 700 },
-              },
-            ]}
-            sx={{
-              '& .MuiChartsGrid-line': { stroke: '#d9e1ea' },
-              '& .MuiLineElement-root[data-series="current-profit"]': { strokeWidth: 3 },
-              '& .MuiLineElement-root[data-series="previous-profit"]': {
-                opacity: 0.55,
-                strokeWidth: 2.5,
-              },
-            }}
-          >
-            <ChartsGrid horizontal vertical />
-            <LinePlot />
-            <ChartsXAxis axisId="period" disableTicks />
-            <ChartsYAxis axisId="profit" disableTicks />
-            <ChartsTooltip trigger="axis" />
-          </ChartsContainer>
+          change !== undefined && <ChangeBadge value={change} />
         )}
       </div>
     </section>
@@ -1123,7 +856,7 @@ function EmployeePerformanceCard({
         <AppDataTable
           columns={[
             { key: 'employee', label: 'Nhân sự', className: 'w-[190px]' },
-            { key: 'profit', label: 'Lợi nhuận', className: 'w-[150px] text-right' },
+            { key: 'profit', label: 'KPI', className: 'w-[150px] text-right' },
             { key: 'active', label: 'Active', className: 'w-[80px] text-center' },
             { key: 'pause', label: 'Pause', className: 'w-[80px] text-center' },
             { key: 'stopped', label: 'Dừng', className: 'w-[80px] text-center' },
@@ -1131,7 +864,7 @@ function EmployeePerformanceCard({
           ]}
           isLoading={isFetching}
           isEmpty={rows.length === 0}
-          emptyText="Chưa có nhân sự thuộc phòng ban để tổng hợp"
+          emptyText="Chưa có nhân sự trong phạm vi này"
           minWidthClassName="min-w-[700px]"
         >
           {rows.map((row) => (
@@ -1234,12 +967,14 @@ function ScopedDashboardOverview({
   filters,
   isFetching,
   onFiltersChange,
+  scopeActions,
 }: DashboardOverviewProps) {
   const comparisonLabel = formatPeriodLabel(
     report.comparison.periodFrom,
     report.comparison.periodTo,
   );
-  const isDepartment = report.scope.level === 'department';
+  const isTeam = report.scope.level === 'team';
+  const isDepartment = report.scope.level === 'department' || isTeam;
   const subjectLabel = isDepartment
     ? report.scope.departmentName || report.scope.label
     : formatUserLabel({ code: report.scope.userCode, name: report.scope.userName });
@@ -1250,11 +985,14 @@ function ScopedDashboardOverview({
         title="Chào mừng bạn trở lại 👋"
         breadcrumbs={[]}
         actions={
-          <DashboardPeriodFilterBar
-            filters={filters}
-            comparisonLabel={comparisonLabel}
-            onChange={onFiltersChange}
-          />
+          <div className="flex flex-wrap items-center justify-end gap-3">
+            {scopeActions}
+            <DashboardPeriodFilterBar
+              filters={filters}
+              comparisonLabel={comparisonLabel}
+              onChange={onFiltersChange}
+            />
+          </div>
         }
       />
 
@@ -1269,7 +1007,7 @@ function ScopedDashboardOverview({
           </span>
           <div className="min-w-0">
             <p className="text-[11px] font-extrabold uppercase tracking-[0.12em] text-primary">
-              {isDepartment ? 'Phạm vi phòng ban' : 'Phạm vi cá nhân'}
+              {isTeam ? 'Phạm vi nhóm' : isDepartment ? 'Phạm vi phòng ban' : 'Phạm vi cá nhân'}
             </p>
             <p className="truncate text-base font-black text-slate-950" title={subjectLabel}>
               {subjectLabel}
@@ -1288,9 +1026,17 @@ function ScopedDashboardOverview({
 
       <div className="grid items-stretch gap-3 sm:grid-cols-2 xl:grid-cols-4">
         <ScopedMetricCard
-          label={isDepartment ? 'Lợi nhuận TEAM' : 'Lợi nhuận của tôi'}
-          value={formatCompactMoney(report.summary.profitAmount)}
-          change={report.summary.profitChangeRate}
+          label={isTeam ? 'KPI nhóm' : isDepartment ? 'KPI phòng ban' : 'KPI của tôi'}
+          value={report.profitTrend?.future ? '—' : formatCompactMoney(report.summary.profitAmount)}
+          comparisonText={
+            report.profitTrend?.comparisonReason === 'different_basis'
+              ? 'Khác công thức KPI'
+              : report.profitTrend?.future
+                ? 'Kỳ này chưa bắt đầu'
+                : report.summary.profitChangeRate === null
+                  ? 'Cùng kỳ trước bằng 0'
+                  : `${report.summary.profitChangeRate > 0 ? '+' : ''}${compactNumber.format(report.summary.profitChangeRate)}% so với cùng kỳ`
+          }
           icon={<TrendingUpRoundedIcon />}
           valueClassName={amountTone(report.summary.profitAmount)}
         />
@@ -1316,9 +1062,9 @@ function ScopedDashboardOverview({
         />
       </div>
 
-      <div className="mt-5 grid items-stretch gap-5 xl:grid-cols-12">
-        <div className="h-full xl:col-span-8">
-          <ScopedProfitTrendChart report={report} />
+      <div className="mt-5 grid grid-cols-1 items-stretch gap-5 xl:grid-cols-12">
+        <div className="h-full min-w-0 xl:col-span-8">
+          <ScopedKpiTrendChart report={report} />
         </div>
         <div className="h-full xl:col-span-4">
           <AttentionBoard report={report} />
@@ -1375,6 +1121,7 @@ export function DashboardOverview({
   filters,
   isFetching,
   onFiltersChange,
+  scopeActions,
 }: DashboardOverviewProps) {
   const comparisonLabel = formatPeriodLabel(
     report.comparison.periodFrom,
@@ -1423,6 +1170,7 @@ export function DashboardOverview({
   if (report.scope.level !== 'all') {
     return (
       <ScopedDashboardOverview
+        scopeActions={scopeActions}
         report={report}
         filters={filters}
         isFetching={isFetching}
@@ -1437,11 +1185,14 @@ export function DashboardOverview({
         title="Chào mừng bạn trở lại 👋"
         breadcrumbs={[]}
         actions={
-          <DashboardPeriodFilterBar
-            filters={filters}
-            comparisonLabel={comparisonLabel}
-            onChange={onFiltersChange}
-          />
+          <div className="flex flex-wrap items-center justify-end gap-3">
+            {scopeActions}
+            <DashboardPeriodFilterBar
+              filters={filters}
+              comparisonLabel={comparisonLabel}
+              onChange={onFiltersChange}
+            />
+          </div>
         }
       />
 
@@ -1455,8 +1206,8 @@ export function DashboardOverview({
         ))}
       </div>
 
-      <div className="mt-5 grid items-stretch gap-5 xl:grid-cols-12">
-        <div className="h-full xl:col-span-8">
+      <div className="mt-5 grid grid-cols-1 items-stretch gap-5 xl:grid-cols-12">
+        <div className="h-full min-w-0 xl:col-span-8">
           <CrmFlowCard report={report} />
         </div>
         <div className="h-full xl:col-span-4">
@@ -1476,13 +1227,13 @@ export function DashboardOverview({
       <div className="mt-4 grid items-stretch gap-3 sm:grid-cols-2 xl:grid-cols-4">
         <FinanceMetric
           label="Đã thu"
-          value={formatCompactMoney(report.summary.receivedAmount)}
+          value={formatCompactMoney(report.cashComparison.received)}
           icon={<AccountBalanceWalletRoundedIcon />}
           valueClassName="text-primary"
         />
         <FinanceMetric
-          label="Lợi nhuận"
-          value={formatCompactMoney(report.summary.profitAmount)}
+          label="KPI"
+          value={report.profitTrend?.future ? '—' : formatCompactMoney(report.summary.profitAmount)}
           icon={<TrendingUpRoundedIcon />}
           valueClassName={amountTone(report.summary.profitAmount)}
         />
@@ -1500,17 +1251,22 @@ export function DashboardOverview({
         />
       </div>
 
-      <div className="mt-5 grid items-stretch gap-5 xl:grid-cols-12">
-        <div className="h-full xl:col-span-4">
+      <div className="mt-5 grid grid-cols-1 items-stretch gap-5 xl:grid-cols-12">
+        <div className="h-full min-w-0 xl:col-span-4">
           <ProjectPortfolio report={report} />
         </div>
-        <div className="h-full xl:col-span-8">
-          <CashTrendChart report={report} />
+        <div className="h-full min-w-0 xl:col-span-8">
+          <CashComparisonCard data={report.cashComparison} />
         </div>
-        <div className="h-full xl:col-span-5">
+        {report.projectProfit && (
+          <div className="min-w-0 xl:col-span-12">
+            <ProjectProfitCard data={report.projectProfit} />
+          </div>
+        )}
+        <div className="h-full min-w-0 xl:col-span-5">
           <ProfitTargetCard report={report} />
         </div>
-        <div className="h-full xl:col-span-7">
+        <div className="h-full min-w-0 xl:col-span-7">
           <AnalysisSection report={report} isFetching={isFetching} />
         </div>
       </div>

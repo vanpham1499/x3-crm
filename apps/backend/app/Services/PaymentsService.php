@@ -76,6 +76,10 @@ class PaymentsService extends BaseService
     {
         return FinancialMutation::run(function () use ($data): array {
             $data = $this->normalizePayload($data);
+            $data = PaymentReceiptOrigin::validate($data);
+            if (empty($data['transaction_at']) && empty($data['transaction_date'])) {
+                throw ValidationException::withMessages(['transactionAt' => ['Cần nhập ngày thực nhận tiền.']]);
+            }
             $quotation = ! empty($data['quotation_id'])
                 ? $this->quotations->findModel((string) $data['quotation_id'])
                 : null;
@@ -86,6 +90,7 @@ class PaymentsService extends BaseService
 
             /** @var Payment $payment */
             $payment = $this->payments->create($data);
+            PaymentReceiptOrigin::audit($payment, null, 'Ghi nhận khoản tiền');
             $this->paymentAllocations->reconcilePayment($payment->id);
             $this->paymentAllocations->autoAllocateToQuotation($payment->id, $quotation?->id, auth()->id());
             $this->syncPaymentNotifications($payment->id, true);
@@ -98,7 +103,16 @@ class PaymentsService extends BaseService
     {
         return FinancialMutation::run(function () use ($id, $data): array {
             $current = $this->payments->findWithRelationsOrFail($id);
+            $before = $current->only(PaymentReceiptOrigin::FIELDS);
+            if (isset($data['expectedUpdatedAt']) && ! Carbon::parse($data['expectedUpdatedAt'])->equalTo($current->updated_at)) {
+                throw ValidationException::withMessages(['payment' => ['Giao dịch đã thay đổi. Tải lại trước khi lưu.']]);
+            }
             $data = $this->normalizePayload($data);
+            $data = PaymentReceiptOrigin::validate($data, $current);
+            $reason = trim((string) ($data['changeReason'] ?? ''));
+            if (collect(PaymentReceiptOrigin::FIELDS)->contains(fn ($key) => array_key_exists($key, $data) && (string) $data[$key] !== (string) $current->getAttribute($key)) && $reason === '') {
+                throw ValidationException::withMessages(['changeReason' => ['Cần lý do khi sửa nguồn tiền hoặc ngày thực nhận.']]);
+            }
 
             if (array_key_exists('amount', $data)) {
                 $committedAmount = (float) $current->allocations->sum('amount')
@@ -128,6 +142,7 @@ class PaymentsService extends BaseService
 
             /** @var Payment $payment */
             $payment = $this->payments->update($id, $data);
+            PaymentReceiptOrigin::audit($payment, $before, $reason ?: 'Cập nhật giao dịch');
             $this->paymentAllocations->reconcilePayment($payment->id);
             $this->paymentAllocations->reconcileQuotation($previousQuotationId);
 
@@ -151,6 +166,10 @@ class PaymentsService extends BaseService
                 throw ValidationException::withMessages([
                     'payment' => ['Không thể xóa giao dịch đã có phân bổ hoặc hoàn tiền.'],
                 ]);
+            }
+
+            if (Payment::where('source_payment_id', $payment->id)->exists()) {
+                throw ValidationException::withMessages(['payment' => ['Khoản thu đang có giao dịch chuyển nội bộ liên kết.']]);
             }
 
             $this->notifications->resolve('payment', $payment->id, ['payment_processing_required']);
@@ -190,7 +209,12 @@ class PaymentsService extends BaseService
                     'webhook_payload' => $rawPayload,
                 ], fn ($value) => $value !== null && $value !== '');
 
-                if ($quotation && ! $existingPayment->quotation_id) {
+                // A repeated bank webhook must not undo a documented manual correction.
+                if (\Illuminate\Support\Facades\DB::table('payment_receipt_audits')->where('payment_id', $existingPayment->id)->exists()) {
+                    unset($webhookDetails['transaction_at'], $webhookDetails['transaction_date']);
+                }
+
+                if ($quotation && ! $existingPayment->quotation_id && ($existingPayment->receipt_type ?? 'customer') === 'customer') {
                     $existingPayment = $this->payments->update($existingPayment->id, array_merge(
                         $this->matchedPayload($quotation),
                         $webhookDetails,
@@ -210,6 +234,7 @@ class PaymentsService extends BaseService
                 return $this->paymentResource($existingPayment);
             }
 
+            $data['transaction_date'] = $data['transaction_date'] ?? now()->toDateString();
             if (! $quotation) {
                 $payment = $this->payments->create(array_merge($data, $voidedContext, [
                     'status' => 'unmatched',
@@ -518,7 +543,7 @@ class PaymentsService extends BaseService
                 ->format('Y-m-d H:i:s');
         }
 
-        $data['transaction_date'] = $data['transaction_date'] ?? now()->toDateString();
+        // A partial update (invoice/channel/note) must not move an old receipt to today.
 
         foreach (['quotation_id', 'lead_id', 'customer_id', 'project_id', 'contract_id'] as $key) {
             if (array_key_exists($key, $data) && $data[$key] === '') {
@@ -602,6 +627,22 @@ class PaymentsService extends BaseService
                         $user->hasPermission('payment.view_department')
                         && $user->canAccessDepartment($quotation->project?->managerUser?->department_id)
                     )
+                    || ($user->hasPermission('payment.view_team') && $user->sharesTeamWith($quotation->project?->managerUser))
+                )
+            ) {
+                continue;
+            }
+
+            if (
+                $user
+                && (
+                    $user->hasPermission('payment.view_all')
+                    || $user->hasPermission('payment.manage')
+                    || (int) $quotation->project?->manager_user_id === (int) $user->id
+                    || (
+                        $user->hasPermission('payment.view_team')
+                        && $user->canAccessDepartment($quotation->project?->managerUser?->team_id)
+                    )
                 )
             ) {
                 continue;
@@ -629,6 +670,9 @@ class PaymentsService extends BaseService
             'customerCodeText' => 'customer_code_text',
             'reconciledStatus' => 'reconciled_status',
             'receiptType' => 'receipt_type',
+            'paymentChannel' => 'payment_channel',
+            'platformFeeAmount' => 'platform_fee_amount',
+            'sourcePaymentId' => 'source_payment_id',
             'dateFrom' => 'date_from',
             'dateTo' => 'date_to',
             'groupByQuotation' => 'group_by_quotation',

@@ -123,14 +123,14 @@ class ScheduledNotificationService
                 $this->notifications->resolve('project_weekly_setting', $setting->id, [
                     'weekly_report_due',
                     'weekly_report_overdue',
-                ]);
+                ], ['dueDate' => $dueDate->toDateString()]);
 
                 continue;
             }
 
             $isOverdue = $today->greaterThan($dueDate);
             if ($isOverdue) {
-                $this->notifications->resolve('project_weekly_setting', $setting->id, ['weekly_report_due']);
+                $this->notifications->resolve('project_weekly_setting', $setting->id, ['weekly_report_due'], ['dueDate' => $dueDate->toDateString()]);
             }
             $eventKey = $isOverdue ? 'weekly_report_overdue' : 'weekly_report_due';
             $recipients = $this->notificationRecipients->usersWithPermission(

@@ -13,6 +13,7 @@ export type LeadRelationOption = {
   code?: string;
   email?: string;
   departmentId?: number | null;
+  teamId?: number | null;
 };
 
 export type LeadTimelineChange = {

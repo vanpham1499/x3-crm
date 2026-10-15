@@ -5,6 +5,8 @@ export interface User {
   email: string;
   roleId?: number;
   departmentId?: number | null;
+  teamId?: number | null;
+  ledTeamIds?: number[];
   ledDepartmentIds?: number[];
   role: string;
   phone?: string;

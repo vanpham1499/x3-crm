@@ -147,7 +147,7 @@ class PaymentAllocationService
         $payment = Payment::query()->find($paymentId);
         $quotation = Quotation::query()->find($quotationId);
 
-        if (! $payment || ! $quotation) {
+        if (! $payment || ! $quotation || ($payment->receipt_type ?? 'customer') !== 'customer') {
             return;
         }
 

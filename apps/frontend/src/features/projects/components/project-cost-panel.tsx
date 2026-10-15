@@ -1,6 +1,7 @@
 'use client';
 
 import { useState } from 'react';
+import Link from 'next/link';
 import AddRoundedIcon from '@mui/icons-material/AddRounded';
 import CheckRoundedIcon from '@mui/icons-material/CheckRounded';
 import DeleteOutlineRoundedIcon from '@mui/icons-material/DeleteOutlineRounded';
@@ -28,9 +29,17 @@ import { ConfirmDialog } from '@/components/feedback/confirm-dialog';
 import { useAppNotification } from '@/components/feedback/notification-provider';
 import { compactFormFieldClassName } from '@/components/form/form-field-styles';
 import { FormDatePicker } from '@/components/form/form-date-picker';
+import { CompactMonthPicker } from '@/components/form/compact-month-picker';
 import { FormInputField } from '@/components/form/form-input-field';
 import { FormSelectField } from '@/components/form/form-select-field';
 import { MoneyInput } from '@/components/form/money-input';
+import { ImageUpload } from '@/components/upload/image-upload';
+import {
+  isAdPromotion,
+  isLegacyPromotionCard,
+  promotionAvailable,
+  promotionStatus,
+} from '@/lib/ad-promotion';
 import { TablePaginationBar } from '@/components/table/table-pagination-bar';
 import { getAdTopupCardLabel } from '@/lib/ad-topup-card-options';
 import { applyApiErrorsToForm, getApiErrorMessage } from '@/lib/api-error';
@@ -100,14 +109,26 @@ function InlineCostStatusSelect({
   onChange: (status: ProjectCostStatus) => void;
 }) {
   const [anchorEl, setAnchorEl] = useState<HTMLElement | null>(null);
+  const label = (status: string) =>
+    isAdPromotion(cost)
+      ? status === cost.status
+        ? promotionStatus(cost)
+        : status === 'completed'
+          ? 'Đã cấp MKM'
+          : status === 'pending'
+            ? 'Chờ cấp MKM'
+            : 'Đã hủy'
+      : costStatusLabel(status, entryType);
 
   if (disabled) {
     return (
       <span
         className={`inline-flex items-center gap-1 rounded-md px-2 py-1 text-xs font-bold ring-1 ${statusClass(cost.status)}`}
-        title={costStatusLabel(cost.status, entryType)}
+        title={label(cost.status)}
       >
-        {costStatusLabel(cost.status, entryType)}
+        {cost.usesPaymentLedger && cost.status === 'pending' && Number(cost.partnerPaidAmount) > 0
+          ? 'Đã trả một phần'
+          : label(cost.status)}
         {loading ? <CircularProgress size={13} thickness={5} className="!text-current" /> : null}
       </span>
     );
@@ -116,14 +137,14 @@ function InlineCostStatusSelect({
   return (
     <>
       <ButtonBase
-        aria-label={`Cập nhật trạng thái ${costStatusLabel(cost.status, entryType)}`}
+        aria-label={`Cập nhật trạng thái ${label(cost.status)}`}
         aria-haspopup="menu"
         aria-expanded={Boolean(anchorEl)}
         aria-busy={loading}
         onClick={(event) => setAnchorEl(event.currentTarget)}
         className={`!inline-flex !max-w-[132px] !rounded-md !px-2 !py-1 !text-xs !font-bold !ring-1 ${statusClass(cost.status)}`}
       >
-        <span className="min-w-0 truncate">{costStatusLabel(cost.status, entryType)}</span>
+        <span className="min-w-0 truncate">{label(cost.status)}</span>
         <KeyboardArrowDownRoundedIcon className="!-mr-1 !ml-1 !text-[16px]" />
       </ButtonBase>
 
@@ -142,9 +163,7 @@ function InlineCostStatusSelect({
               }}
             >
               <span className={`size-2.5 shrink-0 rounded-full ring-1 ${statusClass(status)}`} />
-              <span className="min-w-0 flex-1 text-sm font-semibold">
-                {costStatusLabel(status, entryType)}
-              </span>
+              <span className="min-w-0 flex-1 text-sm font-semibold">{label(status)}</span>
               {isSelected ? <CheckRoundedIcon className="!text-[18px] text-primary" /> : null}
             </MenuItem>
           );
@@ -177,6 +196,7 @@ function CostActionMenu({
   const canReportCidIncident =
     canManage &&
     cost.entryType === 'ad_spend' &&
+    !isAdPromotion(cost) &&
     locked &&
     cost.status !== 'cancelled' &&
     (!cost.cidIncident || pendingCidIncident) &&
@@ -404,6 +424,13 @@ function getCostDefaults(cost?: ProjectCost | null): ProjectCostFormValues {
   const isAdSpend = cost?.entryType === 'ad_spend';
 
   return {
+    fundingSource: cost?.fundingSource || 'cash',
+    promotionCode: cost?.promotionCode || '',
+    promotionExpiresOn: cost?.promotionExpiresOn || '',
+    promotionUsedAmount: String(cost?.promotionUsedAmount || '0'),
+    promotionRevokedAmount: String(cost?.promotionRevokedAmount || '0'),
+    promotionEvidenceUrl: cost?.promotionEvidenceUrl || '',
+    workPeriod: cost?.workPeriod || todayDateValue().slice(0, 7),
     quotationId: cost?.quotationId ? String(cost.quotationId) : '',
     transactionDate: cost?.transactionDate || todayDateValue(),
     cid: cost?.cid || '',
@@ -468,6 +495,8 @@ function CostDialog({
     formState: { errors },
   } = useForm<ProjectCostFormValues>({ values: getCostDefaults(cost) });
   const amountBeforeVat = Number(watch('amountBeforeVat')) || 0;
+  const isPromotion = isAdSpend && watch('fundingSource') === 'promotion';
+  const [uploadingEvidence, setUploadingEvidence] = useState(false);
   const selectedQuotationId = watch('quotationId');
   const cidIsDead = watch('cidIsDead');
   const cidRefundedAmount = Math.max(0, Number(watch('cidRefundedAmount')) || 0);
@@ -504,7 +533,7 @@ function CostDialog({
       open={open}
       title={cost ? 'Sửa khoản chi' : isAdSpend ? 'Thêm lần nạp quảng cáo' : 'Thêm chi phí đối tác'}
       maxWidth={isAdSpend ? 'md' : 'sm'}
-      submitting={isSubmitting}
+      submitting={isSubmitting || uploadingEvidence}
       onClose={closeDialog}
       onSubmit={handleSubmit(async (values) => {
         if (
@@ -531,12 +560,33 @@ function CostDialog({
           <DialogActionButton onClick={closeDialog} disabled={isSubmitting}>
             Hủy
           </DialogActionButton>
-          <DialogActionButton type="submit" tone="primary" disabled={isSubmitting}>
-            {isSubmitting ? 'Đang lưu...' : 'Lưu khoản chi'}
+          <DialogActionButton
+            type="submit"
+            tone="primary"
+            disabled={isSubmitting || uploadingEvidence}
+          >
+            {isSubmitting ? 'Đang lưu...' : isPromotion ? 'Lưu MKM' : 'Lưu khoản chi'}
           </DialogActionButton>
         </>
       }
     >
+      {isAdSpend && (
+        <Controller
+          name="fundingSource"
+          control={control}
+          render={({ field }) => (
+            <FormSelectField
+              label="Nguồn ngân sách"
+              {...field}
+              disabled={Boolean(cost)}
+              className="md:col-span-2"
+            >
+              <MenuItem value="cash">Tiền nạp</MenuItem>
+              <MenuItem value="promotion">Mã khuyến mãi nền tảng tặng</MenuItem>
+            </FormSelectField>
+          )}
+        />
+      )}
       {isAdSpend ? (
         <Controller
           name="transactionDate"
@@ -544,7 +594,7 @@ function CostDialog({
           rules={{ required: 'Bắt buộc' }}
           render={({ field }) => (
             <FormDatePicker
-              label="Ngày nạp/hủy"
+              label={isPromotion ? 'Ngày cấp / dự kiến cấp' : 'Ngày nạp/hủy'}
               value={field.value}
               onChange={field.onChange}
               required
@@ -555,22 +605,50 @@ function CostDialog({
         />
       ) : (
         <Controller
-          name="transactionDate"
+          name="workPeriod"
           control={control}
           rules={{ required: 'Bắt buộc' }}
           render={({ field }) => (
-            <FormDatePicker
-              label="Ngày chi"
+            <CompactMonthPicker
+              label="Kỳ công việc dự kiến"
               value={field.value}
               onChange={field.onChange}
-              required
-              error={Boolean(errors.transactionDate)}
-              helperText={errors.transactionDate?.message}
             />
           )}
         />
       )}
 
+      {(!isAdSpend || isPromotion) && (
+        <Controller
+          name="quotationId"
+          control={control}
+          render={({ field }) => (
+            <FormSelectField label="Báo phí liên quan" {...field}>
+              <MenuItem value="">Chưa gắn báo phí</MenuItem>
+              {quotations
+                .filter((q) => !q.isVoided)
+                .map((q) => (
+                  <MenuItem key={q.id} value={String(q.id)}>
+                    {q.quotationCode}
+                  </MenuItem>
+                ))}
+            </FormSelectField>
+          )}
+        />
+      )}
+      {!isAdSpend && cost && !cost.usesPaymentLedger && (
+        <Controller
+          name="transactionDate"
+          control={control}
+          render={({ field }) => (
+            <FormDatePicker
+              label="Ngày chi lịch sử"
+              value={field.value}
+              onChange={field.onChange}
+            />
+          )}
+        />
+      )}
       {isAdSpend ? (
         <FormInputField
           label="Mã CID *"
@@ -601,18 +679,22 @@ function CostDialog({
         />
       )}
 
-      {isAdSpend ? (
+      {isAdSpend && !isPromotion ? (
         <Controller
           name="bankAccountOptionId"
           control={control}
           render={({ field }) => (
             <FormSelectField label="Thẻ nạp QC" {...field}>
               <MenuItem value="">Chưa chọn</MenuItem>
-              {selectableTopupCards.map((card) => (
-                <MenuItem key={card.id} value={String(card.id)}>
-                  {getAdTopupCardLabel(card)}
-                </MenuItem>
-              ))}
+              {selectableTopupCards
+                .filter(
+                  (card) => !isLegacyPromotionCard(card) || card.id === cost?.bankAccountOptionId,
+                )
+                .map((card) => (
+                  <MenuItem key={card.id} value={String(card.id)}>
+                    {getAdTopupCardLabel(card)}
+                  </MenuItem>
+                ))}
             </FormSelectField>
           )}
         />
@@ -626,7 +708,13 @@ function CostDialog({
           <MoneyInput
             fullWidth
             size="small"
-            label={isAdSpend ? 'Ngân sách nạp + VAT *' : 'Chi phí đối tác *'}
+            label={
+              isPromotion
+                ? 'Giá trị MKM *'
+                : isAdSpend
+                  ? 'Ngân sách nạp + VAT *'
+                  : 'Chi phí đối tác *'
+            }
             value={field.value}
             onValueChange={field.onChange}
             error={Boolean(errors.amountBeforeVat)}
@@ -636,7 +724,101 @@ function CostDialog({
         )}
       />
 
-      {isAdSpend && managedBudgetProject ? (
+      {isPromotion && (
+        <>
+          <FormInputField
+            label="Mã / tên ưu đãi *"
+            {...register('promotionCode', { required: 'Bắt buộc' })}
+            error={Boolean(errors.promotionCode)}
+            helperText={errors.promotionCode?.message}
+          />
+          <Controller
+            name="promotionExpiresOn"
+            control={control}
+            render={({ field }) => (
+              <FormDatePicker
+                label="Hạn sử dụng (nếu có)"
+                error={Boolean(errors.promotionExpiresOn)}
+                helperText={errors.promotionExpiresOn?.message}
+                value={field.value}
+                onChange={field.onChange}
+              />
+            )}
+          />
+          {cost?.status === 'completed' && (
+            <>
+              <Controller
+                name="promotionUsedAmount"
+                control={control}
+                render={({ field }) => (
+                  <MoneyInput
+                    label="MKM đã dùng (lũy kế)"
+                    error={Boolean(errors.promotionUsedAmount)}
+                    helperText={errors.promotionUsedAmount?.message}
+                    value={field.value}
+                    onValueChange={field.onChange}
+                    className={compactFormFieldClassName}
+                  />
+                )}
+              />
+              <Controller
+                name="promotionRevokedAmount"
+                control={control}
+                render={({ field }) => (
+                  <MoneyInput
+                    label="MKM bị thu hồi (lũy kế)"
+                    error={Boolean(errors.promotionRevokedAmount)}
+                    helperText={errors.promotionRevokedAmount?.message}
+                    value={field.value}
+                    onValueChange={field.onChange}
+                    className={compactFormFieldClassName}
+                  />
+                )}
+              />
+            </>
+          )}
+          <div className="md:col-span-2">
+            <p className="mb-2 text-sm font-semibold">Ảnh xác nhận MKM</p>
+            <Controller
+              name="promotionEvidenceUrl"
+              control={control}
+              render={({ field }) => (
+                <ImageUpload
+                  shape="card"
+                  alt="Ảnh xác nhận MKM"
+                  value={field.value}
+                  onChange={field.onChange}
+                  onUploadingChange={setUploadingEvidence}
+                />
+              )}
+            />
+            {errors.promotionEvidenceUrl && (
+              <p className="text-xs text-rose-600">{errors.promotionEvidenceUrl.message}</p>
+            )}
+          </div>
+          <p className="md:col-span-2 text-xs text-slate-500">
+            MKM được theo dõi riêng, không trừ hạn mức tiền nạp hoặc ghi nhận tiền chi.
+          </p>
+          {!!cost?.promotionHistory?.length && (
+            <details className="md:col-span-2 rounded-lg border border-slate-200 p-3">
+              <summary className="cursor-pointer text-sm font-semibold">Lịch sử MKM</summary>
+              {cost.promotionHistory
+                .slice()
+                .reverse()
+                .map((event, index) => (
+                  <div key={index} className="mt-2 border-t pt-2 text-xs text-slate-600">
+                    {new Date(event.at).toLocaleString('vi-VN')} · {event.actor}
+                    <br />
+                    Đã dùng: {formatCurrency(Number(event.after.promotion_used_amount || 0))} · Thu
+                    hồi: {formatCurrency(Number(event.after.promotion_revoked_amount || 0))}
+                    {event.note && <p>{event.note}</p>}
+                  </div>
+                ))}
+            </details>
+          )}
+        </>
+      )}
+      {isAdSpend && !isPromotion ? (
         <div
           role="status"
           aria-live="polite"
@@ -654,9 +836,11 @@ function CostDialog({
               <span className="block">
                 {customerBudget > 0
                   ? 'Ngân sách còn có thể nạp'
-                  : 'Chưa có tiền đã thu hoặc hạn mức nợ được duyệt'}
+                  : !managedBudgetProject
+                    ? 'Báo phí chỉ thu phí dịch vụ không tạo hạn mức nạp'
+                    : 'Chưa có tiền đã thu hoặc hạn mức nợ được duyệt'}
               </span>
-              {customerBudget > 0 ? (
+              {customerBudget > 0 || usedBudget > 0 ? (
                 <span className="mt-0.5 block truncate font-medium text-slate-500">
                   Đã thu {formatCurrency(paidBudget)} · Nợ {formatCurrency(creditBudget)} · Đã nạp{' '}
                   {formatCurrency(usedBudget)}
@@ -664,7 +848,7 @@ function CostDialog({
               ) : null}
             </span>
           </div>
-          {customerBudget > 0 ? (
+          {customerBudget > 0 || usedBudget > 0 ? (
             <strong
               className={`whitespace-nowrap text-sm font-extrabold tabular-nums ${
                 availableBudget < 0 ? 'text-rose-800' : 'text-sky-800'
@@ -676,7 +860,7 @@ function CostDialog({
         </div>
       ) : null}
 
-      {isAdSpend && cost ? (
+      {isAdSpend && cost && !isPromotion ? (
         <div
           className={`md:col-span-2 flex min-h-11 flex-col gap-2 rounded-md border px-3 py-1.5 md:flex-row md:items-center md:justify-between ${
             cidIsDead ? 'border-rose-200 bg-rose-50' : 'border-slate-200 bg-slate-50'
@@ -797,10 +981,16 @@ export function ProjectCostPanel({
       cost?: ProjectCost | null;
     }) => {
       const payload = {
+        fundingSource: entryType === 'ad_spend' ? values.fundingSource : 'cash',
+        promotionCode: values.promotionCode || null,
+        promotionExpiresOn: values.promotionExpiresOn || null,
+        promotionUsedAmount: Number(values.promotionUsedAmount) || 0,
+        promotionRevokedAmount: Number(values.promotionRevokedAmount) || 0,
+        promotionEvidenceUrl: values.promotionEvidenceUrl || null,
         projectId,
         entryType,
-        quotationId:
-          entryType === 'ad_spend' && values.quotationId ? Number(values.quotationId) : null,
+        quotationId: values.quotationId ? Number(values.quotationId) : null,
+        workPeriod: entryType === 'partner_cost' ? values.workPeriod : null,
         transactionDate: values.transactionDate || null,
         cid: values.cid.trim() || null,
         adAccount: values.adAccount.trim() || null,
@@ -927,12 +1117,57 @@ export function ProjectCostPanel({
           <h2 className="text-sm font-bold text-slate-950">
             {entryType === 'ad_spend' ? 'Chi phí nạp quảng cáo' : 'Chi phí đối tác'}
           </h2>
+          {entryType === 'partner_cost' && (
+            <Link
+              href={`/costs/partner-finance?project=${projectId}`}
+              className="text-xs font-semibold text-primary"
+            >
+              Công nợ & lợi nhuận
+            </Link>
+          )}
         </div>
         <TabActionButton startIcon={<AddRoundedIcon />} onClick={openCreate} disabled={!canManage}>
           {entryType === 'ad_spend' ? 'Thêm lần nạp' : 'Thêm chi phí'}
         </TabActionButton>
       </div>
 
+      {entryType === 'ad_spend' && costs.some(isAdPromotion) && (
+        <div className="mx-4 mb-4 grid gap-3 rounded-lg border border-sky-100 bg-sky-50/50 p-3 text-sm sm:grid-cols-3">
+          <span>
+            MKM đã cấp{' '}
+            <strong>
+              {formatCurrency(
+                costs
+                  .filter((c) => isAdPromotion(c) && c.status === 'completed')
+                  .reduce((sum, c) => sum + Number(c.totalAmount || 0), 0),
+              )}
+            </strong>
+          </span>
+          <span>
+            MKM đã dùng{' '}
+            <strong>
+              {formatCurrency(
+                costs
+                  .filter((c) => isAdPromotion(c) && c.status === 'completed')
+                  .reduce((sum, c) => sum + Number(c.promotionUsedAmount || 0), 0),
+              )}
+            </strong>
+          </span>
+          <span>
+            MKM còn hiệu lực{' '}
+            <strong>
+              {formatCurrency(costs.reduce((sum, c) => sum + promotionAvailable(c), 0))}
+            </strong>
+          </span>
+        </div>
+      )}
+      {entryType === 'ad_spend' &&
+        costs.some((c) => !isAdPromotion(c) && isLegacyPromotionCard(c.bankAccountOption)) && (
+          <p className="mx-4 mb-3 rounded-lg bg-amber-50 p-3 text-xs text-amber-800">
+            Có khoản dùng thẻ MKM cũ cần đối soát; số tiền lịch sử chưa được chuyển sang nguồn
+            khuyến mãi.
+          </p>
+        )}
       <div className="overflow-x-auto">
         {entryType === 'ad_spend' ? (
           <table className="w-full min-w-[760px] table-fixed text-left text-sm">
@@ -940,7 +1175,7 @@ export function ProjectCostPanel({
               <tr>
                 <th className="w-[12%] px-4 py-3">Ngày nạp</th>
                 <th className="w-[27%] px-3 py-3">CID / Thẻ nạp</th>
-                <th className="w-[13%] px-3 py-3 text-right">Đã nạp</th>
+                <th className="w-[13%] px-3 py-3 text-right">Giá trị</th>
                 <th className="w-[12%] px-3 py-3 text-right">CID hoàn về</th>
                 <th className="w-[12%] px-3 py-3 text-right">Hoàn vào hạn mức</th>
                 <th className="w-[19%] px-3 py-3">Trạng thái</th>
@@ -982,12 +1217,20 @@ export function ProjectCostPanel({
                           className="min-w-0 truncate text-xs font-medium text-slate-500"
                           title={getAdTopupCardLabel(cost.bankAccountOption)}
                         >
-                          · {getAdTopupCardLabel(cost.bankAccountOption)}
+                          ·{' '}
+                          {isAdPromotion(cost)
+                            ? `MKM · ${cost.promotionCode}`
+                            : getAdTopupCardLabel(cost.bankAccountOption)}
                         </span>
                       </div>
                     </td>
                     <td className="px-3 py-3 text-right font-extrabold tabular-nums text-slate-950">
                       {formatCurrency(moneyValue(cost.totalAmount))}
+                      {isAdPromotion(cost) && (
+                        <p className="mt-1 text-xs font-medium text-sky-700">
+                          MKM · Không chi tiền
+                        </p>
+                      )}
                     </td>
                     <td className="px-3 py-3 text-right font-bold tabular-nums text-slate-700">
                       {cost.cidIsDead ? formatCurrency(moneyValue(cost.cidRefundedAmount)) : '-'}
@@ -1050,6 +1293,7 @@ export function ProjectCostPanel({
                           }
                           disabled={
                             !canFund ||
+                            Boolean(cost.usesPaymentLedger) ||
                             (statusMutation.isPending &&
                               statusMutation.variables?.cost.id === cost.id)
                           }
@@ -1122,6 +1366,7 @@ export function ProjectCostPanel({
                           }
                           disabled={
                             !canFund ||
+                            Boolean(cost.usesPaymentLedger) ||
                             Boolean(cost.reconciledAt) ||
                             (statusMutation.isPending &&
                               statusMutation.variables?.cost.id === cost.id)
@@ -1143,6 +1388,12 @@ export function ProjectCostPanel({
                       <p className="truncate text-slate-500" title={cost.note || ''}>
                         {cost.note || '-'}
                       </p>
+                      <Link
+                        href={`/costs/partner-finance?project=${projectId}`}
+                        className="mt-1 block text-xs text-primary"
+                      >
+                        Kỳ ghi nhận & thanh toán
+                      </Link>
                     </td>
                     <td className="px-2 py-3">
                       <div className="flex justify-end">

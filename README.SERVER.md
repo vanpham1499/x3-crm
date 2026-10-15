@@ -1,5 +1,14 @@
 # Server X3Sales — 14.225.198.183
 
+## Hiện tại — release team-20261010, 10/10/2026
+
+- Đã triển khai commit chức năng `1b2f18c` từ `codex/zalo-team-crm-integration` lên **https://crm.x3sales.com** và **https://crm.x3sales.com/zalo-team**. Menu CRM đã hiển thị Zalo Team. Các mốc 08/10 bên dưới là lịch sử.
+- CRM 45.252.251.120 dùng frontend/backend `team-20261010`, bao gồm scheduler/queue/reverb; overlay bắt buộc `compose.crm-release.yml` sau base + `compose.crm-zalo.yml`, image tags trong `crm.release.env`. Chỉ migrate campaign permission và bốn migration CRM 000230–000260. Backend startup không tự migrate toàn kho Zalo.
+- Zalo 14.225.198.183 dùng frontend/API/connector `team-20261010`. API/sync/backup/8 Drive workers và một campaigns worker production dùng identity 9342/origin HTTPS. API local + campaigns-local giữ nguyên 9341/origin local. Call gateway, metrics collector, database, Tiny House và tunnel không thay image.
+- Backup database/config trước triển khai ở `releases/team-20261010` trên từng VPS; đã kiểm tra manifest, chưa diễn tập restore. Image cũ được giữ tag rollback riêng. Hướng dẫn vận hành, image IDs, cấu hình volume và rollback: [RELEASE-2026-10-10.md](tooling/deployment/production/RELEASE-2026-10-10.md).
+- Kiểm tra Chrome production: menu, inbox 294 hội thoại/4 tài khoản, Chiến dịch (0 theo origin production), Tài khoản (4), Công việc và Đồng bộ tải được; preview PDF báo phí 0,50 MB tạo được. Backend/FE/connector/worker restart 0, OOM false tại thời điểm kiểm tra. Scheduler có gửi tài liệu và nhắc hạn mỗi phút. Chưa gửi/gọi thật hoặc chạy chiến dịch; chưa nghiệm thu nhiều nhân sự/soak/restore.
+- Đồng bộ vẫn báo 136 nguồn lịch sử lỗi và 27 tệp cần kiểm tra nguồn trong mẫu kiểm tra; đây là phần chất lượng dữ liệu nguồn chưa được xử lý trong lượt deploy. Không suy ra health dịch vụ đạt đồng nghĩa toàn bộ lịch sử đã lưu đủ.
+
 ## 08/10 — Chiến dịch gửi hàng loạt cho giao diện local
 
 - Sau người dùng xác nhận, connector dùng image `x3-zalo-team-web-connector:campaigns-20261008` (Compose web + `compose.campaigns.yml`); protocol 1 hỗ trợ đối soát không gửi lại và kiểm tra đúng native account. Đã restart một lần, giữ volume; cuối lượt 4/4 account connected/health healthy.

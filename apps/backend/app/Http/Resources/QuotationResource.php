@@ -6,6 +6,7 @@ use App\Models\PaymentRefund;
 use App\Support\ProjectTopupBudgetCalculator;
 use App\Support\QuotationReference;
 use App\Support\QuotationSettlement;
+use App\Support\QuotationServiceRevenue;
 use Illuminate\Http\Request;
 use Illuminate\Http\Resources\Json\JsonResource;
 
@@ -54,6 +55,7 @@ class QuotationResource extends JsonResource
         $status = $snapshot['quotation_status'];
         $isPaymentLocked = $snapshot['is_payment_locked'];
         $topupBudget = ProjectTopupBudgetCalculator::calculateQuotation($this->resource);
+        $serviceRevenue = QuotationServiceRevenue::calculate($this->resource, $topupBudget);
 
         return [
             'id' => $this->id,
@@ -103,6 +105,9 @@ class QuotationResource extends JsonResource
             'topupReleasedBudget' => $topupBudget['releasedBudget'],
             'topupUsablePaidAmount' => $topupBudget['usablePaidAmount'],
             'topupHeldDepositAmount' => $topupBudget['heldDepositAmount'],
+            'serviceRevenueBeforeVat' => $serviceRevenue['beforeVat'],
+            'serviceCollectedBeforeVat' => $serviceRevenue['collectedBeforeVat'],
+            'financialNeedsReview' => $serviceRevenue['needsReview'],
             'accountReconciliationImageUrls' => $this->account_reconciliation_image_urls ?? [],
             'validUntil' => $this->valid_until?->toDateString(),
             'note' => $this->note,

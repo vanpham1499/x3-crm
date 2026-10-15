@@ -10,7 +10,7 @@ import { EntityTableLink } from '@/components/table/entity-table-link';
 import { getApiErrorMessage } from '@/lib/api-error';
 import { formatCurrency, formatDateTime } from '@/lib/utils';
 import api from '@/services/api/client';
-import type { KpiDetailEntry, KpiDetailReport, KpiDetailTotals, KpiScopeType } from '@/types/kpi';
+import type { KpiDetailEntry, KpiDetailReport, KpiScopeType } from '@/types/kpi';
 
 export type KpiDetailDialogState = {
   scopeType: KpiScopeType;
@@ -20,6 +20,7 @@ export type KpiDetailDialogState = {
 };
 
 type KpiDetailDialogProps = {
+  teamId?: number;
   state: KpiDetailDialogState | null;
   onClose: () => void;
 };
@@ -48,20 +49,43 @@ function formatImpact(amount: number) {
   return `${amount > 0 ? '+' : ''}${formatCurrency(amount)}`;
 }
 
-function DetailSummary({ totals }: { totals: KpiDetailTotals }) {
-  const items = [
-    { label: 'Ghi nhận có VAT', value: totals.receivedAmount, tone: 'text-emerald-700' },
-    { label: 'Chi phí có VAT', value: totals.costAmount, tone: 'text-rose-700' },
-    { label: 'Hoàn tiền có VAT', value: totals.refundAmount, tone: 'text-amber-700' },
-    {
-      label: 'Lợi nhuận trước VAT',
-      value: totals.profitAmount,
-      tone: impactTone(totals.profitAmount),
-    },
-  ];
+function DetailSummary({ report }: { report: KpiDetailReport }) {
+  const totals = report.totals;
+  const entries = report.branches.flatMap((branch) => branch.entries);
+  const items =
+    report.metric === 'management_fee'
+      ? [
+          {
+            label: 'Phí quản lý đã thu',
+            value: entries.reduce((sum, entry) => sum + Math.max(0, entry.profitImpactAmount), 0),
+            tone: 'text-emerald-700',
+          },
+          {
+            label: 'Phí quản lý đã hoàn',
+            value: entries.reduce((sum, entry) => sum + Math.max(0, -entry.profitImpactAmount), 0),
+            tone: 'text-amber-700',
+          },
+          {
+            label: 'KPI trước VAT',
+            value: totals.profitAmount,
+            tone: impactTone(totals.profitAmount),
+          },
+        ]
+      : [
+          { label: 'Ghi nhận có VAT', value: totals.receivedAmount, tone: 'text-emerald-700' },
+          { label: 'Chi phí có VAT', value: totals.costAmount, tone: 'text-rose-700' },
+          { label: 'Hoàn tiền có VAT', value: totals.refundAmount, tone: 'text-amber-700' },
+          {
+            label: 'KPI ghi nhận',
+            value: totals.profitAmount,
+            tone: impactTone(totals.profitAmount),
+          },
+        ];
 
   return (
-    <div className="grid gap-2 sm:grid-cols-2 xl:grid-cols-4">
+    <div
+      className={`grid gap-2 sm:grid-cols-2 ${report.metric === 'management_fee' ? 'xl:grid-cols-3' : 'xl:grid-cols-4'}`}
+    >
       {items.map((item) => (
         <div key={item.label} className="rounded-xl border border-slate-200 bg-slate-50 px-3 py-3">
           <p className="text-xs font-bold text-slate-500">{item.label}</p>
@@ -85,7 +109,7 @@ function DetailRows({ entries }: { entries: KpiDetailEntry[] }) {
         { key: 'project', label: 'Dự án', className: 'w-[210px]' },
         { key: 'reference', label: 'Báo phí / Tham chiếu', className: 'w-[230px]' },
         { key: 'source', label: 'Số nguồn có VAT', className: 'w-[160px] text-right' },
-        { key: 'impact', label: 'Tác động LN trước VAT', className: 'w-[180px] text-right' },
+        { key: 'impact', label: 'KPI trước VAT', className: 'w-[180px] text-right' },
       ]}
       isEmpty={entries.length === 0}
       emptyText="Không có phát sinh trong tháng này"
@@ -142,15 +166,16 @@ function DetailRows({ entries }: { entries: KpiDetailEntry[] }) {
   );
 }
 
-export function KpiDetailDialog({ state, onClose }: KpiDetailDialogProps) {
+export function KpiDetailDialog({ state, onClose, teamId }: KpiDetailDialogProps) {
   const { data, isLoading, isError, error, refetch, isFetching } = useQuery<KpiDetailReport>({
-    queryKey: ['kpi', 'details', state?.period, state?.scopeType, state?.scopeId],
+    queryKey: ['kpi', 'details', teamId, state?.period, state?.scopeType, state?.scopeId],
     queryFn: ({ signal }) =>
       api
         .get<KpiDetailReport>('/kpi/details', {
           params: {
             period: state?.period,
             scope_type: state?.scopeType,
+            team_id: teamId,
             scope_id: state?.scopeId,
           },
           signal,
@@ -175,7 +200,7 @@ export function KpiDetailDialog({ state, onClose }: KpiDetailDialogProps) {
           {state ? formatMonthLabel(state.period) : ''}
         </p>
         <p className="mt-0.5 text-xs font-semibold text-slate-500">
-          Mỗi dòng hiển thị số nguồn để đối soát và phần tác động thực tế vào lợi nhuận trước VAT.
+          Mỗi dòng hiển thị số nguồn để đối soát và phần tác động thực tế vào KPI ghi nhận.
         </p>
       </div>
 
@@ -207,7 +232,7 @@ export function KpiDetailDialog({ state, onClose }: KpiDetailDialogProps) {
         </div>
       ) : data ? (
         <div className="space-y-4 p-5">
-          <DetailSummary totals={data.totals} />
+          <DetailSummary report={data} />
 
           {data.branches
             .filter((branch) => branch.entries.length > 0)
@@ -224,7 +249,7 @@ export function KpiDetailDialog({ state, onClose }: KpiDetailDialogProps) {
                     </p>
                   </div>
                   <div className="text-right">
-                    <p className="text-xs font-bold text-slate-500">Lợi nhuận trước VAT</p>
+                    <p className="text-xs font-bold text-slate-500">KPI ghi nhận</p>
                     <p
                       className={`mt-0.5 text-base font-extrabold tabular-nums ${impactTone(branch.totals.profitAmount)}`}
                     >

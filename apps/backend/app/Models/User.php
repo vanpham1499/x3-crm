@@ -2,6 +2,7 @@
 
 namespace App\Models;
 
+use App\Services\ZaloTeamAccess;
 use Illuminate\Database\Eloquent\Factories\HasFactory;
 use Illuminate\Database\Eloquent\Relations\BelongsTo;
 use Illuminate\Database\Eloquent\Relations\BelongsToMany;
@@ -73,12 +74,32 @@ class User extends Authenticatable
 
     protected static function booted(): void
     {
-        static::updated(function (self $user) {
-            if ($user->wasChanged('department_id') || ($user->wasChanged('is_active') && ! $user->is_active)) {
-                \App\Services\ZaloTeamAccess::revokeUser((int) $user->id);
+        static::updating(function (self $user): void {
+            if ($user->isDirty('department_id') && $user->team_id) {
+                $team = Team::find($user->team_id);
+                if (! $team || (int) $team->department_id !== (int) $user->department_id) {
+                    $user->team_id = null;
+                }
             }
         });
-        static::deleted(fn (self $user) => \App\Services\ZaloTeamAccess::revokeUser((int) $user->id));
+        static::updated(function (self $user) {
+            if ($user->wasChanged('department_id')) {
+                Team::where('leader_user_id', $user->id)->where(fn ($q) => $q->where('department_id', '!=', $user->department_id ?? 0))->update(['leader_user_id' => null]);
+            }
+            if ($user->wasChanged('team_id')) {
+                $at = now();
+                TeamMembership::where('user_id', $user->id)->whereNull('ended_at')->update(['ended_at' => $at]);
+                if ($user->team_id) {
+                    TeamMembership::create(['user_id' => $user->id, 'team_id' => $user->team_id,
+                        'started_at' => $at, 'changed_by' => request()->user()?->id]);
+                }
+            }
+            if ($user->wasChanged('department_id') || ($user->wasChanged('is_active') && ! $user->is_active)) {
+                ZaloTeamAccess::revokeUser((int) $user->id);
+            }
+        });
+        static::deleted(fn (self $user) => ZaloTeamAccess::revokeUser((int) $user->id));
+        static::deleted(fn (self $user) => TeamMembership::where('user_id', $user->id)->whereNull('ended_at')->update(['ended_at' => now()]));
     }
 
     public function isLeader(): bool
@@ -109,6 +130,32 @@ class User extends Authenticatable
     public function department(): BelongsTo
     {
         return $this->belongsTo(Department::class);
+    }
+
+    public function team(): BelongsTo
+    {
+        return $this->belongsTo(Team::class);
+    }
+
+    public function ledTeams(): HasMany
+    {
+        return $this->hasMany(Team::class, 'leader_user_id');
+    }
+
+    /** Membership grants no permission; callers must check the module/action grant. */
+    public function accessibleTeamIds(): array
+    {
+        $ids = $this->ledTeams()->pluck('id');
+        if ($this->team_id && Team::whereKey($this->team_id)->exists()) {
+            $ids->push($this->team_id);
+        }
+
+        return $ids->map(fn ($id) => (int) $id)->unique()->values()->all();
+    }
+
+    public function sharesTeamWith(?User $other): bool
+    {
+        return $other?->team_id && in_array((int) $other->team_id, $this->accessibleTeamIds(), true);
     }
 
     public function ledDepartments(): HasMany

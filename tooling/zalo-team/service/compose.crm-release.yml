@@ -1,0 +1,35 @@
+# Apply after compose.yml and compose.crm-zalo.yml on the CRM VPS.
+# Required image tags are immutable; keep this overlay in every later CRM release.
+x-crm-runtime: &crm-runtime
+  image: ${CRM_BACKEND_IMAGE:?Set the CRM backend release image}
+  env_file: [zalo-team.env]
+  environment:
+    ZALO_TEAM_RUNTIME: crm
+    ZALO_TEAM_CONNECTOR_URL: http://zalo-tunnel:9250
+    ZALO_TEAM_SERVICE_KEY_FILE: /run/secrets/zalo_service_key
+    ZALO_TEAM_TOKEN_FILE: /run/secrets/zalo_connector_token
+    CACHE_STORE: file
+  secrets: [zalo_service_key, zalo_connector_token]
+  volumes:
+    - crm_zalo_documents:/app/storage/app/private/zalo-crm-documents
+    - crm_worker_cache:/app/storage/framework/cache/data
+services:
+  backend:
+    <<: *crm-runtime
+    # Migrate explicitly after backup, before activating any workers.
+    command: sh -lc "php artisan optimize && exec php -S 0.0.0.0:4000 -t public public/index.php"
+  scheduler:
+    <<: *crm-runtime
+  queue-worker:
+    <<: *crm-runtime
+  reverb:
+    image: ${CRM_BACKEND_IMAGE:?Set the CRM backend release image}
+    environment:
+      ZALO_TEAM_RUNTIME: crm
+  frontend:
+    image: ${CRM_FRONTEND_IMAGE:?Set the CRM frontend release image}
+    environment:
+      ZALO_TEAM_RUNTIME: crm
+volumes:
+  crm_zalo_documents:
+  crm_worker_cache:

@@ -49,6 +49,9 @@ class UsersService extends BaseService
                 if ($departmentIds !== [] && $hasDepartmentScope) {
                     $filters['department_ids'] = $departmentIds;
                     $filters['include_id'] = $currentUser->id;
+                } elseif (collect(self::DATA_SCOPE_ACTIONS)->contains(fn (string $action): bool => $currentUser->hasPermission("{$module}.{$action}_team"))) {
+                    $filters['team_ids'] = $currentUser->accessibleTeamIds();
+                    $filters['include_id'] = $currentUser->id;
                 } else {
                     $filters['id'] = $currentUser->id;
                 }

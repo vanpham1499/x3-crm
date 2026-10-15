@@ -21,6 +21,13 @@ class P2PointPolicy
             return true;
         }
 
+        if (
+            $user->hasPermission('p2point.view_team')
+            && $user->sharesTeamWith($point->user)
+        ) {
+            return true;
+        }
+
         return $user->hasPermission('p2point.view') && $point->user_id === $user->id;
     }
 
@@ -46,6 +53,20 @@ class P2PointPolicy
                 $project = Project::query()->find($projectId);
 
                 return $project !== null && $project->isInDepartmentOf($user);
+            }
+        }
+
+        if ($user->hasPermission('p2point.create_team') && $pointUserId) {
+            $pointUser = User::query()->find($pointUserId);
+
+            if ($user->sharesTeamWith($pointUser)) {
+                if (! $projectId) {
+                    return true;
+                }
+
+                $project = Project::query()->find($projectId);
+
+                return $project !== null && $project->isInTeamOf($user);
             }
         }
 
@@ -81,6 +102,13 @@ class P2PointPolicy
             return true;
         }
 
+        if (
+            $user->hasPermission('p2point.approve_team')
+            && $user->sharesTeamWith($point->user)
+        ) {
+            return true;
+        }
+
         if (! $user->hasPermission('p2point.approve')) {
             return false;
         }
@@ -97,6 +125,13 @@ class P2PointPolicy
         if (
             $user->hasPermission("p2point.{$action}_department")
             && $user->sharesDepartmentWith($point->user)
+        ) {
+            return true;
+        }
+
+        if (
+            $user->hasPermission("p2point.{$action}_team")
+            && $user->sharesTeamWith($point->user)
         ) {
             return true;
         }

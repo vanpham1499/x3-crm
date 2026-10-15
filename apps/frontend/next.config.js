@@ -1,6 +1,6 @@
 /** @type {import('next').NextConfig} */
 const nextConfig = {
-  ...(process.env.ZALO_TEAM_RUNTIME === 'zalo' ? {
+  ...(['zalo', 'crm'].includes(process.env.ZALO_TEAM_RUNTIME) ? {
     output: 'standalone',
     experimental: { outputFileTracingRoot: require('path').join(__dirname, '../..'), cpus: 2 },
   } : {}),

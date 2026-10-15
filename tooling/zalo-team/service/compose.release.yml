@@ -1,0 +1,13 @@
+# Apply after compose.vps-local.yml, compose.drive.yml and compose.campaigns.yml.
+# Identity remains in service.env; do not use this overlay for dev-client.
+services:
+  api:
+    image: ${ZALO_API_IMAGE:?Set the Zalo API release image}
+  sync:
+    image: ${ZALO_API_IMAGE:?Set the Zalo API release image}
+  backup:
+    image: ${ZALO_API_IMAGE:?Set the Zalo API release image}
+  drive:
+    image: ${ZALO_API_IMAGE:?Set the Zalo API release image}
+  campaigns:
+    image: ${ZALO_API_IMAGE:?Set the Zalo API release image}

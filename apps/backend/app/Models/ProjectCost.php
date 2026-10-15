@@ -48,7 +48,11 @@ class ProjectCost extends BaseModel
         'project_id',
         'quotation_id',
         'entry_type',
+        'funding_source', 'promotion_code', 'promotion_expires_on',
+        'promotion_used_amount', 'promotion_revoked_amount', 'promotion_evidence_url', 'promotion_history',
         'transaction_date',
+        'work_period',
+        'uses_payment_ledger',
         'status',
         'cid',
         'ad_account',
@@ -79,7 +83,13 @@ class ProjectCost extends BaseModel
     ];
 
     protected $casts = [
+        'promotion_expires_on' => 'date',
+        'promotion_used_amount' => 'decimal:2',
+        'promotion_history' => 'array',
+        'promotion_revoked_amount' => 'decimal:2',
         'transaction_date' => 'date',
+        'work_period' => 'date',
+        'uses_payment_ledger' => 'boolean',
         'cid_is_dead' => 'boolean',
         'cid_spent_amount' => 'decimal:2',
         'cid_refunded_amount' => 'decimal:2',
@@ -97,6 +107,22 @@ class ProjectCost extends BaseModel
     public function project(): BelongsTo
     {
         return $this->belongsTo(Project::class);
+    }
+
+    public function partnerPayments(): HasMany
+    {
+        return $this->hasMany(PartnerCostPayment::class)->orderBy('paid_on')->orderBy('id');
+    }
+
+    public function financeRecognition(): HasOne
+    {
+        return $this->hasOne(PartnerFinanceRecognition::class, 'entity_id')->where('entity_type', 'cost');
+    }
+
+    public function partnerPaidAmount(): float
+    {
+        if (!$this->uses_payment_ledger) return $this->status === self::STATUS_COMPLETED ? (float) $this->total_amount : 0.0;
+        return round((float) $this->partnerPayments->whereNull('voided_at')->sum('amount'), 2);
     }
 
     public function quotation(): BelongsTo
@@ -136,11 +162,13 @@ class ProjectCost extends BaseModel
 
     public function cashOutAmount(): float
     {
+        if ($this->isPromotion()) return 0.0;
         return round((float) ($this->total_amount ?? 0) + $this->completedAdjustmentTotal(ProjectCostAdjustment::EXTRA_COST_TYPES), 2);
     }
 
     public function actualCostAmount(): float
     {
+        if ($this->isPromotion()) return 0.0;
         if ($this->entry_type !== self::TYPE_AD_SPEND) {
             return round((float) ($this->total_amount ?? 0), 2);
         }
@@ -177,6 +205,7 @@ class ProjectCost extends BaseModel
 
     public function originalBalanceAmount(): float
     {
+        if ($this->isPromotion()) return 0.0;
         if ($this->entry_type !== self::TYPE_AD_SPEND) {
             return 0.0;
         }
@@ -216,6 +245,7 @@ class ProjectCost extends BaseModel
 
     public function realizedCostAmount(): float
     {
+        if ($this->isPromotion()) return 0.0;
         return round($this->actualCostAmount() + $this->completedAdjustmentTotal(ProjectCostAdjustment::EXTRA_COST_TYPES), 2);
     }
 
@@ -251,6 +281,18 @@ class ProjectCost extends BaseModel
             ->where('status', ProjectCostAdjustment::STATUS_COMPLETED)
             ->whereIn('adjustment_type', $types)
             ->sum(fn (ProjectCostAdjustment $adjustment) => (float) ($adjustment->amount ?? 0)), 2);
+    }
+
+    public function isPromotion(): bool
+    {
+        return $this->entry_type === self::TYPE_AD_SPEND && $this->funding_source === 'promotion';
+    }
+
+    public function promotionAvailableAmount(): float
+    {
+        if (!$this->isPromotion() || $this->status !== self::STATUS_COMPLETED
+            || ($this->promotion_expires_on && $this->promotion_expires_on->toDateString() < now('Asia/Ho_Chi_Minh')->toDateString())) return 0.0;
+        return round(max(0, (float) $this->total_amount - (float) $this->promotion_used_amount - (float) $this->promotion_revoked_amount), 2);
     }
 
     private function currentCidIncident(): ?ProjectCostCidIncident

@@ -39,7 +39,9 @@ class WeeklyReportsController extends Controller
 
     public function board(Request $request): JsonResponse
     {
+        $request->validate(['date_scope' => ['sometimes', 'string', 'in:all,today,past,upcoming']]);
         $filters = [
+            'date_scope' => $request->query('date_scope', 'all'),
             'week_start' => $request->query('week_start'),
             'keyword' => $request->query('keyword'),
             'report_owner_user_id' => $request->query('report_owner_user_id'),

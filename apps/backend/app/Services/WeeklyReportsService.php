@@ -10,6 +10,7 @@ use App\Models\WeeklyReportItem;
 use App\Repositories\ProjectWeeklySettingRepository;
 use App\Repositories\WeeklyReportRepository;
 use App\Support\WeeklyReportMoney;
+use App\Support\WeeklyReportBoardOrder;
 use Carbon\CarbonImmutable;
 use Illuminate\Validation\ValidationException;
 
@@ -43,7 +44,7 @@ class WeeklyReportsService extends BaseService
         );
     }
 
-    public function board(array $filters, int $perPage, int $page): array
+    public function board(array $filters, int $perPage, int $page, ?array $teamIds = null): array
     {
         $filters = $this->normalizeKeys($filters);
         $weekMonday = $this->resolveBoardWeek($filters['week_start'] ?? null);
@@ -53,6 +54,12 @@ class WeeklyReportsService extends BaseService
             ->findActiveForBoard($filters, $this->currentUser())
             ->filter(fn (ProjectWeeklySetting $setting): bool => $setting->project?->requiresWeeklyReport() ?? false)
             ->values();
+        if ($teamIds !== null) {
+            $settings->load(['project.managerUser:id,team_id', 'project.salesUser:id,team_id']);
+            $settings = $settings->filter(fn ($setting) => in_array((int) $setting->reportOwner?->team_id, $teamIds, true)
+                || in_array((int) $setting->project?->managerUser?->team_id, $teamIds, true)
+                || in_array((int) $setting->project?->salesUser?->team_id, $teamIds, true))->values();
+        }
         $projectIds = $settings->pluck('project_id')->map(fn ($id) => (int) $id)->all();
         $reports = $this->reports->findForBoardPeriods(
             $projectIds,
@@ -155,6 +162,7 @@ class WeeklyReportsService extends BaseService
 
         $summary = [
             'total' => count($rows),
+            'reportingToday' => WeeklyReportBoardOrder::scopeCounts($rows, $today->toDateString())['today'],
             'dueToday' => count(array_filter($rows, fn (array $row) => $row['dueStatus'] === 'due_today')),
             'overdue' => count(array_filter($rows, fn (array $row) => $row['dueStatus'] === 'overdue')),
             'waitingApproval' => count(array_filter($rows, fn (array $row) => $row['progressStatus'] === WeeklyReport::STATUS_SUBMITTED)),
@@ -177,9 +185,12 @@ class WeeklyReportsService extends BaseService
             return true;
         }));
 
-        usort($rows, fn (array $left, array $right) => $this->boardPriority($left) <=> $this->boardPriority($right)
-            ?: strcmp((string) ($left['dueDate'] ?? ''), (string) ($right['dueDate'] ?? ''))
-            ?: strcmp((string) ($left['project']['projectCode'] ?? ''), (string) ($right['project']['projectCode'] ?? '')));
+        $rows = WeeklyReportBoardOrder::arrange(
+            $rows,
+            $today->toDateString(),
+            $filters['date_scope'] ?? 'all',
+            ($filters['progress_status'] ?? null) === WeeklyReport::STATUS_SUBMITTED,
+        );
 
         $total = count($rows);
         $lastPage = max(1, (int) ceil($total / max(1, $perPage)));
@@ -381,6 +392,7 @@ class WeeklyReportsService extends BaseService
             $report = $this->reports->findWithRelationsOrFail($id);
             $this->authorize('delete', $report);
             $this->assertStatus($report, WeeklyReport::STATUS_DRAFT, 'Chỉ báo cáo nháp mới được xóa.');
+            $this->notifications->resolve('weekly_report', $report->id, ['weekly_report_submitted', 'weekly_report_rejected', 'weekly_report_returned']);
             $this->reports->delete($id);
 
             return ['message' => 'Xóa báo cáo tuần thành công'];
@@ -413,7 +425,7 @@ class WeeklyReportsService extends BaseService
                 $this->notifications->resolve('project_weekly_setting', $report->project->weeklySetting->id, [
                     'weekly_report_due',
                     'weekly_report_overdue',
-                ]);
+                ], ['dueDate' => CarbonImmutable::parse($report->week_end_date)->addDay()->toDateString()]);
             }
             $this->notifications->send($this->notificationRecipients->weeklyReportApprovers($report), [
                 'module' => 'weekly_report',
@@ -589,8 +601,6 @@ class WeeklyReportsService extends BaseService
                 // Project presets are VND, not amounts that can simply be relabelled USD/EUR.
                 if ($data['currency'] === 'VND') {
                     $data['monthly_budget'] = $data['monthly_budget'] ?? $setting->monthly_budget;
-                    $data['average_weekly_budget'] = $data['average_weekly_budget']
-                        ?? round((float) $setting->monthly_budget / 4, 2);
                     $data['total_budget'] = $data['total_budget'] ?? $setting->monthly_budget;
                 }
             }
@@ -654,7 +664,7 @@ class WeeklyReportsService extends BaseService
             $data['report_date'] = $data['report_date'] ?? now()->toDateString();
         }
 
-        return $data;
+        return WeeklyReportMoney::applyWeeklyBudget($data, $existing);
     }
 
     private function resolveBoardWeek(?string $value): CarbonImmutable
@@ -711,25 +721,6 @@ class WeeklyReportsService extends BaseService
         }
 
         return 'overdue';
-    }
-
-    private function boardPriority(array $row): int
-    {
-        if ($row['dueStatus'] === 'overdue') {
-            return 0;
-        }
-
-        if ($row['dueStatus'] === 'due_today') {
-            return 1;
-        }
-
-        return match ($row['progressStatus']) {
-            WeeklyReport::STATUS_REJECTED => 2,
-            WeeklyReport::STATUS_DRAFT => 3,
-            WeeklyReport::STATUS_SUBMITTED => 4,
-            WeeklyReport::STATUS_APPROVED => 5,
-            default => 5,
-        };
     }
 
     private function assertStatus(WeeklyReport $report, string $expectedStatus, string $message): void

@@ -10,22 +10,23 @@ use Illuminate\Contracts\Pagination\LengthAwarePaginator;
 
 class UserNotificationsService extends BaseService
 {
-    public function findPaginated(User $user, string $filter, int $perPage, int $page): array
+    public function findPaginated(User $user, string $filter, int $perPage, int $page, ?string $module = null, bool $unread = false): array
     {
-        $paginator = UserNotification::query()
-            ->where('user_id', $user->id)
-            ->when(
-                $filter === 'archived',
-                fn ($query) => $query->whereNotNull('archived_at'),
-                fn ($query) => $query->whereNull('archived_at'),
-            )
-            ->when($filter === 'unread', fn ($query) => $query->whereNull('read_at'))
-            ->when($filter === 'action', fn ($query) => $query
-                ->where('kind', UserNotification::KIND_ACTION)
-                ->whereNull('resolved_at'))
+        $query = UserNotification::query()->where('user_id', $user->id);
+        if ($filter === 'archived') {
+            $query->whereNotNull('archived_at'); // Compatibility with older clients.
+        } elseif ($filter === 'done') {
+            $query->doneInbox();
+        } else {
+            $query->pendingInbox();
+        }
+        $paginator = $query
+            ->when($module, fn ($q) => $q->where('module', $module))
+            ->when($unread || $filter === 'unread', fn ($q) => $q->whereNull('read_at'))
+            ->when($filter === 'action', fn ($q) => $q->where('kind', UserNotification::KIND_ACTION)->whereNull('resolved_at'))
             ->with('actor:id,code,name')
-            ->orderByDesc('created_at')
-            ->orderByDesc('id')
+            ->when($filter === 'done', fn ($q) => $q->orderByRaw('COALESCE(handled_at, archived_at, resolved_at) DESC'))
+            ->orderByDesc('created_at')->orderByDesc('id')
             ->paginate($perPage, ['*'], 'page', $page);
 
         return $this->paginated($paginator);
@@ -33,23 +34,41 @@ class UserNotificationsService extends BaseService
 
     public function summary(User $user): array
     {
-        $query = UserNotification::query()
-            ->where('user_id', $user->id)
-            ->whereNull('archived_at');
+        $pending = 'handled_at IS NULL AND archived_at IS NULL AND (resolved_at IS NULL OR inbox_reopened_at IS NOT NULL)';
+        $rows = UserNotification::query()->where('user_id', $user->id)
+            ->select('module')->selectRaw("COUNT(*) as total,
+                SUM(CASE WHEN {$pending} THEN 1 ELSE 0 END) as pending,
+                SUM(CASE WHEN {$pending} AND read_at IS NULL THEN 1 ELSE 0 END) as unread,
+                SUM(CASE WHEN {$pending} AND kind = 'action' AND resolved_at IS NULL THEN 1 ELSE 0 END) as actions,
+                SUM(CASE WHEN archived_at IS NOT NULL THEN 1 ELSE 0 END) as archived")
+            ->groupBy('module')->get();
+        $modules = $rows->map(fn ($row) => [
+            'module' => $row->module, 'pendingCount' => (int) $row->pending,
+            'doneCount' => (int) $row->total - (int) $row->pending, 'unreadCount' => (int) $row->unread,
+        ])->values();
 
         return [
-            'totalCount' => (clone $query)->count(),
-            'archivedCount' => UserNotification::query()
-                ->where('user_id', $user->id)
-                ->whereNotNull('archived_at')
-                ->count(),
-            'unreadCount' => (clone $query)->whereNull('read_at')->count(),
-            'pendingActionCount' => (clone $query)
-                ->where('kind', UserNotification::KIND_ACTION)
-                ->whereNull('resolved_at')
-                ->count(),
-            'attentionCount' => (clone $query)->whereNull('read_at')->count(),
+            'totalCount' => (int) $rows->sum('pending'),
+            'doneCount' => (int) $modules->sum('doneCount'),
+            'archivedCount' => (int) $rows->sum('archived'),
+            'unreadCount' => (int) $rows->sum('unread'),
+            'pendingActionCount' => (int) $rows->sum('actions'),
+            'attentionCount' => (int) $rows->sum('pending'),
+            'modules' => $modules,
         ];
+    }
+
+    public function handle(User $user, int|string $id): array
+    {
+        return $this->transaction(function () use ($user, $id): array {
+            $notification = UserNotification::where('user_id', $user->id)->lockForUpdate()->findOrFail($id);
+            if (! $notification->inboxIsDone()) {
+                $notification->update(['handled_at' => now(), 'read_at' => $notification->read_at ?? now(), 'inbox_reopened_at' => null]);
+                UserNotificationsChanged::dispatch($user->id, 'handled', $notification->id);
+            }
+
+            return (new UserNotificationResource($notification->load('actor:id,code,name')))->resolve();
+        });
     }
 
     public function markRead(User $user, int|string $id): array
@@ -68,7 +87,7 @@ class UserNotificationsService extends BaseService
     {
         $updated = UserNotification::query()
             ->where('user_id', $user->id)
-            ->whereNull('archived_at')
+            ->pendingInbox()
             ->whereNull('read_at')
             ->update(['read_at' => now()]);
 
@@ -93,21 +112,25 @@ class UserNotificationsService extends BaseService
 
     public function restore(User $user, int|string $id): array
     {
-        $notification = UserNotification::query()
-            ->where('user_id', $user->id)
-            ->whereNotNull('archived_at')
-            ->findOrFail($id);
-        $notification->update(['archived_at' => null]);
-        UserNotificationsChanged::dispatch($user->id, 'restored', $notification->id);
+        return $this->transaction(function () use ($user, $id): array {
+            $notification = UserNotification::where('user_id', $user->id)->lockForUpdate()->findOrFail($id);
+            if ($notification->inboxIsDone()) {
+                $notification->update([
+                    'handled_at' => null, 'archived_at' => null,
+                    // Reopens only this recipient's inbox, never the underlying business record.
+                    'inbox_reopened_at' => now(),
+                ]);
+                UserNotificationsChanged::dispatch($user->id, 'restored', $notification->id);
+            }
 
-        return ['id' => $notification->id, 'archived' => false];
+            return (new UserNotificationResource($notification->load('actor:id,code,name')))->resolve();
+        });
     }
 
     private function findOwned(User $user, int|string $id): UserNotification
     {
         return UserNotification::query()
             ->where('user_id', $user->id)
-            ->whereNull('archived_at')
             ->findOrFail($id);
     }
 

@@ -6,6 +6,7 @@
  * `permissions` is an OR list — the user needs at least one of the codes.
  */
 const ROUTE_PERMISSIONS: Array<{ prefix: string; permissions: string[] }> = [
+  { prefix: '/settings/weekly-report-templates', permissions: ['weeklytemplate.manage'] },
   { prefix: '/dashboard', permissions: ['dashboard.view'] },
   { prefix: '/leads', permissions: ['lead.view'] },
   { prefix: '/customers', permissions: ['customer.view'] },
@@ -22,6 +23,7 @@ const ROUTE_PERMISSIONS: Array<{ prefix: string; permissions: string[] }> = [
   { prefix: '/p2-points', permissions: ['p2point.view'] },
   { prefix: '/kpi', permissions: ['kpi.view'] },
   { prefix: '/media-library', permissions: ['media.view'] },
+  { prefix: '/users/teams', permissions: ['team.view'] },
   { prefix: '/users/departments', permissions: ['department.view'] },
   { prefix: '/users/roles', permissions: ['role.view'] },
   { prefix: '/users/permissions', permissions: ['permission.view'] },
@@ -33,6 +35,7 @@ const ROUTE_PERMISSIONS: Array<{ prefix: string; permissions: string[] }> = [
   {
     prefix: '/settings',
     permissions: [
+      'weeklytemplate.manage',
       'service.view',
       'partner.view',
       'bankaccount.view',

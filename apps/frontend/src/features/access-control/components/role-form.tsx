@@ -257,6 +257,11 @@ export function RoleForm({
                             (permission) => permission.code === `${pagePermission.code}_department`,
                           )
                         : undefined;
+                      const pageTeamPermission = pagePermission
+                        ? modulePermissions.find(
+                            (permission) => permission.code === `${pagePermission.code}_team`,
+                          )
+                        : undefined;
                       const pageAllPermission = pagePermission
                         ? modulePermissions.find(
                             (permission) => permission.code === `${pagePermission.code}_all`,
@@ -267,6 +272,7 @@ export function RoleForm({
                         (field.value.includes(pagePermission.id) ||
                           (pageDepartmentPermission &&
                             field.value.includes(pageDepartmentPermission.id)) ||
+                          (pageTeamPermission && field.value.includes(pageTeamPermission.id)) ||
                           (pageAllPermission && field.value.includes(pageAllPermission.id))),
                       );
                       const moduleMatchesSearch = moduleLabel
@@ -275,6 +281,7 @@ export function RoleForm({
                       const baseActions = modulePermissions.filter(
                         (permission) =>
                           permission.id !== pagePermission?.id &&
+                          !permission.code.endsWith('_team') &&
                           !permission.code.endsWith('_department') &&
                           !permission.code.endsWith('_all') &&
                           (moduleMatchesSearch ||
@@ -285,7 +292,7 @@ export function RoleForm({
                       ).length;
                       const addPagePermission = (
                         ids: number[],
-                        scope?: 'own' | 'department' | 'all',
+                        scope?: 'own' | 'team' | 'department' | 'all',
                       ) => {
                         // Cost actions are also used inside Project Finance. They must
                         // remain selectable without opening the centralized Costs page.
@@ -294,6 +301,8 @@ export function RoleForm({
 
                         const nextIds = [...ids, pagePermission.id];
 
+                        if (scope === 'team' && pageTeamPermission)
+                          nextIds.push(pageTeamPermission.id);
                         if (scope === 'department' && pageDepartmentPermission) {
                           nextIds.push(pageDepartmentPermission.id);
                         }
@@ -361,6 +370,7 @@ export function RoleForm({
                                             ? [
                                                 pagePermission.id,
                                                 pageDepartmentPermission?.id,
+                                                pageTeamPermission?.id,
                                                 pageAllPermission?.id,
                                               ].filter((id): id is number => Boolean(id))
                                             : modulePermissions.map((permission) => permission.id);
@@ -379,7 +389,10 @@ export function RoleForm({
                                   }
                                 />
 
-                                {(pageDepartmentPermission || pageAllPermission) && pageSelected ? (
+                                {(pageTeamPermission ||
+                                  pageDepartmentPermission ||
+                                  pageAllPermission) &&
+                                pageSelected ? (
                                   <TextField
                                     select
                                     size="small"
@@ -391,13 +404,17 @@ export function RoleForm({
                                         : pageDepartmentPermission &&
                                             field.value.includes(pageDepartmentPermission.id)
                                           ? 'department'
-                                          : 'own'
+                                          : pageTeamPermission &&
+                                              field.value.includes(pageTeamPermission.id)
+                                            ? 'team'
+                                            : 'own'
                                     }
                                     className="w-full sm:!w-36"
                                     onChange={(event) => {
                                       const scopeIds = [
                                         pagePermission.id,
                                         pageDepartmentPermission?.id,
+                                        pageTeamPermission?.id,
                                         pageAllPermission?.id,
                                       ].filter((id): id is number => Boolean(id));
                                       const withoutScope = field.value.filter(
@@ -412,6 +429,8 @@ export function RoleForm({
                                         nextIds.push(pageDepartmentPermission.id);
                                       }
 
+                                      if (event.target.value === 'team' && pageTeamPermission)
+                                        nextIds.push(pageTeamPermission.id);
                                       if (event.target.value === 'all' && pageAllPermission) {
                                         nextIds.push(pageAllPermission.id);
                                       }
@@ -419,9 +438,12 @@ export function RoleForm({
                                       field.onChange(uniqueIds(nextIds));
                                     }}
                                   >
-                                    <MenuItem value="own">Của mình</MenuItem>
+                                    <MenuItem value="own">Cá nhân</MenuItem>
+                                    {pageTeamPermission && (
+                                      <MenuItem value="team">Toàn nhóm</MenuItem>
+                                    )}
                                     {pageDepartmentPermission ? (
-                                      <MenuItem value="department">Phòng ban</MenuItem>
+                                      <MenuItem value="department">Toàn phòng</MenuItem>
                                     ) : null}
                                     {pageAllPermission ? (
                                       <MenuItem value="all">Toàn bộ</MenuItem>
@@ -436,6 +458,12 @@ export function RoleForm({
                                 const departmentPermission = modulePermissions.find(
                                   (candidate) => candidate.code === `${permission.code}_department`,
                                 );
+                                const teamPermission = modulePermissions.find(
+                                  (candidate) => candidate.code === `${permission.code}_team`,
+                                );
+                                const selectedTeam = teamPermission
+                                  ? field.value.includes(teamPermission.id)
+                                  : false;
                                 const allPermission = modulePermissions.find(
                                   (candidate) => candidate.code === `${permission.code}_all`,
                                 );
@@ -458,11 +486,17 @@ export function RoleForm({
                                         <Checkbox
                                           size="small"
                                           color="success"
-                                          checked={selected || selectedDepartment || selectedAll}
+                                          checked={
+                                            selected ||
+                                            selectedTeam ||
+                                            selectedDepartment ||
+                                            selectedAll
+                                          }
                                           onChange={(event) => {
                                             const pairedIds = [
                                               permission.id,
                                               departmentPermission?.id,
+                                              teamPermission?.id,
                                               allPermission?.id,
                                             ].filter((id): id is number => Boolean(id));
 
@@ -491,8 +525,11 @@ export function RoleForm({
                                       }
                                     />
 
-                                    {(departmentPermission || allPermission) &&
-                                    (selected || selectedDepartment || selectedAll) ? (
+                                    {(teamPermission || departmentPermission || allPermission) &&
+                                    (selected ||
+                                      selectedTeam ||
+                                      selectedDepartment ||
+                                      selectedAll) ? (
                                       <TextField
                                         select
                                         size="small"
@@ -502,7 +539,9 @@ export function RoleForm({
                                             ? 'all'
                                             : selectedDepartment
                                               ? 'department'
-                                              : 'own'
+                                              : selectedTeam
+                                                ? 'team'
+                                                : 'own'
                                         }
                                         className="w-full sm:!w-36"
                                         onChange={(event) => {
@@ -510,6 +549,7 @@ export function RoleForm({
                                             (id) =>
                                               id !== permission.id &&
                                               id !== departmentPermission?.id &&
+                                              id !== teamPermission?.id &&
                                               id !== allPermission?.id,
                                           );
                                           const nextIds = [...withoutPair, permission.id];
@@ -521,6 +561,8 @@ export function RoleForm({
                                             nextIds.push(departmentPermission.id);
                                           }
 
+                                          if (event.target.value === 'team' && teamPermission)
+                                            nextIds.push(teamPermission.id);
                                           if (event.target.value === 'all' && allPermission) {
                                             nextIds.push(allPermission.id);
                                           }
@@ -528,14 +570,18 @@ export function RoleForm({
                                           field.onChange(
                                             addPagePermission(
                                               nextIds,
-                                              event.target.value as 'own' | 'department' | 'all',
+                                              event.target.value as
+                                                'own' | 'team' | 'department' | 'all',
                                             ),
                                           );
                                         }}
                                       >
-                                        <MenuItem value="own">Của mình</MenuItem>
+                                        <MenuItem value="own">Cá nhân</MenuItem>
+                                        {teamPermission && (
+                                          <MenuItem value="team">Toàn nhóm</MenuItem>
+                                        )}
                                         {departmentPermission ? (
-                                          <MenuItem value="department">Phòng ban</MenuItem>
+                                          <MenuItem value="department">Toàn phòng</MenuItem>
                                         ) : null}
                                         {allPermission ? (
                                           <MenuItem value="all">Toàn bộ</MenuItem>

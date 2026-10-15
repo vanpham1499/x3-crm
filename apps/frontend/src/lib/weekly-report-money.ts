@@ -56,6 +56,16 @@ export function formatWeeklyReportMoney(
   return `${formatWeeklyReportNumber(value, currency)} ${getWeeklyReportCurrency(currency)}`;
 }
 
+/** Fixed 30-day budget, seven-day week; round once to cents. */
+export function calculateWeeklyBudget(totalBudget: string | number | null | undefined): string {
+  const total = parseWeeklyReportAmount(totalBudget);
+  if (total === null) return '';
+  const [whole, fraction] = total.split('.');
+  const cents = Number(whole) * 100 + Number(fraction);
+  const weeklyCents = Math.floor((cents * 7 + 15) / 30);
+  return `${Math.floor(weeklyCents / 100)}.${String(weeklyCents % 100).padStart(2, '0')}`;
+}
+
 export function weeklyReportMoneyDefaults(
   currency: WeeklyReportCurrency,
   monthlyBudget?: string | number | null,
@@ -64,12 +74,8 @@ export function weeklyReportMoneyDefaults(
   if (currency !== 'VND')
     return { averageWeeklyBudget: '', totalBudget: '', monthlyBudget: '0.00' };
   const monthly = parseWeeklyReportAmount(monthlyBudget ?? '0') ?? '0.00';
-  const [whole, fraction] = monthly.split('.');
-  // The parser caps the integer part at 13 digits, so integer cents remain safe.
-  const cents = Number(whole) * 100 + Number(fraction);
-  const quarter = Math.floor((cents + 2) / 4);
   return {
-    averageWeeklyBudget: `${Math.floor(quarter / 100)}.${String(quarter % 100).padStart(2, '0')}`,
+    averageWeeklyBudget: calculateWeeklyBudget(monthly),
     totalBudget: monthly,
     monthlyBudget: monthly,
   };

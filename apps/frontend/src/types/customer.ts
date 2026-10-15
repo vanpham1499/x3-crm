@@ -48,7 +48,7 @@ export type Customer = {
   customerTypeOption?: AppOption | null;
   sourceOption?: AppOption | null;
   industryOption?: AppOption | null;
-  salesUser?: Pick<User, 'id' | 'code' | 'name' | 'email' | 'departmentId'> | null;
+  salesUser?: Pick<User, 'id' | 'code' | 'name' | 'email' | 'departmentId' | 'teamId'> | null;
   createdBy?: Pick<User, 'id' | 'code' | 'name' | 'email'> | null;
   projectsCount?: number;
   projects?: CustomerProjectSummary[];

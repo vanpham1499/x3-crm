@@ -29,11 +29,13 @@ class AttachmentResource extends JsonResource
                 'code' => $this->uploadedBy->code,
                 'name' => $this->uploadedBy->name,
                 'departmentId' => $this->uploadedBy->department_id,
+                'teamId' => $this->uploadedBy->team_id,
             ] : null),
             'usages' => $usages,
             'usageCount' => count($usages),
             'canUpdate' => (bool) ($request->user()?->can('update', $this->resource) ?? false),
-            'canDelete' => (bool) ($request->user()?->can('delete', $this->resource) ?? false),
+            'canDelete' => ! collect($usages)->contains('type', 'ad_promotion')
+                && (bool) ($request->user()?->can('delete', $this->resource) ?? false),
             'createdAt' => $this->created_at?->toISOString(),
             'updatedAt' => $this->updated_at?->toISOString(),
         ];

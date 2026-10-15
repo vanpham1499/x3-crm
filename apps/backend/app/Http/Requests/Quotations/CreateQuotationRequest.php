@@ -52,6 +52,7 @@ class CreateQuotationRequest extends BaseRequest
             // Otherwise Laravel drops every metadata key except targetTotalAmount.
             'metadata.*' => ['nullable'],
             'metadata.targetTotalAmount' => ['sometimes', 'nullable', 'integer', 'min:1'],
+            'metadata.promotionBudget' => ['sometimes', 'nullable', 'numeric', 'min:0', 'max:9999999999999', 'decimal:0,2'],
             'items' => ['nullable', 'array'],
             'items.*.service_id' => ['nullable', 'integer', Rule::exists('services', 'id')->whereNull('deleted_at')],
             'items.*.serviceId' => ['nullable', 'integer', Rule::exists('services', 'id')->whereNull('deleted_at')],

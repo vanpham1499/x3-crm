@@ -13,6 +13,7 @@ export type MediaItem = {
     code?: string | null;
     name: string;
     departmentId?: number | null;
+  teamId?: number | null;
   } | null;
   usages: MediaUsage[];
   usageCount: number;
@@ -23,7 +24,7 @@ export type MediaItem = {
 };
 
 export type MediaUsage = {
-  type: 'customer' | 'quotation' | 'weekly_report' | 'user';
+  type: 'customer' | 'quotation' | 'weekly_report' | 'user' | 'ad_promotion';
   typeLabel: string;
   entityId: number;
   label: string;

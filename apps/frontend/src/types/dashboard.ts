@@ -10,13 +10,15 @@ export type DashboardPeriodFilters = {
 };
 
 export type DashboardScope = {
-  level: 'all' | 'department' | 'own';
+  level: 'all' | 'department' | 'team' | 'own';
   label: string;
   userId: number;
   userCode?: string | null;
   userName: string;
   departmentId?: number | null;
+  teamId?: number | null;
   departmentIds?: number[];
+  teamIds?: number[];
   departmentName?: string | null;
   targetLabel: string;
 };
@@ -150,10 +152,13 @@ export type DashboardTrendPoint = {
 export type DashboardProfitTrendPoint = {
   period: string;
   label: string;
-  profitAmount: number;
-  cumulativeProfitAmount: number;
-  previousProfitAmount: number;
-  previousCumulativeProfitAmount: number;
+  to: string | null;
+  previousTo: string | null;
+  profitAmount: number | null;
+  cumulativeProfitAmount: number | null;
+  previousProfitAmount: number | null;
+  previousCumulativeProfitAmount: number | null;
+  difference: number | null;
 };
 
 export type DashboardServiceRow = {
@@ -174,7 +179,7 @@ export type DashboardServiceRow = {
 
 export type DashboardDepartmentRow = {
   id: number;
-  scopeType: 'department';
+  scopeType: 'department' | 'team';
   name: string;
   targetAmount: number;
   implementationReceivedAmount: number;
@@ -194,6 +199,7 @@ export type DashboardEmployeeRow = {
   code?: string | null;
   name: string;
   departmentId?: number | null;
+  teamId?: number | null;
   departmentName?: string | null;
   isActive: boolean;
   targetAmount: number;
@@ -214,6 +220,8 @@ export type DashboardEmployeeRow = {
 };
 
 export type DashboardReport = {
+  cashComparison: DashboardCashComparison;
+  projectProfit: DashboardProjectProfit | null;
   periodFrom: string;
   periodTo: string;
   comparison: {
@@ -228,8 +236,8 @@ export type DashboardReport = {
     projectScope: 'existing_projects';
     sourceDepositIncluded: true;
     serviceProfitDepositIncluded: false;
-    acquisitionProfitDepositIncluded: true;
-    acquisitionProfitDepositScope: 'project_type_k_only';
+    acquisitionProfitDepositIncluded: boolean;
+    acquisitionProfitDepositScope: 'none' | 'project_type_k_before_2026_10' | 'project_type_k_only';
   };
   summary: DashboardSummary;
   operations: DashboardOperations;
@@ -242,9 +250,77 @@ export type DashboardReport = {
   profitTrend: {
     granularity: 'day' | 'month';
     points: DashboardProfitTrendPoint[];
+    from: string;
+    to: string | null;
+    previousFrom: string;
+    previousTo: string | null;
+    partial: boolean;
+    future: boolean;
+    asOf: string;
+    currentAmount: number;
+    previousAmount: number;
+    comparable: boolean;
+    comparisonReason: 'future' | 'different_basis' | null;
+    difference: number | null;
+    changeRate: number | null;
   } | null;
   services: DashboardServiceRow[];
   departments: DashboardDepartmentRow[];
   employees: DashboardEmployeeRow[];
   updatedAt: string;
+};
+
+export type DashboardComparisonPoint = {
+  label: string;
+  current: number | null;
+  previous: number | null;
+  quotation?: number | null;
+};
+export type DashboardCashComparison = {
+  granularity: 'day' | 'month';
+  points: DashboardComparisonPoint[];
+  from: string;
+  to: string | null;
+  previousFrom: string;
+  previousTo: string | null;
+  partial: boolean;
+  asOf: string;
+  received: number;
+  refund: number;
+  net: number;
+  previousNet: number;
+  difference: number;
+  changeRate: number | null;
+  details: Array<{
+    date: string;
+    kind: string;
+    amount: number;
+    reference: string;
+    side: 'current' | 'previous';
+  }>;
+};
+export type DashboardProfitEntry = {
+  project: string;
+  projectId: number;
+  reference: string;
+  kind: string;
+  period: string | null;
+  amount: number | null;
+  reason?: string;
+};
+export type DashboardProjectProfit = {
+  points: DashboardComparisonPoint[];
+  from: string;
+  to: string;
+  previousFrom: string;
+  previousTo: string;
+  revenue: number;
+  cost: number;
+  profit: number;
+  previousProfit: number;
+  comparable: boolean;
+  partial: boolean;
+  changeRate: number | null;
+  review: DashboardProfitEntry[];
+  details: DashboardProfitEntry[];
 };

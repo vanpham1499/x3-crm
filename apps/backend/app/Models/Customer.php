@@ -83,6 +83,11 @@ class Customer extends BaseModel
         return $user->sharesDepartmentWith($this->salesUser);
     }
 
+    public function isInTeamOf(User $user): bool
+    {
+        return $user->sharesTeamWith($this->salesUser);
+    }
+
     public function displayLabel(string $fallback = '-'): string
     {
         $code = mb_strtoupper(trim((string) $this->customer_code), 'UTF-8');

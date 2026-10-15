@@ -25,6 +25,14 @@ class ProjectCostPolicy
         }
 
         if (
+            $project
+            && $user->hasPermission('cost.view_team')
+            && $project->isInTeamOf($user)
+        ) {
+            return true;
+        }
+
+        if (
             $user->hasPermission('cost.view')
             && ($cost->created_by === $user->id
                 || ($project && ($project->isManagedBy($user) || $project->isAssignedTo($user))))
@@ -80,6 +88,13 @@ class ProjectCostPolicy
             return true;
         }
 
+        if (
+            $user->hasPermission('cost.approve_team')
+            && $project->isInTeamOf($user)
+        ) {
+            return true;
+        }
+
         return $user->hasPermission('cost.approve')
             && ($project->isManagedBy($user) || $project->isAssignedTo($user));
     }
@@ -97,6 +112,13 @@ class ProjectCostPolicy
             return true;
         }
 
+        if (
+            $user->hasPermission('cost.manage_team')
+            && $project->isInTeamOf($user)
+        ) {
+            return true;
+        }
+
         return $user->hasPermission('cost.manage')
             && ($project->isManagedBy($user) || $project->isAssignedTo($user));
     }
@@ -110,6 +132,13 @@ class ProjectCostPolicy
         if (
             $user->hasPermission('cost.fund_department')
             && $project->isInDepartmentOf($user)
+        ) {
+            return true;
+        }
+
+        if (
+            $user->hasPermission('cost.fund_team')
+            && $project->isInTeamOf($user)
         ) {
             return true;
         }

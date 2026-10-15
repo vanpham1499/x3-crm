@@ -155,6 +155,10 @@ export type Payment = {
   reconciledStatus?: PaymentStatus | null;
   status?: PaymentStatus | null;
   receiptType?: PaymentReceiptType | null;
+  paymentChannel?: 'bank' | 'paypal' | 'cash' | 'other' | null;
+  platformFeeAmount?: number;
+  netReceivedAmount?: number;
+  sourcePaymentId?: number | null;
   matchedAt?: string | null;
   note?: string | null;
   reference?: string | null;

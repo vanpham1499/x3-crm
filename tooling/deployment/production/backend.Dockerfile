@@ -12,7 +12,8 @@ FROM php:8.4-cli-alpine
 WORKDIR /app
 
 RUN apk add --no-cache postgresql-dev \
-    && docker-php-ext-install pdo_pgsql opcache pcntl
+    && docker-php-ext-install pdo_pgsql opcache pcntl \
+    && printf 'upload_max_filesize=25M\npost_max_size=28M\n' > /usr/local/etc/php/conf.d/document-upload.ini
 
 COPY . .
 COPY --from=vendor /app/vendor ./vendor

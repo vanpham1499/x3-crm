@@ -38,6 +38,13 @@ class AttachmentPolicy
             return true;
         }
 
+        if (
+            $user->hasPermission("media.{$action}_team")
+            && $user->sharesTeamWith($attachment->uploadedBy)
+        ) {
+            return true;
+        }
+
         return $user->hasPermission("media.{$action}")
             && (int) $attachment->uploaded_by === (int) $user->id;
     }

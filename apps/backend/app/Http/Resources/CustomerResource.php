@@ -46,6 +46,7 @@ class CustomerResource extends JsonResource
                 'name' => $this->salesUser->name,
                 'email' => $this->salesUser->email,
                 'departmentId' => $this->salesUser->department_id,
+                'teamId' => $this->salesUser->team_id,
             ] : null),
             'createdBy' => $this->whenLoaded('createdBy', fn () => $this->createdBy ? [
                 'id' => $this->createdBy->id,

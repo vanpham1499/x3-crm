@@ -63,6 +63,7 @@ class Quotation extends BaseModel
     ];
 
     protected $casts = [
+        'kpi_fee_basis' => 'array',
         'voided_at' => 'datetime',
         'voided_by' => 'integer',
         'void_details' => 'array',
@@ -158,5 +159,18 @@ class Quotation extends BaseModel
         }
 
         return $this->lead?->isInDepartmentOf($user) ?? false;
+    }
+
+    public function isInTeamOf(User $user): bool
+    {
+        if ($this->project) {
+            return $this->project->isInTeamOf($user);
+        }
+
+        if ($this->customer) {
+            return $this->customer->isInTeamOf($user);
+        }
+
+        return $this->lead?->isInTeamOf($user) ?? false;
     }
 }

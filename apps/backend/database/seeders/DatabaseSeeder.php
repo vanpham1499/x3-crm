@@ -186,6 +186,7 @@ class DatabaseSeeder extends Seeder
             ['module' => 'payment', 'code' => 'payment.delete', 'name' => 'Xóa khoản thanh toán'],
 
             ['module' => 'option', 'code' => 'option.manage', 'name' => 'Quản lý danh mục hệ thống'],
+            ['module' => 'weeklytemplate', 'code' => 'weeklytemplate.manage', 'name' => 'Quản lý mẫu báo cáo tuần'],
         ];
 
         $permissionIds = [];

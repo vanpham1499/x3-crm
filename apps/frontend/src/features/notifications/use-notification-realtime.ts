@@ -1,36 +1,47 @@
 'use client';
 
-import { useEffect } from 'react';
+import { useEffect, useState } from 'react';
 import { useQueryClient } from '@tanstack/react-query';
 import { getRealtimeEcho } from '@/features/notifications/realtime';
 
 export function useNotificationRealtime(userId?: number, enabled = false) {
-  const queryClient = useQueryClient();
-
+  const client = useQueryClient();
+  const [connected, setConnected] = useState(false);
   useEffect(() => {
+    setConnected(false);
     if (!enabled || !userId) return;
-
     const echo = getRealtimeEcho();
     if (!echo) return;
-
+    let timer: ReturnType<typeof setTimeout> | undefined;
     const refresh = () => {
-      void queryClient.refetchQueries({
-        queryKey: ['notifications', 'summary'],
-        type: 'active',
-      });
-      void queryClient.invalidateQueries({ queryKey: ['notifications', 'list'] });
+      clearTimeout(timer);
+      if (document.hidden) return;
+      timer = setTimeout(() => {
+        void client.invalidateQueries({ queryKey: ['notifications', userId] });
+      }, 250);
     };
     const channelName = `users.${userId}`;
     const channel = echo.private(channelName);
     const connection = echo.connector.pusher.connection;
-
-    channel.listen('.notifications.changed', refresh).subscribed(refresh);
-    connection.bind('connected', refresh);
-
+    const subscribed = () => {
+      setConnected(true);
+      refresh();
+    };
+    const disconnected = () => setConnected(false);
+    channel.listen('.notifications.changed', refresh).subscribed(subscribed).error(disconnected);
+    connection.bind('disconnected', disconnected);
+    connection.bind('unavailable', disconnected);
+    connection.bind('failed', disconnected);
+    document.addEventListener('visibilitychange', refresh);
     return () => {
+      clearTimeout(timer);
+      document.removeEventListener('visibilitychange', refresh);
       channel.stopListening('.notifications.changed', refresh);
-      connection.unbind('connected', refresh);
+      connection.unbind('disconnected', disconnected);
+      connection.unbind('unavailable', disconnected);
+      connection.unbind('failed', disconnected);
       echo.leave(channelName);
     };
-  }, [enabled, queryClient, userId]);
+  }, [enabled, client, userId]);
+  return connected;
 }

@@ -63,6 +63,7 @@ const usageClasses: Record<MediaUsage['type'], string> = {
   quotation: 'bg-emerald-50 text-emerald-700 ring-emerald-200',
   weekly_report: 'bg-sky-50 text-sky-700 ring-sky-200',
   user: 'bg-violet-50 text-violet-700 ring-violet-200',
+  ad_promotion: 'bg-sky-50 text-sky-700 ring-sky-200',
 };
 
 function UsageLinks({ usages, compact = false }: { usages: MediaUsage[]; compact?: boolean }) {

@@ -13,7 +13,11 @@ use App\Models\ProjectCost;
 use App\Models\ProjectCostAdjustment;
 use App\Models\Quotation;
 use App\Models\User;
+use App\Models\Team;
+use App\Support\TeamScope;
 use App\Repositories\KpiReportRepository;
+use App\Support\KpiFeeBasis;
+use App\Support\DashboardKpiTrend;
 use Carbon\CarbonImmutable;
 use Illuminate\Database\Eloquent\Builder;
 use Illuminate\Support\Collection;
@@ -65,14 +69,19 @@ class DashboardService extends BaseService
         $previousEnd = $rangeStart->subMonth();
         $previousStart = $previousEnd->subMonths($monthCount - 1);
 
-        $currentReport = $this->kpi->report(
-            $rangeStart->format('Y-m'),
-            $rangeEnd->format('Y-m'),
-        );
-        $previousReport = $this->kpi->report(
-            $previousStart->format('Y-m'),
-            $previousEnd->format('Y-m'),
-        );
+        if ($scope['level'] === 'team') {
+            $currentReport = $this->kpi->teamReport($rangeStart, $rangeEnd, $scope);
+            $previousReport = $this->kpi->teamReport($previousStart, $previousEnd, $scope);
+        } else {
+            $currentReport = $this->kpi->report(
+                $rangeStart->format('Y-m'),
+                $rangeEnd->format('Y-m'),
+            );
+            $previousReport = $this->kpi->report(
+                $previousStart->format('Y-m'),
+                $previousEnd->format('Y-m'),
+            );
+        }
 
         $allServices = $this->aggregateServices($currentReport['periods']);
         $allDepartments = $this->aggregateDepartments($currentReport['periods']);
@@ -87,7 +96,7 @@ class DashboardService extends BaseService
         $departments = $this->scopeDepartmentRows($allDepartments, $scope);
         $employees = $this->enrichEmployeeProjectMetrics(
             $this->scopeEmployeeRows($allEmployees, $scope),
-            $projects,
+            $scopedProjects,
         );
 
         $currentSummary = $this->financialSummary(
@@ -120,7 +129,7 @@ class DashboardService extends BaseService
         $quotationIds = $quotations->pluck('id');
         $allocations = $this->reports->allocations($quotationIds);
         $refunds = $this->reports->completedRefunds(
-            $previousStart->toDateTimeString(),
+            $previousStart->subDay()->toDateTimeString(),
             $rangeEndExclusive->toDateTimeString(),
             $projectIds,
             $quotationIds,
@@ -152,6 +161,24 @@ class DashboardService extends BaseService
             $currentUser,
         );
 
+        $profitTrend = $scope['level'] === 'all'
+                ? null
+                : $this->buildProfitTrend(
+                    $rangeStart,
+                    $rangeEnd,
+                    $previousStart,
+                    $previousEnd,
+                    $scope,
+                    $projects,
+                    $quotations,
+                    $allocations,
+                    $refunds,
+                    $costs,
+                );
+        if ($profitTrend !== null) {
+            $currentSummary['profitAmount'] = $profitTrend['currentAmount'];
+        }
+
         return [
             'periodFrom' => $rangeStart->format('Y-m'),
             'periodTo' => $rangeEnd->format('Y-m'),
@@ -173,9 +200,10 @@ class DashboardService extends BaseService
                     $previousNewCustomerCount,
                 ),
                 'profitAmount' => $currentSummary['profitAmount'],
-                'profitChangeRate' => $this->changeRate(
-                    $currentSummary['profitAmount'],
-                    $previousSummary['profitAmount'],
+                'profitChangeRate' => $profitTrend !== null ? $profitTrend['changeRate'] : (
+                    (KpiFeeBasis::applies($rangeStart->format('Y-m')) !== KpiFeeBasis::applies($previousStart->format('Y-m'))
+                    || KpiFeeBasis::applies($rangeEnd->format('Y-m')) !== KpiFeeBasis::applies($previousEnd->format('Y-m')))
+                        ? null : $this->changeRate($currentSummary['profitAmount'], $previousSummary['profitAmount'])
                 ),
                 'targetAmount' => $currentSummary['targetAmount'],
                 'completionRate' => $this->completionRate(
@@ -200,20 +228,11 @@ class DashboardService extends BaseService
                 $scopedAllocations,
                 $scopedRefunds,
             ),
-            'profitTrend' => $scope['level'] === 'all'
-                ? null
-                : $this->buildProfitTrend(
-                    $rangeStart,
-                    $rangeEnd,
-                    $previousStart,
-                    $previousEnd,
-                    $scope,
-                    $projects,
-                    $quotations,
-                    $allocations,
-                    $refunds,
-                    $costs,
-                ),
+            'cashComparison' => app(DashboardFinanceService::class)->cash($rangeStart, $rangeEnd, $scopedQuotations, $scopedAllocations, $scopedRefunds),
+            'projectProfit' => $scope['level'] === 'all'
+                ? app(DashboardFinanceService::class)->profit($rangeStart, $rangeEnd, $scopedProjects)
+                : null,
+            'profitTrend' => $profitTrend,
             'services' => $services,
             'departments' => $departments,
             'employees' => $employees,
@@ -423,20 +442,9 @@ class DashboardService extends BaseService
         }
 
         $projects = $this->projectReportQuery($currentUser)
-            ->where(function (Builder $dateScope) use ($rangeStart, $rangeEnd): void {
-                $dateScope
-                    ->where(function (Builder $started): void {
-                        $started->whereNotNull('start_date');
-                    })
-                    ->where('start_date', '>=', $rangeStart->toDateString())
-                    ->where('start_date', '<', $rangeEnd->addMonth()->toDateString())
-                    ->orWhere(function (Builder $created) use ($rangeStart, $rangeEnd): void {
-                        $created
-                            ->whereNull('start_date')
-                            ->where('created_at', '>=', $rangeStart->toDateTimeString())
-                            ->where('created_at', '<', $rangeEnd->addMonth()->toDateTimeString());
-                    });
-            })
+            // A new project is counted once, in its creation month, just like the Dashboard summary.
+            ->where('created_at', '>=', $rangeStart->toDateTimeString())
+            ->where('created_at', '<', $rangeEnd->addMonth()->toDateTimeString())
             ->with([
                 'managerUser' => fn ($query) => $query
                     ->withTrashed()
@@ -449,7 +457,6 @@ class DashboardService extends BaseService
                 'id',
                 'manager_user_id',
                 'status_option_id',
-                'start_date',
                 'created_at',
             ]);
         $monthlyTotals = array_fill_keys($periodKeys->all(), 0);
@@ -466,8 +473,7 @@ class DashboardService extends BaseService
         ];
 
         foreach ($projects as $project) {
-            $projectDate = $project->start_date ?: $project->created_at;
-            $period = $projectDate?->format('Y-m');
+            $period = $project->created_at?->format('Y-m');
 
             if (! $period || ! array_key_exists($period, $monthlyTotals)) {
                 continue;
@@ -640,9 +646,19 @@ class DashboardService extends BaseService
     private function projectReportQuery(User $user): Builder
     {
         $query = Project::query();
+        $selected = TeamScope::selected($user, 'project');
+        if ($selected !== null) {
+            $query->whereHas('managerUser', fn (Builder $q) => $q->withTrashed()->whereIn('team_id', $selected));
+        }
+
 
         if ($user->hasPermission('project.view_all')) {
             return $query;
+        }
+
+        if ($user->hasPermission('project.view_team') && ! $user->hasPermission('project.view_department')) {
+            $ids = $user->accessibleTeamIds();
+            return $query->whereHas('managerUser', fn (Builder $q) => $q->withTrashed()->whereIn('team_id', $ids));
         }
 
         $departmentIds = $user->accessibleDepartmentIds();
@@ -661,6 +677,9 @@ class DashboardService extends BaseService
 
     private function matchesProjectReportEmployeeScope(array $employee, User $user): bool
     {
+        $teams = TeamScope::selected($user, 'project');
+        if ($teams !== null) return true; // Employee rows already contain only attributed group credits.
+
         if ($user->hasPermission('project.view_all')) {
             return true;
         }
@@ -738,11 +757,12 @@ class DashboardService extends BaseService
         $previousManagedProjectCount = $this->scopedProjectQuery($currentUser)
             ->where('created_at', '<', $previousEndExclusive)
             ->count();
+        $teamIds = TeamScope::selected($currentUser, 'project');
         $meetingSummary = $currentUser->hasPermission('meeting.view')
-            ? $this->meetings->summary()
+            ? $this->meetings->summary($teamIds)
             : null;
         $weeklyReportSummary = $currentUser->hasPermission('weeklyreport.view')
-            ? ($this->weeklyReports->board([], 1, 1)['meta']['summary'] ?? null)
+            ? ($this->weeklyReports->board([], 1, 1, $teamIds)['meta']['summary'] ?? null)
             : null;
 
         return [
@@ -836,6 +856,13 @@ class DashboardService extends BaseService
 
     private function dashboardScope(User $user): array
     {
+        $teamIds = TeamScope::selected($user, 'project');
+        if ($teamIds !== null) {
+            $names = Team::whereIn('id', $teamIds)->pluck('name');
+            return ['level' => 'team', 'label' => $names->count() === 1 ? $names->first() : $names->count().' nhóm phụ trách',
+                'teamIds' => $teamIds, 'userId' => (int) $user->id, 'userCode' => $user->code, 'userName' => $user->name,
+                'departmentId' => $user->department_id, 'departmentIds' => [], 'departmentName' => null, 'targetLabel' => 'Kế hoạch nhóm'];
+        }
         $departmentIds = $user->accessibleDepartmentIds();
         $departmentNames = Department::query()
             ->whereIn('id', $departmentIds)
@@ -891,9 +918,19 @@ class DashboardService extends BaseService
     private function scopedLeadQuery(User $user): Builder
     {
         $query = Lead::query();
+        $selected = TeamScope::selected($user, 'project');
+        if ($selected !== null) {
+            $query->whereHas('assignedUser', fn (Builder $q) => $q->withTrashed()->whereIn('team_id', $selected));
+        }
+
 
         if ($user->hasPermission('lead.view_all')) {
             return $query;
+        }
+
+        if ($user->hasPermission('lead.view_team') && ! $user->hasPermission('lead.view_department')) {
+            $ids = $user->accessibleTeamIds();
+            return $query->whereHas('assignedUser', fn (Builder $q) => $q->withTrashed()->whereIn('team_id', $ids));
         }
 
         $departmentIds = $user->accessibleDepartmentIds();
@@ -911,9 +948,19 @@ class DashboardService extends BaseService
     private function scopedCustomerQuery(User $user): Builder
     {
         $query = Customer::query();
+        $selected = TeamScope::selected($user, 'project');
+        if ($selected !== null) {
+            $query->whereHas('salesUser', fn (Builder $q) => $q->withTrashed()->whereIn('team_id', $selected));
+        }
+
 
         if ($user->hasPermission('customer.view_all')) {
             return $query;
+        }
+
+        if ($user->hasPermission('customer.view_team') && ! $user->hasPermission('customer.view_department')) {
+            $ids = $user->accessibleTeamIds();
+            return $query->whereHas('salesUser', fn (Builder $q) => $q->withTrashed()->whereIn('team_id', $ids));
         }
 
         $departmentIds = $user->accessibleDepartmentIds();
@@ -931,9 +978,19 @@ class DashboardService extends BaseService
     private function scopedProjectQuery(User $user): Builder
     {
         $query = Project::query();
+        $selected = TeamScope::selected($user, 'project');
+        if ($selected !== null) {
+            $query->where(fn (Builder $q) => $q->whereHas('managerUser', fn (Builder $p) => $p->whereIn('team_id', $selected))->orWhereHas('salesUser', fn (Builder $p) => $p->whereIn('team_id', $selected)));
+        }
+
 
         if ($user->hasPermission('project.view_all')) {
             return $query;
+        }
+
+        if ($user->hasPermission('project.view_team') && ! $user->hasPermission('project.view_department')) {
+            $ids = $user->accessibleTeamIds();
+            return $query->where(fn (Builder $q) => $q->whereHas('managerUser', fn (Builder $p) => $p->whereIn('team_id', $ids))->orWhereHas('salesUser', fn (Builder $p) => $p->whereIn('team_id', $ids)));
         }
 
         $departmentIds = $user->accessibleDepartmentIds();
@@ -964,6 +1021,10 @@ class DashboardService extends BaseService
         User $user,
         string $level,
     ): Collection {
+        if ($level === 'team') {
+            $ids = TeamScope::selected($user, 'project') ?? [];
+            return $projects->filter(fn (Project $p) => in_array((int) $p->managerUser?->team_id, $ids, true) || in_array((int) $p->salesUser?->team_id, $ids, true))->values();
+        }
         if ($level === 'all') {
             return $projects->values();
         }
@@ -985,6 +1046,7 @@ class DashboardService extends BaseService
 
     private function scopeDepartmentRows(array $rows, array $scope): array
     {
+        if ($scope['level'] === 'team') return collect($rows)->whereIn('id', $scope['teamIds'])->values()->all();
         if ($scope['level'] === 'all') {
             return $rows;
         }
@@ -1001,6 +1063,7 @@ class DashboardService extends BaseService
 
     private function scopeEmployeeRows(array $rows, array $scope): array
     {
+        if ($scope['level'] === 'team') return $rows; // Already attributed by dated membership.
         if ($scope['level'] === 'all') {
             return $rows;
         }
@@ -1030,9 +1093,9 @@ class DashboardService extends BaseService
             return $this->serviceSummary($services);
         }
 
-        if ($scope['level'] === 'department') {
+        if (in_array($scope['level'], ['department', 'team'], true)) {
             $departmentRows = collect($departments)
-                ->whereIn('id', $scope['departmentIds'] ?? []);
+                ->whereIn('id', $scope['level'] === 'team' ? $scope['teamIds'] : ($scope['departmentIds'] ?? []));
             $profitAmount = (float) $departmentRows->sum('actualAmount');
             $targetAmount = (float) $departmentRows->sum('targetAmount');
 
@@ -1394,15 +1457,16 @@ class DashboardService extends BaseService
         Collection $refunds,
         Collection $costs,
     ): array {
-        $granularity = $rangeStart->format('Y-m') === $rangeEnd->format('Y-m') ? 'day' : 'month';
-        $currentValues = $this->emptyProfitTrendValues(
-            $this->bucketStarts($rangeStart, $rangeEnd, $granularity),
-            $granularity,
-        );
-        $previousValues = $this->emptyProfitTrendValues(
-            $this->bucketStarts($previousStart, $previousEnd, $granularity),
-            $granularity,
-        );
+        if ($scope['level'] === 'team') {
+            $events = app(TeamKpiService::class)->credits($previousStart, $rangeEnd->addMonth())
+                ->filter(fn ($c) => in_array((int) $c['teamId'], $scope['teamIds'], true))
+                ->map(fn ($c) => ['at' => $c['at'], 'amount' => $c['creditAmount']])->all();
+            return DashboardKpiTrend::project($rangeStart, $rangeEnd, CarbonImmutable::now(), $events);
+        }
+        $events = [];
+        $recordEvent = static function (CarbonImmutable $at, float $amount) use (&$events): void {
+            $events[] = ['at' => $at, 'amount' => $amount];
+        };
         $projectMap = $projects->keyBy('id');
         $quotationMap = $quotations->keyBy('id');
         $paidFirstQuotationByProject = $this->kpi->paidFirstQuotations($quotations, $allocations);
@@ -1424,6 +1488,9 @@ class DashboardService extends BaseService
             foreach ($sortedAllocations as $allocation) {
                 $before = $cumulativeAmount;
                 $cumulativeAmount += (float) $allocation->amount;
+                if (KpiFeeBasis::applies($this->allocationEventAt($allocation)->format('Y-m'))) {
+                    continue;
+                }
                 $recognizedAmount = $this->recognizedRevenueBetween(
                     $quotation,
                     $before,
@@ -1431,22 +1498,18 @@ class DashboardService extends BaseService
                 );
 
                 if ($recognizedAmount > self::MONEY_EPSILON) {
-                    $this->addProfitTrendAmount(
+                    $recordEvent(
                         $this->allocationEventAt($allocation),
-                        $recognizedAmount,
-                        $rangeStart,
-                        $rangeEnd->addMonth(),
-                        $previousStart,
-                        $previousEnd->addMonth(),
-                        $currentValues,
-                        $previousValues,
-                        $granularity,
+                        $recognizedAmount
                     );
                 }
             }
         }
 
         foreach ($costs as $cost) {
+            if (KpiFeeBasis::applies((string) $cost->transaction_date)) {
+                continue;
+            }
             /** @var ProjectCost $cost */
             /** @var Project|null $project */
             $project = $projectMap->get($cost->project_id);
@@ -1455,20 +1518,16 @@ class DashboardService extends BaseService
                 continue;
             }
 
-            $this->addProfitTrendAmount(
+            $recordEvent(
                 CarbonImmutable::parse($cost->transaction_date),
-                -$this->costAmounts($cost)['beforeVat'],
-                $rangeStart,
-                $rangeEnd->addMonth(),
-                $previousStart,
-                $previousEnd->addMonth(),
-                $currentValues,
-                $previousValues,
-                $granularity,
+                -$this->costAmounts($cost)['beforeVat']
             );
         }
 
         foreach ($paidFirstQuotationByProject as $projectId => $success) {
+            if (KpiFeeBasis::applies($success['paidAt']->format('Y-m'))) {
+                continue;
+            }
             /** @var Project|null $project */
             $project = $projectMap->get($projectId);
 
@@ -1478,16 +1537,9 @@ class DashboardService extends BaseService
 
             /** @var Quotation $quotation */
             $quotation = $success['quotation'];
-            $this->addProfitTrendAmount(
+            $recordEvent(
                 $success['paidAt'],
-                $this->kpi->acquisitionProfitBeforeVat($project, $quotation),
-                $rangeStart,
-                $rangeEnd->addMonth(),
-                $previousStart,
-                $previousEnd->addMonth(),
-                $currentValues,
-                $previousValues,
-                $granularity,
+                $this->kpi->acquisitionProfitBeforeVat($project, $quotation)
             );
         }
 
@@ -1504,22 +1556,18 @@ class DashboardService extends BaseService
             }
 
             $eventAt = CarbonImmutable::parse($refund->completed_at);
+            if (KpiFeeBasis::applies($eventAt->format('Y-m'))) {
+                continue;
+            }
 
             if ($this->matchesImplementationScope($project, $scope)
                 && ! in_array($refund->refund_type, [
                     PaymentRefund::TYPE_DEPOSIT,
                     PaymentRefund::TYPE_OVERPAYMENT,
                 ], true)) {
-                $this->addProfitTrendAmount(
+                $recordEvent(
                     $eventAt,
-                    -$this->refundBeforeVat($refund, $quotation),
-                    $rangeStart,
-                    $rangeEnd->addMonth(),
-                    $previousStart,
-                    $previousEnd->addMonth(),
-                    $currentValues,
-                    $previousValues,
-                    $granularity,
+                    -$this->refundBeforeVat($refund, $quotation)
                 );
             }
 
@@ -1529,83 +1577,32 @@ class DashboardService extends BaseService
                 && $firstSuccess
                 && (int) $firstSuccess['quotation']->id === (int) $refund->quotation_id
                 && $refund->refund_type !== PaymentRefund::TYPE_OVERPAYMENT) {
-                $this->addProfitTrendAmount(
+                $recordEvent(
                     $eventAt,
-                    -$this->kpi->acquisitionRefundBeforeVat($project, $refund, $quotation),
-                    $rangeStart,
-                    $rangeEnd->addMonth(),
-                    $previousStart,
-                    $previousEnd->addMonth(),
-                    $currentValues,
-                    $previousValues,
-                    $granularity,
+                    -$this->kpi->acquisitionRefundBeforeVat($project, $refund, $quotation)
                 );
             }
         }
 
-        $currentRows = array_values($currentValues);
-        $previousRows = array_values($previousValues);
-        $currentCumulative = 0.0;
-        $previousCumulative = 0.0;
-
-        return [
-            'granularity' => $granularity,
-            'points' => collect($currentRows)
-                ->map(function (array $row, int $index) use (
-                    $previousRows,
-                    &$currentCumulative,
-                    &$previousCumulative,
-                    $granularity,
-                ): array {
-                    $previousAmount = (float) ($previousRows[$index]['profitAmount'] ?? 0);
-                    $currentCumulative += (float) $row['profitAmount'];
-                    $previousCumulative += $previousAmount;
-
-                    return [
-                        'period' => $row['period'],
-                        'label' => $this->trendLabel($row['period'], $granularity),
-                        'profitAmount' => $this->money($row['profitAmount']),
-                        'cumulativeProfitAmount' => $this->money($currentCumulative),
-                        'previousProfitAmount' => $this->money($previousAmount),
-                        'previousCumulativeProfitAmount' => $this->money($previousCumulative),
-                    ];
-                })
-                ->all(),
-        ];
-    }
-
-    private function emptyProfitTrendValues(Collection $bucketStarts, string $granularity): array
-    {
-        return $bucketStarts->mapWithKeys(function (CarbonImmutable $start) use ($granularity): array {
-            $period = $start->format($granularity === 'day' ? 'Y-m-d' : 'Y-m');
-
-            return [$period => [
-                'period' => $period,
-                'profitAmount' => 0.0,
-            ]];
-        })->all();
-    }
-
-    private function addProfitTrendAmount(
-        CarbonImmutable $eventAt,
-        float $amount,
-        CarbonImmutable $rangeStart,
-        CarbonImmutable $rangeEndExclusive,
-        CarbonImmutable $previousStart,
-        CarbonImmutable $previousEndExclusive,
-        array &$currentValues,
-        array &$previousValues,
-        string $granularity,
-    ): void {
-        $key = $eventAt->format($granularity === 'day' ? 'Y-m-d' : 'Y-m');
-
-        if ($eventAt->greaterThanOrEqualTo($rangeStart) && $eventAt->lessThan($rangeEndExclusive)) {
-            $currentValues[$key]['profitAmount'] += $amount;
+        if (KpiFeeBasis::applies($rangeEnd->format('Y-m'))) {
+            foreach ($this->kpi->feeEvents($previousStart->subDay()->toDateString(), $rangeEnd->addMonth()->toDateString()) as $event) {
+                $basis = $event['basis'];
+                if ($scope['level'] === 'all') {
+                    $credits = 1;
+                } elseif ($scope['level'] === 'department') {
+                    $credits = (int) in_array((int) $basis['managerDepartmentId'], $scope['departmentIds'] ?? [], true)
+                        + (int) ($basis['firstQuotation'] && in_array((int) $basis['salesDepartmentId'], $scope['departmentIds'] ?? [], true));
+                } else {
+                    $credits = (int) ((int) $basis['managerId'] === (int) $scope['userId'])
+                        + (int) ($basis['firstQuotation'] && (int) $basis['salesId'] === (int) $scope['userId']);
+                }
+                if ($credits) {
+                    $recordEvent($event['at'], $event['amount'] * $credits);
+                }
+            }
         }
 
-        if ($eventAt->greaterThanOrEqualTo($previousStart) && $eventAt->lessThan($previousEndExclusive)) {
-            $previousValues[$key]['profitAmount'] += $amount;
-        }
+        return DashboardKpiTrend::project($rangeStart, $rangeEnd, CarbonImmutable::now(), $events);
     }
 
     private function matchesImplementationScope(Project $project, array $scope): bool
@@ -1678,6 +1675,7 @@ class DashboardService extends BaseService
      */
     private function costAmounts(ProjectCost $cost): array
     {
+        if ($cost->isPromotion()) return ['gross' => 0.0, 'beforeVat' => 0.0];
         $actualGross = $cost->actualCostAmount();
         $invoiceGrossBeforeDiscount = (float) $cost->amount_before_vat + (float) $cost->vat_amount;
         $baseBeforeVat = $invoiceGrossBeforeDiscount > self::MONEY_EPSILON

@@ -1,5 +1,70 @@
 # X3 CRM
 
+- 14/10/2026: Thêm cấp **Toàn nhóm**, quản lý nhóm nội bộ, lịch sử thành viên, quyền từng thao tác và Dashboard/KPI theo nhóm. Migration đã chạy local; chưa deploy. Hướng dẫn: [README.TEAMS.md](README.TEAMS.md).
+
+- 14/10/2026: Dashboard cá nhân/phòng ban dùng KPI lũy kế, so cùng mốc thời gian và hiển thị còn thiếu/vượt cùng kỳ; chi tiết và kiểm chứng trong [README.DASHBOARD-FINANCE.md](README.DASHBOARD-FINANCE.md#kpi-lũy-kế-cá-nhânphòng-ban-14102026-local).
+
+**14/10 — Dự án mới theo team (local):** đổi nhãn “Số dự án” thành “Dự án mới”, đếm theo ngày tạo CRM; biểu đồ theo nhân sự và biểu đồ mới theo tháng dùng cùng kỳ lọc. Bỏ nhân sự không có dự án mới khỏi biểu đồ đếm, giữ nhóm chưa phân công; giao diện dùng MUI và kiểu thẻ hiện có. 11 kiểm tra DB rollback và TypeScript đạt; không cần migration, chưa deploy. Quy tắc tại [hướng dẫn Dashboard](README.DASHBOARD-FINANCE.md#báo-cáo-theo-team-dự-án-mới-14102026-local).
+
+**13/10 — Dashboard tài chính (local):** thêm so sánh tiền thu cùng thời điểm tháng/quý trước, biểu đồ lợi nhuận dự án theo sổ kỳ ghi nhận, popup đối soát và nguồn chưa xác nhận. Không trừ nạp ngân sách/MKM hai lần, không chuyển chi phí theo ngày trả đối tác. Lợi nhuận kỳ đang mở chỉ đối chiếu theo tháng vì sổ chưa có ngày hiệu lực; không hiện tỷ lệ cùng ngày giả. Chưa deploy. Xem [hướng dẫn Dashboard tài chính](README.DASHBOARD-FINANCE.md).
+
+**13/10 — Theo dõi báo cáo tuần (local):** gộp lọc nhanh vào một hàng summary: Cả tuần / Hôm nay / Quá hạn / Chờ duyệt / Đã duyệt; bỏ hàng nút ngày riêng để tránh trùng chức năng. Hôm nay dựa trên ngày hạn và bao gồm cả đã nộp/đã duyệt. Cả tuần ưu tiên báo cáo hôm nay chưa duyệt, việc tồn ngày trước, việc sắp tới, rồi đã duyệt; nộp báo cáo không làm mất ưu tiên hôm nay. Khi lọc Chờ duyệt, xếp theo thời điểm nộp cũ nhất. Có thể chọn Hôm nay rồi lọc Tiến độ = Chờ duyệt. Nhãn “Nộp đúng hạn” tách biệt việc nộp và duyệt. Số liệu summary theo tuần, nhân sự, từ khóa và thứ báo cáo; chọn summary đặt lại lọc hạn/tiến độ/tình trạng tuần tương ứng. Đổi tuần bỏ phạm vi hôm nay, đổi bộ lọc trở về trang 1. Không thay đổi dữ liệu/lịch sử duyệt, không cần migration. Kiểm tra hồi quy: `php tooling/tests/weekly-report-board-order.php`. Chưa deploy VPS.
+
+**13/10 — Đối soát khoản thu/PayPal (local):** thêm ghi nhận nguồn tiền, ngày thực nhận, phí/số ròng, liên kết chuyển nội bộ và chi tiết KPI theo từng báo phí. Migration 000600 đã chạy local; 32 kiểm tra transaction rollback đạt. Đã kiểm tra chỉ đọc khách 761 trên VPS: KPI tháng 10 đã có triển khai 2.323.305đ và Sale 504.169đ, chưa sửa giao dịch thật. Chưa deploy. Xem [hướng dẫn và biên bản](README.PAYMENTS.md).
+
+**13/10 — MKM nền tảng tặng (local):** tách nguồn MKM khỏi tiền nạp quảng cáo. Khách trả 3 triệu + nền tảng tặng 3 triệu được theo dõi thành hai nguồn; MKM không tăng tiền thu, tiền thực chi, hạn mức tiền nạp hoặc KPI phí quản lý. Migration `2026_10_13_000500` đã chạy local. Dữ liệu dùng thẻ MKM cũ giữ nguyên để đối soát. Chưa push/deploy VPS. Xem [hướng dẫn MKM](README.MKM.md).
+
+**13/10 — Công nợ & lợi nhuận đối tác/FL (local):** đã tách kỳ ghi nhận công việc khỏi ngày thực chi, thêm thanh toán từng phần/phân bổ nhiều khoản cùng đối tác, đối soát lịch sử, chốt/mở kỳ có lý do và nhật ký. Mở **Chi phí → Công nợ & lợi nhuận** (`/costs/partner-finance`). Migration local đã chạy; 43 kiểm tra sổ ghi nhận với dữ liệu tạm rollback và 7 kiểm tra Node đạt. Không tự gán tháng cho dữ liệu cũ, chưa push/deploy VPS. Hướng dẫn tại mục **Công nợ đối tác và lợi nhuận theo kỳ** bên dưới.
+
+## Công nợ đối tác và lợi nhuận theo kỳ
+
+### Cách sử dụng
+
+1. Vào **Dự án → Tài chính → Thêm chi phí**, chọn **Chi phí đối tác**, đối tác, báo phí liên quan (nếu có), giá trị và tháng công việc dự kiến. Lưu mới tạo khoản chờ; chưa ghi lợi nhuận hoặc thực chi.
+2. Vào **Chi phí → Công nợ & lợi nhuận**, chọn dự án. **Xác nhận kỳ** riêng cho doanh thu báo phí và chi phí đối tác khi công việc đủ điều kiện ghi nhận. Có thể chia giá trị qua nhiều tháng; tổng phân bổ phải khớp nguồn. Tháng được chọn trên trang chỉ là tháng xem/gợi ý, người xác nhận phải kiểm tra tháng công việc thật.
+3. Khi đã chuyển tiền ngoài hệ thống, chọn **Ghi thanh toán** trên khoản chi: ngày chi thật, số tiền, mã tham chiếu và ghi chú. Có thể trả từng phần hoặc mở phần phân bổ cho các khoản khác đã xác nhận của cùng đối tác trong dự án. Đây là ghi sổ, không có lệnh chuyển tiền ngân hàng.
+4. Kiểm tra lợi nhuận tháng, các khoản còn phải trả đã xác nhận và lịch sử. ADMIN có thể **Chốt kỳ**; mở lại cần lý do. Muốn sửa nguồn đã ghi nhận, gỡ ghi nhận ở kỳ đang mở, sửa nguồn rồi xác nhận lại. Lịch sử chi và nhật ký vẫn giữ nguyên.
+
+### Quy tắc số liệu
+
+- **Lợi nhuận đã ghi nhận = doanh thu dịch vụ trước VAT phân bổ vào kỳ − chi phí đối tác đã xác nhận vào kỳ.** Ngân sách quảng cáo tham chiếu/thu hộ và VAT đầu ra không phải doanh thu dịch vụ. Phân hệ chi phí đối tác hiện lưu giá trị chi trực tiếp, không có cơ chế khấu trừ VAT đầu vào.
+- Ví dụ công việc tháng 9 có doanh thu 10 triệu và chi phí 7 triệu: xác nhận tháng 9 cho lợi nhuận 3 triệu, còn phải trả 7 triệu. Chi tiền tháng 10 chỉ tăng thực chi tháng 10 và giảm công nợ; không trừ lợi nhuận tháng 10 lần nữa.
+- Kỳ doanh thu do người có quyền xác nhận theo công việc, không suy ra từ ngày khách chuyển tiền. Tiền nhận trước chưa đủ điều kiện không được tự xác nhận doanh thu.
+- **Tiền thu trong kỳ** là tiền khách đã phân bổ vào các báo phí đang xem, gồm VAT, chưa trừ hoàn tiền. **Thực chi** là các lần chi đối tác còn hiệu lực trong tháng. **Còn phải trả đã xác nhận** là dư nợ hiện tại, không phải số dư cuối tháng quá khứ; khoản chưa xác nhận chỉ xuất hiện trong chi tiết để đối soát.
+- Báo cáo này dành cho dự án có chi phí đối tác/FL; không phải báo cáo toàn bộ chi phí vận hành/lợi nhuận kế toán công ty. Phạm vi xem theo quyền Chi phí/Báo phí; khi chỉ xem được một phần nguồn của dự án, giao diện cảnh báo số liệu không đầy đủ.
+- KPI nhân sự giữ quy tắc phí quản lý đã chốt ở [README.KPI.md](README.KPI.md). Dashboard có liên kết tới báo cáo lợi nhuận theo kỳ. Thẻ tài chính dự án dùng số tiền thu/chi thực tế được ghi rõ **Chênh lệch thu – chi dịch vụ** cho nhóm dịch vụ liên quan; không coi đó là lợi nhuận ghi nhận theo kỳ.
+
+### Dữ liệu cũ và kiểm soát
+
+- Migration chỉ thêm cấu trúc sổ; không tự phân kỳ hoặc sửa ngày chuyển tiền cũ. Lần kiểm tra local hiện có 16 dự án/33 nguồn cần xác nhận; đây là số liệu tại thời điểm kiểm tra, không phải kết quả đối soát nghiệp vụ.
+- Khi xác nhận khoản lịch sử đã chi, nhập đúng một dòng thanh toán nền theo số tiền/ngày chi cũ. Nếu thiếu ngày chi phải bổ sung ngày thật trước. Chuyển sang sổ mới không làm phát sinh thêm thực chi; dòng nền không được hủy trong sổ mới.
+- Xác nhận/điều chỉnh dùng quyền duyệt hoặc chi trong phạm vi dự án; ghi/hủy thanh toán cần quyền chi. Chốt/mở kỳ chỉ ADMIN. Mọi thay đổi ghi người thao tác, thời gian, trước/sau và lý do; chống ghi đè phiên bản cũ và gửi lại yêu cầu gây trùng.
+- Chốt kỳ bảo vệ các phân bổ và lần chi trong sổ đối tác. Không khóa thay cho toàn bộ hệ thống giao dịch ngân hàng. Hoàn tiền báo phí làm thay đổi giá trị nguồn sẽ báo cần đối soát, không tự viết lại kỳ đã chốt. Người phụ trách cần mở kỳ có lý do để điều chỉnh nguồn/phân bổ; chưa có luồng bút toán điều chỉnh chênh lệch sang kỳ sau tự động.
+- Hủy ghi thanh toán chỉ dùng sửa dòng nhập sai; không đồng nghĩa đối tác hoàn tiền. Thanh toán quá số dư bị chặn; khoản đã đối soát khớp không được thêm/hủy chi. Dự án/khoản chi có lịch sử sổ được bảo vệ khỏi xóa làm mất dấu vết.
+- Không xóa bảng/rollback migration sau khi có dữ liệu thật. Khi triển khai môi trường khác cần sao lưu DB, chạy migration trước backend/frontend, kiểm tra quyền và đối soát nguồn. Chưa chạy bước production trong đợt này.
+
+### Kiểm tra local
+
+```powershell
+& 'D:/laragon/bin/php/php-8.4.4/php.exe' -d extension=pdo_pgsql -d extension=pgsql tooling/tests/partner-finance-local.php
+node --test tooling/tests/project-finance.test.cjs
+npx tsc --noEmit --incremental false -p apps/frontend/tsconfig.json
+```
+
+Bài kiểm tra sổ chỉ chấp nhận PostgreSQL local `127.0.0.1:5433`; fixture nằm trong transaction được rollback. Đã kiểm tra giao diện đọc/chi tiết/popup trên local ở desktop và 390px; chưa dùng giao dịch thật để xác nhận kỳ hoặc ghi chi qua trình duyệt.
+
+**13/10 — Tài chính dự án K/M (local):** báo phí K không tạo hạn mức nạp từ ngân sách tham chiếu hoặc tiền phí quản lý. Thẻ **Lợi nhuận dịch vụ** dùng thu dịch vụ trước VAT và chi phí liên quan; không coi tiền quảng cáo còn giữ là lợi nhuận. API, giao diện nạp và xuất chi phí dùng cùng nguồn hạn mức. Audit chỉ đọc 1.247 dự án local: 70 dự án K có tiền thu/ngân sách tham chiếu được sửa cách tính, không có hạn mức âm hoặc cơ cấu thu dịch vụ cần đối soát. Không sửa giao dịch, không cần migration; chưa deploy VPS. Quy tắc và lệnh kiểm tra tại mục **Tách ngân sách nạp và thu dịch vụ** bên dưới.
+
+**13/10 — Mẫu gợi ý báo cáo tuần (local):** admin quản lý tại `/settings/weekly-report-templates`: thêm/sửa, nhân bản (bản sao mặc định tắt), bật/tắt và thứ tự. Nút **Gợi ý** ở mục 3 của báo cáo cho phép tìm, lọc, chọn nhiều mẫu, sao chép, chèn và hoàn tác. Local đã chạy migration và nạp 25 mẫu khởi đầu có thể chỉnh sửa. Quyền riêng `weeklytemplate.manage` mặc định chỉ cấp ADMIN; nhân sự có `weeklyreport.view` dùng mẫu đang bật. Chưa push/deploy VPS. Chi tiết tại mục 8 bên dưới.
+
+**13/10 — Thông báo theo luồng xử lý (local):** chuông mở hai tab **Tất cả** (chưa xử lý, gồm cả đã đọc) và **Đã xử lý**, lọc theo phân hệ và chưa đọc. Có đánh dấu xong, hoàn tác, đưa lại danh sách; thao tác inbox không duyệt báo cáo hay thay đổi giao dịch. Migration local đã chạy; đối chiếu nguồn nghiệp vụ đóng 28 thông báo cũ, chạy lại không còn mục cần cập nhật. 53 kiểm tra nghiệp vụ đạt. Chưa push GitHub/deploy VPS. Quy tắc và runbook tại mục 7.1 bên dưới.
+
+**13/10 — KPI phí quản lý (local):** từ tháng 10/2026 ghi nhận phí quản lý trước VAT theo tiền thu; Sale hưởng báo phí đầu, triển khai hưởng mọi báo phí. KPI/Dashboard/Excel đồng bộ, cập nhật khi giao dịch thay đổi. Quy tắc, giới hạn dữ liệu cũ và runbook: [README.KPI.md](README.KPI.md). Chưa deploy VPS.
+
+**13/10 — Báo cáo tuần, local:** ngân sách tuần tự tính theo `Tổng ngân sách / 30 × 7`, làm tròn 2 chữ số ở bước cuối; giữ số lịch sử khi tổng ngân sách/tiền tệ không đổi. Trang chi tiết có **Lấy ảnh** trước khi duyệt; khi còn sửa chưa lưu, dùng **Lưu và lấy ảnh**. Ảnh dùng mẫu gửi khách, không gồm trao đổi nội bộ, có tải PNG dự phòng. Kiểm tra TypeScript, 27 kiểm tra PHP và 3 bài Node đạt; UI xác nhận 15 triệu → 3,5 triệu, 30 triệu → 7 triệu và tạo PNG cho báo cáo chờ duyệt. Một ảnh đính kèm cũ trên local không tải được; đã xác nhận chặn xuất và báo lỗi rõ ràng. Chưa kiểm chứng thao tác lưu kèm lấy ảnh bằng dữ liệu thật, dán clipboard vào ứng dụng ngoài hoặc tải file qua trình duyệt tự động. Chưa deploy VPS. Hướng dẫn: mở báo cáo → **Lấy ảnh** → dán vào nơi cần gửi; nếu trình duyệt chặn clipboard, chọn **Tải ảnh PNG**. Trưởng nhóm duyệt theo luồng hiện có, lấy ảnh không đổi trạng thái báo cáo.
+
+**10/10 — Đã deploy production:** bản `team-20261010` từ nhánh `codex/zalo-team-crm-integration` đã chạy trên CRM và VPS Zalo. Menu Zalo Team, các màn mới, công việc/phân công và gửi tài liệu CRM đã lên server; kiểm tra Chrome đăng nhập thật: inbox 294 hội thoại/4 tài khoản, chiến dịch, công việc, đồng bộ, tạo preview PDF đạt. Chưa gửi tài liệu/tin nhắn thật để nghiệm thu. Xem [biên bản và rollback](tooling/deployment/production/RELEASE-2026-10-10.md). Các mục local bên dưới là nhật ký trước triển khai.
+
 **10/10 — Menu CRM local:** đã bật lại mục **Zalo Team** ngay dưới Dashboard, mở `/zalo-team` trong tab mới. Quyền tài khoản Zalo vẫn do backend kiểm tra; chưa deploy thay đổi menu lên VPS.
 
 **CRM → Zalo, đợt 1 — 09/10:** đã triển khai local liên kết nhóm nhận, gửi báo phí/báo cáo đã duyệt trực tiếp bằng PDF/ảnh và lịch sử gửi. Hướng dẫn tại [README.ZALO-CRM.md](README.ZALO-CRM.md). Chưa gửi thật/nghiệm thu VPS; tự động báo thanh toán là đợt sau.
@@ -1137,6 +1202,51 @@ Tổng được phép nạp = Hạn mức từ tiền đã thu + Hạn mức n�
   nạp. Project có thể hiển thị âm nếu số đã nạp vượt nguồn còn lại.
 - Gói setup mặc định trên form thêm mới là `Không tính phí setup`. Khi chỉnh sửa, hệ thống giữ lựa
   chọn đã lưu; báo phí cũ chưa có metadata gói setup cũng dùng mặc định không tính phí.
+
+#### Tách ngân sách nạp và thu dịch vụ — 13/10/2026
+
+- Căn cứ loại trong snapshot `metadata.projectType`, sau đó mã dự án đã lưu trong báo phí,
+  cuối cùng mã báo phí; không lấy loại hiện tại của dự án để diễn giải lại dữ liệu cũ.
+  Sửa báo phí trong cùng dự án giữ loại snapshot. Đổi sang một dự án khác là thao tác định giá mới.
+- **K:** ngân sách `-1` chỉ là căn cứ tính phí. Hạn mức đủ điều kiện, tiền thu dành cho nạp và
+  nợ được phép nạp đều bằng 0, kể cả dữ liệu cũ có cờ nạp trước. Không đánh dấu phí quản lý/setup
+  thành ngân sách nạp. Giao diện hiển thị **Không áp dụng** khi không có nguồn và chưa từng nạp.
+- **M:** dùng dòng ngân sách đã lưu và các dòng nhập thêm được đánh dấu. Loại bỏ mọi dòng
+  `excludedFromTotal`; phí quản lý `-2` và setup `-3` luôn là dịch vụ. Không cộng trùng ngân sách
+  với metadata. Chỉ M cũ thiếu dòng ngân sách mới dùng `metadata.budget` làm nguồn dự phòng.
+  Quy tắc giải phóng tiền thu/nợ, cọc, hoàn tiền và CID đã xác nhận giữ như mô tả bên trên.
+- Không sửa báo phí, phân bổ, hoàn tiền hay khoản nạp cũ khi đọc số liệu. Đã nạp vượt nguồn mới
+  vẫn hiển thị âm, kể cả khi không còn báo phí đủ điều kiện; cần đối soát, không tự xóa khoản nạp.
+- **Thu dịch vụ trước VAT** gồm phí quản lý, setup và hạng mục dịch vụ thực tế trong báo phí;
+  loại ngân sách, dòng thu hộ để nạp và dòng không tính vào tổng. Thu một phần được phân bổ theo
+  tỷ trọng dịch vụ trong tổng thanh toán chưa gồm cọc. Thu đủ ghi nhận đúng phí trước VAT;
+  thu thừa không tăng phí. Hoàn phí làm giảm phí theo tỷ lệ trước/sau VAT; hoàn ngân sách có
+  phân loại không trừ phí. Hoàn tiền cũ chưa chia khoản dùng tỷ lệ dịch vụ của báo phí.
+- **Lợi nhuận dịch vụ** = thu dịch vụ trước VAT − chi phí đối tác đã hoàn tất − chi phí phát sinh
+  thêm của lần nạp − phần quảng cáo vượt ngân sách đủ điều kiện còn lại sau hoàn ngân sách − khoản bù thêm đã hoàn tất.
+  Tiền gốc quảng cáo trong ngân sách được theo dõi riêng, không cộng thành doanh thu dịch vụ và
+  không trừ lần nữa khỏi phí. Chi phí theo số thực chi hiện có; đây là chỉ tiêu vận hành dự án,
+  chưa gồm chi phí chung công ty hoặc tự khấu trừ VAT đầu vào. KPI tháng vẫn dùng chính sách tại
+  `README.KPI.md`; chỉ tiêu này không thay đổi mốc KPI tháng 10.
+- Thiếu dòng báo phí, tổng dòng lệch số đã lưu, hoặc vừa hoàn phí vừa thu vượt tổng cần đối soát
+  riêng: API trả `financialNeedsReview` và phí `null`; UI không đoán lợi nhuận. Lỗi tải dữ liệu
+  hiển thị **Chưa tải được**, không giả thành số 0.
+- Ví dụ `869.DV1.K.VINFASTGFTHANGLONG.Q001`: thu 6.340.780 đ gồm phí 5.871.093 đ và VAT
+  469.687 đ → hạn mức nạp 0; thu dịch vụ trước VAT 5.871.093 đ; khi chưa có chi phí/bù thêm,
+  lợi nhuận dịch vụ cũng là 5.871.093 đ.
+
+Kiểm tra offline: `php tooling/tests/project-finance.php` và
+`node --test tooling/tests/project-finance.test.cjs` (không dùng database thật).
+Đã đạt 51 kiểm tra backend và 6 nhóm kiểm tra frontend; đã đối chiếu giao diện local dự án
+`/projects/1053`: hạn mức **Không áp dụng**, lợi nhuận dịch vụ **5.871.093 đ**, khoản thu vẫn
+**6.340.780 đ**. Không tạo/sửa giao dịch để kiểm thử.
+Audit chỉ đọc: từ `apps/backend` chạy `php artisan finance:audit-topup`, hoặc thêm
+`--project=869.DV1.K.VINFASTGFTHANGLONG` để kiểm tra một dự án. Lệnh dùng transaction chỉ đọc
+trên PostgreSQL và luôn rollback; chỉ hiển thị 30 dòng đầu cùng tổng số, không cập nhật dữ liệu.
+Wrapper `tooling/tests/project-finance-local-audit.php` chỉ cho kết nối `127.0.0.1:5433`.
+Khi deploy backend/frontend, chạy audit đúng môi trường trước khi nghiệm thu; không lấy kết quả
+local làm bằng chứng dữ liệu production đã được kiểm tra.
+
 - Loại Project `O` và dữ liệu cũ `N` đều hiển thị thống nhất là `Không chọn` trên form Báo phí.
 - Danh sách Báo phí chỉ hiển thị mã ở cột Dịch vụ, không hiển thị cột Khách hàng; trạng thái nghiệp
   vụ và trạng thái thanh toán được gom trong cùng một cột để đối chiếu nhanh. Trạng thái
@@ -1503,18 +1613,26 @@ Lịch hẹn đã nối notification nội bộ Phase 1: người tổ chức v�
 cập nhật/đổi giờ, hủy/xóa; scheduler nhắc một lần khi còn tối đa 24 giờ và thêm một lần khi còn tối đa
 30 phút. Email, lời mời Google Calendar/Outlook, lịch lặp và kéo thả đổi giờ chưa nằm trong Phase 1.
 
-### 7.1. Notification nội bộ - Phase 1
+### 7.1. Thông báo nội bộ — inbox xử lý (13/10/2026)
 
 Notification là inbox cá nhân có lưu database, độc lập với toast phản hồi thao tác và
 `customer_timelines`. Dữ liệu nằm tại `user_notifications`; mỗi bản ghi thuộc đúng một người nhận và
 có khóa `dedupe_key` để một event/scheduler có thể chạy lại an toàn mà không sinh bản ghi trùng.
 
-Hai trạng thái phải hiểu riêng:
+Các trạng thái độc lập:
 
-- `read_at`: người dùng đã nhìn thấy thông báo hay chưa;
+- `read_at`: người dùng đã mở thông báo hay chưa;
 - `resolved_at`: công việc yêu cầu hành động đã được xử lý hay chưa. Đọc thông báo không tự hoàn tất
   công việc; duyệt/từ chối/nộp lại nghiệp vụ mới resolve đúng event;
-- `archived_at`: người dùng chủ động ẩn thông báo khỏi inbox cá nhân, không thay đổi dữ liệu nghiệp vụ.
+- `handled_at`: người nhận tự đánh dấu đã xử lý inbox; không duyệt báo cáo, đối soát tiền hoặc hoàn tất công việc thay người dùng;
+- `archived_at`: lịch sử lưu trữ cũ, được hiển thị trong Đã xử lý và giữ nguyên nguồn gốc;
+- `inbox_reopened_at`: đưa thông báo đã đóng về inbox cá nhân; giữ `resolved_at` và kết quả nghiệp vụ.
+
+**Cách dùng:** mở chuông → chọn phân hệ nếu cần → mở nội dung để xem hồ sơ, hoặc bấm ✓ để chuyển
+sang **Đã xử lý**. Có **Hoàn tác** trong 6 giây; sau đó vẫn có thể vào Đã xử lý và bấm **Đưa về chưa xử lý**.
+Đọc một thông báo không làm nó biến mất khỏi Tất cả. Chỉ chưa đọc là bộ lọc phụ, không phải tab xử lý.
+Việc đánh dấu riêng từng người nhận; duyệt/xử lý nghiệp vụ thật sẽ đóng các nhắc việc liên quan của mọi người nhận.
+Thông báo dạng thông tin vẫn ở Tất cả cho tới khi người nhận đánh dấu xong.
 
 Người nhận không được tính theo tên role cố định. `NotificationRecipientResolver` lọc user active theo
 permission động, sau đó kiểm tra lại Policy/Gate và scope `của mình / phòng ban / tất cả` trên chính
@@ -1542,8 +1660,9 @@ Các luồng đã bật trong Phase 1:
 Frontend dùng Laravel Echo kết nối Laravel Reverb qua private channel `users.{id}`. Mọi lần tạo, đọc,
 đọc tất cả, lưu trữ, khôi phục hoặc resolve notification đều phát event `notifications.changed` sau khi
 transaction database commit; event chạy qua database queue `realtime`. Frontend nhận event thì invalidate
-summary/list của React Query ngay. Summary còn polling nền mỗi 15 giây, refetch khi focus và refetch khi
-mở panel để badge chuông không bị đứng nếu WebSocket tạm mất kết nối.
+summary/list của React Query, gộp các event liên tiếp trong 250 ms. Khi realtime đã kết nối, summary đối
+chiếu mỗi 5 phút và list không polling; mất realtime dùng dự phòng 60 giây, chỉ tải list khi drawer mở.
+Không polling khi tab trình duyệt ẩn; quay lại tab/mở drawer cập nhật lại. Cache tách theo người đăng nhập.
 
 Notification, Máy tính và Hồ sơ cá nhân dùng chung utility drawer bên phải,
 chiều rộng tối đa `420px`; trên mobile drawer luôn chừa mép `8px`, dùng `border-box` và khóa tràn ngang
@@ -1552,26 +1671,47 @@ cụm menu/tiện ích không kéo rộng trang. Layout chỉ cho phép mở m�
 chồng panel. Máy tính nhận phím số và numpad ngay khi drawer mở; hỗ trợ `Enter`/`=`,
 `Backspace`, `Delete`/`C`, `%`, dấu phẩy hoặc dấu chấm thập phân và bốn phép tính. Kết quả có thể sao chép,
 tự lưu tối đa 30 phép tính gần nhất vào trình duyệt; người dùng có thể chọn kết quả cũ để dùng lại hoặc
-xóa toàn bộ lịch sử. Notification có filter `Tất cả`, `Chưa đọc`, `Đã lưu trữ`; danh sách hiển thị
-phẳng theo thời gian, không hiện nhãn trạng thái nghiệp vụ trên từng item, hỗ trợ đánh dấu toàn bộ đã đọc,
-lưu trữ, phân trang mỗi lần 10 thông báo và điều hướng
-tới entity. Lưu trữ không xóa dữ liệu; người dùng xem lại trong tab `Đã lưu trữ` và có thể khôi phục về
-inbox. Badge trên icon chuông chỉ đếm bản ghi chưa đọc và giảm ngay khi mở item. Trạng thái nghiệp vụ cần
-xử lý vẫn được backend theo dõi để resolve đúng event nhưng không hiển thị thành nhãn trong danh sách;
-trạng thái này không tự mất chỉ vì notification đã được xem. Mọi tab luôn sắp xếp theo `created_at DESC`,
-sau đó `id DESC`; thông báo cần xử lý không được đẩy lên trước thông báo mới hơn. API dưới middleware `auth:sanctum,active`,
-không cần permission page riêng:
+xóa toàn bộ lịch sử. Notification có hai tab **Tất cả** và **Đã xử lý**, lọc theo phân hệ,
+phân trang 20 mục. Tất cả là các mục chưa xử lý, sắp theo `created_at DESC, id DESC`;
+Đã xử lý gồm đánh dấu thủ công, nghiệp vụ đóng hoặc lưu trữ cũ, sắp theo thời điểm đóng rồi thời điểm tạo/id.
+Mỗi dòng có nút thao tác luôn hiện, vùng bấm 44px; thao tác cập nhật lạc quan và phục hồi cache khi lỗi.
+API dưới middleware `auth:sanctum,active`, chỉ đọc/sửa thông báo thuộc người đăng nhập, không cần permission page riêng.
 
-Favicon dùng logo X3Sales tại `public/favicon.png`. Khi có thông báo chưa đọc, frontend vẽ badge đỏ có số
-lên favicon, thêm `(n)` trước title của tab và gọi App Badging API nếu trình duyệt hỗ trợ; khi đọc hết hoặc
-đăng xuất sẽ tự trả favicon/title về trạng thái thường.
+Chuông, favicon và title đếm **chưa xử lý**, không đếm đơn thuần chưa đọc. Đọc không giảm số này;
+đánh dấu xong/đóng theo nghiệp vụ mới giảm, đưa lại inbox tăng trở lại. Chuông hiển thị tối đa `99+`.
+Khi xử lý hết hoặc đăng xuất, favicon/title trở về trạng thái thường.
 
 - `GET /api/notifications/summary`;
-- `GET /api/notifications?filter=all|unread|action|archived&page=1&per_page=10`;
+- `GET /api/notifications?filter=all|done&module=weekly_report&unread=1&page=1&per_page=20` (module/unread tùy chọn; filter unread/action/archived cũ còn tương thích);
 - `PATCH /api/notifications/{id}/read`;
 - `POST /api/notifications/read-all`;
+- `POST /api/notifications/{id}/handle`;
 - `POST /api/notifications/{id}/archive`;
 - `POST /api/notifications/{id}/restore`.
+
+Summary trả tổng chưa xử lý/đã xử lý/chưa đọc và thống kê theo phân hệ trong một truy vấn nhóm.
+Nhắc báo cáo đến hạn/quá hạn chỉ đóng đúng `dueDate` của kỳ đã nộp; không đóng nhầm nhắc của tuần khác.
+Lịch hẹn hoàn thành, không tham dự hoặc đổi giờ đóng nhắc cũ. Chi phí đã đối soát khớp không tạo thêm
+việc cần đối soát; sửa nội dung thông thường không phát lại bước workflow chưa đổi trạng thái.
+
+**Triển khai phiên bản này:** chạy migration `2026_10_13_000200_add_notification_inbox_handling.php`
+trước khi bật API/frontend mới. Migration chỉ thêm trường/index; dữ liệu đã resolve/lưu trữ tự xuất hiện
+trong Đã xử lý, không xóa lịch sử. Khi triển khai server cần cập nhật backend/scheduler/queue-worker cùng phiên bản.
+Đối chiếu thông báo tồn từ phiên bản cũ trong cửa sổ bảo trì:
+
+```sh
+php artisan notifications:reconcile-inbox
+php artisan notifications:reconcile-inbox --apply
+```
+
+Lệnh đầu chỉ xem số lượng; lệnh sau chỉ đóng event đã biết khi hồ sơ nguồn chứng minh bước nghiệp vụ đã kết thúc.
+Nguồn bị thiếu, event chưa hỗ trợ và nhắc lịch tuần không đủ căn cứ được giữ nguyên. Lệnh không thay đổi
+báo cáo, giao dịch hoặc chi phí; chạy lại an toàn. Local đã đóng 28 mục và kiểm tra lại còn 0 mục cần đóng.
+Regression: `tooling/tests/notification-inbox.php`, 53 kiểm tra với SQLite RAM, gồm phân quyền, 16 tổ hợp
+trạng thái, đọc/xử lý/hoàn tác, chống trùng, nhiều người nhận và đúng kỳ tuần. UI local đã kiểm tra
+đánh dấu → Đã xử lý → đưa lại, hoàn tác và bộ lọc; màn hình 390px có drawer 382px, không tràn ngang.
+Thông báo mẫu đã dọn sau kiểm tra. TypeScript, cú pháp PHP và kiểm tra diff đạt;
+realtime nhiều trình duyệt cần nghiệm thu thêm khi deploy.
 
 Nhắc việc theo thời gian chạy bằng `notifications:dispatch-reminders`, được Laravel scheduler gọi mỗi
 phút với `withoutOverlapping`. Nhắc Báo cáo tuần đến hạn/quá hạn chỉ bắt đầu phát từ `08:00` theo múi
@@ -1581,6 +1721,38 @@ duyệt không phát nhắc việc. Production dùng chung backend image cho `ba
 channel bằng Sanctum. Phase này chưa gửi email, Web Push hoặc Zalo.
 
 ### 8. Báo cáo tuần
+
+#### Thư viện gợi ý — 13/10/2026
+
+- **Quản lý:** Cài đặt → Mẫu báo cáo tuần. Mẫu gồm tên, dịch vụ (để trống là dùng chung),
+  nhóm tình huống (chọn hoặc nhập nhóm mới), Dùng khi (nội bộ), Nội dung gửi khách, thứ tự và bật/tắt.
+  Thứ tự nhỏ đứng trước; cùng thứ tự xếp theo ID. Nhân bản mở bản nháp chưa lưu, mặc định tắt.
+  Dùng tắt mẫu thay xóa để quản lý thư viện. Có cảnh báo khi đóng form có thay đổi chưa lưu.
+- **Sử dụng:** trong báo cáo được phép sửa → mục 3 → Gợi ý. Mặc định lọc theo dịch vụ dự án,
+  gồm mẫu dùng chung và mẫu của dịch vụ cha. Có tìm kiếm, lọc tình huống/dịch vụ, phân trang 20 mẫu.
+  Chọn tối đa 20 mẫu (có thể qua nhiều trang) → Chèn; đổi bộ lọc sẽ bỏ lựa chọn trước đó.
+  Sao chép/Chèn chỉ lấy `content`, không lấy tên mẫu, nhóm hoặc hướng dẫn nội bộ.
+- **Chèn an toàn:** thêm ở vị trí con trỏ hoặc cuối ghi chú, không xóa phần văn bản đang bôi chọn.
+  Chèn nhiều mẫu theo thứ tự chọn, ngăn bằng dòng trống. Hoàn tác phục hồi ghi chú trước lần chèn;
+  khi đã tự sửa tiếp, nút Hoàn tác biến mất để tránh ghi đè phần mới viết. Chèn chưa tự lưu báo cáo.
+  Mẫu chỉ là văn bản gợi ý, nhân sự chỉnh lại theo thực tế trước khi lưu/lấy ảnh/gửi khách.
+- **Trạng thái/phân quyền:** nút Gợi ý ẩn khi báo cáo đã khóa chỉnh sửa (chờ duyệt/đã duyệt).
+  API đọc mẫu đòi `weeklyreport.view` hoặc `weeklytemplate.manage`; đọc cả mẫu tắt và mọi thao tác quản lý
+  đòi `weeklytemplate.manage`. Không cấp mặc định cho Leader; admin có thể cấp riêng qua quản lý vai trò.
+  Endpoint chọn mẫu kiểm tra lại trạng thái đang bật và lấy nội dung mới nhất trước khi chèn/sao chép.
+  API sửa kiểm tra `version`, trả 409 khi bản đang sửa cũ; không ghi đè thay đổi của người khác.
+- **Lưu trữ:** bảng `weekly_report_templates`. Báo cáo vẫn lưu văn bản độc lập trong `summary`;
+  chỉnh/tắt mẫu không thay đổi báo cáo cũ hoặc trạng thái duyệt, không phát tin nhắn.
+- **Vận hành:** migration `2026_10_13_000300_create_weekly_report_templates.php`; permission đã có trong
+  DatabaseSeeder cho cài mới. Chỉ chạy migration cần thiết trên môi trường đang hoạt động, không chạy lại
+  toàn bộ DatabaseSeeder. Nạp mẫu ban đầu tùy chọn bằng `php artisan db:seed --class=WeeklyReportTemplateSeeder`.
+  Seeder dùng khóa riêng, chạy lại không nhân đôi hoặc ghi đè mẫu đã sửa. Local đã nạp 25 mẫu.
+- **Kiểm thử:** `tooling/tests/weekly-report-templates.php` dùng SQLite RAM (22 checks: mặc định quyền,
+  lọc dịch vụ cha/chung, mẫu tắt, kiểm tra phiên bản, dữ liệu nhập, phân trang, thứ tự chọn và seed idempotent).
+  `node --test tooling/tests/weekly-report-template-text.test.cjs` kiểm tra chèn văn bản và bảo toàn ghi chú.
+  TypeScript đạt; UI local đã xác nhận thêm/sửa/nhân bản/bật/tắt, tìm mẫu, chèn 2 mẫu, hoàn tác và sao chép
+  chỉ nội dung khách hàng. Danh sách, form quản lý và hộp Gợi ý đã kiểm tra ở 390px, không tràn ngang.
+  Hai mẫu kiểm tra đã dọn, không lưu báo cáo hoặc gửi khách trong kiểm thử.
 
 **Tiền tệ báo cáo (19/09/2026):** mỗi báo cáo lưu `currency` riêng, nhận `VND`, `USD`, `EUR`, `AUD`.
 Báo cáo cũ/ứng dụng cũ không gửi currency mặc định VND; update bỏ trường này giữ đơn vị đã lưu.
