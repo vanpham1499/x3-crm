@@ -58,5 +58,11 @@ Trang chính chỉ giữ bộ lọc, số tổng hợp và bảng dự án. Các
 
 - 43 kiểm tra hồi quy sổ đối tác và 62 kiểm tra đề xuất/xác nhận hàng loạt/DV3/phân trang đạt; fixtures rollback. Bao gồm 1.005 dự án giả, trang cuối/rỗng/tìm kiếm, tổng độc lập trang, quyền truy cập, chọn xuyên trang, giới hạn 500/501 khoản và xác nhận lần đầu không lý do.
 - TypeScript, PHP syntax và `git diff --check` đạt. Kiểm tra giao diện local: chuyển trang dự án, chuyển trang hàng chờ giữ 10 lựa chọn, popup DV3, nút ở tài chính dự án; popup nhập tháng nằm trong chiều rộng 390px. Không lưu/xác nhận dữ liệu kinh doanh thật trong kiểm tra UI.
-- Migration mới: `2026_10_16_000500_add_quotation_work_completion.php`, thêm cột nullable; đã chạy local, chưa chạy VPS.
-- Bản trước vẫn chạy trên VPS theo yêu cầu giữ phiên bản. Đợt sửa này chưa deploy.
+- Migration mới: `2026_10_16_000500_add_quotation_work_completion.php`, thêm cột nullable; đã chạy local và VPS.
+
+## Triển khai 16/10/2026
+
+- Đã kích hoạt bản `34f1526` trên https://crm.x3sales.com lúc khoảng 17:29 giờ Việt Nam; nhánh `codex/finance-recognition-20261016`.
+- Đã sao lưu DB/cấu hình và giữ image phiên bản trước để rollback code. Số lượng bản ghi nghiệp vụ, tổng tiền và KPI tháng 9 khớp trước/sau chuyển bản; không backfill hay xác nhận tài chính tự động.
+- Kiểm tra production chỉ đọc: 1.258 dự án, API trả 10 dòng/trang, hai trang không trùng; 43 khoản đủ điều kiện được chọn xuyên trang. Backend/frontend/scheduler/queue/reverb đúng phiên bản, restart 0; HTTP 200 và WebSocket 101.
+- Giao diện đã kiểm tra local và production với phiên đăng nhập: nút hàng loạt, chọn xuyên trang và popup xem trước. Không bấm nút ghi nhận cuối cùng trên dữ liệu thật; nghiệp vụ ghi nhận được kiểm thử bằng fixtures rollback.
