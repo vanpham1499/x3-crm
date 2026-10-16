@@ -2,7 +2,7 @@
 
 ## Trạng thái
 
-Đã sửa và kiểm tra tại workspace/local. Đợt này chưa push GitHub hoặc deploy lên CRM production. Không sửa dữ liệu tài chính thật; các fixture kiểm thử được rollback.
+Đã push GitHub và deploy CRM production ngày 16/10/2026, source `8d36032`, nhánh `codex/crm-feedback-notifications-20261016`. Xem [biên bản phát hành](tooling/deployment/production/RELEASE-2026-10-16.md). Không sửa dữ liệu tài chính thật; các fixture kiểm thử local được rollback.
 
 ## 1. KPI và Dashboard
 
@@ -68,4 +68,4 @@ Không cần migration mới cho đợt này. Backend và frontend cần phát h
 - Có thể vào **Đã xử lý** và đưa từng mục về **Chưa xử lý**. Hủy popup không cập nhật trạng thái.
 - API mới: `POST /notifications/handle-all/preview` và `POST /notifications/handle-all`, cùng yêu cầu đăng nhập. Không cần migration.
 - Kiểm tra: 78 bài kiểm tra inbox đạt trên SQLite memory; TypeScript và PHP syntax đạt. Đã mở popup local với 503 thông báo, kiểm tra desktop/390px và hủy mà số lượng vẫn giữ nguyên. Không bấm xử lý thông báo thật để kiểm thử.
-- Đợt bổ sung này chưa deploy production.
+- Đã deploy production ngày 16/10/2026. Kiểm tra preview và bộ lọc bằng truy vấn chỉ đọc đạt; không xử lý thông báo thật để kiểm thử.
