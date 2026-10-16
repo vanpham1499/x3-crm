@@ -157,6 +157,10 @@ Route::middleware(['auth:sanctum', 'active'])->group(function (): void {
 
     Route::prefix('partner-finance')->middleware('permission:cost.view,cost.view_team,cost.view_department,cost.view_all')->group(function (): void {
         Route::get('/', [PartnerFinanceController::class, 'report']);
+        Route::get('/summary', [PartnerFinanceController::class, 'summary']);
+        Route::get('/suggestions', [PartnerFinanceController::class, 'suggestions']);
+        Route::get('/suggestions/selection', [PartnerFinanceController::class, 'selection']);
+        Route::get('/projects/{id}', [PartnerFinanceController::class, 'project']);
         Route::post('/payments', [PartnerFinanceController::class, 'payBatch']);
         Route::post('/recognitions/batch', [PartnerFinanceController::class, 'confirmBatch']);
         Route::put('/periods/{period}', [PartnerFinanceController::class, 'period']);
@@ -178,6 +182,7 @@ Route::middleware(['auth:sanctum', 'active'])->group(function (): void {
     Route::delete('/project-costs/{id}', [ProjectCostsController::class, 'destroy'])->middleware('permission:cost.fund,cost.fund_team,cost.fund_department,cost.fund_all');
 
     Route::get('/quotations', [QuotationsController::class, 'index'])->middleware('permission:quotation.view');
+    Route::put('/quotations/{id}/work-completion', [QuotationsController::class, 'completion']);
     Route::post('/quotations', [QuotationsController::class, 'store'])->middleware('permission:quotation.create');
     Route::post('/quotations/{id}/void-preview', [QuotationsController::class, 'voidPreview'])->middleware('permission:quotation.void')->name('quotations.void-preview');
     Route::post('/quotations/{id}/void', [QuotationsController::class, 'voidQuotation'])->middleware('permission:quotation.void')->name('quotations.void');

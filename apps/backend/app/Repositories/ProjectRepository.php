@@ -30,7 +30,7 @@ class ProjectRepository extends BaseRepository
             ->paginate($perPage, ['*'], 'page', $page);
     }
 
-    private function filteredQuery(array $filters, ?User $user = null): Builder
+    public function filteredQuery(array $filters, ?User $user = null): Builder
     {
         $keyword = trim((string) ($filters['keyword'] ?? $filters['search'] ?? ''));
         $customerId = $filters['customer_id'] ?? null;

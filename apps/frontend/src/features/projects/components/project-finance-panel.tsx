@@ -7,6 +7,7 @@ import { TabActionButton } from '@/components/actions/tab-action-button';
 import { EntityTableButton } from '@/components/table/entity-table-link';
 import { TablePaginationBar } from '@/components/table/table-pagination-bar';
 import { QuotationPreviewDialog } from '@/features/quotations/components/quotation-preview-dialog';
+import { QuotationCompletionButton } from '@/features/quotations/components/quotation-completion-button';
 import { getPaymentDisplayStatus } from '@/lib/payment-display-status';
 import { getQuotationPaymentContent, getQuotationPaymentStatusLabel } from '@/lib/quotation-utils';
 import { formatCurrency } from '@/lib/utils';
@@ -197,6 +198,9 @@ export function ProjectFinancePanel({
                           {formatDate(quotation.createdAt)} · CK{' '}
                           {getQuotationPaymentContent(quotation) || '-'}
                         </p>
+                        <div className="mt-2">
+                          <QuotationCompletionButton quotation={quotation} />
+                        </div>
                       </td>
                       <td className="px-3 py-3 text-right font-bold tabular-nums text-slate-950">
                         <span className="whitespace-nowrap">{formatCurrency(total)}</span>

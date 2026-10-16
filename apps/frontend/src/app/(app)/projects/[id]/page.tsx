@@ -2,7 +2,7 @@
 
 import { useState } from 'react';
 import { ZaloRouteButton } from '@/features/zalo-crm/zalo-document-share';
-import { useParams } from 'next/navigation';
+import { useParams, useSearchParams } from 'next/navigation';
 import DescriptionOutlinedIcon from '@mui/icons-material/DescriptionOutlined';
 import InfoOutlinedIcon from '@mui/icons-material/InfoOutlined';
 import PaymentsOutlinedIcon from '@mui/icons-material/PaymentsOutlined';
@@ -53,11 +53,15 @@ const PROJECT_TABS: ProjectTab[] = ['info', 'contract', 'finance', 'customer'];
 
 export default function EditProjectPage() {
   const params = useParams();
+  const searchParams = useSearchParams();
   const id = params.id as string;
   const queryClient = useQueryClient();
   const notify = useAppNotification();
   const currentUser = useAuthStore((state) => state.user);
-  const [activeTab, setActiveTab] = useState<ProjectTab>('info');
+  const [activeTab, setActiveTab] = useState<ProjectTab>(() => {
+    const requested = searchParams.get('tab') as ProjectTab | null;
+    return requested && PROJECT_TABS.includes(requested) ? requested : 'info';
+  });
 
   const { data: services = [] } = useQuery<ServiceItem[]>({
     queryKey: ['services', 'project-form-options'],

@@ -17,16 +17,41 @@ class PartnerFinanceController extends Controller
 
     public function report(Request $request): JsonResponse
     {
-        $data = $request->validate(['period' => ['required', 'regex:/^20\d{2}-(0[1-9]|1[0-2])$/']]);
+        return $this->success(app(\App\Services\PartnerFinanceReadService::class)->page($this->filters($request)));
+    }
 
-        return $this->success($this->finance->report($data['period']));
+    private function filters(Request $request): array
+    {
+        return $request->validate(['period' => ['required', 'regex:/^20\d{2}-(0[1-9]|1[0-2])$/'],
+            'keyword' => ['nullable', 'string', 'max:200'], 'page' => ['sometimes', 'integer', 'min:1'],
+            'per_page' => ['sometimes', 'integer', 'in:10,20,50,100'], 'status' => ['sometimes', 'in:ready,review,waiting']]);
+    }
+
+    public function summary(Request $request): JsonResponse
+    {
+        return $this->success(app(\App\Services\PartnerFinanceReadService::class)->summary($this->filters($request)));
+    }
+
+    public function suggestions(Request $request): JsonResponse
+    {
+        return $this->success(app(\App\Services\PartnerFinanceReadService::class)->suggestions($this->filters($request)));
+    }
+
+    public function selection(Request $request): JsonResponse
+    {
+        return $this->success(app(\App\Services\PartnerFinanceReadService::class)->selection($this->filters($request)));
+    }
+
+    public function project(Request $request, int $id): JsonResponse
+    {
+        return $this->success(app(\App\Services\PartnerFinanceReadService::class)->detail($id, $this->filters($request)['period']));
     }
 
     public function confirmBatch(Request $request): JsonResponse
     {
         $data = $request->validate([
             'requestId' => ['required', 'uuid'], 'period' => ['required', 'regex:/^20\d{2}-(0[1-9]|1[0-2])$/'],
-            'reason' => ['required', 'string', 'min:3', 'max:1000'],
+            'reason' => ['nullable', 'string', 'min:3', 'max:1000'],
             'items' => ['required', 'array', 'min:1', 'max:500'],
             'items.*.type' => ['required', 'in:revenue,cost'], 'items.*.id' => ['required', 'integer', 'min:1'],
             'items.*.fingerprint' => ['required', 'string', 'size:64'],
@@ -37,7 +62,7 @@ class PartnerFinanceController extends Controller
     public function confirm(Request $request, string $type, int $id): JsonResponse
     {
         $this->entity($type);
-        $data = $request->validate(['revision' => ['required', 'integer', 'min:0'], 'reason' => ['required', 'string', 'min:3', 'max:2000'],
+        $data = $request->validate(['revision' => ['required', 'integer', 'min:0'], 'reason' => ['nullable', 'string', 'min:3', 'max:2000'],
             'allocations' => ['required', 'array', 'min:1', 'max:60'], 'allocations.*.period' => ['required', 'regex:/^20\d{2}-(0[1-9]|1[0-2])$/'],
             'allocations.*.amount' => ['required', 'numeric', 'min:0', 'decimal:0,2']]);
 

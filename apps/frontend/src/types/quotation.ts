@@ -26,6 +26,9 @@ export type QuotationItem = {
 };
 
 export type Quotation = {
+  requiresCompletion?: boolean;
+  workCompletedPeriod?: string | null;
+  canUpdateCompletion?: boolean;
   id: number;
   quotationCode?: string | null;
   paymentContent?: string | null;

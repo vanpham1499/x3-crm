@@ -49,6 +49,13 @@ class QuotationsController extends Controller
         return $this->success($data);
     }
 
+    public function completion(Request $request, int $id): JsonResponse
+    {
+        $data = $request->validate(['period' => ['present', 'nullable', 'regex:/^20\d{2}-(0[1-9]|1[0-2])$/'],
+            'expectedPeriod' => ['present', 'nullable', 'regex:/^20\d{2}-(0[1-9]|1[0-2])$/'], 'reason' => ['nullable', 'string', 'min:3', 'max:1000']]);
+        return $this->success(app(\App\Services\QuotationCompletionService::class)->update($id, $data));
+    }
+
     public function store(CreateQuotationRequest $request): JsonResponse
     {
         return $this->success($this->quotations->create($request->validatedData()), 201);

@@ -3,7 +3,7 @@
 import Link from 'next/link';
 import { useEffect, useState } from 'react';
 import { useSearchParams } from 'next/navigation';
-import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
+import { keepPreviousData, useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import {
   Alert,
   Button,
@@ -35,11 +35,8 @@ import { useAppNotification } from '@/components/feedback/notification-provider'
 import { getApiErrorMessage } from '@/lib/api-error';
 import { formatCurrency } from '@/lib/utils';
 import api from '@/services/api/client';
-import {
-  RecognitionSuggestions,
-  type RecognitionSuggestion,
-  type RecognitionCandidate,
-} from './recognition-suggestions';
+import { QuotationCompletionButton } from '@/features/quotations/components/quotation-completion-button';
+import { RecognitionSuggestions, type RecognitionSuggestion } from './recognition-suggestions';
 
 type Allocation = { period: string; amount: number };
 type Recognition = { revision: number; amount: number; allocations: Allocation[] };
@@ -70,6 +67,9 @@ type Cost = {
   payments: Payment[];
 };
 type Quote = {
+  requiresCompletion: boolean;
+  workCompletedPeriod: string | null;
+  canUpdateCompletion: boolean;
   id: number;
   code: string;
   amount: number | null;
@@ -96,7 +96,13 @@ type Project = {
   costs: Cost[];
   quotations: Quote[];
 };
-type Report = { period: string; locked: boolean; canLock: boolean; rows: Project[] };
+type Report = {
+  period: string;
+  locked: boolean;
+  canLock: boolean;
+  rows: Project[];
+  pagination: { page: number; total: number; totalPages: number };
+};
 type Target = {
   type: 'cost' | 'revenue';
   id: number;
@@ -129,6 +135,7 @@ const today = () =>
   }).format(new Date());
 const monthLabel = (period: string) => `${period.slice(5, 7)}/${period.slice(0, 4)}`;
 const historyLabels: Record<string, string> = {
+  work_completion: 'Xác nhận tháng hoàn thành',
   confirm: 'Xác nhận ghi nhận',
   adjust: 'Điều chỉnh ghi nhận',
   unconfirm: 'Gỡ ghi nhận',
@@ -161,6 +168,7 @@ function FinanceActionDialog({
   onSubmit: (path: string, method: 'post' | 'put' | 'delete', data: unknown) => Promise<void>;
 }) {
   const target = action.kind === 'recognition' ? action.target : null;
+  const reasonRequired = action.kind !== 'recognition' || !!action.remove || !!target?.recognition;
   const [rows, setRows] = useState<Allocation[]>(
     target?.recognition?.allocations ||
       (target?.suggestion?.allocations.length ? target.suggestion.allocations : null) || [
@@ -197,7 +205,7 @@ function FinanceActionDialog({
       onSubmit={async (e) => {
         e.preventDefault();
         setError('');
-        if (reason.trim().length < 3) {
+        if (reasonRequired && reason.trim().length < 3) {
           setError('Nhập nội dung xác nhận hoặc lý do điều chỉnh.');
           return;
         }
@@ -205,7 +213,7 @@ function FinanceActionDialog({
           if (action.kind === 'recognition') {
             const data = {
               revision: target?.recognition?.revision || 0,
-              reason: reason.trim(),
+              reason: reason.trim() || undefined,
               allocations: rows,
             };
             await onSubmit(
@@ -427,14 +435,16 @@ function FinanceActionDialog({
             : 'Cho phép điều chỉnh lại số liệu kỳ. Mọi thay đổi được lưu lịch sử.'}
         </Alert>
       )}
-      <FormInputField
-        label="Nội dung xác nhận / lý do"
-        multiline
-        minRows={2}
-        value={reason}
-        onChange={(e) => setReason(e.target.value)}
-        required
-      />
+      {reasonRequired && (
+        <FormInputField
+          label="Nội dung xác nhận / lý do"
+          multiline
+          minRows={2}
+          value={reason}
+          onChange={(e) => setReason(e.target.value)}
+          required
+        />
+      )}
     </AppFormDialog>
   );
 }
@@ -506,6 +516,14 @@ export function PartnerFinanceManager() {
   const params = useSearchParams();
   const [period, setPeriod] = useState(today().slice(0, 7));
   const [keyword, setKeyword] = useState('');
+  const [search, setSearch] = useState('');
+  useEffect(() => {
+    const timer = setTimeout(() => {
+      setSearch(keyword);
+      setPage(1);
+    }, 300);
+    return () => clearTimeout(timer);
+  }, [keyword]);
   const [selectedId, setSelectedId] = useState(Number(params.get('project')) || 0);
   const [action, setAction] = useState<Action | null>(null);
   const [history, setHistory] = useState<Target | null>(null);
@@ -514,10 +532,35 @@ export function PartnerFinanceManager() {
   const client = useQueryClient();
   const notify = useAppNotification();
   const query = useQuery({
-    queryKey: ['partner-finance', period],
+    queryKey: ['partner-finance', 'projects', period, search, page, pageSize],
+    placeholderData: keepPreviousData,
     enabled: /^20\d{2}-\d{2}$/.test(period),
     queryFn: ({ signal }) =>
-      api.get<Report>('/partner-finance', { params: { period }, signal }).then((r) => r.data),
+      api
+        .get<Report>('/partner-finance', {
+          params: { period, keyword: search, page, per_page: pageSize },
+          signal,
+        })
+        .then((r) => r.data),
+  });
+  const summary = useQuery({
+    queryKey: ['partner-finance', 'summary', period, search],
+    queryFn: ({ signal }) =>
+      api
+        .get<{
+          totals: Record<string, number>;
+          counts: Record<string, number>;
+          partialScope: boolean;
+        }>('/partner-finance/summary', { params: { period, keyword: search }, signal })
+        .then((r) => r.data),
+  });
+  const detail = useQuery({
+    queryKey: ['partner-finance', 'detail', selectedId, period],
+    enabled: selectedId > 0,
+    queryFn: ({ signal }) =>
+      api
+        .get<Project>(`/partner-finance/projects/${selectedId}`, { params: { period }, signal })
+        .then((r) => r.data),
   });
   const mutation = useMutation({
     mutationFn: async ({
@@ -544,50 +587,10 @@ export function PartnerFinanceManager() {
     },
   });
   const rows = query.data?.rows || [];
-  const filtered = rows.filter((r) =>
-    `${r.code} ${r.name}`.toLocaleLowerCase('vi').includes(keyword.trim().toLocaleLowerCase('vi')),
-  );
-  const totalPages = Math.max(1, Math.ceil(filtered.length / pageSize));
-  const visiblePage = Math.min(page, totalPages);
-  const candidates: RecognitionCandidate[] = filtered
-    .flatMap((project) => [
-      ...project.quotations.map((q) => ({
-        key: `revenue:${q.id}`,
-        type: 'revenue' as const,
-        id: q.id,
-        title: q.code,
-        amount: q.amount,
-        suggestion: q.suggestion!,
-        project: project.code,
-        projectId: project.id,
-        canConfirm: project.canConfirm,
-      })),
-      ...project.costs.map((c) => ({
-        key: `cost:${c.id}`,
-        type: 'cost' as const,
-        id: c.id,
-        title: c.partner,
-        amount: c.amount,
-        suggestion: c.suggestion!,
-        project: project.code,
-        projectId: project.id,
-        canConfirm: project.canConfirm,
-      })),
-    ])
-    .filter((r) => r.suggestion);
-  const selected = rows.find((r) => r.id === selectedId);
-  const totals = rows.reduce(
-    (s, r) => ({
-      revenue: s.revenue + r.revenue,
-      cost: s.cost + r.cost,
-      profit: s.profit + r.profit,
-      payable: s.payable + r.payable,
-      paid: s.paid + r.paidInPeriod,
-      received: s.received + r.receivedInPeriod,
-      review: s.review + r.reviewCount,
-    }),
-    { revenue: 0, cost: 0, profit: 0, payable: 0, paid: 0, received: 0, review: 0 },
-  );
+  const totalPages = query.data?.pagination.totalPages || 1;
+  const visiblePage = page;
+  const selected = detail.data;
+  const totals = summary.data?.totals || {};
   const costTarget = (c: Cost): Target => ({
     type: 'cost',
     id: c.id,
@@ -710,7 +713,7 @@ export function PartnerFinanceManager() {
                   <RefreshRoundedIcon fontSize="small" />
                 )
               }
-              onClick={() => void query.refetch()}
+              onClick={() => void client.invalidateQueries({ queryKey: ['partner-finance'] })}
               disabled={query.isFetching}
             >
               {query.isFetching ? 'Đang tải...' : 'Tải lại'}
@@ -729,6 +732,12 @@ export function PartnerFinanceManager() {
           <p className="mb-3 text-sm text-slate-500">
             Doanh thu dịch vụ và chi phí theo kỳ đã xác nhận · Công nợ tại hiện tại
           </p>
+          {summary.isError && (
+            <Alert severity="error">
+              Không tải được số tổng hợp.{' '}
+              <Button onClick={() => void summary.refetch()}>Thử lại</Button>
+            </Alert>
+          )}
           <div className="mb-4 grid gap-3 sm:grid-cols-2 xl:grid-cols-3">
             {[
               ['Doanh thu ghi nhận', totals.revenue],
@@ -746,14 +755,15 @@ export function PartnerFinanceManager() {
                 <p
                   className={`mt-2 text-lg font-bold tabular-nums ${Number(value) < 0 ? 'text-rose-700' : 'text-slate-900'}`}
                 >
-                  {money(Number(value))}
+                  {summary.isPending ? '…' : summary.isError ? '—' : money(Number(value))}
                 </p>
               </div>
             ))}
           </div>
           <RecognitionSuggestions
-            key={period}
-            candidates={candidates}
+            key={`${period}:${search}`}
+            keyword={search}
+            counts={summary.data?.counts || {}}
             period={period}
             busy={mutation.isPending}
             onProject={setSelectedId}
@@ -765,15 +775,16 @@ export function PartnerFinanceManager() {
               });
             }}
           />
-          {rows.some((r) => r.partialScope) && (
+          {summary.data?.partialScope && (
             <Alert severity="info" className="mb-4">
               Số liệu chỉ gồm các khoản anh/chị có quyền xem; chưa phản ánh toàn bộ lợi nhuận dự án.
             </Alert>
           )}
           <section className="overflow-hidden rounded-2xl border border-slate-200 bg-white shadow-sm">
             <AppDataTable
+              isLoading={query.isFetching}
               minWidthClassName="min-w-[950px]"
-              isEmpty={!filtered.length}
+              isEmpty={!rows.length}
               emptyText="Chưa có dự án phù hợp."
               columns={[
                 { key: 'project', label: 'Dự án', className: 'w-[30%]' },
@@ -784,12 +795,13 @@ export function PartnerFinanceManager() {
                 { key: 'review', label: 'Đối soát', className: 'w-[17%]' },
               ]}
             >
-              {filtered.slice((visiblePage - 1) * pageSize, visiblePage * pageSize).map((r) => (
+              {rows.map((r) => (
                 <tr key={r.id} className={selectedId === r.id ? 'bg-sky-50' : 'hover:bg-slate-50'}>
                   <td className="px-4 py-3">
                     <button
                       type="button"
                       onClick={() => setSelectedId(r.id)}
+                      disabled={query.isFetching}
                       className="break-words text-left font-semibold text-primary hover:underline"
                     >
                       {r.code}
@@ -805,7 +817,11 @@ export function PartnerFinanceManager() {
                     </td>
                   ))}
                   <td className="px-4 py-3">
-                    <Button size="small" onClick={() => setSelectedId(r.id)}>
+                    <Button
+                      size="small"
+                      disabled={query.isFetching}
+                      onClick={() => setSelectedId(r.id)}
+                    >
                       {r.reviewCount
                         ? `${r.reviewCount} cần kiểm tra`
                         : r.readyCount
@@ -817,9 +833,10 @@ export function PartnerFinanceManager() {
               ))}
             </AppDataTable>
             <TablePaginationBar
+              disabled={query.isFetching}
               page={visiblePage}
               totalPages={totalPages}
-              totalItems={filtered.length}
+              totalItems={query.data?.pagination.total || 0}
               pageSize={pageSize}
               onPageChange={setPage}
               onPageSizeChange={(value) => {
@@ -828,7 +845,21 @@ export function PartnerFinanceManager() {
               }}
             />
           </section>
-          {selected && (
+          {selectedId > 0 && !selected && (
+            <AppDetailDialog open title="Chi tiết dự án" onClose={() => setSelectedId(0)}>
+              <div className="p-6">
+                {detail.isError ? (
+                  <Alert severity="error">
+                    Không tải được dự án.{' '}
+                    <Button onClick={() => void detail.refetch()}>Thử lại</Button>
+                  </Alert>
+                ) : (
+                  <CircularProgress size={24} />
+                )}
+              </div>
+            </AppDetailDialog>
+          )}
+          {selectedId > 0 && selected && (
             <AppDetailDialog
               open={!action && !history}
               title={selected.code}
@@ -864,7 +895,10 @@ export function PartnerFinanceManager() {
                         <p className="text-xs text-amber-700">Nguồn cần đối soát lại.</p>
                       )}
                     </div>
-                    {buttons(quoteTarget(q), selected.canConfirm && q.amount !== null)}
+                    <div className="flex flex-wrap items-center gap-2">
+                      <QuotationCompletionButton quotation={{ ...q, quotationCode: q.code }} />
+                      {buttons(quoteTarget(q), selected.canConfirm && q.amount !== null)}
+                    </div>
                   </div>
                 ))}
                 <h3 className="border-t pt-4 text-sm font-semibold">

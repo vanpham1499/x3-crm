@@ -25,15 +25,24 @@ class ProjectCostRepository extends BaseRepository
         return $this->filteredQuery($filters, $user)->get();
     }
 
-    public function financeCosts(User $user): Collection
+    public function financeCosts(User $user, ?array $projectIds = null): Collection
     {
         $query = $this->query()->where('entry_type', ProjectCost::TYPE_PARTNER_COST)
             ->where('status', '!=', ProjectCost::STATUS_CANCELLED)->whereHas('project')
             ->with(['partnerPayments', 'partnerOption', 'project.managerUser', 'project.salesUser',
                 'project.quotations.items', 'project.quotations.paymentAllocations.payment', 'project.quotations.paymentRefunds',
-                'project.quotations.project']);
+                'project.quotations.project', 'project.quotations.service']);
         $this->applyVisibilityScope($query, $user);
+        if ($projectIds !== null) $query->whereIn('project_id', $projectIds);
         return $query->orderBy('project_id')->orderBy('id')->get();
+    }
+
+    public function financeProjectIdsQuery(User $user): Builder
+    {
+        $query = $this->query()->select('project_id')->where('entry_type', ProjectCost::TYPE_PARTNER_COST)
+            ->where('status', '!=', ProjectCost::STATUS_CANCELLED)->whereHas('project');
+        $this->applyVisibilityScope($query, $user);
+        return $query;
     }
 
     public function findPaginated(array $filters, int $perPage, int $page, User $user): LengthAwarePaginator

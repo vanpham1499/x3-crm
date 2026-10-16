@@ -63,6 +63,7 @@ class Quotation extends BaseModel
     ];
 
     protected $casts = [
+        'work_completed_period' => 'date',
         'kpi_fee_basis' => 'array',
         'voided_at' => 'datetime',
         'voided_by' => 'integer',

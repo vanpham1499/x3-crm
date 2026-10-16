@@ -1,6 +1,8 @@
 'use client';
 
-import { useState } from 'react';
+import { useEffect, useState } from 'react';
+import { useMutation, useQuery } from '@tanstack/react-query';
+import api from '@/services/api/client';
 import { Alert, Checkbox, Tab, Tabs } from '@mui/material';
 import { TablePaginationBar } from '@/components/table/table-pagination-bar';
 import { AppDataTable } from '@/components/table/app-data-table';
@@ -8,7 +10,6 @@ import { AppDetailDialog } from '@/components/dialog/app-detail-dialog';
 import { AppFormDialog } from '@/components/dialog/app-form-dialog';
 import { DialogActionButton } from '@/components/actions/dialog-action-button';
 import { PrimaryActionButton } from '@/components/actions/primary-action-button';
-import { FormInputField } from '@/components/form/form-input-field';
 import { formatCurrency } from '@/lib/utils';
 import { getApiErrorMessage } from '@/lib/api-error';
 
@@ -33,13 +34,15 @@ const month = (value: string) => `${value.slice(5)}/${value.slice(0, 4)}`;
 const labels = { ready: 'Chờ xác nhận', review: 'Cần kiểm tra', waiting: 'Chờ đủ điều kiện' };
 
 export function RecognitionSuggestions({
-  candidates,
+  keyword,
+  counts,
   period,
   busy,
   onProject,
   onSubmit,
 }: {
-  candidates: RecognitionCandidate[];
+  keyword: string;
+  counts: Record<string, number>;
   period: string;
   busy: boolean;
   onProject: (id: number) => void;
@@ -50,23 +53,45 @@ export function RecognitionSuggestions({
   const [page, setPage] = useState(1);
   const [pageSize, setPageSize] = useState(10);
   const [confirmPageSize, setConfirmPageSize] = useState(10);
-  const [checked, setChecked] = useState<string[]>([]);
+  const [selected, setSelected] = useState<RecognitionCandidate[]>([]);
   const [snapshot, setSnapshot] = useState<RecognitionCandidate[] | null>(null);
   const [requestId, setRequestId] = useState('');
-  const [reason, setReason] = useState('Xác nhận theo kỳ đề xuất');
   const [error, setError] = useState('');
   const [confirmPage, setConfirmPage] = useState(1);
-  const current = candidates.filter(
-    (r) =>
-      r.suggestion.status !== 'ready' || r.suggestion.allocations.some((a) => a.period === period),
-  );
-  const rows = current.filter((r) => r.suggestion.status === tab);
-  const selectable = current
-    .filter((r) => r.suggestion.status === 'ready' && r.canConfirm)
-    .slice(0, 500);
-  const selected = selectable.filter((r) => checked.includes(r.key));
-  const pages = Math.max(1, Math.ceil(rows.length / pageSize));
-  const visiblePage = Math.min(page, pages);
+  const selectAll = useMutation({
+    mutationFn: () =>
+      api
+        .get<{ rows: RecognitionCandidate[]; total: number; limit: number }>(
+          '/partner-finance/suggestions/selection',
+          { params: { period, keyword } },
+        )
+        .then((r) => r.data),
+    onSuccess: (data) => setSelected(data.rows),
+  });
+  const query = useQuery({
+    queryKey: ['partner-finance', 'suggestions', period, keyword, tab, page, pageSize],
+    enabled: open,
+    queryFn: ({ signal }) =>
+      api
+        .get<{ rows: RecognitionCandidate[]; pagination: { total: number; totalPages: number } }>(
+          '/partner-finance/suggestions',
+          {
+            params: { period, keyword, status: tab, page, per_page: pageSize },
+            signal,
+          },
+        )
+        .then((r) => r.data),
+  });
+  const rows = query.data?.rows || [];
+  const selectable = rows.filter((r) => r.suggestion.status === 'ready' && r.canConfirm);
+  const checked = selected.map((r) => r.key);
+  const pages = query.data?.pagination.totalPages || 1;
+  const visiblePage = page;
+  useEffect(() => {
+    if (query.data && !query.isFetching && page > query.data.pagination.totalPages) {
+      setPage(query.data.pagination.totalPages);
+    }
+  }, [query.data, query.isFetching, page]);
   return (
     <>
       <section
@@ -74,18 +99,29 @@ export function RecognitionSuggestions({
         aria-label="Kỳ ghi nhận"
       >
         <h2 className="mr-auto text-sm font-semibold">Kỳ ghi nhận</h2>
-        {Object.entries(labels).map(([key, label]) => (
-          <DialogActionButton
-            key={key}
-            onClick={() => {
-              setTab(key as keyof typeof labels);
-              setPage(1);
-              setOpen(true);
-            }}
-          >
-            {label} ({current.filter((r) => r.suggestion.status === key).length})
-          </DialogActionButton>
-        ))}
+        <PrimaryActionButton
+          onClick={() => {
+            setTab('ready');
+            setPage(1);
+            setOpen(true);
+          }}
+        >
+          Xác nhận hàng loạt ({counts.ready ?? '…'})
+        </PrimaryActionButton>
+        {Object.entries(labels)
+          .filter(([key]) => key !== 'ready')
+          .map(([key, label]) => (
+            <DialogActionButton
+              key={key}
+              onClick={() => {
+                setTab(key as keyof typeof labels);
+                setPage(1);
+                setOpen(true);
+              }}
+            >
+              {label} ({counts[key] ?? '…'})
+            </DialogActionButton>
+          ))}
       </section>
       <AppDetailDialog
         open={open && !snapshot}
@@ -95,7 +131,7 @@ export function RecognitionSuggestions({
         onClose={() => setOpen(false)}
         actions={
           <PrimaryActionButton
-            disabled={!selected.length || busy}
+            disabled={!selected.length || busy || selectAll.isPending}
             onClick={() => {
               setSnapshot(selected);
               setRequestId(crypto.randomUUID());
@@ -117,32 +153,81 @@ export function RecognitionSuggestions({
           scrollButtons="auto"
         >
           {Object.entries(labels).map(([key, label]) => (
-            <Tab
-              key={key}
-              value={key}
-              label={`${label} (${current.filter((r) => r.suggestion.status === key).length})`}
-            />
+            <Tab key={key} value={key} label={`${label} (${counts[key] ?? '…'})`} />
           ))}
         </Tabs>
         {tab === 'ready' && (
-          <div className="flex items-center gap-1 border-t px-3 py-1 text-sm">
+          <div className="flex flex-wrap items-center gap-2 border-t px-3 py-2 text-sm">
             <Checkbox
               size="small"
-              disabled={!selectable.length || busy}
-              checked={selectable.length > 0 && selected.length === selectable.length}
-              indeterminate={selected.length > 0 && selected.length < selectable.length}
+              disabled={!selectable.length || busy || selectAll.isPending}
+              checked={selectable.length > 0 && selectable.every((r) => checked.includes(r.key))}
+              indeterminate={
+                selectable.some((r) => checked.includes(r.key)) &&
+                !selectable.every((r) => checked.includes(r.key))
+              }
               slotProps={{
-                input: { 'aria-label': 'Chọn các khoản đủ điều kiện theo bộ lọc, gồm các trang' },
+                input: { 'aria-label': 'Chọn các khoản đủ điều kiện trên trang này' },
               }}
-              onChange={(_, value) => setChecked(value ? selectable.map((r) => r.key) : [])}
+              onChange={(_, value) =>
+                setSelected((prev) =>
+                  value
+                    ? [
+                        ...prev.filter((r) => !selectable.some((s) => s.key === r.key)),
+                        ...selectable,
+                      ].slice(0, 500)
+                    : prev.filter((r) => !selectable.some((s) => s.key === r.key)),
+                )
+              }
             />
-            <span>Chọn các khoản đủ điều kiện theo bộ lọc (tối đa 500)</span>
+            <span>Chọn trang này · Đã chọn {selected.length}/500 khoản</span>
+            <div className="ml-auto flex flex-wrap gap-2">
+              <DialogActionButton
+                disabled={busy || selectAll.isPending}
+                onClick={() => selectAll.mutate()}
+              >
+                {selectAll.isPending ? 'Đang chọn…' : 'Chọn tất cả đủ điều kiện'}
+              </DialogActionButton>
+              {!!selected.length && (
+                <DialogActionButton
+                  disabled={busy || selectAll.isPending}
+                  onClick={() => {
+                    setSelected([]);
+                    selectAll.reset();
+                  }}
+                >
+                  Bỏ chọn
+                </DialogActionButton>
+              )}
+            </div>
           </div>
         )}
+        {selectAll.isError && (
+          <Alert severity="error">
+            {getApiErrorMessage(selectAll.error, 'Không thể chọn các khoản. Vui lòng thử lại.')}
+          </Alert>
+        )}
+        {tab === 'ready' && selectAll.data && selectAll.data.total > selectAll.data.limit && (
+          <Alert severity="info">
+            Có {selectAll.data.total} khoản đủ điều kiện. Mỗi lượt chọn tối đa{' '}
+            {selectAll.data.limit} khoản; xác nhận xong có thể chọn lượt tiếp theo.
+          </Alert>
+        )}
+        {query.isError && (
+          <Alert severity="error">
+            Không tải được danh sách.{' '}
+            <DialogActionButton onClick={() => void query.refetch()}>Thử lại</DialogActionButton>
+          </Alert>
+        )}
         <AppDataTable
+          isLoading={query.isFetching}
           minWidthClassName="min-w-[900px]"
           isEmpty={!rows.length}
-          emptyText={`Không có khoản ${labels[tab].toLocaleLowerCase('vi')} phù hợp.`}
+          emptyText={
+            query.isFetching
+              ? 'Đang tải danh sách…'
+              : `Không có khoản ${labels[tab].toLocaleLowerCase('vi')} phù hợp.`
+          }
           columns={[
             { key: 'select', label: '', className: 'w-12' },
             { key: 'source', label: 'Dự án / nguồn', className: 'w-[32%]' },
@@ -151,7 +236,7 @@ export function RecognitionSuggestions({
             { key: 'reason', label: 'Căn cứ' },
           ]}
         >
-          {rows.slice((visiblePage - 1) * pageSize, visiblePage * pageSize).map((row) => (
+          {rows.map((row) => (
             <tr key={row.key} className="hover:bg-slate-50">
               <td className="w-10 px-2">
                 {tab === 'ready' && (
@@ -162,12 +247,15 @@ export function RecognitionSuggestions({
                       !row.canConfirm ||
                       !selectable.some((r) => r.key === row.key) ||
                       busy ||
+                      selectAll.isPending ||
                       (!checked.includes(row.key) && selected.length >= 500)
                     }
                     slotProps={{ input: { 'aria-label': `Chọn ${row.title}` } }}
                     onChange={(_, value) =>
-                      setChecked((prev) =>
-                        value ? [...prev, row.key] : prev.filter((key) => key !== row.key),
+                      setSelected((prev) =>
+                        value
+                          ? [...prev.filter((r) => r.key !== row.key), row]
+                          : prev.filter((r) => r.key !== row.key),
                       )
                     }
                   />
@@ -200,9 +288,10 @@ export function RecognitionSuggestions({
           ))}
         </AppDataTable>
         <TablePaginationBar
+          disabled={query.isFetching}
           page={visiblePage}
           totalPages={pages}
-          totalItems={rows.length}
+          totalItems={query.data?.pagination.total || 0}
           pageSize={pageSize}
           onPageChange={setPage}
           onPageSizeChange={(value) => {
@@ -223,15 +312,10 @@ export function RecognitionSuggestions({
           onSubmit={async (event) => {
             event.preventDefault();
             setError('');
-            if (reason.trim().length < 3) {
-              setError('Nhập nội dung xác nhận.');
-              return;
-            }
             try {
               await onSubmit({
                 requestId,
                 period,
-                reason: reason.trim(),
                 items: snapshot.map((r) => ({
                   type: r.type,
                   id: r.id,
@@ -239,7 +323,8 @@ export function RecognitionSuggestions({
                 })),
               });
               setSnapshot(null);
-              setChecked([]);
+              setSelected([]);
+              selectAll.reset();
             } catch (e) {
               setError(getApiErrorMessage(e, 'Không thể xác nhận. Vui lòng tải lại danh sách.'));
             }
@@ -304,12 +389,6 @@ export function RecognitionSuggestions({
               setConfirmPageSize(value);
               setConfirmPage(1);
             }}
-          />
-          <FormInputField
-            label="Nội dung xác nhận"
-            value={reason}
-            onChange={(e) => setReason(e.target.value)}
-            required
           />
         </AppFormDialog>
       )}

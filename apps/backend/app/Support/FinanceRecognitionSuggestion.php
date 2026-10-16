@@ -8,6 +8,12 @@ use Illuminate\Support\Collection;
 /** Proposals only: never posts recognition or changes the cash/KPI ledgers. */
 final class FinanceRecognitionSuggestion
 {
+    public static function requiresCompletion(Quotation $quote): bool
+    {
+        $code = strtoupper((string) ($quote->service_code ?: $quote->service?->code));
+        return preg_match('/^DV3(?:[.\-]|$)/', $code) === 1;
+    }
+
     public static function result(string $status, string $reason, array $allocations = []): array
     {
         return compact('status', 'reason', 'allocations');
@@ -30,6 +36,13 @@ final class FinanceRecognitionSuggestion
         if ($quote->paymentRefunds->contains(fn ($r) => $r->status === 'completed')) {
             return self::result('review', 'Có hoàn tiền; kiểm tra giá trị và kỳ ghi nhận.');
         }
+        if (self::requiresCompletion($quote)) {
+            return $quote->work_completed_period
+                ? self::result('ready', 'Theo tháng hoàn thành công việc', [
+                    ['period' => $quote->work_completed_period->format('Y-m'), 'amount' => $amount],
+                ])
+                : self::result('review', 'Nhân sự phụ trách cần xác nhận tháng hoàn thành báo phí.');
+        }
         $budget = ProjectTopupBudgetCalculator::calculateQuotation($quote)['eligibleBudget'];
         if ($budget > 0) {
             $linked = $topups->filter(fn ($c) => (int) $c->quotation_id === (int) $quote->id);
@@ -47,8 +60,13 @@ final class FinanceRecognitionSuggestion
                 return self::result('waiting', 'Chờ nạp đủ ngân sách của báo phí.');
             }
             if ($sum > $budget + 1) return self::result('review', 'Tổng lần nạp vượt ngân sách báo phí; kiểm tra liên kết.');
-            $weights = $cash->groupBy(fn ($c) => $c->transaction_date->format('Y-m'))->map(fn ($rows) => (float) $rows->sum('total_amount'))->sortKeys();
-            return self::result('ready', 'Theo tháng nạp đủ ngân sách; chia phí theo giá trị nạp', self::split($amount, $weights));
+            $running = 0;
+            foreach ($cash->sortBy(fn ($c) => $c->transaction_date->format('Y-m-d').'-'.str_pad((string) $c->id, 20, '0', STR_PAD_LEFT)) as $topup) {
+                $running += (float) $topup->total_amount;
+                if ($running >= $budget - 1) return self::result('ready', 'Theo tháng nạp đủ ngân sách', [
+                    ['period' => $topup->transaction_date->format('Y-m'), 'amount' => $amount],
+                ]);
+            }
         }
         // Fee-only services have no top-up milestone. Propose the date of full receipt,
         // using actual bank dates, never the date someone imported/allocated the record.
@@ -71,16 +89,4 @@ final class FinanceRecognitionSuggestion
         return self::result('waiting', 'Chờ thu đủ tiền dịch vụ.');
     }
 
-    private static function split(float $amount, Collection $weights): array
-    {
-        $remaining = PartnerFinance::cents($amount);
-        $total = $weights->sum();
-        $rows = [];
-        foreach ($weights as $period => $weight) {
-            $cents = $period === $weights->keys()->last() ? $remaining : min($remaining, (int) round(PartnerFinance::cents($amount) * $weight / $total));
-            $remaining -= $cents;
-            if ($cents > 0) $rows[] = ['period' => $period, 'amount' => $cents / 100];
-        }
-        return $rows;
-    }
 }

@@ -105,6 +105,9 @@ class PartnerFinanceService extends BaseService
         return FinancialMutation::run(function () use ($type, $id, $data): array {
             $source = $this->source($type, $id);
             $old = $this->recognition($type, $id);
+            $reason = trim($data['reason'] ?? '');
+            if ($old && mb_strlen($reason) < 3) $this->fail('Nhập lý do điều chỉnh kỳ đã xác nhận.');
+            $data['reason'] = $reason ?: 'Xác nhận kỳ ghi nhận lần đầu';
             if ((int) ($data['revision'] ?? 0) !== (int) ($old['revision'] ?? 0)) {
                 $this->fail('Dữ liệu đã thay đổi. Tải lại trước khi xác nhận.');
             }
@@ -310,6 +313,7 @@ class PartnerFinanceService extends BaseService
 
     public function confirmBatch(array $data): array
     {
+        $data['reason'] = trim($data['reason'] ?? '') ?: 'Xác nhận hàng loạt theo kỳ đề xuất';
         return FinancialMutation::run(function () use ($data): array {
             $items = collect($data['items'])->sortBy(fn ($r) => $r['type'].':'.$r['id'])->values();
             if ($items->unique(fn ($r) => $r['type'].':'.$r['id'])->count() !== $items->count()) $this->fail('Danh sách có khoản bị trùng.');
@@ -324,7 +328,8 @@ class PartnerFinanceService extends BaseService
                 return $result;
             }
             $available = [];
-            foreach ($this->report($data['period'])['rows'] as $project) {
+            $projectIds = $items->map(fn ($item) => $this->source($item['type'], (int) $item['id'])->project_id)->unique()->all();
+            foreach ($this->report($data['period'], $projectIds)['rows'] as $project) {
                 foreach (['costs' => 'cost', 'quotations' => 'revenue'] as $group => $type) {
                     foreach ($project[$group] as $row) $available[$type.':'.$row['id']] = $row['suggestion'];
                 }
@@ -347,16 +352,17 @@ class PartnerFinanceService extends BaseService
         });
     }
 
-    public function report(string $period): array
+    public function report(string $period, ?array $projectIds = null): array
     {
         $user = auth()->user();
         // Reuse the centralized cost visibility rules; never infer scope from a posted project ID.
-        $costs = $this->costs->financeCosts($user);
+        $costs = $this->costs->financeCosts($user, $projectIds);
         $projects = $costs->pluck('project')->filter()->unique('id')->keyBy('id');
         // Revenue can be recognized even when a project has no partner cost yet.
-        $revenueProjects = app(\App\Repositories\ProjectRepository::class)->findAll([], $user)
+        $revenueProjects = app(\App\Repositories\ProjectRepository::class)->filteredQuery([], $user)
+            ->when($projectIds !== null, fn ($q) => $q->whereIn('projects.id', $projectIds))->get()
             ->filter(fn ($project) => $this->canConfirm($project));
-        $revenueProjects->load(['quotations.items', 'quotations.paymentAllocations.payment', 'quotations.paymentRefunds', 'quotations.project']);
+        $revenueProjects->load(['quotations.items', 'quotations.service', 'quotations.paymentAllocations.payment', 'quotations.paymentRefunds', 'quotations.project']);
         $projects = $projects->union($revenueProjects->keyBy('id'));
         $topups = ProjectCost::whereIn('project_id', $projects->keys())->where('entry_type', ProjectCost::TYPE_AD_SPEND)
             ->where('status', '!=', ProjectCost::STATUS_CANCELLED)->with(['project', 'cidIncident'])->get();
@@ -399,6 +405,9 @@ class PartnerFinanceService extends BaseService
                 $recognition = $projectRecords->first(fn ($r) => $r['entity_type'] === 'revenue' && $r['entity_id'] === $q->id);
 
                 return ['id' => $q->id, 'code' => $q->quotation_code, 'amount' => $amount, 'recognition' => $recognition,
+                    'requiresCompletion' => FinanceRecognitionSuggestion::requiresCompletion($q),
+                    'workCompletedPeriod' => $q->work_completed_period?->format('Y-m'),
+                    'canUpdateCompletion' => QuotationCompletionService::canEdit($q),
                     'suggestion' => $canSeeTopups ? $this->suggestion($q, $amount, $recognition, $projectTopups, $project->quotations, $lockedPeriods)
                         : FinanceRecognitionSuggestion::result('review', 'Cần người có quyền xem đầy đủ lần nạp kiểm tra.'),
                     'needsReview' => $amount === null || ($recognition && PartnerFinance::cents($amount) !== PartnerFinance::cents($recognition['amount']))];
@@ -439,7 +448,8 @@ class PartnerFinanceService extends BaseService
                 'paidInPeriod' => round($paidInPeriod, 2), 'receivedInPeriod' => round($receivedInPeriod, 2),
                 'payable' => round($costRows->filter(fn ($r) => $r['recognition'])->sum('remaining'), 2),
                 'unconfirmedPayable' => round($costRows->filter(fn ($r) => ! $r['recognition'])->sum('remaining'), 2),
-                'readyCount' => $suggestions->where('status', 'ready')->count(), 'waitingCount' => $suggestions->where('status', 'waiting')->count(),
+                'readyCount' => $suggestions->filter(fn ($s) => $s['status'] === 'ready' && in_array($period, array_column($s['allocations'], 'period'), true))->count(),
+                'waitingCount' => $suggestions->where('status', 'waiting')->count(),
                 'reviewCount' => $reviewCount, 'canConfirm' => $this->canConfirm($project), 'costs' => $costRows, 'quotations' => $quoteRows];
         }
 
