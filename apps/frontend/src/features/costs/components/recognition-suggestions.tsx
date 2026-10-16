@@ -2,6 +2,7 @@
 
 import { useState } from 'react';
 import { Alert, Button, Checkbox, Tab, Tabs } from '@mui/material';
+import { AppDetailDialog } from '@/components/dialog/app-detail-dialog';
 import { AppFormDialog } from '@/components/dialog/app-form-dialog';
 import { DialogActionButton } from '@/components/actions/dialog-action-button';
 import { PrimaryActionButton } from '@/components/actions/primary-action-button';
@@ -28,6 +29,7 @@ export function RecognitionSuggestions({ candidates, period, busy, onProject, on
   onProject: (id: number) => void;
   onSubmit: (data: unknown) => Promise<void>;
 }) {
+  const [open, setOpen] = useState(false);
   const [tab, setTab] = useState<keyof typeof labels>('ready');
   const [page, setPage] = useState(1);
   const [checked, setChecked] = useState<string[]>([]);
@@ -51,16 +53,21 @@ export function RecognitionSuggestions({ candidates, period, busy, onProject, on
     </div>
   );
   return (
-    <section className="mb-4 overflow-hidden rounded-2xl border border-slate-200 bg-white shadow-sm" aria-label="Xác nhận kỳ ghi nhận">
-      <div className="flex flex-wrap items-center justify-between gap-3 border-b border-slate-200 px-4 py-3">
-        <div>
-          <h2 className="font-semibold">Xác nhận kỳ ghi nhận</h2>
-          <p className="mt-1 text-xs text-slate-500">Đề xuất tháng {month(period)} · Các khoản thiếu kỳ được giữ ở Cần kiểm tra.</p>
-        </div>
-        <PrimaryActionButton disabled={!selected.length || busy} onClick={() => {
+    <>
+      <section className="mb-4 flex flex-wrap items-center gap-2 rounded-xl border border-slate-200 bg-white px-4 py-3" aria-label="Kỳ ghi nhận">
+        <h2 className="mr-auto text-sm font-semibold">Kỳ ghi nhận</h2>
+        {Object.entries(labels).map(([key, label]) => (
+          <Button key={key} size="small" variant="outlined" color="inherit" onClick={() => {
+            setTab(key as keyof typeof labels); setPage(1); setOpen(true);
+          }}>
+            {label} ({current.filter((r) => r.suggestion.status === key).length})
+          </Button>
+        ))}
+      </section>
+      <AppDetailDialog open={open && !snapshot} title="Xác nhận kỳ ghi nhận" subtitle={`Tháng ${month(period)}`} maxWidth="lg" onClose={() => setOpen(false)}
+        actions={<PrimaryActionButton disabled={!selected.length || busy} onClick={() => {
           setSnapshot(selected); setRequestId(crypto.randomUUID()); setError(''); setConfirmPage(1);
-        }}>Xác nhận đã chọn ({selected.length})</PrimaryActionButton>
-      </div>
+        }}>Xác nhận đã chọn ({selected.length})</PrimaryActionButton>}>
       <Tabs value={tab} onChange={(_, value) => { setTab(value); setPage(1); }} variant="scrollable" scrollButtons="auto">
         {Object.entries(labels).map(([key, label]) => <Tab key={key} value={key} label={`${label} (${current.filter((r) => r.suggestion.status === key).length})`} />)}
       </Tabs>
@@ -81,7 +88,7 @@ export function RecognitionSuggestions({ candidates, period, busy, onProject, on
               <td className="w-10 px-2">{tab === 'ready' && <Checkbox size="small" checked={selected.some((r) => r.key === row.key)}
                 disabled={!row.canConfirm || !selectable.some((r) => r.key === row.key) || busy || (!checked.includes(row.key) && selected.length >= 500)}
                 slotProps={{ input: { 'aria-label': `Chọn ${row.title}` } }} onChange={(_, value) => setChecked((prev) => value ? [...prev, row.key] : prev.filter((key) => key !== row.key))} />}</td>
-              <td className="px-3 py-3"><button type="button" onClick={() => onProject(row.projectId)} className="font-semibold text-primary hover:underline">{row.project}</button>
+              <td className="px-3 py-3"><button type="button" onClick={() => { setOpen(false); onProject(row.projectId); }} className="font-semibold text-primary hover:underline">{row.project}</button>
                 <p className="mt-1 text-xs text-slate-500">{row.type === 'cost' ? 'Chi phí' : 'Doanh thu'} · {row.title}</p></td>
               <td className="px-3 py-3 whitespace-nowrap tabular-nums">{row.amount === null ? 'Cần kiểm tra' : formatCurrency(row.amount)}</td>
               <td className="px-3 py-3 whitespace-nowrap">{row.suggestion.allocations.map((a) => month(a.period)).join(', ') || 'Chưa xác định'}</td>
@@ -92,6 +99,7 @@ export function RecognitionSuggestions({ candidates, period, busy, onProject, on
         </table>
       </div>
       {pagination(visiblePage, rows.length, setPage)}
+      </AppDetailDialog>
       {snapshot && <AppFormDialog open title={`Xác nhận kỳ cho ${snapshot.length} khoản`} maxWidth="md" submitting={busy}
         onClose={() => { if (!busy) setSnapshot(null); }} onSubmit={async (event) => {
           event.preventDefault(); setError('');
@@ -121,6 +129,6 @@ export function RecognitionSuggestions({ candidates, period, busy, onProject, on
         {pagination(confirmPage, snapshot.length, setConfirmPage)}
         <FormInputField label="Nội dung xác nhận" value={reason} onChange={(e) => setReason(e.target.value)} required />
       </AppFormDialog>}
-    </section>
+    </>
   );
 }

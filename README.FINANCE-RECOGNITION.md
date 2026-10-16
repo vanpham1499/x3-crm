@@ -4,9 +4,11 @@
 
 1. Nhân sự tạo **Chi phí đối tác** tại tài chính dự án và chọn **Kỳ công việc**. Trường này bắt buộc cho khoản mới; không lấy ngày trả tiền làm kỳ công việc.
 2. Kế toán vào **Chi phí → Công nợ & lợi nhuận**, chọn tháng và tìm dự án nếu cần.
-3. Tab **Chờ xác nhận** hiển thị đề xuất đủ dữ liệu của tháng đang chọn. Tích từng khoản hoặc chọn tất cả theo bộ lọc, kể cả các trang chưa mở (tối đa 500 khoản mỗi lần).
+3. Bấm **Chờ xác nhận** trên thanh **Kỳ ghi nhận** để mở popup. Tab này hiển thị đề xuất đủ dữ liệu của tháng đang chọn. Tích từng khoản hoặc chọn tất cả theo bộ lọc, kể cả các trang chưa mở (tối đa 500 khoản mỗi lần).
 4. Bấm **Xác nhận đã chọn**, xem tháng và số tiền trong popup rồi xác nhận. Khoản có nhiều tháng sẽ ghi nhận toàn bộ các phần đang hiển thị, không chỉ tháng lọc.
-5. **Cần kiểm tra** dành cho khoản thiếu thông tin, nguồn thay đổi, cơ cấu chưa rõ hoặc kỳ đã chốt. Bấm mã dự án để mở chi tiết và xác nhận/điều chỉnh riêng. **Chờ đủ điều kiện** dành cho khoản chưa nạp/thu đủ hoặc chưa đến kỳ.
+5. **Cần kiểm tra** dành cho khoản thiếu thông tin, nguồn thay đổi, cơ cấu chưa rõ hoặc kỳ đã chốt. Bấm mã dự án để mở popup chi tiết và xác nhận/điều chỉnh riêng. **Chờ đủ điều kiện** dành cho khoản chưa nạp/thu đủ hoặc chưa đến kỳ.
+
+Trang chính chỉ giữ bộ lọc, số tổng hợp và bảng dự án. Các danh sách chờ xác nhận/kiểm tra và chi tiết dự án mở trong popup; đóng popup giữ bộ lọc và vị trí danh sách.
 
 ## Quy tắc đề xuất
 

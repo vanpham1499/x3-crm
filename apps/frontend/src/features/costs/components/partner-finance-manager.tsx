@@ -1,7 +1,7 @@
 'use client';
 
 import Link from 'next/link';
-import { useEffect, useRef, useState } from 'react';
+import { useEffect, useState } from 'react';
 import { useSearchParams } from 'next/navigation';
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import {
@@ -22,6 +22,7 @@ import LockOpenRoundedIcon from '@mui/icons-material/LockOpenRounded';
 import { PageHeader } from '@/components/shell/page-header';
 import { PrimaryActionButton } from '@/components/actions/primary-action-button';
 import { ListFilterBar } from '@/components/form/list-filter-bar';
+import { AppDetailDialog } from '@/components/dialog/app-detail-dialog';
 import { AppFormDialog } from '@/components/dialog/app-form-dialog';
 import { DialogActionButton } from '@/components/actions/dialog-action-button';
 import { CompactMonthPicker } from '@/components/form/compact-month-picker';
@@ -543,10 +544,6 @@ export function PartnerFinanceManager() {
     ...project.costs.map((c) => ({ key: `cost:${c.id}`, type: 'cost' as const, id: c.id, title: c.partner, amount: c.amount, suggestion: c.suggestion!, project: project.code, projectId: project.id, canConfirm: project.canConfirm })),
   ]).filter((r) => r.suggestion);
   const selected = rows.find((r) => r.id === selectedId);
-  const detailsRef = useRef<HTMLElement | null>(null);
-  useEffect(() => {
-    if (selected?.id) detailsRef.current?.scrollIntoView({ behavior: 'smooth', block: 'start' });
-  }, [selected?.id]);
   const totals = rows.reduce(
     (s, r) => ({
       revenue: s.revenue + r.revenue,
@@ -727,12 +724,6 @@ export function PartnerFinanceManager() {
             onProject={setSelectedId} onSubmit={async (data) => {
               await mutation.mutateAsync({ path: '/partner-finance/recognitions/batch', method: 'post', data });
             }} />
-          {totals.review > 0 && (
-            <Alert severity="warning" className="mb-4">
-              {totals.review} khoản cần kiểm tra riêng. Lợi nhuận hiển thị chỉ gồm
-              phần đã ghi nhận.
-            </Alert>
-          )}
           {rows.some((r) => r.partialScope) && (
             <Alert severity="info" className="mb-4">
               Số liệu chỉ gồm các khoản anh/chị có quyền xem; chưa phản ánh toàn bộ lợi nhuận dự án.
@@ -809,23 +800,12 @@ export function PartnerFinanceManager() {
             </div>
           </section>
           {selected && (
-            <section
-              ref={detailsRef}
-              className="mt-5 scroll-mt-20 space-y-4 rounded-xl border border-slate-200 bg-white p-4 md:p-5"
-            >
-              <div className="flex items-start justify-between gap-3">
-                <div>
-                  <h2 className="font-semibold">{selected.code}</h2>
-                  <p className="mt-1 text-sm text-slate-500">{selected.name}</p>
-                </div>
-                <Link
-                  href={`/projects/${selected.id}?tab=finance`}
-                  className="text-sm text-primary"
-                >
-                  Mở dự án
-                </Link>
-              </div>
-              <h3 className="border-t pt-4 text-sm font-semibold">Doanh thu dịch vụ trước VAT</h3>
+            <AppDetailDialog open={!action && !history} title={selected.code} subtitle={selected.name} maxWidth="lg"
+              onClose={() => setSelectedId(0)} actions={
+                <Button component={Link} href={`/projects/${selected.id}?tab=finance`} size="small" variant="outlined" color="inherit">Mở dự án</Button>
+              }>
+              <div className="space-y-4 p-4 md:p-5">
+              <h3 className="text-sm font-semibold">Doanh thu dịch vụ trước VAT</h3>
               {!selected.quotations.length && (
                 <p className="text-sm text-slate-500">Chưa có báo phí được phép xem.</p>
               )}
@@ -849,6 +829,7 @@ export function PartnerFinanceManager() {
                 </div>
               ))}
               <h3 className="border-t pt-4 text-sm font-semibold">Chi phí & thanh toán đối tác</h3>
+              {!selected.costs.length && <p className="text-sm text-slate-500">Chưa có chi phí đối tác.</p>}
               {selected.costs.map((c) => (
                 <div key={c.id} className="rounded-lg border border-slate-200 p-3">
                   <div className="flex flex-wrap justify-between gap-3">
@@ -939,7 +920,8 @@ export function PartnerFinanceManager() {
                   )}
                 </div>
               ))}
-            </section>
+              </div>
+            </AppDetailDialog>
           )}
         </>
       )}
