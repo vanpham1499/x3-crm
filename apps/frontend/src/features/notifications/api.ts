@@ -36,6 +36,24 @@ export async function handleNotification(id: number) {
   await api.post(`/notifications/${id}/handle`);
 }
 
+export type NotificationHandlingPreview = { count: number; token: string };
+
+export async function previewHandleAllNotifications(module: string, unread: boolean) {
+  const response = await api.post<NotificationHandlingPreview>(
+    '/notifications/handle-all/preview',
+    {
+      module: module || undefined,
+      unread,
+    },
+  );
+  return response.data;
+}
+
+export async function handleAllNotifications(token: string) {
+  const response = await api.post<{ updatedCount: number }>('/notifications/handle-all', { token });
+  return response.data;
+}
+
 export async function restoreNotification(id: number) {
   await api.post(`/notifications/${id}/restore`);
 }

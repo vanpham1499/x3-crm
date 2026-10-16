@@ -63,6 +63,12 @@ try {
     eq($oldImage->getRelation('mediaUsages')->contains('type','ad_promotion'), true, 'Historic evidence remains protected after replacement');
     $legacy=ProjectCost::create(['project_id'=>$project->id,'entry_type'=>'ad_spend','status'=>'completed','total_amount'=>3000000]);
     eq($legacy->actualCostAmount(),3000000,'Legacy cash unaffected');
+    $repository = app(App\Repositories\ProjectCostRepository::class);
+    $promotionFilters = ['project_id'=>$project->id, 'entry_type'=>'ad_spend', 'funding_source'=>'promotion'];
+    $filtered = $repository->findAll($promotionFilters, $admin);
+    eq($filtered->modelKeys(), [$cost->id], 'MKM filter/export excludes cash topups');
+    $grouped = $repository->findPaginated($promotionFilters + ['group_by_project'=>true], 10, 1, $admin);
+    eq($grouped->getCollection()->modelKeys(), [$cost->id], 'Grouped pagination retains MKM source filter');
     $cost->refresh();
     $budget=ProjectTopupBudgetCalculator::calculate($project->fresh());
     eq($budget['usedBudget'],3000000,'3m cash plus 3m promo counts only 3m cash');

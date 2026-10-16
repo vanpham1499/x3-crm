@@ -3,6 +3,7 @@
 import { useEffect, useMemo, useState } from 'react';
 import { useRouter } from 'next/navigation';
 import CalendarMonthRoundedIcon from '@mui/icons-material/CalendarMonthRounded';
+import ChatBubbleOutlineRoundedIcon from '@mui/icons-material/ChatBubbleOutlineRounded';
 import CheckCircleOutlineRoundedIcon from '@mui/icons-material/CheckCircleOutlineRounded';
 import DescriptionRoundedIcon from '@mui/icons-material/DescriptionRounded';
 import EmojiEventsRoundedIcon from '@mui/icons-material/EmojiEventsRounded';
@@ -36,9 +37,13 @@ import relativeTime from 'dayjs/plugin/relativeTime';
 import 'dayjs/locale/vi';
 import { UtilityDrawer } from '@/components/shell/utility-drawer';
 import { CompactSelectField } from '@/components/form/compact-select-field';
+import { AppFormDialog } from '@/components/dialog/app-form-dialog';
+import { DialogActionButton } from '@/components/actions/dialog-action-button';
 import { getApiErrorMessage } from '@/lib/api-error';
 import {
   handleNotification,
+  handleAllNotifications,
+  previewHandleAllNotifications,
   getNotifications,
   getNotificationSummary,
   markNotificationRead,
@@ -52,6 +57,7 @@ import type { NotificationPage, NotificationSummary, UserNotification } from '@/
 dayjs.extend(relativeTime);
 dayjs.locale('vi');
 const moduleLabels: Record<string, string> = {
+  internal_discussion: 'Trao đổi nội bộ',
   weekly_report: 'Báo cáo tuần',
   payment: 'Thanh toán',
   cost: 'Chi phí',
@@ -65,6 +71,7 @@ function moduleLabel(module: string) {
   return moduleLabels[module] || 'Thông báo khác';
 }
 function notificationIcon(module: string) {
+  if (module === 'internal_discussion') return <ChatBubbleOutlineRoundedIcon fontSize="small" />;
   if (module === 'meeting') return <CalendarMonthRoundedIcon fontSize="small" />;
   if (module === 'weekly_report') return <DescriptionRoundedIcon fontSize="small" />;
   if (module === 'cost' || module === 'payment') return <PaymentsRoundedIcon fontSize="small" />;
@@ -165,6 +172,10 @@ export function NotificationCenter({ open, onToggle, onClose }: NotificationCent
   const [unread, setUnread] = useState(false);
   const [error, setError] = useState('');
   const [undo, setUndo] = useState<UserNotification | null>(null);
+  const [bulkOpen, setBulkOpen] = useState(false);
+  const [bulkScope, setBulkScope] = useState({ module: '', unread: false });
+  const [bulkError, setBulkError] = useState('');
+  const [bulkResult, setBulkResult] = useState<string | null>(null);
   const enabled = status === 'authenticated' && Boolean(user?.id);
   const connected = useNotificationRealtime(user?.id, enabled);
   const prefix = ['notifications', user?.id] as const;
@@ -175,6 +186,8 @@ export function NotificationCenter({ open, onToggle, onClose }: NotificationCent
     setUnread(false);
     setUndo(null);
     setError('');
+    setBulkOpen(false);
+    setBulkResult(null);
   }, [user?.id]);
   const summaryQuery = useQuery({
     queryKey: summaryKey,
@@ -250,6 +263,40 @@ export function NotificationCenter({ open, onToggle, onClose }: NotificationCent
     onSuccess: (_data, { item, restore }) => setUndo(restore ? null : item),
     onSettled: refresh,
   });
+  const bulkPreview = useMutation({
+    mutationFn: (scope: { module: string; unread: boolean }) =>
+      previewHandleAllNotifications(scope.module, scope.unread),
+    onError: (failure) =>
+      setBulkError(
+        getApiErrorMessage(failure, 'Chưa tải được danh sách xác nhận. Vui lòng thử lại.'),
+      ),
+  });
+  const bulkHandling = useMutation({
+    mutationFn: handleAllNotifications,
+    onMutate: () => {
+      setBulkError('');
+      setUndo(null);
+    },
+    onError: (failure) =>
+      setBulkError(getApiErrorMessage(failure, 'Chưa xử lý được thông báo. Vui lòng thử lại.')),
+    onSuccess: async ({ updatedCount }) => {
+      setBulkOpen(false);
+      setBulkResult(
+        updatedCount
+          ? `Đã xử lý ${updatedCount.toLocaleString('vi-VN')} thông báo`
+          : 'Không còn thông báo cần xử lý trong danh sách đã chọn',
+      );
+      await client.invalidateQueries({ queryKey: prefix });
+    },
+  });
+  const openBulkConfirmation = () => {
+    const scope = { module, unread };
+    setBulkScope(scope);
+    setBulkError('');
+    bulkPreview.reset();
+    setBulkOpen(true);
+    bulkPreview.mutate(scope);
+  };
   const items = useMemo(
     () =>
       Array.from(
@@ -330,26 +377,46 @@ export function NotificationCenter({ open, onToggle, onClose }: NotificationCent
                 value={module}
                 onChange={setModule}
                 allLabel="Tất cả phân hệ"
-                options={(summary?.modules ?? [])
-                  .map((row) => ({
-                    value: row.module,
-                    label: `${moduleLabel(row.module)} (${filter === 'done' ? row.doneCount : row.pendingCount})`,
+                options={Array.from(
+                  new Set([
+                    ...Object.keys(moduleLabels),
+                    ...(summary?.modules ?? []).map((row) => row.module),
+                  ]),
+                )
+                  .map((key) => ({
+                    value: key,
+                    label: `${moduleLabel(key)} (${summary?.modules.find((row) => row.module === key)?.[filter === 'done' ? 'doneCount' : 'pendingCount'] ?? 0})`,
                   }))
                   .sort((a, b) => a.label.localeCompare(b.label, 'vi'))}
               />
               {filter === 'all' && (
-                <FormControlLabel
-                  className="!ml-0 !mr-0 !mt-1"
-                  control={
-                    <Checkbox
-                      size="small"
-                      checked={unread}
-                      onChange={(event) => setUnread(event.target.checked)}
-                      className="!min-h-11 !min-w-11"
-                    />
-                  }
-                  label={<span className="text-sm">Chỉ chưa đọc</span>}
-                />
+                <div className="flex flex-wrap items-center justify-between gap-x-2">
+                  <FormControlLabel
+                    className="!ml-0 !mr-0 !mt-1"
+                    control={
+                      <Checkbox
+                        size="small"
+                        checked={unread}
+                        onChange={(event) => setUnread(event.target.checked)}
+                        className="!min-h-11 !min-w-11"
+                      />
+                    }
+                    label={<span className="text-sm">Chỉ chưa đọc</span>}
+                  />
+                  <DialogActionButton
+                    startIcon={<CheckCircleOutlineRoundedIcon fontSize="small" />}
+                    disabled={
+                      handling.isPending ||
+                      bulkHandling.isPending ||
+                      notificationsQuery.isLoading ||
+                      notificationsQuery.isError ||
+                      !items.length
+                    }
+                    onClick={openBulkConfirmation}
+                  >
+                    Xử lý tất cả
+                  </DialogActionButton>
+                </div>
               )}
             </div>
             {error && (
@@ -396,7 +463,7 @@ export function NotificationCenter({ open, onToggle, onClose }: NotificationCent
                 <NotificationRow
                   key={item.id}
                   item={item}
-                  busy={handling.isPending}
+                  busy={handling.isPending || bulkHandling.isPending}
                   onOpen={handleOpen}
                   onHandle={(row) => handling.mutate({ item: row, restore: row.isDone })}
                 />
@@ -436,6 +503,72 @@ export function NotificationCenter({ open, onToggle, onClose }: NotificationCent
           }
         />
       </UtilityDrawer>
+      <AppFormDialog
+        open={open && bulkOpen}
+        title="Xử lý tất cả thông báo"
+        maxWidth="xs"
+        submitting={bulkHandling.isPending}
+        onClose={() => setBulkOpen(false)}
+        onSubmit={(event) => {
+          event.preventDefault();
+          if (bulkPreview.data?.count && !bulkHandling.isPending)
+            bulkHandling.mutate(bulkPreview.data.token);
+        }}
+        actions={
+          <>
+            <DialogActionButton
+              disabled={bulkHandling.isPending}
+              onClick={() => setBulkOpen(false)}
+            >
+              Hủy
+            </DialogActionButton>
+            <DialogActionButton
+              tone="primary"
+              type="submit"
+              disabled={bulkPreview.isPending || !bulkPreview.data?.count || bulkHandling.isPending}
+            >
+              {bulkHandling.isPending ? 'Đang xử lý...' : 'Xác nhận'}
+            </DialogActionButton>
+          </>
+        }
+      >
+        {bulkPreview.isPending ? (
+          <div role="status" className="flex items-center gap-3 py-3 text-sm text-slate-500">
+            <CircularProgress size={20} />
+            Đang kiểm tra số thông báo...
+          </div>
+        ) : (
+          bulkPreview.data && (
+            <>
+              <p className="text-sm font-semibold text-slate-900">
+                {bulkPreview.data.count
+                  ? `Đánh dấu ${bulkPreview.data.count.toLocaleString('vi-VN')} thông báo là đã xử lý?`
+                  : 'Không có thông báo phù hợp để xử lý.'}
+              </p>
+              <p className="mt-2 text-sm text-slate-500">
+                {bulkScope.module ? moduleLabel(bulkScope.module) : 'Tất cả phân hệ'}
+                {bulkScope.unread ? ' · Chỉ chưa đọc' : ''} · Toàn bộ kết quả
+              </p>
+              <p className="mt-3 text-sm text-slate-500">
+                Chỉ cập nhật thông báo của anh/chị. Báo cáo, thanh toán và chi phí vẫn giữ nguyên
+                trạng thái duyệt.
+              </p>
+            </>
+          )
+        )}
+        {bulkError && (
+          <Alert severity="error" className="!mt-3">
+            {bulkError}
+          </Alert>
+        )}
+      </AppFormDialog>
+      <Snackbar
+        open={Boolean(bulkResult)}
+        autoHideDuration={6000}
+        onClose={() => setBulkResult(null)}
+        message={bulkResult}
+        anchorOrigin={{ vertical: 'bottom', horizontal: 'right' }}
+      />
     </>
   );
 }

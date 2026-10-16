@@ -38,7 +38,7 @@ KPI nhóm dùng cùng công thức phí quản lý trước VAT của KPI hiện
 - Nhóm hưởng được xác định bằng **lịch sử nhóm chính tại thời điểm giao dịch thu tiền**.
 - Lãnh đạo nhiều nhóm không làm KPI cá nhân được ghi nhận vào nhiều nhóm. Chỉ nhóm chính tại thời điểm thu tiền được hưởng từng nhánh.
 - Hoàn tiền đảo lại các khoản phí đã ghi nhận theo thứ tự thu trước, trừ trước (FIFO), về đúng nhóm đã hưởng. Không lấy nhóm hiện tại để trừ.
-- Tổng KPI nhóm là tổng các nhánh nhân sự được ghi nhận. Nhánh Sale và triển khai vẫn độc lập theo chính sách KPI hiện hành; đây không phải phép cộng doanh thu công ty.
+- Từ 10/2026, KPI chính của nhóm và tỷ lệ hoàn thành chỉ tính nhánh triển khai. KPI Sale hiển thị riêng để đối soát, không cộng vào chỉ tiêu hoàn thành. Điều chỉnh này đang ở workspace, chưa triển khai production trong đợt rà soát ngày 15/10/2026.
 
 Ví dụ: nhân sự thu 100 phí ở nhóm A, sau đó chuyển sang B và thu thêm 50. Khi hoàn 120 phí, nhóm A bị trừ 100, nhóm B bị trừ 20. Phần còn lại của B là 30.
 

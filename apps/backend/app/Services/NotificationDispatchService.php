@@ -64,7 +64,7 @@ class NotificationDispatchService
             );
 
             if ($notification->wasRecentlyCreated) {
-                UserNotificationsChanged::dispatch($userId, 'created', (int) $notification->id);
+                UserNotificationsChanged::dispatch($userId, 'created', (int) $notification->id, $notification->entity_type, $notification->entity_id);
             } elseif (($payload['reopen_resolved'] ?? false) && $notification->resolved_at) {
                 $notification->forceFill([
                     'actor_user_id' => $actorId,

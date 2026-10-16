@@ -318,23 +318,31 @@ class WeeklyReportsService extends BaseService
                 'content' => $content,
                 'status' => 'open',
             ]);
-            $report->loadMissing('project');
-            $recipientIds = $replyTo
-                ? collect([$replyTo->created_by])
-                : collect([
-                    $report->reporter_user_id,
-                    $report->project?->manager_user_id,
-                    $report->project?->sales_user_id,
-                ]);
+            $report->loadMissing('project.customer');
+            $recipientIds = collect([
+                $report->reporter_user_id,
+                $report->project?->manager_user_id,
+                $report->project?->sales_user_id,
+                $report->project?->customer?->sales_user_id,
+                $replyTo?->created_by,
+            ])->merge($this->notificationRecipients->weeklyReportApprovers($report)->pluck('id'));
+            if ($replyTo) {
+                $rootId = $replyTo->reply_to_item_id ?: $replyTo->id;
+                $recipientIds = $recipientIds->merge($report->items()
+                    ->where(fn ($query) => $query->whereKey($rootId)->orWhere('reply_to_item_id', $rootId))
+                    ->pluck('created_by'));
+            }
             $this->notifications->send($this->notificationRecipients->authorizedUsers($recipientIds, 'view', $report), [
-                'module' => 'weekly_report',
+                'module' => 'internal_discussion',
                 'event_key' => 'weekly_report_message',
                 'title' => $replyTo ? 'Có phản hồi mới trong báo cáo tuần' : 'Có trao đổi mới trong báo cáo tuần',
-                'message' => $report->project?->project_name,
+                'message' => ($report->project?->project_code ?: $report->project?->project_name)
+                    .' · '.($report->report_date?->format('d/m/Y') ?? '').' · '.\Illuminate\Support\Str::limit($content, 180),
                 'severity' => 'info',
                 'entity_type' => 'weekly_report',
                 'entity_id' => $report->id,
-                'action_url' => '/weekly-reports/'.$report->id,
+                'action_url' => '/weekly-reports/'.$report->id.'#message-'.$message->id,
+                'data' => ['sourceModule' => 'weekly_report', 'messageId' => $message->id, 'reportId' => $report->id],
                 'dedupe_key' => 'weekly_report_message:'.$message->id,
             ]);
 

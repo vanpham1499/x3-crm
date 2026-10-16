@@ -92,11 +92,17 @@ try {
     $scoped = fn ($scope) => $method->invoke($service, Date::parse('2026-11-01'), Date::parse('2026-11-01'),
         Date::parse('2026-10-01'), Date::parse('2026-10-01'), $scope, collect(), collect(), collect(), collect(), collect());
     checkTrend($scoped(['level' => 'personal', 'userId' => 1])['currentAmount'], 27, 'Implementation gets every quotation and refund');
-    checkTrend($scoped(['level' => 'personal', 'userId' => 2])['currentAmount'], 7, 'Sale only gets first quotation minus refund');
-    checkTrend($scoped(['level' => 'personal', 'userId' => 3])['currentAmount'], 10, 'Existing dual-role credits preserved');
+    checkTrend($scoped(['level' => 'personal', 'userId' => 2])['currentAmount'], 0, 'Sale credit is separate from implementation performance');
+    checkTrend($scoped(['level' => 'personal', 'userId' => 3])['currentAmount'], 5, 'Dual-role employee is counted once in main KPI');
     checkTrend($scoped(['level' => 'personal', 'userId' => 4])['currentAmount'], 0, 'Unrelated employee cannot see another credit');
-    checkTrend($scoped(['level' => 'department', 'departmentIds' => [9]])['currentAmount'], 7, 'Department receives only its scoped credits');
+    checkTrend($scoped(['level' => 'department', 'departmentIds' => [9]])['currentAmount'], 0, 'Sale department does not inflate implementation KPI');
+    checkTrend($scoped(['level' => 'department', 'departmentIds' => [8]])['currentAmount'], 27, 'Implementation department matches employee total');
 } finally {
     Date::setTestNow();
 }
+$ledgerDate = App\Support\KpiReportingTime::fromLedger(Date::parse('2026-09-30 22:30:00', 'UTC'));
+checkTrend($ledgerDate->format('Y-m-d H:i:sP'), '2026-09-30 22:30:00+07:00', 'Ledger calendar date remains in September');
+$ledgerTrend = kpiTrend('2026-10', '2026-10', '2026-10-15', [['at' => $ledgerDate, 'amount' => 100]]);
+checkTrend($ledgerTrend['currentAmount'], 0, 'Late September bank receipt is not counted in October');
+
 echo "PASS {$checks} cumulative KPI checks\n";

@@ -42,7 +42,9 @@ KPI tháng = Phí ghi nhận từ khoản thu trong tháng − Phí quản lý �
 
 **Ví dụ:** ngân sách 30 triệu, phí quản lý 6 triệu, VAT 3,6 triệu, tổng thu 39,6 triệu. Thu 19,8 triệu thì KPI phí là 3 triệu; thu nốt 19,8 triệu ghi nhận thêm 3 triệu. Hoàn 1,1 triệu phí gồm VAT 10% thì giảm KPI 1 triệu. Hoàn 5 triệu ngân sách không giảm KPI.
 
-Nếu báo phí đầu tiên: triển khai được 3 triệu và Sale được 3 triệu ở lần thu đầu; tổng công ty vẫn là 3 triệu. Nếu hai vai trò cùng một người thì KPI nhân sự là 6 triệu ở hai nhánh.
+Nếu báo phí đầu tiên: triển khai được 3 triệu và Sale được 3 triệu ở lần thu đầu; tổng công ty vẫn là 3 triệu. Từ 10/2026, KPI chính dùng để tính hoàn thành của nhân sự/phòng/nhóm là **3 triệu triển khai**; **3 triệu KPI Sale được theo dõi riêng**, kể cả khi một người kiêm hai vai trò. Không cộng hai nhánh thành 6 triệu để tính hoàn thành.
+
+Điều chỉnh ngày 15/10/2026 trong workspace (chưa triển khai production): bảng KPI, chi tiết, biểu đồ Dashboard và Excel cùng dùng nguyên tắc này. Các kỳ trước 10/2026 giữ công thức cũ. Ngày ghi nhận trên biểu đồ khớp ngày lịch của sổ KPI; tránh chuyển khoản cuối tháng sang tháng sau do chuyển múi giờ lần nữa.
 
 ### Nguồn phí và người hưởng
 

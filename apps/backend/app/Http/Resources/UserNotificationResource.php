@@ -9,9 +9,14 @@ class UserNotificationResource extends JsonResource
 {
     public function toArray(Request $request): array
     {
+        $actionUrl = $this->action_url;
+        if ($this->event_key === 'weekly_report_message'
+            && preg_match('/^weekly_report_message:(\d+)$/', (string) $this->dedupe_key, $match)) {
+            $actionUrl = '/weekly-reports/'.$this->entity_id.'#message-'.$match[1];
+        }
         return [
             'id' => $this->id,
-            'module' => $this->module,
+            'module' => $this->event_key === 'weekly_report_message' ? 'internal_discussion' : $this->module,
             'eventKey' => $this->event_key,
             'title' => $this->title,
             'message' => $this->message,
@@ -19,7 +24,7 @@ class UserNotificationResource extends JsonResource
             'severity' => $this->severity,
             'entityType' => $this->entity_type,
             'entityId' => $this->entity_id,
-            'actionUrl' => $this->action_url,
+            'actionUrl' => $actionUrl,
             'data' => $this->data ?? [],
             'readAt' => $this->read_at?->toISOString(),
             'resolvedAt' => $this->resolved_at?->toISOString(),

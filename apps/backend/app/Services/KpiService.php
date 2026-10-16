@@ -516,7 +516,7 @@ class KpiService extends BaseService
         );
 
         $departmentRows = $departments
-            ->map(function (Department $department) use ($departmentActuals, $targetMap): array {
+            ->map(function (Department $department) use ($departmentActuals, $targetMap, $periodKey): array {
                 $actual = $departmentActuals[(int) $department->id];
                 $target = (float) ($targetMap->get(KpiTarget::SCOPE_DEPARTMENT.':'.$department->id)?->target_amount ?? 0);
                 $implementationAmount = $actual['implementationReceivedBeforeVatAmount']
@@ -524,7 +524,7 @@ class KpiService extends BaseService
                     - $actual['implementationRefundBeforeVatAmount'];
                 $acquisitionAmount = $actual['acquisitionCreditBeforeVatAmount']
                     - $actual['acquisitionRefundBeforeVatAmount'];
-                $actualAmount = $implementationAmount + $acquisitionAmount;
+                $actualAmount = KpiFeeBasis::applies($periodKey) ? $implementationAmount : $implementationAmount + $acquisitionAmount;
 
                 return [
                     'id' => (int) $department->id,
@@ -545,7 +545,7 @@ class KpiService extends BaseService
             ->values();
 
         $employeeRows = $users
-            ->map(function (User $user) use ($employeeActuals, $targetMap): array {
+            ->map(function (User $user) use ($employeeActuals, $targetMap, $periodKey): array {
                 $actual = $employeeActuals[(int) $user->id];
                 $target = (float) ($targetMap->get(KpiTarget::SCOPE_EMPLOYEE.':'.$user->id)?->target_amount ?? 0);
                 $implementationAmount = $actual['implementationReceivedBeforeVatAmount']
@@ -553,7 +553,7 @@ class KpiService extends BaseService
                     - $actual['implementationRefundBeforeVatAmount'];
                 $acquisitionAmount = $actual['acquisitionCreditBeforeVatAmount']
                     - $actual['acquisitionRefundBeforeVatAmount'];
-                $actualAmount = $implementationAmount + $acquisitionAmount;
+                $actualAmount = KpiFeeBasis::applies($periodKey) ? $implementationAmount : $implementationAmount + $acquisitionAmount;
 
                 return [
                     'id' => (int) $user->id,
@@ -669,12 +669,12 @@ class KpiService extends BaseService
             }
         }
         $entries = $entries->sortByDesc('eventAt')->values();
-        $labels = $isService ? ['service' => 'Dịch vụ'] : ['implementation' => 'Nhánh triển khai', 'acquisition' => 'Nhánh phụ trách khách hàng'];
+        $labels = $isService ? ['service' => 'Dịch vụ'] : ['implementation' => 'KPI triển khai', 'acquisition' => 'KPI Sale · theo dõi riêng'];
 
         return [
             'period' => $period, 'metric' => 'management_fee',
             'scope' => ['type' => $scopeType, 'id' => $scopeId, 'name' => $scopeName],
-            'totals' => $this->detailTotals($entries),
+            'totals' => $this->detailTotals($entries->where('branch', '!=', 'acquisition')),
             'branches' => collect($labels)->map(fn ($label, $key) => $this->detailBranch($key, $label, $entries->where('branch', $key)->values()))->values(),
         ];
     }
@@ -1025,7 +1025,7 @@ class KpiService extends BaseService
             'branch' => $branch,
             'kind' => $kind,
             'label' => $label,
-            'eventAt' => $eventAt->toIso8601String(),
+            'eventAt' => \App\Support\KpiReportingTime::fromLedger($eventAt)->toIso8601String(),
             'sourceAmount' => $this->money($sourceAmount),
             'beforeVatAmount' => $this->money($beforeVatAmount),
             'profitImpactAmount' => $this->money($profitImpactAmount),

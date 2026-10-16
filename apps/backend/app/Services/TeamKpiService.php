@@ -121,7 +121,7 @@ class TeamKpiService
             return ['id' => $c['id'].'-'.$c['branch'].'-'.$i, 'branch' => $c['branch'],
                 'kind' => $c['branch'] === 'acquisition' ? ($c['creditAmount'] < 0 ? 'acquisition_refund' : 'acquisition_credit') : ($c['creditAmount'] < 0 ? 'refund' : 'received'),
                 'label' => $c['creditAmount'] < 0 ? 'Hoàn phí về nhóm đã hưởng' : 'Phí quản lý ghi nhận',
-                'eventAt' => $c['at']->toIso8601String(),
+                'eventAt' => \App\Support\KpiReportingTime::fromLedger($c['at'])->toIso8601String(),
                 'sourceAmount' => round(abs($c['sourceAmount']) * abs($c['creditAmount']) / max(0.005, abs($c['amount'])), 2),
                 'beforeVatAmount' => abs($c['creditAmount']),
                 'profitImpactAmount' => $c['creditAmount'], 'reference' => $c['reference'],
@@ -133,7 +133,7 @@ class TeamKpiService
 
         return ['period' => $period, 'metric' => 'management_fee', 'scope' => ['type' => $scopeType, 'id' => $scopeId,
             'name' => $scopeType === 'team' ? Team::withTrashed()->findOrFail($scopeId)->name : User::withTrashed()->findOrFail($scopeId)->name],
-            'totals' => $totals($entries), 'branches' => collect(['implementation' => 'Triển khai', 'acquisition' => 'Sale'])->map(fn ($label, $key) => [
+            'totals' => $totals($entries->where('branch', 'implementation')), 'branches' => collect(['implementation' => 'KPI triển khai', 'acquisition' => 'KPI Sale · theo dõi riêng'])->map(fn ($label, $key) => [
                 'key' => $key, 'label' => $label, 'totals' => $totals($entries->where('branch', $key)), 'entries' => $entries->where('branch', $key)->values()->all(),
             ])->values()->all()];
     }
@@ -144,7 +144,7 @@ class TeamKpiService
         $acquisition = $credits->where('branch', 'acquisition');
         $received = fn ($items) => round($items->sum(fn ($e) => max(0, $e['creditAmount'])), 2);
         $refunded = fn ($items) => round($items->sum(fn ($e) => max(0, -$e['creditAmount'])), 2);
-        $total = round($credits->sum('creditAmount'), 2);
+        $total = round($implementation->sum('creditAmount'), 2);
 
         return ['targetAmount' => $target, 'implementationReceivedAmount' => $received($implementation), 'implementationCostAmount' => 0.0,
             'implementationRefundAmount' => $refunded($implementation), 'implementationAmount' => round($implementation->sum('creditAmount'), 2),

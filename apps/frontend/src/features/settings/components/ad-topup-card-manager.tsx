@@ -4,6 +4,7 @@ import { useState } from 'react';
 import type { MouseEvent } from 'react';
 import AddRoundedIcon from '@mui/icons-material/AddRounded';
 import CreditCardRoundedIcon from '@mui/icons-material/CreditCardRounded';
+import CardGiftcardRoundedIcon from '@mui/icons-material/CardGiftcardRounded';
 import DeleteRoundedIcon from '@mui/icons-material/DeleteRounded';
 import EditRoundedIcon from '@mui/icons-material/EditRounded';
 import MoreVertRoundedIcon from '@mui/icons-material/MoreVertRounded';
@@ -177,6 +178,21 @@ export function AdTopupCardManager({
           disabled: !canManage,
         }}
       />
+
+      <section className="mb-4 flex flex-wrap items-center justify-between gap-3 rounded-2xl border border-slate-200 bg-white p-4 shadow-sm">
+        <div className="flex min-w-0 items-center gap-3">
+          <span className="grid size-10 shrink-0 place-items-center rounded-lg bg-emerald-50 text-primary">
+            <CardGiftcardRoundedIcon fontSize="small" />
+          </span>
+          <div>
+            <h2 className="text-sm font-bold text-slate-900">MKM nền tảng tặng</h2>
+            <p className="mt-1 text-xs text-slate-500">
+              Ngân sách khuyến mãi · Không chi tiền qua thẻ
+            </p>
+          </div>
+        </div>
+        <DialogActionButton href="/costs?source=promotion">Xem MKM</DialogActionButton>
+      </section>
 
       <section className="w-full overflow-hidden rounded-2xl border border-slate-200 bg-white shadow-sm">
         <ListFilterBar className="p-4">

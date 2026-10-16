@@ -131,4 +131,66 @@ foreach ([
 ] as [$event, $source, $expected]) {
     checkInbox(ReconcileNotificationInbox::stepEnded($event, (object) array_merge(['deleted_at' => null], $source)) === $expected, 'Legacy workflow '.$event);
 }
+$legacyMessage = seedNotice(['module' => 'weekly_report', 'event_key' => 'weekly_report_message',
+    'entity_type' => 'weekly_report', 'entity_id' => 77, 'dedupe_key' => 'weekly_report_message:123']);
+$newMessage = seedNotice(['module' => 'internal_discussion', 'event_key' => 'weekly_report_message',
+    'entity_type' => 'weekly_report', 'entity_id' => 77]);
+$discussion = $service->findPaginated($one, 'all', 20, 1, 'internal_discussion');
+checkInbox($discussion['meta']['total'] === 2, 'Old and new discussion notifications share the new category');
+$oldResource = $discussion['data']->firstWhere('id', $legacyMessage->id);
+checkInbox($oldResource['module'] === 'internal_discussion' && $oldResource['actionUrl'] === '/weekly-reports/77#message-123', 'Legacy discussion opens exact message');
+checkInbox(! $service->findPaginated($one, 'all', 50, 1, 'weekly_report')['data']->contains('id', $legacyMessage->id), 'Discussion excluded from workflow category');
+$module = $service->summary($one)['modules']->firstWhere('module', 'internal_discussion');
+checkInbox($module['pendingCount'] === 2 && $module['doneCount'] === 0, 'Discussion badge agrees with list');
+$service->markRead($one, $legacyMessage->id);
+checkInbox(! $legacyMessage->fresh()->inboxIsDone(), 'Reading discussion does not complete it');
+$service->handle($one, $legacyMessage->id);
+checkInbox($service->findPaginated($one, 'done', 20, 1, 'internal_discussion')['meta']['total'] === 1, 'Discussion done filter preserved');
+checkInbox(! ReconcileNotificationInbox::stepEnded('weekly_report_message', (object) ['deleted_at' => null, 'status' => 'approved']), 'Report approval does not close discussion');
+
+// Batch operation uses a server-frozen, authenticated selection rather than the visible page.
+$bulkRows = collect();
+for ($i = 0; $i < 27; $i++) $bulkRows->push(seedNotice(['module' => 'bulk_test']));
+$readBulk = seedNotice(['module' => 'bulk_test', 'read_at' => now()->subDay()]);
+$doneBulk = seedNotice(['module' => 'bulk_test', 'handled_at' => now()->subDay()]);
+$foreignBulk = seedNotice(['module' => 'bulk_test', 'user_id' => 2]);
+$beforeSummary = $service->summary($one);
+$preview = $service->previewHandleAll($one, 'bulk_test', true);
+checkInbox($preview['count'] === 27, 'Preview includes all pages and respects unread/module/owner/pending filters');
+checkInbox($bulkRows->every(fn ($row) => ! $row->fresh()->inboxIsDone()), 'Preview has no side effects');
+$arrivedLater = seedNotice(['module' => 'bulk_test']);
+foreach ([$preview['token'].'tampered', 'invalid'] as $invalidToken) {
+    try { $service->handleAll($one, $invalidToken); checkInbox(false, 'Tampered snapshot rejected'); }
+    catch (Illuminate\Validation\ValidationException) { checkInbox(true, 'Tampered snapshot rejected'); }
+}
+try { $service->handleAll($two, $preview['token']); checkInbox(false, 'Other user cannot consume selection'); }
+catch (Illuminate\Validation\ValidationException) { checkInbox(true, 'Other user cannot consume selection'); }
+// Another window processes one entry while the confirmation is open.
+$service->handle($one, $bulkRows->first()->id);
+checkInbox($service->handleAll($one, $preview['token']) === 26, 'Only still-pending captured notifications are updated');
+checkInbox($bulkRows->every(fn ($row) => $row->fresh()->inboxIsDone() && $row->fresh()->read_at !== null), 'Batch marks selected notifications handled and read');
+checkInbox($bulkRows->every(fn ($row) => $row->fresh()->resolved_at === null), 'Batch never approves or resolves underlying workflows');
+checkInbox(! $readBulk->fresh()->inboxIsDone() && ! $foreignBulk->fresh()->inboxIsDone() && ! $arrivedLater->fresh()->inboxIsDone(), 'Read, foreign and newly arrived entries remain pending');
+checkInbox($doneBulk->fresh()->handled_at->equalTo($doneBulk->handled_at), 'Already-handled timestamp unchanged');
+checkInbox($service->handleAll($one, $preview['token']) === 0, 'Immediate repeated submit is idempotent');
+$afterSummary = $service->summary($one);
+checkInbox($afterSummary['totalCount'] === $beforeSummary['totalCount'] - 27 + 1, 'Badge uses real remaining pending count');
+$service->restore($one, $bulkRows->last()->id);
+checkInbox(! $bulkRows->last()->fresh()->inboxIsDone(), 'An individually batch-handled notice can be restored');
+$readAt = $readBulk->read_at;
+$allBulk = $service->previewHandleAll($one, 'bulk_test');
+checkInbox($allBulk['count'] === 3 && $service->handleAll($one, $allBulk['token']) === 3, 'Without unread filter, existing read notices are included');
+checkInbox($readBulk->fresh()->read_at->equalTo($readAt), 'Existing read timestamp is preserved');
+$emptyBulk = $service->previewHandleAll($one, 'no_such_module');
+checkInbox($emptyBulk['count'] === 0 && $service->handleAll($one, $emptyBulk['token']) === 0, 'Empty selection is a safe no-op');
+$oldDiscussion = seedNotice(['module' => 'weekly_report', 'event_key' => 'weekly_report_message']);
+$discussionPreview = $service->previewHandleAll($one, 'internal_discussion');
+$service->handleAll($one, $discussionPreview['token']);
+checkInbox($oldDiscussion->fresh()->inboxIsDone(), 'Batch uses normalized category for legacy internal messages');
+$expiredPreview = $service->previewHandleAll($one);
+Illuminate\Support\Carbon::setTestNow(now()->addMinutes(6));
+try { $service->handleAll($one, $expiredPreview['token']); checkInbox(false, 'Expired confirmation rejected'); }
+catch (Illuminate\Validation\ValidationException) { checkInbox(true, 'Expired confirmation rejected'); }
+finally { Illuminate\Support\Carbon::setTestNow(); }
+
 echo "$checks notification inbox checks passed (SQLite memory)\n";

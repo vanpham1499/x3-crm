@@ -1063,6 +1063,11 @@ function ScopedDashboardOverview({
       </div>
 
       <div className="mt-5 grid grid-cols-1 items-stretch gap-5 xl:grid-cols-12">
+        {isDepartment && (
+          <div className="min-w-0 xl:col-span-12">
+            <CashComparisonCard data={report.cashComparison} />
+          </div>
+        )}
         <div className="h-full min-w-0 xl:col-span-8">
           <ScopedKpiTrendChart report={report} />
         </div>

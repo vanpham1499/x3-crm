@@ -148,6 +148,7 @@ class ProjectCostRepository extends BaseRepository
             ->when($filters['project_id'] ?? null, fn ($query, $value) => $query->where('project_id', $value))
             ->when($filters['quotation_id'] ?? null, fn ($query, $value) => $query->where('quotation_id', $value))
             ->when($filters['entry_type'] ?? null, fn ($query, $value) => $query->where('entry_type', $value))
+            ->when($filters['funding_source'] ?? null, fn ($query, $value) => $query->where('funding_source', $value))
             ->when($filters['status'] ?? null, fn ($query, $value) => $query->where('status', $value))
             ->when($filters['reconciliation_result'] ?? null, fn ($query, $value) => $query->where('reconciliation_result', $value))
             ->when(($filters['reconciled_status'] ?? null) === 'matched', fn ($query) => $query->whereNotNull('reconciled_at'))

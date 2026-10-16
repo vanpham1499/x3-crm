@@ -19,6 +19,8 @@ class UserNotificationsChanged implements ShouldBroadcast, ShouldDispatchAfterCo
         public readonly int $userId,
         public readonly string $reason,
         public readonly ?int $notificationId = null,
+        public readonly ?string $entityType = null,
+        public readonly int|string|null $entityId = null,
     ) {}
 
     public function broadcastOn(): array
@@ -36,6 +38,8 @@ class UserNotificationsChanged implements ShouldBroadcast, ShouldDispatchAfterCo
         return [
             'reason' => $this->reason,
             'notificationId' => $this->notificationId,
+            'entityType' => $this->entityType,
+            'entityId' => $this->entityId,
         ];
     }
 

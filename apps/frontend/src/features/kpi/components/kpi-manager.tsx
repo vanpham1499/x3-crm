@@ -652,17 +652,17 @@ function DepartmentMonthTable({
         },
         {
           key: 'implementation',
-          label: 'Nhánh triển khai',
+          label: 'KPI triển khai',
           className: 'w-[330px] text-right',
         },
         {
           key: 'acquisition',
-          label: 'Nhánh phụ trách khách hàng',
+          label: report.metric === 'management_fee' ? 'KPI Sale (riêng)' : 'KPI Sale',
           className: 'w-[320px] text-right',
         },
         {
           key: 'actual',
-          label: 'Tổng KPI ghi nhận',
+          label: report.metric === 'management_fee' ? 'KPI tính hoàn thành' : 'Tổng KPI ghi nhận',
           className: 'w-[175px] text-right',
         },
         { key: 'completion', label: 'Hoàn thành', className: 'w-[165px] text-right' },
@@ -750,17 +750,17 @@ function EmployeeMonthTable({
         { key: 'target', label: 'Kế hoạch', className: 'w-[165px] text-right' },
         {
           key: 'implementation',
-          label: 'Nhánh triển khai',
+          label: 'KPI triển khai',
           className: 'w-[330px] text-right',
         },
         {
           key: 'acquisition',
-          label: 'Nhánh phụ trách khách hàng',
+          label: report.metric === 'management_fee' ? 'KPI Sale (riêng)' : 'KPI Sale',
           className: 'w-[320px] text-right',
         },
         {
           key: 'actual',
-          label: 'Tổng KPI ghi nhận',
+          label: report.metric === 'management_fee' ? 'KPI tính hoàn thành' : 'Tổng KPI ghi nhận',
           className: 'w-[175px] text-right',
         },
         { key: 'completion', label: 'Hoàn thành', className: 'w-[165px] text-right' },
@@ -1047,7 +1047,9 @@ export function KpiManager({
               <h2 className="font-bold text-slate-950">{formatMonthLabel(monthlyReport.period)}</h2>
               <span className="text-xs text-slate-500">
                 {monthlyReport.metric === 'management_fee'
-                  ? 'Phí quản lý trước VAT'
+                  ? scope === 'services'
+                    ? 'Phí quản lý trước VAT'
+                    : 'KPI triển khai · KPI Sale theo dõi riêng'
                   : 'Công thức lợi nhuận cũ'}
               </span>
             </header>

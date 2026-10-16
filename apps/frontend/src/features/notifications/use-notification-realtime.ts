@@ -21,6 +21,12 @@ export function useNotificationRealtime(userId?: number, enabled = false) {
       }, 250);
     };
     const channelName = `users.${userId}`;
+    const notificationChanged = (event: { entityType?: string; entityId?: number | string }) => {
+      refresh();
+      if (event.entityType === 'weekly_report' && event.entityId) {
+        void client.invalidateQueries({ queryKey: ['weekly-reports', String(event.entityId)] });
+      }
+    };
     const channel = echo.private(channelName);
     const connection = echo.connector.pusher.connection;
     const subscribed = () => {
@@ -28,7 +34,10 @@ export function useNotificationRealtime(userId?: number, enabled = false) {
       refresh();
     };
     const disconnected = () => setConnected(false);
-    channel.listen('.notifications.changed', refresh).subscribed(subscribed).error(disconnected);
+    channel
+      .listen('.notifications.changed', notificationChanged)
+      .subscribed(subscribed)
+      .error(disconnected);
     connection.bind('disconnected', disconnected);
     connection.bind('unavailable', disconnected);
     connection.bind('failed', disconnected);
@@ -36,7 +45,7 @@ export function useNotificationRealtime(userId?: number, enabled = false) {
     return () => {
       clearTimeout(timer);
       document.removeEventListener('visibilitychange', refresh);
-      channel.stopListening('.notifications.changed', refresh);
+      channel.stopListening('.notifications.changed', notificationChanged);
       connection.unbind('disconnected', disconnected);
       connection.unbind('unavailable', disconnected);
       connection.unbind('failed', disconnected);

@@ -93,7 +93,8 @@ export async function exportCostsWorkbook(filters: ProjectCostFilters) {
   const response = await api.get<ProjectCost[]>('/project-costs', {
     params: {
       keyword: filters.keyword.trim() || undefined,
-      entry_type: filters.entry_type || undefined,
+      entry_type: filters.entry_type === 'promotion' ? 'ad_spend' : filters.entry_type || undefined,
+      funding_source: filters.entry_type === 'promotion' ? 'promotion' : undefined,
       status: filters.status || undefined,
       reconciled_status: filters.reconciled_status || undefined,
       reconciliation_result: filters.reconciliation_result || undefined,

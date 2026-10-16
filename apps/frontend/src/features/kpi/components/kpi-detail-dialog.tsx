@@ -51,7 +51,9 @@ function formatImpact(amount: number) {
 
 function DetailSummary({ report }: { report: KpiDetailReport }) {
   const totals = report.totals;
-  const entries = report.branches.flatMap((branch) => branch.entries);
+  const entries = report.branches
+    .filter((branch) => report.metric !== 'management_fee' || branch.key !== 'acquisition')
+    .flatMap((branch) => branch.entries);
   const items =
     report.metric === 'management_fee'
       ? [

@@ -28,6 +28,10 @@ $checks = 0;
 foreach ($report['periods'] as $period) {
     foreach (['services' => 'service', 'departments' => 'department', 'employees' => 'employee'] as $key => $scope) {
         foreach ($period[$key] as $row) {
+            if ($period['metric'] === 'management_fee' && $key !== 'services'
+                && round($row['actualAmount'], 2) !== round($row['implementationAmount'], 2)) {
+                throw new RuntimeException('Sale credit leaked into implementation KPI');
+            }
             if (abs($row['actualAmount']) < 0.01) {
                 continue;
             }
@@ -60,6 +64,8 @@ $employee = collect($october['employees'])->first(fn ($row) => $row['actualAmoun
 $department = collect($october['departments'])->first(fn ($row) => $row['actualAmount'] > 0);
 $trendMethod = new ReflectionMethod(DashboardService::class, 'buildProfitTrend');
 $dashboard = $app->make(DashboardService::class);
+// Compare the full-month KPI with a completed-month chart. Intramonth cutoffs are tested separately.
+CarbonImmutable::setTestNow(CarbonImmutable::parse('2026-11-01', 'Asia/Ho_Chi_Minh'));
 $trendChecks = 0;
 foreach ([
     [['level' => 'own', 'userId' => $employee['id']], $employee['actualAmount']],
@@ -70,10 +76,11 @@ foreach ([
         CarbonImmutable::parse('2026-09-01'), CarbonImmutable::parse('2026-09-01'),
         $scope, $projects, $quotes, $allocations, $refunds, $costs);
     if (round(collect($trend['points'])->sum('profitAmount'), 2) !== round($expected, 2)) {
-        throw new RuntimeException('Dashboard trend mismatch '.$scope['level']);
+        throw new RuntimeException('Dashboard trend mismatch '.$scope['level'].' expected='.$expected.' actual='.$trend['currentAmount'].' cutoff='.$trend['to']);
     }
     $trendChecks++;
 }
+CarbonImmutable::setTestNow();
 echo json_encode(['detailMatches' => $checks, 'seconds' => round(microtime(true) - $start, 2),
     'dashboardTrendMatches' => $trendChecks, 'snapshots' => $snapshotCounts, 'zeroFeeLineTypes' => $unclassified, 'totals' => collect($report['periods'])->map(fn ($p) => [
         'period' => $p['period'], 'metric' => $p['metric'], 'services' => $p['summary']['services']['actualAmount'],

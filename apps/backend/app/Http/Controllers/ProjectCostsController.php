@@ -22,6 +22,7 @@ class ProjectCostsController extends Controller
             'projectId' => $request->query('project_id'),
             'quotationId' => $request->query('quotation_id'),
             'entryType' => $request->query('entry_type'),
+            'fundingSource' => $request->query('funding_source'),
             'status' => $request->query('status'),
             'reconciledStatus' => $request->query('reconciled_status'),
             'reconciliationResult' => $request->query('reconciliation_result'),

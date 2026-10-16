@@ -18,6 +18,7 @@ use App\Support\TeamScope;
 use App\Repositories\KpiReportRepository;
 use App\Support\KpiFeeBasis;
 use App\Support\DashboardKpiTrend;
+use App\Support\KpiReportingTime;
 use Carbon\CarbonImmutable;
 use Illuminate\Database\Eloquent\Builder;
 use Illuminate\Support\Collection;
@@ -1460,12 +1461,13 @@ class DashboardService extends BaseService
         if ($scope['level'] === 'team') {
             $events = app(TeamKpiService::class)->credits($previousStart, $rangeEnd->addMonth())
                 ->filter(fn ($c) => in_array((int) $c['teamId'], $scope['teamIds'], true))
-                ->map(fn ($c) => ['at' => $c['at'], 'amount' => $c['creditAmount']])->all();
+                ->where('branch', 'implementation')
+                ->map(fn ($c) => ['at' => KpiReportingTime::fromLedger($c['at']), 'amount' => $c['creditAmount']])->all();
             return DashboardKpiTrend::project($rangeStart, $rangeEnd, CarbonImmutable::now(), $events);
         }
         $events = [];
         $recordEvent = static function (CarbonImmutable $at, float $amount) use (&$events): void {
-            $events[] = ['at' => $at, 'amount' => $amount];
+            $events[] = ['at' => KpiReportingTime::fromLedger($at), 'amount' => $amount];
         };
         $projectMap = $projects->keyBy('id');
         $quotationMap = $quotations->keyBy('id');
@@ -1590,11 +1592,9 @@ class DashboardService extends BaseService
                 if ($scope['level'] === 'all') {
                     $credits = 1;
                 } elseif ($scope['level'] === 'department') {
-                    $credits = (int) in_array((int) $basis['managerDepartmentId'], $scope['departmentIds'] ?? [], true)
-                        + (int) ($basis['firstQuotation'] && in_array((int) $basis['salesDepartmentId'], $scope['departmentIds'] ?? [], true));
+                    $credits = (int) in_array((int) $basis['managerDepartmentId'], $scope['departmentIds'] ?? [], true);
                 } else {
-                    $credits = (int) ((int) $basis['managerId'] === (int) $scope['userId'])
-                        + (int) ($basis['firstQuotation'] && (int) $basis['salesId'] === (int) $scope['userId']);
+                    $credits = (int) ((int) $basis['managerId'] === (int) $scope['userId']);
                 }
                 if ($credits) {
                     $recordEvent($event['at'], $event['amount'] * $credits);

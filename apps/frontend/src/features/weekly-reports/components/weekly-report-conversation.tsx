@@ -1,6 +1,6 @@
 'use client';
 
-import { useMemo, useState } from 'react';
+import { useEffect, useMemo, useState } from 'react';
 import ChatBubbleOutlineRoundedIcon from '@mui/icons-material/ChatBubbleOutlineRounded';
 import CloseRoundedIcon from '@mui/icons-material/CloseRounded';
 import DeleteOutlineRoundedIcon from '@mui/icons-material/DeleteOutlineRounded';
@@ -66,7 +66,9 @@ function MessageBubble({
 
   return (
     <div
-      className={`flex gap-2.5 ${isReporter ? 'justify-start' : 'flex-row-reverse justify-start'}`}
+      id={`message-${message.id}`}
+      tabIndex={-1}
+      className={`flex scroll-mt-24 gap-2.5 rounded-lg outline-none target:ring-2 target:ring-primary/40 focus-visible:ring-2 focus-visible:ring-primary/40 ${isReporter ? 'justify-start' : 'flex-row-reverse justify-start'}`}
     >
       <Avatar
         className={`!mt-1 !h-8 !w-8 !text-[11px] !font-black ${
@@ -190,6 +192,18 @@ export function WeeklyReportConversation({
   const [deleteTarget, setDeleteTarget] = useState<WeeklyReportItem | null>(null);
   const messages = report?.items || [];
   const canComment = mode === 'create' || Boolean(report?.canComment);
+
+  useEffect(() => {
+    const revealMessage = () => {
+      if (!/^#message-\d+$/.test(window.location.hash)) return;
+      const target = document.getElementById(window.location.hash.slice(1));
+      target?.scrollIntoView({ block: 'center', behavior: 'instant' });
+      target?.focus({ preventScroll: true });
+    };
+    revealMessage();
+    window.addEventListener('hashchange', revealMessage);
+    return () => window.removeEventListener('hashchange', revealMessage);
+  }, [report?.id, messages.length]);
 
   const threads = useMemo(() => {
     const messageIds = new Set(messages.map((message) => message.id).filter(Boolean));

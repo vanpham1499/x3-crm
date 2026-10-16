@@ -138,10 +138,11 @@ try {
     $fake->testEvents=$events; app()->instance(KpiService::class,$fake);
     $fake->upsertTarget(['scopeType'=>'team','scopeId'=>$aId,'period'=>'2088-10','targetAmount'=>100]);
     $data=$fake->report('2088-10','2088-10',$scoped); $month=collect($data['periods'])->first();
-    ok($data['viewerScope']['level']==='team' && (float)$month['summary']['departments']['actualAmount']===30.0,'Group report sums attributed credits');
+    ok($data['viewerScope']['level']==='team' && (float)$month['summary']['departments']['actualAmount']===0.0,'Group main KPI excludes separate Sale credit');
+    ok((float) collect($month['departments'])->sum('acquisitionAmount')===30.0,'Sale credit remains available for reconciliation');
     ok((float)$month['summary']['departments']['targetAmount']===100.0,'Group month target');
     $detail=$fake->detail('2088-10','team',$aId,$scoped);
-    ok((float)$detail['totals']['profitAmount']===30.0,'Detail and summary reconcile');
+    ok((float)$detail['totals']['profitAmount']===0.0,'Detail and summary reconcile');
     $detailEntries=collect($detail['branches'])->flatMap(fn($b)=>$b['entries']);
     ok($detailEntries->where('kind','acquisition_credit')->count()===2,'Detail preserves Sale branch entry types');
     ok((float)$detailEntries->firstWhere('kind','received')['sourceAmount']===108.0,'Source gross amount is distinct from fee before VAT');
@@ -151,7 +152,7 @@ try {
     $dash=app(DashboardService::class)->report('2088-10','2088-10');
     ok($dash['scope']['level']==='team' && $dash['scope']['teamIds']===[$aId],'Dashboard group scope');
     // Current mocked date is 15th: receipt on the 10th is 100 for each branch; later events excluded.
-    ok((float)$dash['profitTrend']['currentAmount']===200.0,'Dashboard cumulative cutoff uses group-at-receipt credits');
+    ok((float)$dash['profitTrend']['currentAmount']===100.0,'Dashboard cumulative cutoff counts only implementation at receipt');
     ok((float)$dash['summary']['targetAmount']===100.0,'Dashboard group plan agrees with KPI');
     viewer($admin,['team_id'=>$aId]);
     $dashAdmin=app(DashboardService::class)->report('2088-10','2088-10');

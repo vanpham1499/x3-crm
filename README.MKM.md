@@ -19,6 +19,8 @@ Ví dụ chỉ minh họa ngân sách, không bao gồm phí quản lý hoặc V
 
 ## Cách dùng
 
+Cập nhật giao diện trong workspace ngày 15/10/2026 (chưa deploy): **Cài đặt → Thẻ nạp quảng cáo → Xem MKM** mở trang Chi phí với bộ lọc **MKM nền tảng tặng**. Lọc và xuất Excel chỉ lấy nguồn MKM. Đây là lối vào quản lý nguồn khuyến mãi, không tạo một thẻ tiền thật mang tên MKM.
+
 ### 1. Báo phí
 
 Trong phần tính báo phí quảng cáo, nhập **ngân sách tiền** như trước và **MKM nền tảng tặng (dự kiến)** nếu có. Bản xem trước/bản gửi khách hiển thị ngân sách tiền, MKM và tổng dự kiến riêng. MKM không cộng vào tổng thanh toán. Phần dự kiến chưa tạo khoản MKM thực cấp.

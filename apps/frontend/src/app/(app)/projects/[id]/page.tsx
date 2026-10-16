@@ -308,7 +308,11 @@ export default function EditProjectPage() {
 
   return (
     <div className="flex min-h-[calc(100vh-72px)] flex-col bg-slate-50/60 px-6 pt-6">
-      <PageHeader title={project.projectName} currentLabel="Hồ sơ" />
+      <PageHeader
+        title={project.projectName}
+        currentLabel="Hồ sơ"
+        actions={<ZaloRouteButton kind="project" id={project.id} />}
+      />
 
       <section className="overflow-hidden rounded-2xl border border-slate-200 bg-white shadow-sm">
         <div className="px-5 py-4">
@@ -390,9 +394,6 @@ export default function EditProjectPage() {
       </section>
 
       <div className="mt-4 flex flex-1 flex-col">
-        <div className="mb-4">
-          <ZaloRouteButton kind="project" id={project.id} />
-        </div>
         {activeTab === 'info' ? (
           <ProjectForm
             mode="edit"

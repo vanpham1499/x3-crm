@@ -766,6 +766,7 @@ export function CostManager({
               value={filters.entry_type}
               options={[
                 { value: 'ad_spend', label: 'Nạp quảng cáo' },
+                { value: 'promotion', label: 'MKM nền tảng tặng' },
                 { value: 'partner_cost', label: 'Chi phí đối tác' },
               ]}
               onChange={(entry_type) =>
@@ -839,7 +840,11 @@ export function CostManager({
           ]}
           isLoading={isFetching}
           isEmpty={costs.length === 0}
-          emptyText="Chưa có chi phí dự án"
+          emptyText={
+            filters.entry_type === 'promotion'
+              ? 'Chưa có MKM phù hợp với bộ lọc'
+              : 'Chưa có chi phí dự án'
+          }
           minWidthClassName="min-w-[1220px]"
         >
           {costGroups.flatMap((group, groupIndex) => {

@@ -1,6 +1,7 @@
 'use client';
 
-import { useEffect, useState } from 'react';
+import { Suspense, useEffect, useState } from 'react';
+import { useSearchParams } from 'next/navigation';
 import { keepPreviousData, useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import { useAppNotification } from '@/components/feedback/notification-provider';
 import { CostManager } from '@/features/costs/components/cost-manager';
@@ -31,7 +32,8 @@ const DEFAULT_COST_FILTERS: ProjectCostFilters = {
 function costParams(filters: ProjectCostFilters) {
   return {
     keyword: filters.keyword.trim() || undefined,
-    entry_type: filters.entry_type || undefined,
+    entry_type: filters.entry_type === 'promotion' ? 'ad_spend' : filters.entry_type || undefined,
+    funding_source: filters.entry_type === 'promotion' ? 'promotion' : undefined,
     status: filters.status || undefined,
     reconciled_status: filters.reconciled_status || undefined,
     reconciliation_result: filters.reconciliation_result || undefined,
@@ -43,12 +45,24 @@ function costParams(filters: ProjectCostFilters) {
 }
 
 export default function CostsPage() {
+  return (
+    <Suspense>
+      <CostsPageContent />
+    </Suspense>
+  );
+}
+
+function CostsPageContent() {
+  const searchParams = useSearchParams();
   const queryClient = useQueryClient();
   const notify = useAppNotification();
   const [isExporting, setIsExporting] = useState(false);
   const { filters, requestFilters, page, pageSize, setPage, setPageSize, onFiltersChange } =
     useServerListState<ProjectCostFilters>({
-      initialFilters: DEFAULT_COST_FILTERS,
+      initialFilters: {
+        ...DEFAULT_COST_FILTERS,
+        entry_type: searchParams.get('source') === 'promotion' ? 'promotion' : '',
+      },
       queryKey: COSTS_LIST_QUERY_KEY,
       pageSize: COSTS_PAGE_SIZE,
     });

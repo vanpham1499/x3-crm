@@ -12,6 +12,9 @@ class UserNotification extends Model
 
     public const KIND_ACTION = 'action';
 
+    // Classify existing discussion notifications without rewriting inbox history.
+    public const INBOX_MODULE_SQL = "CASE WHEN event_key = 'weekly_report_message' THEN 'internal_discussion' ELSE module END";
+
     protected $fillable = [
         'user_id',
         'actor_user_id',

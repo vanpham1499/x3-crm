@@ -7,9 +7,64 @@ use App\Http\Resources\UserNotificationResource;
 use App\Models\User;
 use App\Models\UserNotification;
 use Illuminate\Contracts\Pagination\LengthAwarePaginator;
+use Illuminate\Support\Facades\Crypt;
+use Illuminate\Support\Facades\DB;
+use Illuminate\Validation\ValidationException;
 
 class UserNotificationsService extends BaseService
 {
+    public function previewHandleAll(User $user, ?string $module = null, bool $unread = false): array
+    {
+        // Freeze the selection before confirmation, including results beyond the loaded page.
+        $ids = UserNotification::query()->where('user_id', $user->id)->pendingInbox()
+            ->when($module, fn ($q) => $q->whereRaw('('.UserNotification::INBOX_MODULE_SQL.') = ?', [$module]))
+            ->when($unread, fn ($q) => $q->whereNull('read_at'))
+            ->orderBy('id')->pluck('id')->all();
+
+        return [
+            'count' => count($ids),
+            'token' => Crypt::encryptString(json_encode([
+                'userId' => (int) $user->id, 'ids' => $ids, 'expiresAt' => now()->addMinutes(5)->timestamp,
+            ], JSON_THROW_ON_ERROR)),
+        ];
+    }
+
+    public function handleAll(User $user, string $token): int
+    {
+        try {
+            $selection = json_decode(Crypt::decryptString($token), true, 512, JSON_THROW_ON_ERROR);
+        } catch (\Illuminate\Contracts\Encryption\DecryptException|\JsonException $e) {
+            throw ValidationException::withMessages(['token' => 'Danh sách xác nhận không hợp lệ. Vui lòng chọn lại.']);
+        }
+        if (($selection['userId'] ?? null) !== (int) $user->id || ($selection['expiresAt'] ?? 0) <= now()->timestamp) {
+            throw ValidationException::withMessages(['token' => 'Danh sách xác nhận đã hết hiệu lực. Vui lòng chọn lại.']);
+        }
+
+        return $this->transaction(function () use ($user, $selection): int {
+            $updated = 0;
+            foreach (array_chunk($selection['ids'], 500) as $ids) {
+                $rows = UserNotification::query()->where('user_id', $user->id)->whereIn('id', $ids)
+                    ->pendingInbox()->orderBy('id')->lockForUpdate()->get();
+                if ($rows->isEmpty()) continue;
+                $at = now();
+                $updated += UserNotification::query()->where('user_id', $user->id)->whereIn('id', $rows->modelKeys())
+                    ->pendingInbox()->update([
+                        'handled_at' => $at,
+                        'read_at' => DB::raw('COALESCE(read_at, '.$this->quoteTimestamp($at->toDateTimeString()).')'),
+                        'inbox_reopened_at' => null,
+                    ]);
+            }
+            if ($updated > 0) UserNotificationsChanged::dispatch((int) $user->id, 'handled_all');
+
+            return $updated;
+        });
+    }
+
+    private function quoteTimestamp(string $timestamp): string
+    {
+        return DB::connection()->getPdo()->quote($timestamp);
+    }
+
     public function findPaginated(User $user, string $filter, int $perPage, int $page, ?string $module = null, bool $unread = false): array
     {
         $query = UserNotification::query()->where('user_id', $user->id);
@@ -21,7 +76,7 @@ class UserNotificationsService extends BaseService
             $query->pendingInbox();
         }
         $paginator = $query
-            ->when($module, fn ($q) => $q->where('module', $module))
+            ->when($module, fn ($q) => $q->whereRaw('('.UserNotification::INBOX_MODULE_SQL.') = ?', [$module]))
             ->when($unread || $filter === 'unread', fn ($q) => $q->whereNull('read_at'))
             ->when($filter === 'action', fn ($q) => $q->where('kind', UserNotification::KIND_ACTION)->whereNull('resolved_at'))
             ->with('actor:id,code,name')
@@ -36,14 +91,14 @@ class UserNotificationsService extends BaseService
     {
         $pending = 'handled_at IS NULL AND archived_at IS NULL AND (resolved_at IS NULL OR inbox_reopened_at IS NOT NULL)';
         $rows = UserNotification::query()->where('user_id', $user->id)
-            ->select('module')->selectRaw("COUNT(*) as total,
+            ->selectRaw(UserNotification::INBOX_MODULE_SQL.' as inbox_module')->selectRaw("COUNT(*) as total,
                 SUM(CASE WHEN {$pending} THEN 1 ELSE 0 END) as pending,
                 SUM(CASE WHEN {$pending} AND read_at IS NULL THEN 1 ELSE 0 END) as unread,
                 SUM(CASE WHEN {$pending} AND kind = 'action' AND resolved_at IS NULL THEN 1 ELSE 0 END) as actions,
                 SUM(CASE WHEN archived_at IS NOT NULL THEN 1 ELSE 0 END) as archived")
-            ->groupBy('module')->get();
+            ->groupByRaw(UserNotification::INBOX_MODULE_SQL)->get();
         $modules = $rows->map(fn ($row) => [
-            'module' => $row->module, 'pendingCount' => (int) $row->pending,
+            'module' => $row->inbox_module, 'pendingCount' => (int) $row->pending,
             'doneCount' => (int) $row->total - (int) $row->pending, 'unreadCount' => (int) $row->unread,
         ])->values();
 

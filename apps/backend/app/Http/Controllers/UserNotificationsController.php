@@ -59,6 +59,25 @@ class UserNotificationsController extends Controller
         return $this->success($this->notifications->handle($request->user(), $id));
     }
 
+    public function previewHandleAll(Request $request): JsonResponse
+    {
+        $validated = $request->validate([
+            'module' => ['nullable', 'string', 'max:40'],
+            'unread' => ['nullable', 'boolean'],
+        ]);
+
+        return $this->success($this->notifications->previewHandleAll(
+            $request->user(), $validated['module'] ?? null, (bool) ($validated['unread'] ?? false),
+        ));
+    }
+
+    public function handleAll(Request $request): JsonResponse
+    {
+        $validated = $request->validate(['token' => ['required', 'string', 'max:2000000']]);
+
+        return $this->success(['updatedCount' => $this->notifications->handleAll($request->user(), $validated['token'])]);
+    }
+
     public function restore(Request $request, string $id): JsonResponse
     {
         return $this->success($this->notifications->restore($request->user(), $id));

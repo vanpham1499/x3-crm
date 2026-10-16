@@ -151,7 +151,7 @@ export type ProjectCost = {
 
 export type ProjectCostFilters = {
   keyword: string;
-  entry_type: '' | ProjectCostEntryType;
+  entry_type: '' | ProjectCostEntryType | 'promotion';
   status: '' | ProjectCostStatus;
   reconciled_status: '' | 'matched' | 'unmatched';
   reconciliation_result: '' | ProjectCostReconciliationResult;

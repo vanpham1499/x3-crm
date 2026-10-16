@@ -69,6 +69,8 @@ Route::middleware(['auth:sanctum', 'active'])->group(function (): void {
     Route::get('/notifications/summary', [UserNotificationsController::class, 'summary']);
     Route::get('/notifications', [UserNotificationsController::class, 'index']);
     Route::post('/notifications/read-all', [UserNotificationsController::class, 'markAllRead']);
+    Route::post('/notifications/handle-all/preview', [UserNotificationsController::class, 'previewHandleAll']);
+    Route::post('/notifications/handle-all', [UserNotificationsController::class, 'handleAll']);
     Route::patch('/notifications/{id}/read', [UserNotificationsController::class, 'markRead']);
     Route::post('/notifications/{id}/archive', [UserNotificationsController::class, 'archive']);
     Route::post('/notifications/{id}/handle', [UserNotificationsController::class, 'handle']);
