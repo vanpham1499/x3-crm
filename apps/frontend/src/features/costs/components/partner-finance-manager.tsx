@@ -22,6 +22,8 @@ import LockOpenRoundedIcon from '@mui/icons-material/LockOpenRounded';
 import { PageHeader } from '@/components/shell/page-header';
 import { PrimaryActionButton } from '@/components/actions/primary-action-button';
 import { ListFilterBar } from '@/components/form/list-filter-bar';
+import { TablePaginationBar } from '@/components/table/table-pagination-bar';
+import { AppDataTable } from '@/components/table/app-data-table';
 import { AppDetailDialog } from '@/components/dialog/app-detail-dialog';
 import { AppFormDialog } from '@/components/dialog/app-form-dialog';
 import { DialogActionButton } from '@/components/actions/dialog-action-button';
@@ -33,7 +35,11 @@ import { useAppNotification } from '@/components/feedback/notification-provider'
 import { getApiErrorMessage } from '@/lib/api-error';
 import { formatCurrency } from '@/lib/utils';
 import api from '@/services/api/client';
-import { RecognitionSuggestions, type RecognitionSuggestion, type RecognitionCandidate } from './recognition-suggestions';
+import {
+  RecognitionSuggestions,
+  type RecognitionSuggestion,
+  type RecognitionCandidate,
+} from './recognition-suggestions';
 
 type Allocation = { period: string; amount: number };
 type Recognition = { revision: number; amount: number; allocations: Allocation[] };
@@ -156,9 +162,10 @@ function FinanceActionDialog({
 }) {
   const target = action.kind === 'recognition' ? action.target : null;
   const [rows, setRows] = useState<Allocation[]>(
-    target?.recognition?.allocations || (target?.suggestion?.allocations.length ? target.suggestion.allocations : null) || [
-      { period: target?.period || period, amount: target?.amount || 0 },
-    ],
+    target?.recognition?.allocations ||
+      (target?.suggestion?.allocations.length ? target.suggestion.allocations : null) || [
+        { period: target?.period || period, amount: target?.amount || 0 },
+      ],
   );
   const [reason, setReason] = useState('');
   const [paidOn, setPaidOn] = useState(today());
@@ -503,6 +510,7 @@ export function PartnerFinanceManager() {
   const [action, setAction] = useState<Action | null>(null);
   const [history, setHistory] = useState<Target | null>(null);
   const [page, setPage] = useState(1);
+  const [pageSize, setPageSize] = useState(10);
   const client = useQueryClient();
   const notify = useAppNotification();
   const query = useQuery({
@@ -539,10 +547,34 @@ export function PartnerFinanceManager() {
   const filtered = rows.filter((r) =>
     `${r.code} ${r.name}`.toLocaleLowerCase('vi').includes(keyword.trim().toLocaleLowerCase('vi')),
   );
-  const candidates: RecognitionCandidate[] = filtered.flatMap((project) => [
-    ...project.quotations.map((q) => ({ key: `revenue:${q.id}`, type: 'revenue' as const, id: q.id, title: q.code, amount: q.amount, suggestion: q.suggestion!, project: project.code, projectId: project.id, canConfirm: project.canConfirm })),
-    ...project.costs.map((c) => ({ key: `cost:${c.id}`, type: 'cost' as const, id: c.id, title: c.partner, amount: c.amount, suggestion: c.suggestion!, project: project.code, projectId: project.id, canConfirm: project.canConfirm })),
-  ]).filter((r) => r.suggestion);
+  const totalPages = Math.max(1, Math.ceil(filtered.length / pageSize));
+  const visiblePage = Math.min(page, totalPages);
+  const candidates: RecognitionCandidate[] = filtered
+    .flatMap((project) => [
+      ...project.quotations.map((q) => ({
+        key: `revenue:${q.id}`,
+        type: 'revenue' as const,
+        id: q.id,
+        title: q.code,
+        amount: q.amount,
+        suggestion: q.suggestion!,
+        project: project.code,
+        projectId: project.id,
+        canConfirm: project.canConfirm,
+      })),
+      ...project.costs.map((c) => ({
+        key: `cost:${c.id}`,
+        type: 'cost' as const,
+        id: c.id,
+        title: c.partner,
+        amount: c.amount,
+        suggestion: c.suggestion!,
+        project: project.code,
+        projectId: project.id,
+        canConfirm: project.canConfirm,
+      })),
+    ])
+    .filter((r) => r.suggestion);
   const selected = rows.find((r) => r.id === selectedId);
   const totals = rows.reduce(
     (s, r) => ({
@@ -695,8 +727,7 @@ export function PartnerFinanceManager() {
       ) : (
         <>
           <p className="mb-3 text-sm text-slate-500">
-            Doanh thu dịch vụ và chi phí theo kỳ đã xác nhận · Công nợ tại hiện
-            tại
+            Doanh thu dịch vụ và chi phí theo kỳ đã xác nhận · Công nợ tại hiện tại
           </p>
           <div className="mb-4 grid gap-3 sm:grid-cols-2 xl:grid-cols-3">
             {[
@@ -720,206 +751,221 @@ export function PartnerFinanceManager() {
               </div>
             ))}
           </div>
-          <RecognitionSuggestions key={period} candidates={candidates} period={period} busy={mutation.isPending}
-            onProject={setSelectedId} onSubmit={async (data) => {
-              await mutation.mutateAsync({ path: '/partner-finance/recognitions/batch', method: 'post', data });
-            }} />
+          <RecognitionSuggestions
+            key={period}
+            candidates={candidates}
+            period={period}
+            busy={mutation.isPending}
+            onProject={setSelectedId}
+            onSubmit={async (data) => {
+              await mutation.mutateAsync({
+                path: '/partner-finance/recognitions/batch',
+                method: 'post',
+                data,
+              });
+            }}
+          />
           {rows.some((r) => r.partialScope) && (
             <Alert severity="info" className="mb-4">
               Số liệu chỉ gồm các khoản anh/chị có quyền xem; chưa phản ánh toàn bộ lợi nhuận dự án.
             </Alert>
           )}
           <section className="overflow-hidden rounded-2xl border border-slate-200 bg-white shadow-sm">
-            <div className="overflow-x-auto">
-              <table className="w-full min-w-[850px] text-left text-sm">
-                <thead className="border-y border-slate-200 bg-slate-50">
-                  <tr>
-                    {['Dự án', 'Doanh thu', 'Chi phí', 'Lợi nhuận', 'Còn phải trả', 'Đối soát'].map(
-                      (t) => (
-                        <th key={t} className="px-4 py-3 font-medium text-slate-600">
-                          {t}
-                        </th>
-                      ),
-                    )}
-                  </tr>
-                </thead>
-                <tbody className="divide-y divide-slate-100">
-                  {filtered.slice((page - 1) * 10, page * 10).map((r) => (
-                    <tr
-                      key={r.id}
-                      className={selectedId === r.id ? 'bg-sky-50' : 'hover:bg-slate-50'}
+            <AppDataTable
+              minWidthClassName="min-w-[950px]"
+              isEmpty={!filtered.length}
+              emptyText="Chưa có dự án phù hợp."
+              columns={[
+                { key: 'project', label: 'Dự án', className: 'w-[30%]' },
+                { key: 'revenue', label: 'Doanh thu' },
+                { key: 'cost', label: 'Chi phí' },
+                { key: 'profit', label: 'Lợi nhuận' },
+                { key: 'payable', label: 'Còn phải trả' },
+                { key: 'review', label: 'Đối soát', className: 'w-[17%]' },
+              ]}
+            >
+              {filtered.slice((visiblePage - 1) * pageSize, visiblePage * pageSize).map((r) => (
+                <tr key={r.id} className={selectedId === r.id ? 'bg-sky-50' : 'hover:bg-slate-50'}>
+                  <td className="px-4 py-3">
+                    <button
+                      type="button"
+                      onClick={() => setSelectedId(r.id)}
+                      className="break-words text-left font-semibold text-primary hover:underline"
                     >
-                      <td className="px-4 py-3">
-                        <button
-                          type="button"
-                          onClick={() => setSelectedId(r.id)}
-                          className="text-left font-semibold text-primary hover:underline"
-                        >
-                          {r.code}
-                        </button>
-                        <p className="mt-1 text-xs text-slate-500">{r.name}</p>
-                      </td>
-                      {[r.revenue, r.cost, r.profit, r.payable].map((v, i) => (
-                        <td
-                          key={i}
-                          className={`px-4 py-3 whitespace-nowrap tabular-nums ${v < 0 ? 'text-rose-700' : ''}`}
-                        >
-                          {money(v)}
-                        </td>
-                      ))}
-                      <td className="px-4 py-3">
-                        <Button size="small" onClick={() => setSelectedId(r.id)}>
-                          {r.reviewCount ? `${r.reviewCount} cần kiểm tra` : r.readyCount ? `${r.readyCount} chờ xác nhận` : 'Chi tiết'}
-                        </Button>
-                      </td>
-                    </tr>
+                      {r.code}
+                    </button>
+                    <p className="mt-1 text-xs text-slate-500">{r.name}</p>
+                  </td>
+                  {[r.revenue, r.cost, r.profit, r.payable].map((v, i) => (
+                    <td
+                      key={i}
+                      className={`px-4 py-3 whitespace-nowrap tabular-nums ${v < 0 ? 'text-rose-700' : ''}`}
+                    >
+                      {money(v)}
+                    </td>
                   ))}
-                  {!filtered.length && (
-                    <tr>
-                      <td colSpan={6} className="p-10 text-center text-slate-500">
-                        Chưa có dự án phù hợp.
-                      </td>
-                    </tr>
-                  )}
-                </tbody>
-              </table>
-            </div>
-            <div className="flex justify-end items-center gap-3 border-t p-3 text-sm">
-              <span>{filtered.length} dự án</span>
-              <Button size="small" disabled={page === 1} onClick={() => setPage(page - 1)}>
-                Trước
-              </Button>
-              <span>{page}</span>
-              <Button
-                size="small"
-                disabled={page * 10 >= filtered.length}
-                onClick={() => setPage(page + 1)}
-              >
-                Sau
-              </Button>
-            </div>
+                  <td className="px-4 py-3">
+                    <Button size="small" onClick={() => setSelectedId(r.id)}>
+                      {r.reviewCount
+                        ? `${r.reviewCount} cần kiểm tra`
+                        : r.readyCount
+                          ? `${r.readyCount} chờ xác nhận`
+                          : 'Chi tiết'}
+                    </Button>
+                  </td>
+                </tr>
+              ))}
+            </AppDataTable>
+            <TablePaginationBar
+              page={visiblePage}
+              totalPages={totalPages}
+              totalItems={filtered.length}
+              pageSize={pageSize}
+              onPageChange={setPage}
+              onPageSizeChange={(value) => {
+                setPageSize(value);
+                setPage(1);
+              }}
+            />
           </section>
           {selected && (
-            <AppDetailDialog open={!action && !history} title={selected.code} subtitle={selected.name} maxWidth="lg"
-              onClose={() => setSelectedId(0)} actions={
-                <Button component={Link} href={`/projects/${selected.id}?tab=finance`} size="small" variant="outlined" color="inherit">Mở dự án</Button>
-              }>
+            <AppDetailDialog
+              open={!action && !history}
+              title={selected.code}
+              subtitle={selected.name}
+              maxWidth="lg"
+              onClose={() => setSelectedId(0)}
+              actions={
+                <DialogActionButton href={`/projects/${selected.id}?tab=finance`}>
+                  Mở dự án
+                </DialogActionButton>
+              }
+            >
               <div className="space-y-4 p-4 md:p-5">
-              <h3 className="text-sm font-semibold">Doanh thu dịch vụ trước VAT</h3>
-              {!selected.quotations.length && (
-                <p className="text-sm text-slate-500">Chưa có báo phí được phép xem.</p>
-              )}
-              {selected.quotations.map((q) => (
-                <div
-                  key={q.id}
-                  className="flex flex-wrap items-center justify-between gap-3 rounded-lg border border-slate-200 p-3"
-                >
-                  <div>
-                    <p className="text-sm font-medium break-all">{q.code}</p>
-                    <p className="my-1 text-sm font-semibold">
-                      {q.amount === null ? 'Cần kiểm tra cơ cấu báo phí' : money(q.amount)}
-                    </p>
-                    <Periods recognition={q.recognition} />
-                    {q.suggestion && !q.recognition && <p className="mt-1 text-xs text-slate-600">{q.suggestion.reason}</p>}
-                    {q.needsReview && (
-                      <p className="text-xs text-amber-700">Nguồn cần đối soát lại.</p>
-                    )}
-                  </div>
-                  {buttons(quoteTarget(q), selected.canConfirm && q.amount !== null)}
-                </div>
-              ))}
-              <h3 className="border-t pt-4 text-sm font-semibold">Chi phí & thanh toán đối tác</h3>
-              {!selected.costs.length && <p className="text-sm text-slate-500">Chưa có chi phí đối tác.</p>}
-              {selected.costs.map((c) => (
-                <div key={c.id} className="rounded-lg border border-slate-200 p-3">
-                  <div className="flex flex-wrap justify-between gap-3">
+                <h3 className="text-sm font-semibold">Doanh thu dịch vụ trước VAT</h3>
+                {!selected.quotations.length && (
+                  <p className="text-sm text-slate-500">Chưa có báo phí được phép xem.</p>
+                )}
+                {selected.quotations.map((q) => (
+                  <div
+                    key={q.id}
+                    className="flex flex-wrap items-center justify-between gap-3 rounded-lg border border-slate-200 p-3"
+                  >
                     <div>
-                      <p className="font-semibold text-sm">{c.partner}</p>
-                      <p className="mt-1 text-xs text-slate-500">
-                        Khoản #{c.id}
-                        {c.quotationId
-                          ? ` · ${selected.quotations.find((q) => q.id === c.quotationId)?.code || `Báo phí #${c.quotationId}`}`
-                          : ' · Chưa gắn báo phí'}
+                      <p className="text-sm font-medium break-all">{q.code}</p>
+                      <p className="my-1 text-sm font-semibold">
+                        {q.amount === null ? 'Cần kiểm tra cơ cấu báo phí' : money(q.amount)}
                       </p>
-                      <div className="mt-2 flex flex-wrap gap-x-5 gap-y-1 text-sm">
-                        <span>
-                          Chi phí <strong>{money(c.amount)}</strong>
-                        </span>
-                        <span>
-                          Đã trả <strong>{money(c.paid)}</strong>
-                        </span>
-                        <span>
-                          {c.recognition ? 'Còn phải trả' : 'Còn lại chưa xác nhận'}{' '}
-                          <strong className="text-amber-700">{money(c.remaining)}</strong>
-                        </span>
-                      </div>
-                      <div className="mt-2">
-                        <Periods recognition={c.recognition} />
-                    {c.suggestion && !c.recognition && <p className="mt-1 text-xs text-slate-600">{c.suggestion.reason}</p>}
-                      </div>
-                    </div>
-                    <div>
-                      {buttons(costTarget(c), selected.canConfirm)}
-                      {c.canFund && c.remaining > 0 && (
-                        <Button
-                          size="small"
-                          variant="outlined"
-                          disabled={!c.recognition}
-                          onClick={() =>
-                            setAction({
-                              kind: 'payment',
-                              cost: c,
-                              companions: selected.costs.filter(
-                                (other) =>
-                                  other.id !== c.id &&
-                                  c.partnerId !== null &&
-                                  other.partnerId === c.partnerId &&
-                                  other.remaining > 0 &&
-                                  other.recognition &&
-                                  other.canFund &&
-                                  !other.reconciled,
-                              ),
-                            })
-                          }
-                        >
-                          Ghi thanh toán
-                        </Button>
+                      <Periods recognition={q.recognition} />
+                      {q.suggestion && !q.recognition && (
+                        <p className="mt-1 text-xs text-slate-600">{q.suggestion.reason}</p>
+                      )}
+                      {q.needsReview && (
+                        <p className="text-xs text-amber-700">Nguồn cần đối soát lại.</p>
                       )}
                     </div>
+                    {buttons(quoteTarget(q), selected.canConfirm && q.amount !== null)}
                   </div>
-                  {!c.usesLedger && c.paid > 0 && (
-                    <p className="mt-3 text-xs text-slate-500">
-                      Khoản đã chi trước đây: {money(c.paid)} · {c.paidOn || 'Thiếu ngày chi'}. Xác
-                      nhận kỳ để đối soát vào sổ mới.
-                    </p>
-                  )}
-                  {!!c.payments.length && (
-                    <div className="mt-3 divide-y divide-slate-100 border-t border-slate-100">
-                      {c.payments.map((p) => (
-                        <div
-                          key={p.id}
-                          className={`flex flex-wrap items-center justify-between gap-2 py-2 text-xs ${p.voided ? 'text-slate-400' : 'text-slate-600'}`}
-                        >
+                ))}
+                <h3 className="border-t pt-4 text-sm font-semibold">
+                  Chi phí & thanh toán đối tác
+                </h3>
+                {!selected.costs.length && (
+                  <p className="text-sm text-slate-500">Chưa có chi phí đối tác.</p>
+                )}
+                {selected.costs.map((c) => (
+                  <div key={c.id} className="rounded-lg border border-slate-200 p-3">
+                    <div className="flex flex-wrap justify-between gap-3">
+                      <div>
+                        <p className="font-semibold text-sm">{c.partner}</p>
+                        <p className="mt-1 text-xs text-slate-500">
+                          Khoản #{c.id}
+                          {c.quotationId
+                            ? ` · ${selected.quotations.find((q) => q.id === c.quotationId)?.code || `Báo phí #${c.quotationId}`}`
+                            : ' · Chưa gắn báo phí'}
+                        </p>
+                        <div className="mt-2 flex flex-wrap gap-x-5 gap-y-1 text-sm">
                           <span>
-                            {p.paidOn} · {money(p.amount)} · {p.reference || 'Không có mã chứng từ'}
-                            {p.legacy ? ' · Lịch sử cũ' : ''}
-                            {p.voided ? ` · Đã hủy: ${p.voidReason}` : ''}
+                            Chi phí <strong>{money(c.amount)}</strong>
                           </span>
-                          {c.canFund && !c.reconciled && !p.voided && !p.legacy && (
-                            <Button
-                              size="small"
-                              color="inherit"
-                              onClick={() => setAction({ kind: 'void', cost: c, payment: p })}
-                            >
-                              Hủy ghi nhận
-                            </Button>
+                          <span>
+                            Đã trả <strong>{money(c.paid)}</strong>
+                          </span>
+                          <span>
+                            {c.recognition ? 'Còn phải trả' : 'Còn lại chưa xác nhận'}{' '}
+                            <strong className="text-amber-700">{money(c.remaining)}</strong>
+                          </span>
+                        </div>
+                        <div className="mt-2">
+                          <Periods recognition={c.recognition} />
+                          {c.suggestion && !c.recognition && (
+                            <p className="mt-1 text-xs text-slate-600">{c.suggestion.reason}</p>
                           )}
                         </div>
-                      ))}
+                      </div>
+                      <div>
+                        {buttons(costTarget(c), selected.canConfirm)}
+                        {c.canFund && c.remaining > 0 && (
+                          <Button
+                            size="small"
+                            variant="outlined"
+                            disabled={!c.recognition}
+                            onClick={() =>
+                              setAction({
+                                kind: 'payment',
+                                cost: c,
+                                companions: selected.costs.filter(
+                                  (other) =>
+                                    other.id !== c.id &&
+                                    c.partnerId !== null &&
+                                    other.partnerId === c.partnerId &&
+                                    other.remaining > 0 &&
+                                    other.recognition &&
+                                    other.canFund &&
+                                    !other.reconciled,
+                                ),
+                              })
+                            }
+                          >
+                            Ghi thanh toán
+                          </Button>
+                        )}
+                      </div>
                     </div>
-                  )}
-                </div>
-              ))}
+                    {!c.usesLedger && c.paid > 0 && (
+                      <p className="mt-3 text-xs text-slate-500">
+                        Khoản đã chi trước đây: {money(c.paid)} · {c.paidOn || 'Thiếu ngày chi'}.
+                        Xác nhận kỳ để đối soát vào sổ mới.
+                      </p>
+                    )}
+                    {!!c.payments.length && (
+                      <div className="mt-3 divide-y divide-slate-100 border-t border-slate-100">
+                        {c.payments.map((p) => (
+                          <div
+                            key={p.id}
+                            className={`flex flex-wrap items-center justify-between gap-2 py-2 text-xs ${p.voided ? 'text-slate-400' : 'text-slate-600'}`}
+                          >
+                            <span>
+                              {p.paidOn} · {money(p.amount)} ·{' '}
+                              {p.reference || 'Không có mã chứng từ'}
+                              {p.legacy ? ' · Lịch sử cũ' : ''}
+                              {p.voided ? ` · Đã hủy: ${p.voidReason}` : ''}
+                            </span>
+                            {c.canFund && !c.reconciled && !p.voided && !p.legacy && (
+                              <Button
+                                size="small"
+                                color="inherit"
+                                onClick={() => setAction({ kind: 'void', cost: c, payment: p })}
+                              >
+                                Hủy ghi nhận
+                              </Button>
+                            )}
+                          </div>
+                        ))}
+                      </div>
+                    )}
+                  </div>
+                ))}
               </div>
             </AppDetailDialog>
           )}

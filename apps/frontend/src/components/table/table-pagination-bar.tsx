@@ -10,6 +10,7 @@ export function TablePaginationBar({
   pageSize,
   onPageChange,
   onPageSizeChange,
+  disabled = false,
   pageSizeOptions = [10, 20, 50, 100],
   rangeLabel = 'Hiển thị',
   pageSizeLabel = 'Số dòng',
@@ -20,6 +21,7 @@ export function TablePaginationBar({
   pageSize: number;
   onPageChange: (page: number) => void;
   onPageSizeChange?: (pageSize: number) => void;
+  disabled?: boolean;
   pageSizeOptions?: number[];
   rangeLabel?: string;
   pageSizeLabel?: string;
@@ -47,6 +49,7 @@ export function TablePaginationBar({
               {pageSizeLabel}
             </span>
             <Select
+              disabled={disabled}
               size="small"
               labelId={pageSizeLabelId}
               value={pageSize}
@@ -73,6 +76,18 @@ export function TablePaginationBar({
 
         {totalPages > 1 && (
           <Pagination
+            disabled={disabled}
+            getItemAriaLabel={(type, value, selected) =>
+              type === 'page'
+                ? `${selected ? 'Trang hiện tại' : 'Đến trang'} ${value}`
+                : type === 'previous'
+                  ? 'Trang trước'
+                  : type === 'next'
+                    ? 'Trang sau'
+                    : type === 'first'
+                      ? 'Trang đầu'
+                      : 'Trang cuối'
+            }
             count={totalPages}
             page={page}
             onChange={(_, value) => onPageChange(value)}

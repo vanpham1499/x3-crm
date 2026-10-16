@@ -1,4 +1,6 @@
 'use client';
+
+import { CursorPaginationBar } from '@/components/table/cursor-pagination-bar';
 import { useEffect, useState } from 'react';
 import Link from 'next/link';
 import { useQuery } from '@tanstack/react-query';
@@ -353,23 +355,12 @@ export function WorkBoard() {
                       </table>
                     </div>
                   )}
-                  {(page > 0 || data.hasMore) && (
-                    <div className={styles.pagination}>
-                      <button
-                        disabled={page === 0 || query.isFetching}
-                        onClick={() => setPage((p) => p - 1)}
-                      >
-                        Trước
-                      </button>
-                      <span>Trang {page + 1}</span>
-                      <button
-                        disabled={!data.hasMore || query.isFetching}
-                        onClick={() => setPage((p) => p + 1)}
-                      >
-                        Sau
-                      </button>
-                    </div>
-                  )}
+                  <CursorPaginationBar
+                    page={page + 1}
+                    hasMore={data.hasMore}
+                    disabled={query.isFetching}
+                    onPageChange={(value) => setPage(value - 1)}
+                  />
                 </div>
                 {!data.remindersReady && (
                   <p className={styles.error} role="status">

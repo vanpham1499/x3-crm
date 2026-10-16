@@ -10,16 +10,16 @@ import {
   IconButton,
   Menu,
   MenuItem,
-  TextField,
-  Dialog,
-  DialogTitle,
-  DialogContent,
   Alert,
 } from '@mui/material';
 import MoreVertRoundedIcon from '@mui/icons-material/MoreVertRounded';
 import AddRoundedIcon from '@mui/icons-material/AddRounded';
 import { PageHeader } from '@/components/shell/page-header';
 import { AppDataTable } from '@/components/table/app-data-table';
+import { AppDetailDialog } from '@/components/dialog/app-detail-dialog';
+import { TablePaginationBar } from '@/components/table/table-pagination-bar';
+import { CompactSelectField } from '@/components/form/compact-select-field';
+import { FormInputField } from '@/components/form/form-input-field';
 import { AppFormDialog } from '@/components/dialog/app-form-dialog';
 import { DialogActionButton } from '@/components/actions/dialog-action-button';
 import { ConfirmDialog } from '@/components/feedback/confirm-dialog';
@@ -71,6 +71,8 @@ export default function TeamsPage() {
   const viewer = useAuthStore((s) => s.user);
   const notify = useAppNotification();
   const cache = useQueryClient();
+  const [page, setPage] = useState(1);
+  const [pageSize, setPageSize] = useState(10);
   const [search, setSearch] = useState('');
   const [department, setDepartment] = useState('');
   const [form, setForm] = useState<Form | null>(null);
@@ -131,6 +133,8 @@ export default function TeamsPage() {
         .toLocaleLowerCase('vi')
         .includes(search.trim().toLocaleLowerCase('vi')),
   );
+  const totalPages = Math.max(1, Math.ceil(rows.length / pageSize));
+  const visiblePage = Math.min(page, totalPages);
   const options = (users.data ?? []).filter(
     (u) => u.isActive && String(u.departmentId) === form?.departmentId,
   );
@@ -175,22 +179,21 @@ export default function TeamsPage() {
             label="Tìm kiếm"
             placeholder="Tên nhóm, trưởng nhóm..."
             value={search}
-            onChange={setSearch}
+            onChange={(value) => {
+              setSearch(value);
+              setPage(1);
+            }}
           />
-          <TextField
-            select
-            size="small"
+          <CompactSelectField
             label="Phòng ban"
             value={department}
-            onChange={(e) => setDepartment(e.target.value)}
-          >
-            <MenuItem value="">Tất cả phòng ban</MenuItem>
-            {(departments.data ?? []).map((d) => (
-              <MenuItem key={d.id} value={String(d.id)}>
-                {d.name}
-              </MenuItem>
-            ))}
-          </TextField>
+            allLabel="Tất cả phòng ban"
+            onChange={(value) => {
+              setDepartment(value);
+              setPage(1);
+            }}
+            options={(departments.data ?? []).map((d) => ({ value: String(d.id), label: d.name }))}
+          />
         </ListFilterBar>
         {teams.isError && <Alert severity="error">Không tải được danh sách nhóm.</Alert>}
         <AppDataTable
@@ -206,7 +209,7 @@ export default function TeamsPage() {
             { key: 'actions', label: '', className: 'w-16' },
           ]}
         >
-          {rows.map((t) => (
+          {rows.slice((visiblePage - 1) * pageSize, visiblePage * pageSize).map((t) => (
             <tr key={t.id} className="hover:bg-slate-50">
               <td className="px-3 py-4 font-semibold">{t.name}</td>
               <td className="px-3 py-4">{t.departmentName}</td>
@@ -238,7 +241,17 @@ export default function TeamsPage() {
             </tr>
           ))}
         </AppDataTable>
-        <p className="px-4 py-3 text-sm text-slate-500">{rows.length} nhóm</p>
+        <TablePaginationBar
+          page={visiblePage}
+          pageSize={pageSize}
+          totalItems={rows.length}
+          totalPages={totalPages}
+          onPageChange={setPage}
+          onPageSizeChange={(value) => {
+            setPageSize(value);
+            setPage(1);
+          }}
+        />
       </section>
       <Menu open={Boolean(menu)} anchorEl={menu?.anchor} onClose={() => setMenu(null)}>
         {hasPermission(viewer, 'team.update') && (
@@ -296,14 +309,14 @@ export default function TeamsPage() {
         }
       >
         {error && <Alert severity="error">{error}</Alert>}
-        <TextField
+        <FormInputField
           required
           label="Tên nhóm"
           size="small"
           value={form?.name ?? ''}
           onChange={(e) => setForm((f) => f && { ...f, name: e.target.value })}
         />
-        <TextField
+        <FormInputField
           required
           select
           label="Phòng ban"
@@ -328,7 +341,7 @@ export default function TeamsPage() {
               {d.name}
             </MenuItem>
           ))}
-        </TextField>
+        </FormInputField>
         <Autocomplete
           disabled={!form?.departmentId || users.isLoading}
           options={options}
@@ -336,7 +349,7 @@ export default function TeamsPage() {
           getOptionLabel={(u: User) => formatUserLabel(u)}
           isOptionEqualToValue={(a, b) => a.id === b.id}
           onChange={(_, u) => setForm((f) => f && { ...f, leaderUserId: u?.id ?? null })}
-          renderInput={(p) => <TextField {...p} label="Trưởng nhóm" size="small" />}
+          renderInput={(p) => <FormInputField {...p} label="Trưởng nhóm" size="small" />}
         />
         <Autocomplete
           disabled={!form?.departmentId || users.isLoading}
@@ -354,7 +367,7 @@ export default function TeamsPage() {
                 f && { ...f, memberUserIds: selected.map((u) => u.id), confirmTransfers: false },
             )
           }
-          renderInput={(p) => <TextField {...p} label="Thành viên" size="small" />}
+          renderInput={(p) => <FormInputField {...p} label="Thành viên" size="small" />}
         />
         {transfers.length > 0 && (
           <FormControlLabel
@@ -376,14 +389,15 @@ export default function TeamsPage() {
         onClose={() => setDeleting(null)}
         onConfirm={() => deleting && remove.mutate(deleting)}
       />
-      <Dialog
+      <AppDetailDialog
         open={Boolean(historyTeam)}
         onClose={() => setHistoryTeam(null)}
+        title="Lịch sử thành viên"
+        subtitle={historyTeam?.name}
         maxWidth="sm"
-        fullWidth
+        loading={history.isFetching}
       >
-        <DialogTitle>Lịch sử · {historyTeam?.name}</DialogTitle>
-        <DialogContent>
+        <div className="p-5">
           {history.isFetching ? (
             'Đang tải...'
           ) : history.isError ? (
@@ -405,11 +419,8 @@ export default function TeamsPage() {
               ))}
             </ul>
           )}
-        </DialogContent>
-        <div className="px-6 pb-4 text-right">
-          <DialogActionButton onClick={() => setHistoryTeam(null)}>Đóng</DialogActionButton>
         </div>
-      </Dialog>
+      </AppDetailDialog>
     </div>
   );
 }

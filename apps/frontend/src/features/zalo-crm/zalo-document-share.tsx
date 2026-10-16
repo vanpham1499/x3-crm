@@ -9,14 +9,9 @@ import {
   Button,
   Chip,
   CircularProgress,
-  Dialog,
-  DialogActions,
-  DialogContent,
-  DialogTitle,
   Divider,
   MenuItem,
   Stack,
-  TextField,
   ToggleButton,
   ToggleButtonGroup,
   Typography,
@@ -24,6 +19,8 @@ import {
 import SendOutlinedIcon from '@mui/icons-material/SendOutlined';
 import LinkOutlinedIcon from '@mui/icons-material/LinkOutlined';
 import { useQuery, useQueryClient } from '@tanstack/react-query';
+import { AppFormDialog } from '@/components/dialog/app-form-dialog';
+import { FormInputField } from '@/components/form/form-input-field';
 import { DialogActionButton } from '@/components/actions/dialog-action-button';
 import { getApiErrorMessage } from '@/lib/api-error';
 import { createElementDocument } from '@/lib/download-element-pdf';
@@ -186,118 +183,118 @@ function RouteDialog({
     }
   }
   return (
-    <Dialog
+    <AppFormDialog
       open
-      onClose={busy ? undefined : onClose}
-      fullWidth
+      title="Nhóm Zalo nhận tài liệu"
       maxWidth="sm"
-      aria-labelledby="zalo-route-title"
+      submitting={busy}
+      onClose={onClose}
+      onSubmit={(event) => event.preventDefault()}
+      actions={
+        <>
+          <DialogActionButton onClick={onClose} disabled={busy}>
+            Đóng
+          </DialogActionButton>
+          {binding.data?.canEdit && (
+            <DialogActionButton
+              tone="primary"
+              onClick={() => void save()}
+              disabled={busy || (mode === 'own' && (!peer || !account || groups.isFetching))}
+            >
+              {busy ? 'Đang lưu…' : 'Lưu liên kết'}
+            </DialogActionButton>
+          )}
+        </>
+      }
     >
-      <DialogTitle id="zalo-route-title">Nhóm Zalo nhận tài liệu</DialogTitle>
-      <DialogContent dividers>
-        <Stack spacing={2.5}>
-          {binding.isPending && <CircularProgress size={24} />}
-          {(error || binding.error || groups.error || accounts.error) && (
-            <Alert severity="error">
-              {error || getApiErrorMessage(binding.error || groups.error || accounts.error)}
-              <Button
-                size="small"
-                onClick={() => {
-                  void binding.refetch();
-                  if (binding.data?.canEdit) void accounts.refetch();
-                  if (account) void groups.refetch();
-                }}
-              >
-                Tải lại
-              </Button>
-            </Alert>
-          )}
-          {binding.data && (
-            <>
-              <TextField
-                select
-                size="small"
-                label="Nơi nhận"
-                value={mode}
-                disabled={!binding.data.canEdit || busy}
-                onChange={(e) => setMode(e.target.value as Binding['mode'])}
-              >
-                <MenuItem value="disabled">Chưa bật gửi tài liệu</MenuItem>
-                <MenuItem value="own">Chọn nhóm riêng</MenuItem>
-                {binding.data.canInherit && (
-                  <MenuItem value="inherit">Dùng nhóm của khách hàng</MenuItem>
-                )}
-              </TextField>
-              {mode === 'own' && (
-                <>
-                  {binding.data.canEdit && (
-                    <>
-                      <TextField
-                        select
-                        size="small"
-                        label="Tài khoản gửi"
-                        value={account}
-                        disabled={!binding.data.canEdit || busy}
-                        onChange={(e) => {
-                          setAccount(Number(e.target.value));
-                          setPeer('');
-                        }}
-                      >
-                        {(accounts.data || []).map((a) => (
-                          <MenuItem key={a.id} value={a.id}>
-                            {a.name}
-                          </MenuItem>
-                        ))}
-                      </TextField>
-                      <Autocomplete
-                        options={groups.data || []}
-                        value={groups.data?.find((g) => g.peer === peer) || null}
-                        getOptionLabel={(g) => g.name}
-                        getOptionKey={(g) => g.peer}
-                        isOptionEqualToValue={(a, b) => a.peer === b.peer}
-                        loading={groups.isFetching}
-                        disabled={!account || !binding.data.canEdit || busy}
-                        onChange={(_, g) => setPeer(g?.peer || '')}
-                        noOptionsText="Chưa có nhóm khả dụng"
-                        loadingText="Đang tải nhóm…"
-                        renderOption={({ key, ...props }, g) => (
-                          <li key={key} {...props}>
-                            <Avatar src={g.avatar} sx={{ width: 32, height: 32, mr: 1 }}>
-                              {g.name.slice(0, 1)}
-                            </Avatar>
-                            {g.name}
-                          </li>
-                        )}
-                        renderInput={(params) => (
-                          <TextField {...params} size="small" label="Nhóm nhận" />
-                        )}
-                      />
-                    </>
-                  )}
-                  {!binding.data.canEdit && binding.data.destination && (
-                    <DestinationView value={binding.data.destination} />
-                  )}
-                </>
-              )}
-            </>
-          )}
-        </Stack>
-      </DialogContent>
-      <DialogActions sx={{ p: 2 }}>
-        <Button onClick={onClose} disabled={busy}>
-          Đóng
-        </Button>
-        {binding.data?.canEdit && (
-          <Button
-            variant="contained"
-            onClick={() => void save()}
-            disabled={busy || (mode === 'own' && (!peer || !account || groups.isFetching))}
-          >
-            {busy ? 'Đang lưu…' : 'Lưu liên kết'}
-          </Button>
+      <Stack spacing={2.5}>
+        {binding.isPending && <CircularProgress size={24} />}
+        {(error || binding.error || groups.error || accounts.error) && (
+          <Alert severity="error">
+            {error || getApiErrorMessage(binding.error || groups.error || accounts.error)}
+            <Button
+              size="small"
+              onClick={() => {
+                void binding.refetch();
+                if (binding.data?.canEdit) void accounts.refetch();
+                if (account) void groups.refetch();
+              }}
+            >
+              Tải lại
+            </Button>
+          </Alert>
         )}
-      </DialogActions>
-    </Dialog>
+        {binding.data && (
+          <>
+            <FormInputField
+              select
+              size="small"
+              label="Nơi nhận"
+              value={mode}
+              disabled={!binding.data.canEdit || busy}
+              onChange={(e) => setMode(e.target.value as Binding['mode'])}
+            >
+              <MenuItem value="disabled">Chưa bật gửi tài liệu</MenuItem>
+              <MenuItem value="own">Chọn nhóm riêng</MenuItem>
+              {binding.data.canInherit && (
+                <MenuItem value="inherit">Dùng nhóm của khách hàng</MenuItem>
+              )}
+            </FormInputField>
+            {mode === 'own' && (
+              <>
+                {binding.data.canEdit && (
+                  <>
+                    <FormInputField
+                      select
+                      size="small"
+                      label="Tài khoản gửi"
+                      value={account}
+                      disabled={!binding.data.canEdit || busy}
+                      onChange={(e) => {
+                        setAccount(Number(e.target.value));
+                        setPeer('');
+                      }}
+                    >
+                      {(accounts.data || []).map((a) => (
+                        <MenuItem key={a.id} value={a.id}>
+                          {a.name}
+                        </MenuItem>
+                      ))}
+                    </FormInputField>
+                    <Autocomplete
+                      options={groups.data || []}
+                      value={groups.data?.find((g) => g.peer === peer) || null}
+                      getOptionLabel={(g) => g.name}
+                      getOptionKey={(g) => g.peer}
+                      isOptionEqualToValue={(a, b) => a.peer === b.peer}
+                      loading={groups.isFetching}
+                      disabled={!account || !binding.data.canEdit || busy}
+                      onChange={(_, g) => setPeer(g?.peer || '')}
+                      noOptionsText="Chưa có nhóm khả dụng"
+                      loadingText="Đang tải nhóm…"
+                      renderOption={({ key, ...props }, g) => (
+                        <li key={key} {...props}>
+                          <Avatar src={g.avatar} sx={{ width: 32, height: 32, mr: 1 }}>
+                            {g.name.slice(0, 1)}
+                          </Avatar>
+                          {g.name}
+                        </li>
+                      )}
+                      renderInput={(params) => (
+                        <FormInputField {...params} size="small" label="Nhóm nhận" />
+                      )}
+                    />
+                  </>
+                )}
+                {!binding.data.canEdit && binding.data.destination && (
+                  <DestinationView value={binding.data.destination} />
+                )}
+              </>
+            )}
+          </>
+        )}
+      </Stack>
+    </AppFormDialog>
   );
 }
 
@@ -450,220 +447,211 @@ function DocumentDialog({
     }
   }
   return (
-    <Dialog
+    <AppFormDialog
       open
-      onClose={busy ? undefined : onClose}
-      fullWidth
+      title="Gửi Zalo"
       maxWidth="lg"
-      aria-labelledby="zalo-document-title"
+      submitting={busy}
+      onClose={onClose}
+      onSubmit={(event) => event.preventDefault()}
+      actions={
+        <>
+          <DialogActionButton onClick={onClose} disabled={busy}>
+            Đóng
+          </DialogActionButton>
+          <DialogActionButton
+            tone="primary"
+            startIcon={busy ? <CircularProgress size={16} color="inherit" /> : <SendOutlinedIcon />}
+            onClick={() => void send()}
+            disabled={
+              busy ||
+              preparing ||
+              !file ||
+              !data?.destination ||
+              !data.eligible ||
+              stale ||
+              accepted
+            }
+          >
+            {busy ? 'Đang xử lý…' : 'Xác nhận gửi'}
+          </DialogActionButton>
+        </>
+      }
     >
-      <DialogTitle id="zalo-document-title">
-        Gửi Zalo{' '}
-        <Typography component="span" color="text.secondary" sx={{ ml: 1, fontSize: 14 }}>
-          {data?.title}
-        </Typography>
-      </DialogTitle>
-      <DialogContent dividers sx={{ p: 0 }}>
-        <Box
-          sx={{ display: 'grid', gridTemplateColumns: { xs: '1fr', md: 'minmax(0, 1fr) 340px' } }}
-        >
-          <Box sx={{ p: 2, bgcolor: 'grey.100', minWidth: 0 }}>
-            <ToggleButtonGroup
-              exclusive
-              size="small"
-              value={format}
-              disabled={busy || accepted}
-              onChange={(_, next) => {
-                if (next) {
-                  setFormat(next);
-                  requestId.current = crypto.randomUUID();
-                }
-              }}
-              aria-label="Định dạng tài liệu"
-              sx={{ mb: 2 }}
-            >
-              <ToggleButton value="pdf">PDF</ToggleButton>
-              <ToggleButton value="png">Ảnh</ToggleButton>
-            </ToggleButtonGroup>
-            {preparing ? (
-              <Stack spacing={2} sx={{ py: 8, alignItems: 'center' }}>
-                <CircularProgress size={28} />
-                <Typography>Đang tạo bản gửi…</Typography>
-              </Stack>
-            ) : (
-              url &&
-              (format === 'pdf' ? (
-                <iframe
-                  title="Bản PDF sẽ gửi"
-                  src={url}
-                  style={{ width: '100%', height: 480, border: 0, background: 'white' }}
-                />
-              ) : (
-                <Box
-                  component="img"
-                  src={url}
-                  alt="Bản tài liệu sẽ gửi khách"
-                  sx={{ width: '100%', maxHeight: 560, objectFit: 'contain', bgcolor: 'white' }}
-                />
-              ))
-            )}
-            {file && (
-              <Typography variant="caption" color="text.secondary">
-                {(file.size / 1024 / 1024).toFixed(2)} MB
-              </Typography>
-            )}
-          </Box>
-          <Stack spacing={2} sx={{ p: 2.5, minWidth: 0 }}>
-            <Typography sx={{ fontWeight: 600 }}>Nơi nhận</Typography>
-            {context.isPending && <CircularProgress size={24} />}
-            {data?.destination ? (
-              <DestinationView value={data.destination} />
-            ) : (
-              data && <Alert severity="info">Chưa có nhóm nhận khả dụng.</Alert>
-            )}
-            {!!data?.parentId && !busy && !accepted && (
-              <ZaloRouteButton
-                kind={data.parentKind}
-                id={data.parentId}
-                onSaved={() => void context.refetch()}
-              />
-            )}
-            {data && !data.parentId && (
-              <Alert severity="info">Gắn báo phí với dự án hoặc khách hàng trước khi gửi.</Alert>
-            )}
-            <Divider />
-            <TextField
-              multiline
-              minRows={4}
-              label="Lời nhắn kèm theo"
-              placeholder="Nhập lời nhắn (không bắt buộc)"
-              value={text}
-              disabled={busy || accepted}
-              slotProps={{ htmlInput: { maxLength: 2000 } }}
-              onChange={(e) => {
-                setText(e.target.value);
+      <p className="mb-4 text-sm font-medium text-slate-500">{data?.title}</p>
+      <Box sx={{ display: 'grid', gridTemplateColumns: { xs: '1fr', md: 'minmax(0, 1fr) 340px' } }}>
+        <Box sx={{ p: 2, bgcolor: 'grey.100', minWidth: 0 }}>
+          <ToggleButtonGroup
+            exclusive
+            size="small"
+            value={format}
+            disabled={busy || accepted}
+            onChange={(_, next) => {
+              if (next) {
+                setFormat(next);
                 requestId.current = crypto.randomUUID();
-              }}
-            />
-            {stale && (
-              <Alert severity="warning">Tài liệu vừa thay đổi. Đóng và mở lại bản gửi khách.</Alert>
-            )}
-            {data && !data.eligible && (
-              <Alert severity="warning">Báo cáo cần được duyệt trước khi gửi.</Alert>
-            )}
-            {(error || context.error) && (
-              <Alert severity="error">{error || getApiErrorMessage(context.error)}</Alert>
-            )}
-            {accepted && (
-              <Alert severity="success">Đã tiếp nhận lượt gửi. Theo dõi kết quả bên dưới.</Alert>
-            )}
-          </Stack>
+              }
+            }}
+            aria-label="Định dạng tài liệu"
+            sx={{ mb: 2 }}
+          >
+            <ToggleButton value="pdf">PDF</ToggleButton>
+            <ToggleButton value="png">Ảnh</ToggleButton>
+          </ToggleButtonGroup>
+          {preparing ? (
+            <Stack spacing={2} sx={{ py: 8, alignItems: 'center' }}>
+              <CircularProgress size={28} />
+              <Typography>Đang tạo bản gửi…</Typography>
+            </Stack>
+          ) : (
+            url &&
+            (format === 'pdf' ? (
+              <iframe
+                title="Bản PDF sẽ gửi"
+                src={url}
+                style={{ width: '100%', height: 480, border: 0, background: 'white' }}
+              />
+            ) : (
+              <Box
+                component="img"
+                src={url}
+                alt="Bản tài liệu sẽ gửi khách"
+                sx={{ width: '100%', maxHeight: 560, objectFit: 'contain', bgcolor: 'white' }}
+              />
+            ))
+          )}
+          {file && (
+            <Typography variant="caption" color="text.secondary">
+              {(file.size / 1024 / 1024).toFixed(2)} MB
+            </Typography>
+          )}
         </Box>
-        {!!data?.history.length && (
-          <Box sx={{ px: 2.5, py: 1.5, borderTop: 1, borderColor: 'divider' }}>
-            <Button
-              size="small"
-              onClick={() => setHistoryOpen(!historyOpen)}
-              aria-expanded={historyOpen}
-            >
-              Lịch sử gửi ({data.history.length})
-            </Button>
-            {historyOpen && (
-              <Stack spacing={2} sx={{ py: 1 }}>
-                {data.history.map((d) => (
-                  <Box
-                    key={d.id}
-                    sx={{ border: 1, borderColor: 'divider', borderRadius: 1.5, p: 1.5 }}
+        <Stack spacing={2} sx={{ p: 2.5, minWidth: 0 }}>
+          <Typography sx={{ fontWeight: 600 }}>Nơi nhận</Typography>
+          {context.isPending && <CircularProgress size={24} />}
+          {data?.destination ? (
+            <DestinationView value={data.destination} />
+          ) : (
+            data && <Alert severity="info">Chưa có nhóm nhận khả dụng.</Alert>
+          )}
+          {!!data?.parentId && !busy && !accepted && (
+            <ZaloRouteButton
+              kind={data.parentKind}
+              id={data.parentId}
+              onSaved={() => void context.refetch()}
+            />
+          )}
+          {data && !data.parentId && (
+            <Alert severity="info">Gắn báo phí với dự án hoặc khách hàng trước khi gửi.</Alert>
+          )}
+          <Divider />
+          <FormInputField
+            multiline
+            minRows={4}
+            label="Lời nhắn kèm theo"
+            placeholder="Nhập lời nhắn (không bắt buộc)"
+            value={text}
+            disabled={busy || accepted}
+            slotProps={{ htmlInput: { maxLength: 2000 } }}
+            onChange={(e) => {
+              setText(e.target.value);
+              requestId.current = crypto.randomUUID();
+            }}
+          />
+          {stale && (
+            <Alert severity="warning">Tài liệu vừa thay đổi. Đóng và mở lại bản gửi khách.</Alert>
+          )}
+          {data && !data.eligible && (
+            <Alert severity="warning">Báo cáo cần được duyệt trước khi gửi.</Alert>
+          )}
+          {(error || context.error) && (
+            <Alert severity="error">{error || getApiErrorMessage(context.error)}</Alert>
+          )}
+          {accepted && (
+            <Alert severity="success">Đã tiếp nhận lượt gửi. Theo dõi kết quả bên dưới.</Alert>
+          )}
+        </Stack>
+      </Box>
+      {!!data?.history.length && (
+        <Box sx={{ px: 2.5, py: 1.5, borderTop: 1, borderColor: 'divider' }}>
+          <Button
+            size="small"
+            onClick={() => setHistoryOpen(!historyOpen)}
+            aria-expanded={historyOpen}
+          >
+            Lịch sử gửi ({data.history.length})
+          </Button>
+          {historyOpen && (
+            <Stack spacing={2} sx={{ py: 1 }}>
+              {data.history.map((d) => (
+                <Box
+                  key={d.id}
+                  sx={{ border: 1, borderColor: 'divider', borderRadius: 1.5, p: 1.5 }}
+                >
+                  <Stack
+                    direction="row"
+                    sx={{ justifyContent: 'space-between', alignItems: 'center', gap: 1 }}
                   >
-                    <Stack
-                      direction="row"
-                      sx={{ justifyContent: 'space-between', alignItems: 'center', gap: 1 }}
-                    >
-                      <Typography sx={{ fontWeight: 600 }} variant="body2">
-                        {d.destination.name}
-                      </Typography>
-                      <Chip
-                        size="small"
-                        label={states[d.state] || d.state}
-                        color={
-                          d.state === 'sent'
-                            ? 'success'
-                            : ['failed', 'unknown'].includes(d.state)
-                              ? 'warning'
-                              : 'default'
-                        }
-                      />
-                    </Stack>
-                    <Typography variant="caption" color="text.secondary">
-                      {d.actor} · {new Date(d.at).toLocaleString('vi-VN')} ·{' '}
-                      {d.parts.filter((p) => p.state === 'sent').length}/{d.parts.length} phần đã
-                      gửi
+                    <Typography sx={{ fontWeight: 600 }} variant="body2">
+                      {d.destination.name}
                     </Typography>
-                    {d.issue && (
-                      <Typography variant="body2" color="warning.main" sx={{ mt: 1 }}>
-                        {d.issue}
-                      </Typography>
+                    <Chip
+                      size="small"
+                      label={states[d.state] || d.state}
+                      color={
+                        d.state === 'sent'
+                          ? 'success'
+                          : ['failed', 'unknown'].includes(d.state)
+                            ? 'warning'
+                            : 'default'
+                      }
+                    />
+                  </Stack>
+                  <Typography variant="caption" color="text.secondary">
+                    {d.actor} · {new Date(d.at).toLocaleString('vi-VN')} ·{' '}
+                    {d.parts.filter((p) => p.state === 'sent').length}/{d.parts.length} phần đã gửi
+                  </Typography>
+                  {d.issue && (
+                    <Typography variant="body2" color="warning.main" sx={{ mt: 1 }}>
+                      {d.issue}
+                    </Typography>
+                  )}
+                  <Stack direction="row" spacing={1} sx={{ mt: 1, flexWrap: 'wrap' }} useFlexGap>
+                    <Button
+                      size="small"
+                      href={`${api.defaults.baseURL}${base}/delivery/${d.id}/file`}
+                      target="_blank"
+                      rel="noopener"
+                    >
+                      Bản đã lưu
+                    </Button>
+                    {d.canAct && d.state === 'unknown' && (
+                      <Button size="small" disabled={busy} onClick={() => void action(d, 'check')}>
+                        Kiểm tra kết quả
+                      </Button>
                     )}
-                    <Stack direction="row" spacing={1} sx={{ mt: 1, flexWrap: 'wrap' }} useFlexGap>
+                    {d.canAct && d.state === 'failed' && (
+                      <Button size="small" disabled={busy} onClick={() => void action(d, 'retry')}>
+                        Tiếp tục phần chưa gửi
+                      </Button>
+                    )}
+                    {d.canAct && ['queued', 'failed'].includes(d.state) && (
                       <Button
                         size="small"
-                        href={`${api.defaults.baseURL}${base}/delivery/${d.id}/file`}
-                        target="_blank"
-                        rel="noopener"
+                        color="error"
+                        disabled={busy}
+                        onClick={() => void action(d, 'cancel')}
                       >
-                        Bản đã lưu
+                        Hủy phần chưa gửi
                       </Button>
-                      {d.canAct && d.state === 'unknown' && (
-                        <Button
-                          size="small"
-                          disabled={busy}
-                          onClick={() => void action(d, 'check')}
-                        >
-                          Kiểm tra kết quả
-                        </Button>
-                      )}
-                      {d.canAct && d.state === 'failed' && (
-                        <Button
-                          size="small"
-                          disabled={busy}
-                          onClick={() => void action(d, 'retry')}
-                        >
-                          Tiếp tục phần chưa gửi
-                        </Button>
-                      )}
-                      {d.canAct && ['queued', 'failed'].includes(d.state) && (
-                        <Button
-                          size="small"
-                          color="error"
-                          disabled={busy}
-                          onClick={() => void action(d, 'cancel')}
-                        >
-                          Hủy phần chưa gửi
-                        </Button>
-                      )}
-                    </Stack>
-                  </Box>
-                ))}
-              </Stack>
-            )}
-          </Box>
-        )}
-      </DialogContent>
-      <DialogActions sx={{ px: 2.5, py: 2 }}>
-        <Button onClick={onClose} disabled={busy}>
-          Đóng
-        </Button>
-        <Button
-          variant="contained"
-          startIcon={busy ? <CircularProgress size={16} color="inherit" /> : <SendOutlinedIcon />}
-          onClick={() => void send()}
-          disabled={
-            busy || preparing || !file || !data?.destination || !data.eligible || stale || accepted
-          }
-        >
-          {busy ? 'Đang xử lý…' : 'Xác nhận gửi'}
-        </Button>
-      </DialogActions>
-    </Dialog>
+                    )}
+                  </Stack>
+                </Box>
+              ))}
+            </Stack>
+          )}
+        </Box>
+      )}
+    </AppFormDialog>
   );
 }

@@ -1,24 +1,15 @@
 'use client';
 
 import { useEffect, useState } from 'react';
-import {
-  Alert,
-  Button,
-  Checkbox,
-  Dialog,
-  DialogActions,
-  DialogContent,
-  DialogTitle,
-  IconButton,
-  LinearProgress,
-  Pagination,
-} from '@mui/material';
-import CloseRoundedIcon from '@mui/icons-material/CloseRounded';
+import { Alert, Button, Checkbox, LinearProgress } from '@mui/material';
 import ContentCopyRoundedIcon from '@mui/icons-material/ContentCopyRounded';
 import { useMutation, useQuery } from '@tanstack/react-query';
 import { CompactSelectField } from '@/components/form/compact-select-field';
-import { FormInputField } from '@/components/form/form-input-field';
-import { PrimaryActionButton } from '@/components/actions/primary-action-button';
+import { CompactSearchField } from '@/components/form/compact-search-field';
+import { ListFilterBar } from '@/components/form/list-filter-bar';
+import { AppFormDialog } from '@/components/dialog/app-form-dialog';
+import { DialogActionButton } from '@/components/actions/dialog-action-button';
+import { TablePaginationBar } from '@/components/table/table-pagination-bar';
 import { getApiErrorMessage } from '@/lib/api-error';
 import { useAuthStore } from '@/stores/auth-store';
 import api from '@/services/api/client';
@@ -41,6 +32,7 @@ export function ReportTemplatePicker({
   const [service, setService] = useState(serviceId ? String(serviceId) : '');
   const [category, setCategory] = useState('');
   const [page, setPage] = useState(1);
+  const [pageSize, setPageSize] = useState(20);
   const [selected, setSelected] = useState<number[]>([]);
   const [error, setError] = useState('');
   const [copied, setCopied] = useState<number | null>(null);
@@ -70,7 +62,7 @@ export function ReportTemplatePicker({
     staleTime: 60000,
   });
   const list = useQuery({
-    queryKey: ['report-templates', user?.id, 'picker', keyword, service, category, page],
+    queryKey: ['report-templates', user?.id, 'picker', keyword, service, category, page, pageSize],
     queryFn: ({ signal }) =>
       templateList(
         {
@@ -78,6 +70,7 @@ export function ReportTemplatePicker({
           ...(service ? { service_id: service } : {}),
           ...(category ? { category } : {}),
           page,
+          per_page: pageSize,
         },
         signal,
       ),
@@ -120,36 +113,44 @@ export function ReportTemplatePicker({
     );
   }
   return (
-    <Dialog
+    <AppFormDialog
       open={open}
-      onClose={insert.isPending ? undefined : onClose}
-      fullWidth
+      title="Gợi ý nội dung"
       maxWidth="md"
-      aria-labelledby="report-suggestions-title"
-      slotProps={{
-        paper: { sx: { m: 1, width: 'calc(100% - 16px)', maxHeight: 'calc(100dvh - 16px)' } },
+      onClose={onClose}
+      submitting={insert.isPending}
+      onSubmit={(event) => {
+        event.preventDefault();
+        if (selected.length && !insert.isPending) {
+          setError('');
+          insert.mutate(selected);
+        }
       }}
+      actions={
+        <>
+          <DialogActionButton
+            onClick={() => setSelected([])}
+            disabled={!selected.length || insert.isPending}
+          >
+            Bỏ chọn ({selected.length})
+          </DialogActionButton>
+          <DialogActionButton
+            type="submit"
+            tone="primary"
+            disabled={!selected.length || insert.isPending}
+          >
+            {insert.isPending ? 'Đang lấy nội dung…' : `Chèn ${selected.length || ''} mẫu`}
+          </DialogActionButton>
+        </>
+      }
     >
-      <DialogTitle
-        id="report-suggestions-title"
-        className="!flex items-center justify-between gap-3"
-      >
-        Gợi ý nội dung
-        <IconButton
-          aria-label="Đóng gợi ý"
-          onClick={onClose}
-          disabled={insert.isPending}
-          className="!h-11 !w-11"
-        >
-          <CloseRoundedIcon />
-        </IconButton>
-      </DialogTitle>
-      <div className="grid gap-3 border-y border-slate-200 px-5 py-4 sm:grid-cols-[2fr_1fr_1fr]">
-        <FormInputField
-          label="Tìm tình huống hoặc nội dung"
+      <ListFilterBar className="mb-4" role="region" aria-label="Bộ lọc mẫu gợi ý">
+        <CompactSearchField
+          label="Tìm kiếm"
+          placeholder="Tình huống hoặc nội dung..."
           value={search}
-          onChange={(e) => {
-            setSearch(e.target.value);
+          onChange={(value) => {
+            setSearch(value);
             setSelected([]);
           }}
         />
@@ -180,9 +181,9 @@ export function ReportTemplatePicker({
           }}
           options={(options.data?.categories || []).map((c) => ({ value: c, label: c }))}
         />
-      </div>
+      </ListFilterBar>
       {(list.isFetching || options.isFetching) && <LinearProgress />}
-      <DialogContent className="!bg-slate-50 !p-4 sm:!p-5">
+      <div>
         {(list.isError || options.isError) && (
           <Alert
             severity="error"
@@ -271,31 +272,19 @@ export function ReportTemplatePicker({
             </article>
           ))}
         </div>
-        {(list.data?.lastPage ?? 1) > 1 && (
-          <div className="mt-4 flex justify-center">
-            <Pagination
-              page={page}
-              count={list.data!.lastPage}
-              size="small"
-              onChange={(_, v) => setPage(v)}
-            />
-          </div>
-        )}
-      </DialogContent>
-      <DialogActions className="!justify-between !border-t !border-slate-200 !p-4">
-        <Button onClick={() => setSelected([])} disabled={!selected.length || insert.isPending}>
-          {selected.length ? `Bỏ chọn (${selected.length})` : `${list.data?.total ?? 0} mẫu`}
-        </Button>
-        <PrimaryActionButton
-          onClick={() => {
-            setError('');
-            insert.mutate(selected);
+        <TablePaginationBar
+          page={page}
+          totalPages={list.data?.lastPage || 1}
+          totalItems={list.data?.total || 0}
+          pageSize={pageSize}
+          onPageChange={setPage}
+          onPageSizeChange={(value) => {
+            setPageSize(value);
+            setPage(1);
           }}
-          disabled={!selected.length || insert.isPending}
-        >
-          {insert.isPending ? 'Đang lấy nội dung…' : `Chèn ${selected.length || ''} mẫu`}
-        </PrimaryActionButton>
-      </DialogActions>
-    </Dialog>
+          disabled={list.isFetching}
+        />
+      </div>
+    </AppFormDialog>
   );
 }

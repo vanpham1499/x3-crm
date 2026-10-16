@@ -1,4 +1,6 @@
 'use client';
+
+import { CursorPaginationBar } from '@/components/table/cursor-pagination-bar';
 import { useEffect, useState } from 'react';
 import { useQuery, useQueryClient } from '@tanstack/react-query';
 import type { Conversation } from '../types';
@@ -473,29 +475,15 @@ function LinkPicker({
         {!query.isError && query.data && !query.data.items.length && (
           <p className={styles.muted}>Không có hồ sơ phù hợp trong quyền của bạn.</p>
         )}
-        <div className={styles.linkPagination}>
-          <button
-            className={styles.button}
-            disabled={busy || page === 0 || query.isFetching}
-            onClick={() => {
-              setPage((p) => p - 1);
-              setSelected(null);
-            }}
-          >
-            Trước
-          </button>
-          <span className={styles.muted}>Trang {page + 1}</span>
-          <button
-            className={styles.button}
-            disabled={busy || !query.data?.hasMore || query.isFetching}
-            onClick={() => {
-              setPage((p) => p + 1);
-              setSelected(null);
-            }}
-          >
-            Sau
-          </button>
-        </div>
+        <CursorPaginationBar
+          page={page + 1}
+          hasMore={!!query.data?.hasMore}
+          disabled={busy || query.isFetching}
+          onPageChange={(value) => {
+            setPage(value - 1);
+            setSelected(null);
+          }}
+        />
         {selected && !query.isError && (
           <p className={styles.linkSelection} role="status">
             <span className={styles.muted}>Đã chọn: </span>

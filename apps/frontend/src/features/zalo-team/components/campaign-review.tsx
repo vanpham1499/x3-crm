@@ -1,5 +1,7 @@
 'use client';
 
+import { ListPagination } from './list-pagination';
+
 import { useState } from 'react';
 import Link from 'next/link';
 import { TeamDatePicker } from './team-date-picker';
@@ -221,19 +223,7 @@ export function CampaignReview({
               </button>
             ))}
           </div>
-          {c.recipients > 50 && (
-            <div className={styles.reviewPagination}>
-              <button disabled={page === 0} onClick={() => onPage(page - 1)}>
-                Trước
-              </button>
-              <span>
-                {page + 1}/{Math.ceil(c.recipients / 50)}
-              </span>
-              <button disabled={(page + 1) * 50 >= c.recipients} onClick={() => onPage(page + 1)}>
-                Sau
-              </button>
-            </div>
-          )}
+          <ListPagination page={page} limit={50} total={c.recipients} onPage={onPage} />
         </aside>
         <div className={styles.reviewContent}>
           {row ? (

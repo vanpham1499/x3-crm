@@ -17,6 +17,7 @@ class WeeklyReportTemplatesController extends Controller
             'manage' => ['sometimes', 'boolean'], 'search' => ['nullable', 'string', 'max:160'],
             'service_id' => ['nullable', 'integer', 'min:0'], 'category' => ['nullable', 'string', 'max:100'],
             'active' => ['nullable', 'boolean'], 'page' => ['nullable', 'integer', 'min:1'],
+            'per_page' => ['sometimes', 'integer', Rule::in([10, 20, 50, 100])],
         ]);
         $manage = $request->boolean('manage');
         abort_if($manage && ! $request->user()->hasPermission('weeklytemplate.manage'), 403);
@@ -53,7 +54,7 @@ class WeeklyReportTemplatesController extends Controller
         if ($category = $filters['category'] ?? '') {
             $query->where('category', $category);
         }
-        $page = $query->orderBy('sort_order')->orderBy('id')->paginate(20);
+        $page = $query->orderBy('sort_order')->orderBy('id')->paginate($filters['per_page'] ?? 20);
 
         return $this->success(['items' => $page->items(), 'total' => $page->total(), 'page' => $page->currentPage(), 'lastPage' => $page->lastPage()]);
     }

@@ -153,7 +153,9 @@ export function AdTopupCardManager({
   const [deleteTarget, setDeleteTarget] = useState<AppOption | null>(null);
   const [menuAnchorEl, setMenuAnchorEl] = useState<HTMLElement | null>(null);
   const [activeCard, setActiveCard] = useState<AppOption | null>(null);
-  const { pageItems, page, setPage, totalPages, totalItems, pageSize } = usePagination(cards, {
+  const [pageSize, setPageSize] = useState(10);
+  const { pageItems, page, setPage, totalPages, totalItems } = usePagination(cards, {
+    pageSize,
     resetKey: keyword,
   });
 
@@ -274,6 +276,10 @@ export function AdTopupCardManager({
           totalItems={totalItems}
           pageSize={pageSize}
           onPageChange={setPage}
+          onPageSizeChange={(value) => {
+            setPageSize(value);
+            setPage(1);
+          }}
         />
       </section>
 

@@ -122,6 +122,7 @@ export function CashComparisonCard({ data }: { data: DashboardCashComparison }) 
   const [showQuotation, setShowQuotation] = useState(false);
   const [detail, setDetail] = useState<'received' | 'refund' | 'current' | 'previous' | null>(null);
   const [page, setPage] = useState(1);
+  const [pageSize, setPageSize] = useState(20);
   const open = (value: typeof detail) => {
     setPage(1);
     setDetail(value);
@@ -189,7 +190,7 @@ export function CashComparisonCard({ data }: { data: DashboardCashComparison }) 
           isEmpty={!rows.length}
           emptyText="Chưa có giao dịch trong kỳ"
         >
-          {rows.slice((page - 1) * 20, page * 20).map((r, i) => (
+          {rows.slice((page - 1) * pageSize, page * pageSize).map((r, i) => (
             <tr key={`${r.side}-${r.date}-${i}`}>
               <td className="px-4 py-3 text-sm">{formatDate(r.date)}</td>
               <td className="px-4 py-3 text-sm">{r.reference}</td>
@@ -203,10 +204,14 @@ export function CashComparisonCard({ data }: { data: DashboardCashComparison }) 
         </AppDataTable>
         <TablePaginationBar
           page={page}
-          totalPages={Math.max(1, Math.ceil(rows.length / 20))}
+          totalPages={Math.max(1, Math.ceil(rows.length / pageSize))}
           totalItems={rows.length}
-          pageSize={20}
+          pageSize={pageSize}
           onPageChange={setPage}
+          onPageSizeChange={(value) => {
+            setPageSize(value);
+            setPage(1);
+          }}
         />
       </AppDetailDialog>
     </section>
@@ -218,6 +223,7 @@ export function ProjectProfitCard({ data }: { data: DashboardProjectProfit }) {
     null,
   );
   const [page, setPage] = useState(1);
+  const [pageSize, setPageSize] = useState(20);
   const open = (value: typeof detail) => {
     setPage(1);
     setDetail(value);
@@ -339,7 +345,7 @@ export function ProjectProfitCard({ data }: { data: DashboardProjectProfit }) {
           isEmpty={!rows.length}
           emptyText="Không có khoản phù hợp"
         >
-          {rows.slice((page - 1) * 20, page * 20).map((r, i) => (
+          {rows.slice((page - 1) * pageSize, page * pageSize).map((r, i) => (
             <tr key={`${r.reference}-${r.period}-${i}`}>
               <td className="px-4 py-3 text-sm">
                 <Link className="font-medium text-primary" href={`/projects/${r.projectId}`}>
@@ -367,10 +373,14 @@ export function ProjectProfitCard({ data }: { data: DashboardProjectProfit }) {
         </AppDataTable>
         <TablePaginationBar
           page={page}
-          totalPages={Math.max(1, Math.ceil(rows.length / 20))}
+          totalPages={Math.max(1, Math.ceil(rows.length / pageSize))}
           totalItems={rows.length}
-          pageSize={20}
+          pageSize={pageSize}
           onPageChange={setPage}
+          onPageSizeChange={(value) => {
+            setPageSize(value);
+            setPage(1);
+          }}
         />
       </AppDetailDialog>
     </section>

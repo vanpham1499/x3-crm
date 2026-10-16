@@ -63,6 +63,7 @@ export function ReportTemplateManager() {
   const [category, setCategory] = useState('');
   const [active, setActive] = useState('');
   const [page, setPage] = useState(1);
+  const [pageSize, setPageSize] = useState(20);
   const [preview, setPreview] = useState<ReportTemplate | null>(null);
   const [menu, setMenu] = useState<{ anchor: HTMLElement; row: ReportTemplate } | null>(null);
   const [editor, setEditor] = useState(false);
@@ -84,7 +85,17 @@ export function ReportTemplateManager() {
     enabled: allowed,
   });
   const list = useQuery({
-    queryKey: ['report-templates', user?.id, 'manage', keyword, service, category, active, page],
+    queryKey: [
+      'report-templates',
+      user?.id,
+      'manage',
+      keyword,
+      service,
+      category,
+      active,
+      page,
+      pageSize,
+    ],
     queryFn: ({ signal }) =>
       templateList(
         {
@@ -94,6 +105,7 @@ export function ReportTemplateManager() {
           ...(category ? { category } : {}),
           ...(active ? { active: active === 'on' ? 1 : 0 } : {}),
           page,
+          per_page: pageSize,
         },
         signal,
       ),
@@ -329,8 +341,13 @@ export function ReportTemplateManager() {
           page={page}
           totalPages={list.data?.lastPage || 1}
           totalItems={list.data?.total || 0}
-          pageSize={20}
+          pageSize={pageSize}
           onPageChange={setPage}
+          onPageSizeChange={(value) => {
+            setPageSize(value);
+            setPage(1);
+          }}
+          disabled={list.isFetching}
         />
       </section>
       <Menu
