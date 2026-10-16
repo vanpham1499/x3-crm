@@ -610,7 +610,7 @@ function CostDialog({
           rules={{ required: 'Bắt buộc' }}
           render={({ field }) => (
             <CompactMonthPicker
-              label="Kỳ công việc dự kiến"
+              label="Kỳ công việc"
               value={field.value}
               onChange={field.onChange}
             />

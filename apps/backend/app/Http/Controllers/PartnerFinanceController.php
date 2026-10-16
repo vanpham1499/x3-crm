@@ -22,6 +22,18 @@ class PartnerFinanceController extends Controller
         return $this->success($this->finance->report($data['period']));
     }
 
+    public function confirmBatch(Request $request): JsonResponse
+    {
+        $data = $request->validate([
+            'requestId' => ['required', 'uuid'], 'period' => ['required', 'regex:/^20\d{2}-(0[1-9]|1[0-2])$/'],
+            'reason' => ['required', 'string', 'min:3', 'max:1000'],
+            'items' => ['required', 'array', 'min:1', 'max:500'],
+            'items.*.type' => ['required', 'in:revenue,cost'], 'items.*.id' => ['required', 'integer', 'min:1'],
+            'items.*.fingerprint' => ['required', 'string', 'size:64'],
+        ]);
+        return $this->success($this->finance->confirmBatch($data));
+    }
+
     public function confirm(Request $request, string $type, int $id): JsonResponse
     {
         $this->entity($type);

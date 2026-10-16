@@ -75,6 +75,9 @@ class ProjectCostsService extends BaseService
             $data = $this->preparePayload($data);
             $data['status'] = ProjectCost::STATUS_PENDING;
             if ($data['entry_type'] === ProjectCost::TYPE_PARTNER_COST) {
+                if (empty($data['work_period'])) {
+                    throw ValidationException::withMessages(['workPeriod' => 'Chọn kỳ công việc để kế toán ghi nhận chi phí.']);
+                }
                 $data['uses_payment_ledger'] = true;
                 $data['transaction_date'] = null;
             }

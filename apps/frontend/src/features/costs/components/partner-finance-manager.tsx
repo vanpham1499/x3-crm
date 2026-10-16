@@ -32,6 +32,7 @@ import { useAppNotification } from '@/components/feedback/notification-provider'
 import { getApiErrorMessage } from '@/lib/api-error';
 import { formatCurrency } from '@/lib/utils';
 import api from '@/services/api/client';
+import { RecognitionSuggestions, type RecognitionSuggestion, type RecognitionCandidate } from './recognition-suggestions';
 
 type Allocation = { period: string; amount: number };
 type Recognition = { revision: number; amount: number; allocations: Allocation[] };
@@ -58,6 +59,7 @@ type Cost = {
   canFund: boolean;
   reconciled: boolean;
   recognition: Recognition | null;
+  suggestion?: RecognitionSuggestion;
   payments: Payment[];
 };
 type Quote = {
@@ -65,6 +67,7 @@ type Quote = {
   code: string;
   amount: number | null;
   recognition: Recognition | null;
+  suggestion?: RecognitionSuggestion;
   needsReview: boolean;
 };
 type Project = {
@@ -80,6 +83,8 @@ type Project = {
   unconfirmedPayable: number;
   partialScope: boolean;
   reviewCount: number;
+  readyCount: number;
+  waitingCount: number;
   canConfirm: boolean;
   costs: Cost[];
   quotations: Quote[];
@@ -91,6 +96,7 @@ type Target = {
   title: string;
   amount: number;
   recognition: Recognition | null;
+  suggestion?: RecognitionSuggestion;
   period?: string | null;
 };
 type Action =
@@ -149,7 +155,7 @@ function FinanceActionDialog({
 }) {
   const target = action.kind === 'recognition' ? action.target : null;
   const [rows, setRows] = useState<Allocation[]>(
-    target?.recognition?.allocations || [
+    target?.recognition?.allocations || (target?.suggestion?.allocations.length ? target.suggestion.allocations : null) || [
       { period: target?.period || period, amount: target?.amount || 0 },
     ],
   );
@@ -532,6 +538,10 @@ export function PartnerFinanceManager() {
   const filtered = rows.filter((r) =>
     `${r.code} ${r.name}`.toLocaleLowerCase('vi').includes(keyword.trim().toLocaleLowerCase('vi')),
   );
+  const candidates: RecognitionCandidate[] = filtered.flatMap((project) => [
+    ...project.quotations.map((q) => ({ key: `revenue:${q.id}`, type: 'revenue' as const, id: q.id, title: q.code, amount: q.amount, suggestion: q.suggestion!, project: project.code, projectId: project.id, canConfirm: project.canConfirm })),
+    ...project.costs.map((c) => ({ key: `cost:${c.id}`, type: 'cost' as const, id: c.id, title: c.partner, amount: c.amount, suggestion: c.suggestion!, project: project.code, projectId: project.id, canConfirm: project.canConfirm })),
+  ]).filter((r) => r.suggestion);
   const selected = rows.find((r) => r.id === selectedId);
   const detailsRef = useRef<HTMLElement | null>(null);
   useEffect(() => {
@@ -556,6 +566,7 @@ export function PartnerFinanceManager() {
     amount: c.amount,
     recognition: c.recognition,
     period: c.workPeriod,
+    suggestion: c.suggestion,
   });
   const quoteTarget = (q: Quote): Target => ({
     type: 'revenue',
@@ -563,6 +574,7 @@ export function PartnerFinanceManager() {
     title: q.code,
     amount: q.amount || 0,
     recognition: q.recognition,
+    suggestion: q.suggestion,
   });
   const buttons = (target: Target, canConfirm: boolean) => (
     <div className="flex flex-wrap gap-1">
@@ -686,7 +698,7 @@ export function PartnerFinanceManager() {
       ) : (
         <>
           <p className="mb-3 text-sm text-slate-500">
-            Dịch vụ thuê đối tác/FL · Doanh thu và chi phí theo kỳ đã xác nhận · Công nợ tại hiện
+            Doanh thu dịch vụ và chi phí theo kỳ đã xác nhận · Công nợ tại hiện
             tại
           </p>
           <div className="mb-4 grid gap-3 sm:grid-cols-2 xl:grid-cols-3">
@@ -711,9 +723,13 @@ export function PartnerFinanceManager() {
               </div>
             ))}
           </div>
+          <RecognitionSuggestions key={period} candidates={candidates} period={period} busy={mutation.isPending}
+            onProject={setSelectedId} onSubmit={async (data) => {
+              await mutation.mutateAsync({ path: '/partner-finance/recognitions/batch', method: 'post', data });
+            }} />
           {totals.review > 0 && (
             <Alert severity="warning" className="mb-4">
-              {totals.review} nguồn chưa xác nhận kỳ hoặc cần đối soát. Lợi nhuận hiển thị chỉ gồm
+              {totals.review} khoản cần kiểm tra riêng. Lợi nhuận hiển thị chỉ gồm
               phần đã ghi nhận.
             </Alert>
           )}
@@ -762,7 +778,7 @@ export function PartnerFinanceManager() {
                       ))}
                       <td className="px-4 py-3">
                         <Button size="small" onClick={() => setSelectedId(r.id)}>
-                          {r.reviewCount ? `${r.reviewCount} cần xem` : 'Chi tiết'}
+                          {r.reviewCount ? `${r.reviewCount} cần kiểm tra` : r.readyCount ? `${r.readyCount} chờ xác nhận` : 'Chi tiết'}
                         </Button>
                       </td>
                     </tr>
@@ -770,7 +786,7 @@ export function PartnerFinanceManager() {
                   {!filtered.length && (
                     <tr>
                       <td colSpan={6} className="p-10 text-center text-slate-500">
-                        Chưa có dự án có chi phí đối tác phù hợp.
+                        Chưa có dự án phù hợp.
                       </td>
                     </tr>
                   )}
@@ -824,6 +840,7 @@ export function PartnerFinanceManager() {
                       {q.amount === null ? 'Cần kiểm tra cơ cấu báo phí' : money(q.amount)}
                     </p>
                     <Periods recognition={q.recognition} />
+                    {q.suggestion && !q.recognition && <p className="mt-1 text-xs text-slate-600">{q.suggestion.reason}</p>}
                     {q.needsReview && (
                       <p className="text-xs text-amber-700">Nguồn cần đối soát lại.</p>
                     )}
@@ -857,6 +874,7 @@ export function PartnerFinanceManager() {
                       </div>
                       <div className="mt-2">
                         <Periods recognition={c.recognition} />
+                    {c.suggestion && !c.recognition && <p className="mt-1 text-xs text-slate-600">{c.suggestion.reason}</p>}
                       </div>
                     </div>
                     <div>

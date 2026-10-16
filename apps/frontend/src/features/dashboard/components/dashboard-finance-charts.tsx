@@ -285,7 +285,7 @@ export function ProjectProfitCard({ data }: { data: DashboardProjectProfit }) {
             className="rounded-md bg-amber-50 px-2 py-1 font-semibold text-amber-800 underline-offset-2 hover:underline"
             onClick={() => open('review')}
           >
-            {data.review.length} khoản cần đối soát
+            {data.review.length} khoản chưa ghi nhận
           </button>
         )}
       </div>
@@ -305,10 +305,10 @@ export function ProjectProfitCard({ data }: { data: DashboardProjectProfit }) {
           {data.review.length > 0 && (
             <>
               <p className="text-sm text-slate-500">
-                {data.review.length} khoản cần xác nhận kỳ ghi nhận.
+                {data.review.length} khoản chờ xác nhận hoặc kiểm tra kỳ ghi nhận.
               </p>
               <DialogActionButton onClick={() => open('review')}>
-                Xem khoản cần đối soát
+                Xem kỳ ghi nhận
               </DialogActionButton>
             </>
           )}
@@ -319,7 +319,7 @@ export function ProjectProfitCard({ data }: { data: DashboardProjectProfit }) {
       </p>
       <AppDetailDialog
         open={detail !== null}
-        title={detail === 'review' ? 'Nguồn cần đối soát kỳ ghi nhận' : 'Đối soát lợi nhuận dự án'}
+        title={detail === 'review' ? 'Các khoản chưa ghi nhận' : 'Đối soát lợi nhuận dự án'}
         subtitle="Các khoản đã xác nhận và chưa xác nhận được tách riêng"
         maxWidth="lg"
         onClose={() => setDetail(null)}

@@ -158,6 +158,7 @@ Route::middleware(['auth:sanctum', 'active'])->group(function (): void {
     Route::prefix('partner-finance')->middleware('permission:cost.view,cost.view_team,cost.view_department,cost.view_all')->group(function (): void {
         Route::get('/', [PartnerFinanceController::class, 'report']);
         Route::post('/payments', [PartnerFinanceController::class, 'payBatch']);
+        Route::post('/recognitions/batch', [PartnerFinanceController::class, 'confirmBatch']);
         Route::put('/periods/{period}', [PartnerFinanceController::class, 'period']);
         Route::put('/{type}/{id}/recognition', [PartnerFinanceController::class, 'confirm']);
         Route::delete('/{type}/{id}/recognition', [PartnerFinanceController::class, 'unconfirm']);

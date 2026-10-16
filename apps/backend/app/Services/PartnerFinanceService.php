@@ -9,6 +9,7 @@ use App\Models\Quotation;
 use App\Repositories\ProjectCostRepository;
 use App\Support\FinancialMutation;
 use App\Support\PartnerFinance;
+use App\Support\FinanceRecognitionSuggestion;
 use App\Support\ProjectTopupBudgetCalculator;
 use App\Support\QuotationFinancialBasis;
 use App\Support\QuotationServiceRevenue;
@@ -287,6 +288,65 @@ class PartnerFinanceService extends BaseService
         });
     }
 
+    private function suggestion(ProjectCost|Quotation $source, ?float $amount, ?array $recognition, $topups, $quotes, array $locked): array
+    {
+        if ($recognition) {
+            $valid = $amount !== null && PartnerFinance::cents($amount) === PartnerFinance::cents($recognition['amount'])
+                && PartnerFinance::cents(collect($recognition['allocations'])->sum('amount')) === PartnerFinance::cents($amount);
+            return FinanceRecognitionSuggestion::result($valid ? 'confirmed' : 'review', $valid ? 'Đã ghi nhận' : 'Giá trị nguồn thay đổi; cần xác nhận lại.');
+        }
+        if ($amount === null) return FinanceRecognitionSuggestion::result('review', 'Cần kiểm tra cơ cấu ngân sách/phí dịch vụ.');
+        if ($amount <= 0) return FinanceRecognitionSuggestion::result('excluded', 'Không có giá trị cần ghi nhận.');
+        $result = $source instanceof ProjectCost ? FinanceRecognitionSuggestion::cost($source)
+            : FinanceRecognitionSuggestion::revenue($source, $amount, $topups, $quotes);
+        if ($result['status'] === 'ready') {
+            $periods = array_column($result['allocations'], 'period');
+            if (array_intersect($periods, $locked)) $result = FinanceRecognitionSuggestion::result('review', 'Kỳ đề xuất đã chốt; cần kiểm tra trước khi ghi nhận.', $result['allocations']);
+            elseif (max($periods) > now(config('app.timezone'))->format('Y-m')) $result = FinanceRecognitionSuggestion::result('waiting', 'Chưa đến kỳ công việc.', $result['allocations']);
+        }
+        $result['fingerprint'] = hash('sha256', json_encode([$source->getTable(), $source->id, (string) $source->updated_at, $amount, $result], JSON_THROW_ON_ERROR));
+        return $result;
+    }
+
+    public function confirmBatch(array $data): array
+    {
+        return FinancialMutation::run(function () use ($data): array {
+            $items = collect($data['items'])->sortBy(fn ($r) => $r['type'].':'.$r['id'])->values();
+            if ($items->unique(fn ($r) => $r['type'].':'.$r['id'])->count() !== $items->count()) $this->fail('Danh sách có khoản bị trùng.');
+            // Recheck source authorization even for retries; never trust UI selection/scope.
+            foreach ($items as $item) $this->source($item['type'], (int) $item['id']);
+            $hash = hash('sha256', json_encode([$data['period'], $items->all(), $data['reason'], auth()->id()]));
+            $key = substr(hash('sha256', $data['requestId']), 0, 30);
+            $previous = DB::table('partner_finance_audits')->where('entity_type', 'recognition_batch')->where('entity_id', $key)->first();
+            if ($previous) {
+                $result = json_decode($previous->after, true, flags: JSON_THROW_ON_ERROR);
+                if (!hash_equals($result['hash'], $hash)) $this->fail('Mã yêu cầu đã dùng với danh sách khác.');
+                return $result;
+            }
+            $available = [];
+            foreach ($this->report($data['period'])['rows'] as $project) {
+                foreach (['costs' => 'cost', 'quotations' => 'revenue'] as $group => $type) {
+                    foreach ($project[$group] as $row) $available[$type.':'.$row['id']] = $row['suggestion'];
+                }
+            }
+            foreach ($items as $item) {
+                $proposal = $available[$item['type'].':'.$item['id']] ?? null;
+                if (!$proposal || $proposal['status'] !== 'ready' || !hash_equals($proposal['fingerprint'], $item['fingerprint'])
+                    || !in_array($data['period'], array_column($proposal['allocations'], 'period'), true)) {
+                    $this->fail('Có khoản đã thay đổi hoặc không còn đủ điều kiện. Tải lại danh sách để kiểm tra; chưa ghi nhận khoản nào.');
+                }
+            }
+            foreach ($items as $item) {
+                $proposal = $available[$item['type'].':'.$item['id']];
+                $this->confirm($item['type'], (int) $item['id'], ['revision' => 0,
+                    'allocations' => $proposal['allocations'], 'reason' => $data['reason'].' · '.$proposal['reason']]);
+            }
+            $result = ['count' => $items->count(), 'hash' => $hash];
+            $this->audit('recognition_batch', $key, 'confirm_batch', null, $result, $data['reason']);
+            return $result;
+        });
+    }
+
     public function report(string $period): array
     {
         $user = auth()->user();
@@ -298,6 +358,9 @@ class PartnerFinanceService extends BaseService
             ->filter(fn ($project) => $this->canConfirm($project));
         $revenueProjects->load(['quotations.items', 'quotations.paymentAllocations.payment', 'quotations.paymentRefunds', 'quotations.project']);
         $projects = $projects->union($revenueProjects->keyBy('id'));
+        $topups = ProjectCost::whereIn('project_id', $projects->keys())->where('entry_type', ProjectCost::TYPE_AD_SPEND)
+            ->where('status', '!=', ProjectCost::STATUS_CANCELLED)->with(['project', 'cidIncident'])->get();
+        $lockedPeriods = DB::table('partner_finance_periods')->whereNotNull('locked_at')->pluck('period')->all();
         $records = DB::table('partner_finance_recognitions')->whereIn('project_id', $projects->keys())->get()->map(fn ($row) => $this->decode($row));
         $costCounts = ProjectCost::whereIn('project_id', $projects->keys())
             ->where('entry_type', ProjectCost::TYPE_PARTNER_COST)->where('status', '!=', ProjectCost::STATUS_CANCELLED)
@@ -329,19 +392,24 @@ class PartnerFinanceService extends BaseService
                     }
                 }
             }
-            $quoteRows = $quotes->map(function ($q) use ($projectRecords) {
+            $projectTopups = $topups->where('project_id', $project->id);
+            $canSeeTopups = $projectTopups->every(fn ($c) => $user->can('view', $c));
+            $quoteRows = $quotes->map(function ($q) use ($projectRecords, $projectTopups, $project, $lockedPeriods, $canSeeTopups) {
                 $amount = $this->revenueAmount($q);
                 $recognition = $projectRecords->first(fn ($r) => $r['entity_type'] === 'revenue' && $r['entity_id'] === $q->id);
 
                 return ['id' => $q->id, 'code' => $q->quotation_code, 'amount' => $amount, 'recognition' => $recognition,
+                    'suggestion' => $canSeeTopups ? $this->suggestion($q, $amount, $recognition, $projectTopups, $project->quotations, $lockedPeriods)
+                        : FinanceRecognitionSuggestion::result('review', 'Cần người có quyền xem đầy đủ lần nạp kiểm tra.'),
                     'needsReview' => $amount === null || ($recognition && PartnerFinance::cents($amount) !== PartnerFinance::cents($recognition['amount']))];
             })->values();
-            $costRows = $projectCosts->map(function ($cost) use ($projectRecords, $user) {
+            $costRows = $projectCosts->map(function ($cost) use ($projectRecords, $user, $lockedPeriods) {
                 return ['id' => $cost->id, 'partner' => $cost->partnerOption?->label ?? 'Chưa chọn đối tác',
                     'partnerId' => $cost->partner_option_id,
                     'quotationId' => $cost->quotation_id, 'workPeriod' => $cost->work_period?->format('Y-m'),
                     'amount' => (float) $cost->total_amount, 'paid' => $cost->partnerPaidAmount(),
                     'remaining' => max(0, round((float) $cost->total_amount - $cost->partnerPaidAmount(), 2)),
+                    'suggestion' => $this->suggestion($cost, (float) $cost->total_amount, $projectRecords->first(fn ($r) => $r['entity_type'] === 'cost' && $r['entity_id'] === $cost->id), collect(), collect(), $lockedPeriods),
                     'usesLedger' => (bool) $cost->uses_payment_ledger, 'paidOn' => $cost->transaction_date?->toDateString(),
                     'canFund' => $user->can('fund', $cost), 'reconciled' => (bool) $cost->reconciled_at,
                     'recognition' => $projectRecords->first(fn ($r) => $r['entity_type'] === 'cost' && $r['entity_id'] === $cost->id),
@@ -357,8 +425,8 @@ class PartnerFinanceService extends BaseService
 
                 return $cost->partnerPayments->filter(fn ($p) => ! $p->voided_at && $p->paid_on->format('Y-m') === $period)->sum('amount');
             });
-            $reviewCount = $costRows->filter(fn ($r) => ! $r['recognition'])->count()
-                + $quoteRows->filter(fn ($r) => ! $r['recognition'] || $r['needsReview'])->count();
+            $suggestions = $costRows->concat($quoteRows)->pluck('suggestion');
+            $reviewCount = $suggestions->where('status', 'review')->count();
             $receivedInPeriod = $quotes->sum(fn ($quote) => $quote->paymentAllocations->filter(function ($allocation) use ($period) {
                 $at = $allocation->payment?->transaction_at ?: $allocation->payment?->transaction_date ?: $allocation->allocated_at ?: $allocation->created_at;
 
@@ -371,6 +439,7 @@ class PartnerFinanceService extends BaseService
                 'paidInPeriod' => round($paidInPeriod, 2), 'receivedInPeriod' => round($receivedInPeriod, 2),
                 'payable' => round($costRows->filter(fn ($r) => $r['recognition'])->sum('remaining'), 2),
                 'unconfirmedPayable' => round($costRows->filter(fn ($r) => ! $r['recognition'])->sum('remaining'), 2),
+                'readyCount' => $suggestions->where('status', 'ready')->count(), 'waitingCount' => $suggestions->where('status', 'waiting')->count(),
                 'reviewCount' => $reviewCount, 'canConfirm' => $this->canConfirm($project), 'costs' => $costRows, 'quotations' => $quoteRows];
         }
 
